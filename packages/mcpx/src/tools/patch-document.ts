@@ -29,7 +29,7 @@ The write always lands as a draft and is never published, whatever it contains; 
 
 Only the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. Use describeSchema to find a field's path, then turn it into a pointer by replacing "." with "/" and each "[]" with a 0-based index.
 
-Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null, or with [] to empty a list; "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so a concurrent edit is refused rather than overwritten.
+Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so a concurrent edit is refused rather than overwritten.
 
 A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but a human cannot publish the document until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update.`;
 
@@ -45,13 +45,46 @@ const sameInstant = (left: unknown, right: string): boolean =>
 	typeof left === "string" &&
 	new Date(left).getTime() === new Date(right).getTime();
 
-const normalize = (value: unknown): string =>
-	JSON.stringify(value === undefined ? null : value);
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
- * Pointers whose intended value did not survive the write. Only field
- * pointers are compared: rows get fresh ids on write, so element pointers
- * cannot be compared byte for byte.
+ * Whether the intended value survived the write. The saved document is
+ * allowed to carry more than was sent: Payload assigns fresh row ids and
+ * backfills defaults and nulls on save, so `id` keys are ignored and only
+ * the keys the client sent are compared. Null and absent count as equal.
+ */
+const survives = (expected: unknown, actual: unknown): boolean => {
+	if (expected === undefined || expected === null) {
+		return actual === undefined || actual === null;
+	}
+
+	if (Array.isArray(expected)) {
+		return (
+			Array.isArray(actual) &&
+			expected.length === actual.length &&
+			expected.every((entry, index) => survives(entry, actual[index]))
+		);
+	}
+
+	if (isPlainObject(expected)) {
+		return (
+			isPlainObject(actual) &&
+			Object.entries(expected).every(
+				([key, value]) => key === "id" || survives(value, actual[key]),
+			)
+		);
+	}
+
+	return isPlainObject(actual) || Array.isArray(actual)
+		? false
+		: JSON.stringify(expected) === JSON.stringify(actual);
+};
+
+/**
+ * Pointers whose intended value did not survive the write. Element pointers
+ * are skipped: an append pointer (`/-`) does not resolve against the saved
+ * document.
  */
 const notAppliedPointers = (
 	patches: PatchOperation[],
@@ -70,7 +103,7 @@ const notAppliedPointers = (
 		const expected = pointer.get(intended) as unknown;
 		const actual = pointer.get(saved) as unknown;
 
-		return normalize(expected) === normalize(actual) ? [] : [operation.path];
+		return survives(expected, actual) ? [] : [operation.path];
 	});
 
 const patchDocument: BuiltinTool<Args> = {

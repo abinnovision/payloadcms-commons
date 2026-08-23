@@ -144,9 +144,9 @@ Rules the tools enforce and explain in their own descriptions:
 - A schema path becomes a patch pointer by replacing `.` with `/`, adding a
   leading `/`, and replacing each `[]` with a 0-based index.
 - Adding a block requires `blockType` on the value; append with `/-`.
-- Clearing is `replace` with `null`, emptying a list is `replace` with `[]`;
-  `remove` is only valid on list elements, because Payload keeps fields absent
-  from a write.
+- Clearing is `replace` with `null`; a list is emptied with `[]` and refuses
+  `null`. `remove` is only valid on list elements, because Payload keeps
+  fields absent from a write.
 - Nothing in a patch batch is applied unless every operation validates first.
 - Pass the `updatedAt` you read as `expectedUpdatedAt` so a concurrent edit is
   refused instead of overwritten.

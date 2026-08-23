@@ -94,6 +94,33 @@ describe("patchDocument", () => {
 		);
 	});
 
+	it("does not flag a whole blocks field as notApplied", async () => {
+		const page = await createDraft({
+			title: "Whole field",
+			slug: "whole-field",
+			layout: { sections: [section("old")] },
+		});
+		const result = await patch({
+			collection: "pages",
+			id: page.id,
+			locale: "en",
+			patches: [
+				{
+					op: "replace",
+					path: "/layout/sections",
+					value: [section("fresh", [hero("Hi")])],
+				},
+			],
+		});
+
+		expect(result.isError).toBe(false);
+		expect(result.data).not.toHaveProperty("notApplied");
+
+		const [first] = (await readDraft(page.id)).layout?.sections ?? [];
+
+		expect(first?.["identifier"]).toBe("fresh");
+	});
+
 	it("applies nothing when one operation in the batch is invalid", async () => {
 		const page = await createDraft({ title: "Atomic", slug: "atomic" });
 		const result = await patch({
@@ -289,5 +316,95 @@ describe("patchDocument", () => {
 		expect(de.layout?.color).toBe("light");
 		expect(de.title ?? null).toBeNull();
 		expect((await readDraft(other.id, "en")).title).toBe("Only english");
+	});
+
+	interface PostDoc {
+		id: number | string;
+		items?: {
+			id?: string;
+			heading?: string | null;
+			actions?: { id?: string; label?: string }[];
+		}[];
+	}
+
+	const createPost = (data: Record<string, unknown>): Promise<PostDoc> =>
+		booted.payload.create({
+			collection: "posts",
+			locale: "en",
+			draft: true,
+			data,
+		});
+
+	const readPost = (id: number | string, locale: string): Promise<PostDoc> =>
+		booted.payload.findByID({
+			collection: "posts",
+			id,
+			depth: 0,
+			draft: true,
+			locale,
+			fallbackLocale: false,
+		});
+
+	it("patches a scalar inside a block nested under an array field", async () => {
+		const post = await createPost({
+			title: "Post",
+			items: [
+				{ heading: "One", actions: [{ blockType: "cta", label: "Old" }] },
+			],
+		});
+		const result = await patch({
+			collection: "posts",
+			id: post.id,
+			locale: "en",
+			patches: [
+				{ op: "replace", path: "/items/0/actions/0/label", value: "New" },
+			],
+		});
+
+		expect(result.isError).toBe(false);
+		expect(result.data).not.toHaveProperty("notApplied");
+
+		const saved = await readPost(post.id, "en");
+
+		expect(saved.items?.[0]?.actions?.[0]?.label).toBe("New");
+	});
+
+	it("keeps row identity on a whole-field replace, so other locales survive", async () => {
+		const post = await createPost({
+			title: "Post",
+			items: [{ heading: "English", actions: [] }],
+		});
+
+		const inDe = await patch({
+			collection: "posts",
+			id: post.id,
+			locale: "de",
+			patches: [{ op: "replace", path: "/items/0/heading", value: "Deutsch" }],
+		});
+
+		expect(inDe.isError).toBe(false);
+
+		const before = await readPost(post.id, "en");
+		const row = before.items?.[0];
+		const inEn = await patch({
+			collection: "posts",
+			id: post.id,
+			locale: "en",
+			patches: [
+				{
+					op: "replace",
+					path: "/items",
+					value: [{ ...row, heading: "English, edited" }],
+				},
+			],
+		});
+
+		expect(inEn.isError).toBe(false);
+
+		const en = await readPost(post.id, "en");
+
+		expect(en.items?.[0]?.heading).toBe("English, edited");
+		expect(en.items?.[0]?.id).toBe(row?.id);
+		expect((await readPost(post.id, "de")).items?.[0]?.heading).toBe("Deutsch");
 	});
 });
