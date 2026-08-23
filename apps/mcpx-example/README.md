@@ -15,6 +15,9 @@ yarn install
 yarn workspace @internal/mcpx-example dev
 ```
 
+The `.env` file is required: Payload refuses to start without `PAYLOAD_SECRET`,
+and the MCP API key index derives from it.
+
 Open <http://localhost:3000/admin> and create the first user.
 
 ## Create an API key

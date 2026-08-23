@@ -153,6 +153,14 @@ describe("applyPatchToCopy", () => {
 			(sections[2]?.["modules"] as Record<string, unknown>[])[0],
 		).not.toHaveProperty("id");
 	});
+
+	it("strips a client id from a row appended to a plain array", () => {
+		const result = applyPatchToCopy({ items: [] }, [
+			{ op: "add", path: "/items/-", value: { id: "foreign", title: "x" } },
+		]);
+
+		expect(result).toEqual({ next: { items: [{ title: "x" }] } });
+	});
 });
 
 describe("findPatchProblems", () => {
@@ -169,6 +177,12 @@ describe("findPatchProblems", () => {
 		expect(
 			problemsFor([{ op: "replace", path: "/title", value: "New" }]),
 		).toEqual([]);
+	});
+
+	it("refuses an empty pointer", () => {
+		expect(problemsFor([{ op: "replace", path: "", value: {} }])).toEqual([
+			expect.stringContaining("whole document"),
+		]);
 	});
 
 	it("refuses a pointer at a field Payload maintains", () => {

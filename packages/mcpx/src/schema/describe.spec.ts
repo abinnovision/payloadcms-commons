@@ -106,18 +106,21 @@ describe("describeNode", () => {
 
 describe("reachableSchemaPaths", () => {
 	it("visits every node once and stays cycle-safe", () => {
-		expect(reachableSchemaPaths(config, "pages")).toEqual([
-			"",
-			SECTION_WRAPPER,
-			HERO,
-			`${SECTION_WRAPPER}.modules.richText`,
-			"layout.sections.richText",
-		]);
+		expect(reachableSchemaPaths(config, "pages")).toEqual({
+			paths: [
+				"",
+				SECTION_WRAPPER,
+				HERO,
+				`${SECTION_WRAPPER}.modules.richText`,
+				"layout.sections.richText",
+			],
+			truncated: false,
+		});
 	});
 
 	it("keeps the whole reachable graph within a context budget", () => {
 		const bytes = reachableSchemaPaths(config, "pages")
-			.map(
+			.paths.map(
 				(schemaPath) =>
 					JSON.stringify(describeNode(config, "pages", schemaPath)).length,
 			)

@@ -25,11 +25,13 @@ type PatchOperation = Operation;
 /**
  * One RFC 6902 operation as accepted by `patchDocument`.
  */
+const JSON_POINTER_PATTERN = /^(\/([^~/]|~[01])*)*$/;
+
 const PATCH_OPERATION_SCHEMA = z
 	.object({
-		from: z.string().optional(),
+		from: z.string().regex(JSON_POINTER_PATTERN).optional(),
 		op: z.enum(["add", "copy", "move", "remove", "replace", "test"]),
-		path: z.string(),
+		path: z.string().regex(JSON_POINTER_PATTERN),
 		value: z.unknown().optional(),
 	})
 	.describe("An RFC 6902 operation.");
@@ -133,7 +135,13 @@ const applyPatchToCopy = (
 	const prepared = patches.map((operation) => {
 		const stripped =
 			"value" in operation
-				? { ...operation, value: stripRowIds(operation.value) }
+				? {
+						...operation,
+						value: stripRowIds(
+							operation.value,
+							isElementPointer(operation.path),
+						),
+					}
 				: operation;
 
 		// A localized field may have no value at all in the target locale.
@@ -185,6 +193,12 @@ const findPatchProblems = (
 			operation.path,
 			...("from" in operation && operation.from ? [operation.from] : []),
 		];
+
+		if (pointers.includes("")) {
+			return [
+				`${at}: an empty pointer addresses the whole document. Address a field instead.`,
+			];
+		}
 
 		const reserved = pointers.find(isReservedPointer);
 

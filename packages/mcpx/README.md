@@ -162,9 +162,11 @@ Publish blockers are advisory. Payload skips validation on draft saves (unless
 `versions.drafts.validate` is set), so after every write the plugin re-runs
 Payload's own field validation over the saved draft and returns the failures
 as `publishBlockers` with paths and labels. The write stands; the agent gets a
-checklist and can converge. Two limits: only the written locale is validated,
-and field `beforeChange` hooks run again during the check, so they must be
-pure. Collections with `versions.drafts.validate: true` refuse invalid drafts
+checklist and can converge. Three limits: only the written locale is
+validated; field `beforeChange` hooks run again during the check, so they must
+be pure; and the check runs privileged, so blocker paths and messages may name
+fields the key's user cannot read (values are never included).
+Collections with `versions.drafts.validate: true` refuse invalid drafts
 outright; those failures come back as `validationErrors`.
 
 Writes also report `notApplied`: pointers whose value Payload kept unchanged,
@@ -216,9 +218,11 @@ Each custom tool gets its own checkbox on every API key, default off.
 | `auth.resolve`                       | none                           | Replace or wrap the default key resolution.                                                                        |
 | `serverInfo`                         | package name and version       | Reported to MCP clients.                                                                                           |
 
-Misconfiguration (unknown slugs, write on a collection without drafts, auth or
-upload collections exposed for write, tool name collisions) fails at startup
-with `InvalidConfiguration`.
+Misconfiguration (unknown slugs, write on a collection without drafts, upload
+collections exposed for write, tool name collisions) fails at startup with
+`InvalidConfiguration`. Auth collections cannot be exposed at all, read
+included: their documents carry credentials, such as the decrypted Payload API
+key of every user.
 
 ## Security notes
 

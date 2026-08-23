@@ -14,7 +14,8 @@ import { users } from "./collections/users";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default buildConfig({
-	secret: process.env.PAYLOAD_SECRET ?? "mcpx-example-dev-secret",
+	// Required. Both JWT signing and the API key index derive from it.
+	secret: process.env.PAYLOAD_SECRET ?? "",
 	db: sqliteAdapter({
 		client: { url: process.env.DATABASE_URI ?? "file:./.data/mcpx.db" },
 	}),

@@ -86,6 +86,10 @@ describe("normalizeOptions", () => {
 		expect(() =>
 			normalize({ collections: { users: { write: true } } }, config),
 		).toThrow(/Auth collection/);
+		// Read is refused too: auth documents carry credentials.
+		expect(() => normalize({ collections: { users: true } }, config)).toThrow(
+			/Auth collection/,
+		);
 		expect(() =>
 			normalize({ collections: { media: { write: true } } }, config),
 		).toThrow(/Upload collection/);

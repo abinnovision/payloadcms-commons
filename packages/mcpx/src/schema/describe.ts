@@ -119,18 +119,31 @@ const describeNode = (
 };
 
 /**
- * Every schema path reachable from a collection root.
- *
- * Bounded by the blocks already on the current path, since block graphs are
- * allowed to reference each other cyclically.
+ * Ceiling on the paths `reachableSchemaPaths` enumerates. The cycle guard only
+ * bounds each individual path, so mutually referencing blocks can otherwise
+ * explode into permutations. Far beyond any real content model.
+ */
+const REACHABLE_PATHS_LIMIT = 400;
+
+/**
+ * Every schema path reachable from a collection root, capped at
+ * {@link REACHABLE_PATHS_LIMIT}. `truncated` tells the caller the cap was hit
+ * and explicit paths are the way to go deeper.
  */
 const reachableSchemaPaths = (
 	config: SanitizedConfig,
 	collection: string,
-): string[] => {
+): { paths: string[]; truncated: boolean } => {
 	const seen: string[] = [];
+	let truncated = false;
 
 	const walk = (schemaPath: string, visited: readonly string[]): void => {
+		if (seen.length >= REACHABLE_PATHS_LIMIT) {
+			truncated = true;
+
+			return;
+		}
+
 		seen.push(schemaPath);
 
 		for (const descriptor of describeNode(config, collection, schemaPath)
@@ -150,8 +163,8 @@ const reachableSchemaPaths = (
 
 	walk("", []);
 
-	return seen;
+	return { paths: seen, truncated };
 };
 
-export { describeNode, reachableSchemaPaths };
+export { describeNode, reachableSchemaPaths, REACHABLE_PATHS_LIMIT };
 export type { NodeDescriptor };

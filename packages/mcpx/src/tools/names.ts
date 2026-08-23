@@ -11,7 +11,4 @@ const BUILTIN_TOOL_NAMES = [
 	"validateDocument",
 ] as const;
 
-type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number];
-
 export { BUILTIN_TOOL_NAMES };
-export type { BuiltinToolName };

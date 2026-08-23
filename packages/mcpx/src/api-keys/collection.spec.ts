@@ -121,7 +121,9 @@ describe("keyBeforeChange", () => {
 		expect(data["apiKeyIndex"]).toMatch(/^[a-f0-9]{64}$/);
 	});
 
-	it("keeps a supplied key and indexes it", () => {
+	// Only privileged callers reach the hook with a value: the apiKey field
+	// denies create and update access, so client-supplied keys never arrive.
+	it("keeps a key supplied with overrideAccess and indexes it", () => {
 		const data = run({ apiKey: "given" }, "create");
 
 		expect(data["apiKey"]).toBe("given");

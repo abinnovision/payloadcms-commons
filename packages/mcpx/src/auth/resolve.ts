@@ -82,7 +82,12 @@ const resolveApiKeyAuth = async (
 		disableErrors: true,
 	});
 
-	if (!user || user["_verified"] === false) {
+	const lockUntil =
+		typeof user?.["lockUntil"] === "string"
+			? Date.parse(user["lockUntil"])
+			: Number.NaN;
+
+	if (!user || user["_verified"] === false || lockUntil > Date.now()) {
 		return null;
 	}
 

@@ -9,7 +9,7 @@ import {
 	localeOf,
 	localeShape,
 } from "./shared.js";
-import { jsonResult } from "../endpoint/result.js";
+import { errorResult, jsonResult } from "../endpoint/result.js";
 
 import type { BuiltinTool } from "./types.js";
 
@@ -68,12 +68,20 @@ const getDocument: BuiltinTool<Args> = {
 			return jsonResult(doc);
 		}
 
+		let value: unknown;
+
+		try {
+			value = Pointer.fromJSON(args.path).get(doc) as unknown;
+		} catch {
+			return errorResult(`"${args.path}" is not a valid JSON pointer.`);
+		}
+
 		return jsonResult({
 			id: doc["id"],
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			path: args.path,
-			value: Pointer.fromJSON(args.path).get(doc) as unknown,
+			value,
 		});
 	},
 };

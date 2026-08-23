@@ -49,23 +49,36 @@ const toCamelCase = (value: string): string =>
 		)
 		.replace(/^(.)/, (_, char: string) => char.toLowerCase());
 
+/**
+ * Refuses collections that must never be reachable through MCP, read included.
+ * Auth collections carry credentials: `useAPIKey` stores a key that decrypts on
+ * read, and email or lockout state is PII either way.
+ */
+const assertExposable = (
+	collection: CollectionConfig,
+	apiKeysSlug: string,
+): void => {
+	const { slug } = collection;
+
+	if (slug === apiKeysSlug || slug.startsWith("payload-")) {
+		fail(`Collection "${slug}" cannot be exposed.`);
+	}
+
+	if (collection.auth) {
+		fail(
+			`Auth collection "${slug}" cannot be exposed. Its documents carry credentials.`,
+		);
+	}
+};
+
 const assertWritable = (
 	collection: CollectionConfig,
 	options: {
-		apiKeysSlug: string;
 		allowLiveWrites: boolean;
 		hasDrafts: boolean;
 	},
 ): void => {
 	const { slug } = collection;
-
-	if (slug === options.apiKeysSlug || slug.startsWith("payload-")) {
-		fail(`Collection "${slug}" cannot be exposed for write.`);
-	}
-
-	if (collection.auth) {
-		fail(`Auth collection "${slug}" cannot be exposed for write.`);
-	}
 
 	if (collection.upload) {
 		fail(`Upload collection "${slug}" cannot be exposed for write.`);
@@ -106,6 +119,8 @@ const normalizeCollections = (
 				return fail(`Exposed collection "${slug}" does not exist.`);
 			}
 
+			assertExposable(collection, apiKeysSlug);
+
 			const settings = raw === true ? {} : raw;
 			const hasDrafts = hasDraftsEnabled(collection);
 			const normalized: NormalizedCollection = {
@@ -118,7 +133,7 @@ const normalizeCollections = (
 			};
 
 			if (normalized.write) {
-				assertWritable(collection, { ...normalized, apiKeysSlug });
+				assertWritable(collection, normalized);
 			}
 
 			if (fieldNames.has(normalized.fieldName)) {

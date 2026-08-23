@@ -36,8 +36,9 @@ const isMcpxRequest = (req: PayloadRequest): boolean =>
  * `draft` alone is not enough: Payload's update path only saves a draft when
  * `data._status !== "published"`, so `_status` is dropped and left to Payload.
  * This runs as `beforeOperation`, before Payload reads any of these arguments,
- * so it holds for every writer using an MCP request, not only the builtin
- * tools.
+ * so it holds for every create and update on an MCP request, not only the
+ * builtin tools. Deletes are not guarded in v1; custom tools that delete are
+ * the integrator's responsibility.
  */
 const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 	// The argument union carries a deprecated `read` member, which is what the

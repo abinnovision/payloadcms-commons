@@ -49,13 +49,16 @@ const createDocument: BuiltinTool<Args> = {
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
 
+		// A top-level id is Payload's to assign, never the client's.
+		const { id: _ignored, ...seed } = args.data;
+
 		const problems = validateWriteValue(
 			payload.config,
 			{
 				pointer: "",
 				resolution: { fields: collection.flattenedFields, prefix: "" },
 			},
-			args.data,
+			seed,
 		);
 
 		if (problems.length > 0) {
@@ -64,7 +67,7 @@ const createDocument: BuiltinTool<Args> = {
 
 		const created = (await payload.create({
 			collection: args.collection,
-			data: stripRowIds(args.data) as Record<string, unknown>,
+			data: stripRowIds(seed) as Record<string, unknown>,
 			depth: 0,
 			draft: true,
 			overrideAccess: false,

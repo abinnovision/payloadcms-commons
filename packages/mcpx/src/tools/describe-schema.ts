@@ -1,8 +1,12 @@
 import { z } from "zod";
 
-import { collectionEnum } from "./shared.js";
+import { collectionEnum, ensureAllowed } from "./shared.js";
 import { jsonResult } from "../endpoint/result.js";
-import { describeNode, reachableSchemaPaths } from "../schema/describe.js";
+import {
+	describeNode,
+	REACHABLE_PATHS_LIMIT,
+	reachableSchemaPaths,
+} from "../schema/describe.js";
 
 import type { BuiltinTool } from "./types.js";
 
@@ -43,25 +47,20 @@ const describeSchema: BuiltinTool<Args> = {
 			),
 	}),
 	handler: (args, scope) => {
+		ensureAllowed(scope, args.collection, "read");
+
 		const { config } = scope.req.payload;
-
-		if (!scope.readable.includes(args.collection)) {
-			return Promise.resolve(
-				jsonResult([
-					{ error: `Collection "${args.collection}" is not readable.` },
-				]),
-			);
-		}
-
-		const requested =
+		const expanded =
 			args.expand === true
 				? reachableSchemaPaths(config, args.collection)
-				: args.paths && args.paths.length > 0
-					? args.paths
-					: [""];
+				: undefined;
+
+		const requested =
+			expanded?.paths ??
+			(args.paths && args.paths.length > 0 ? args.paths : [""]);
 
 		// One bad path returns its own message rather than failing the batch.
-		const nodes = requested.map((schemaPath) => {
+		const nodes: unknown[] = requested.map((schemaPath) => {
 			try {
 				return describeNode(config, args.collection, schemaPath);
 			} catch (error) {
@@ -71,6 +70,12 @@ const describeSchema: BuiltinTool<Args> = {
 				};
 			}
 		});
+
+		if (expanded?.truncated) {
+			nodes.push({
+				error: `Result truncated after ${String(REACHABLE_PATHS_LIMIT)} nodes. Request explicit paths instead.`,
+			});
+		}
 
 		return Promise.resolve(jsonResult(nodes));
 	},

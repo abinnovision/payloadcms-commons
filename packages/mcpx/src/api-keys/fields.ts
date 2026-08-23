@@ -14,8 +14,19 @@ type KeyValueHook = FieldHook<TypeWithID, null | string | undefined>;
 const encryptKey: KeyValueHook = ({ req, value }) =>
 	typeof value === "string" ? req.payload.encrypt(value) : value;
 
-const decryptKey: KeyValueHook = ({ req, value }) =>
-	typeof value === "string" ? req.payload.decrypt(value) : value;
+const decryptKey: KeyValueHook = ({ req, value }) => {
+	if (typeof value !== "string") {
+		return value;
+	}
+
+	// A row seeded past the encrypt hook holds no valid ciphertext; a throwing
+	// afterRead would make the whole document unreadable.
+	try {
+		return req.payload.decrypt(value);
+	} catch {
+		return undefined;
+	}
+};
 
 const checkbox = (name: string, description: string): CheckboxField => ({
 	name,
@@ -47,6 +58,12 @@ const createKeyFields = (): Field[] => [
 	{
 		name: "apiKey",
 		type: "text",
+		// Generated server-side only; a client-supplied value would replace a
+		// random secret with a chosen one.
+		access: {
+			create: () => false,
+			update: () => false,
+		},
 		admin: {
 			readOnly: true,
 			description:
