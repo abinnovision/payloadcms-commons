@@ -2,6 +2,7 @@ import { hasDraftValidationEnabled } from "payload/shared";
 
 import { translateLabel } from "./shared.js";
 import { jsonResult } from "../endpoint/result.js";
+import { staticDescription } from "../schema/walk.js";
 
 import type { BuiltinTool } from "./types.js";
 
@@ -29,6 +30,7 @@ const listCapabilities: BuiltinTool<Record<string, never>> = {
 			}
 
 			const { config } = collection;
+			const description = staticDescription(config.admin.description);
 
 			return [
 				{
@@ -37,6 +39,7 @@ const listCapabilities: BuiltinTool<Record<string, never>> = {
 						singular: translateLabel(scope, config.labels.singular, entry.slug),
 						plural: translateLabel(scope, config.labels.plural, entry.slug),
 					},
+					...(description === undefined ? {} : { description }),
 					read: capability.read,
 					write: capability.write,
 					drafts: entry.hasDrafts,

@@ -79,6 +79,7 @@ describe("capabilities", () => {
 		expect(full.data["collections"]).toEqual([
 			expect.objectContaining({
 				slug: "pages",
+				description: "Marketing pages rendered on the public site.",
 				read: true,
 				write: true,
 				drafts: true,

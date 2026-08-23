@@ -5,12 +5,17 @@
 			{
 				"path": "title",
 				"type": "text",
+				"description": {
+					"en": "Page title",
+					"de": "Seitentitel"
+				},
 				"required": true,
 				"localized": true
 			},
 			{
 				"path": "slug",
 				"type": "text",
+				"description": "URL segment of the page, lowercase.",
 				"required": true
 			},
 			{
