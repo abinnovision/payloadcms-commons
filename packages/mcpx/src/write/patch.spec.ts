@@ -99,6 +99,14 @@ describe("stripRowIds", () => {
 });
 
 describe("applyPatchToCopy", () => {
+	it("sets an absent field when replace addresses it", () => {
+		const result = applyPatchToCopy({ slug: "home" }, [
+			{ op: "replace", path: "/title", value: "Startseite" },
+		]);
+
+		expect(result).toEqual({ next: { slug: "home", title: "Startseite" } });
+	});
+
 	it("applies on a copy and leaves the original untouched", () => {
 		const result = applyPatchToCopy(DOC, [
 			{ op: "replace", path: "/title", value: "New" },

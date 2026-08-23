@@ -130,11 +130,25 @@ const applyPatchToCopy = (
 	patches: Operation[],
 ): { next: JsonObject } | { problems: string[] } => {
 	const next = structuredClone(doc);
-	const prepared = patches.map((operation) =>
-		"value" in operation
-			? { ...operation, value: stripRowIds(operation.value) }
-			: operation,
-	) as Operation[];
+	const prepared = patches.map((operation) => {
+		const stripped =
+			"value" in operation
+				? { ...operation, value: stripRowIds(operation.value) }
+				: operation;
+
+		// A localized field may have no value at all in the target locale.
+		// `replace` requires an existing value, so an absent field is set with
+		// `add` instead; element pointers keep replace semantics.
+		if (
+			stripped.op === "replace" &&
+			!isElementPointer(stripped.path) &&
+			(Pointer.fromJSON(stripped.path).get(next) as unknown) === undefined
+		) {
+			return { ...stripped, op: "add" as const };
+		}
+
+		return stripped;
+	}) as Operation[];
 
 	const problems = applyPatch(next, prepared).flatMap((error, index) =>
 		error ? [`patches[${String(index)}]: ${error.message}`] : [],
