@@ -1,0 +1,14 @@
+# Ignore everything by default
+*
+
+# Allow shared project settings
+!.gitignore
+!inspectionProfiles/
+!inspectionProfiles/**
+!codeStyles/
+!codeStyles/**
+!jsLinters/
+!jsLinters/**
+!prettier.xml
+!vcs.xml
+!dataSources.xml

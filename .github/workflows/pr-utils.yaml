@@ -1,0 +1,30 @@
+name: PR Utils
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+
+jobs:
+  commitlint:
+    name: Commitlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Run Commitlint
+        uses: abinnovision/actions@run-commitlint-v1
+
+  dependabot:
+    name: Dependabot automations
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: abinnovision/actions@triage-dependabot-pr-v1

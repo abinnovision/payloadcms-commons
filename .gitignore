@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dev-dist/
+out/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Generated files
+gen/
+*.generated.ts
+*.gen.ts
+import-meta-env.d.ts
+
+# Test coverage
+coverage/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+!.env.example
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+
+# Docker
+docker-compose.override.yml
+cloudflared.yml
+
+# Logs
+*.log
+pino-pretty.log
+
+# Secrets
+secrets/
+
+# Local (personal scripts, notes, scratch files)
+.local/
+.omc/

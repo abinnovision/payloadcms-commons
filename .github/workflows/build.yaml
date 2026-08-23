@@ -1,0 +1,25 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.number || github.event.merge_group.id || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+
+jobs:
+  build-stack:
+    name: CI/CD Pipeline
+    uses: abinnovision/actions/.github/workflows/workflow.yaml@polyglot-monorepo-stack-v2
+    with:
+      prerelease-channel: "beta"
+      run-build-before-check: true
+      test-types: "unit"
+
+      # Publish the packages to npm and the GitHub Package Registry.
+      enable-package-publishing: true
+      enable-packages-registry-npm: true
+      enable-packages-registry-ghpr: true
