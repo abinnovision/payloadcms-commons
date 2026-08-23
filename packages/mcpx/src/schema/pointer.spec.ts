@@ -64,6 +64,24 @@ describe("resolveDataPointer", () => {
 		expect(content.descriptor).toMatchObject({ type: "richText" });
 	});
 
+	it("follows the discriminant of a block nested under an array field", () => {
+		const doc = {
+			items: [
+				{ heading: "One", actions: [] },
+				{ heading: "Two", actions: [{ blockType: "cta", label: "Go" }] },
+			],
+			title: "Post",
+		};
+		const label = resolveDataPointer(config, {
+			collection: "posts",
+			doc,
+			pointer: "/items/1/actions/0/label",
+		});
+
+		expect(label.blockType).toBe("cta");
+		expect(label.descriptor).toMatchObject({ type: "text", required: true });
+	});
+
 	it("takes the discriminant from the value when appending", () => {
 		const appended = resolve("/layout/sections/-", { blockType: "richText" });
 

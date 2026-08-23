@@ -8,7 +8,6 @@ import {
 	isElementPointer,
 	isReservedPointer,
 	PATCH_OPERATION_SCHEMA,
-	stripRowIds,
 } from "./patch.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { collectionOf } from "../schema/walk.js";
@@ -70,34 +69,6 @@ describe("pointer helpers", () => {
 	});
 });
 
-describe("stripRowIds", () => {
-	it("drops ids from rows and nested rows, keeping everything else", () => {
-		expect(
-			stripRowIds([
-				{ id: "a", blockType: "hero", title: "x" },
-				{ id: "b", nested: [{ id: "c", text: "y" }] },
-			]),
-		).toEqual([{ blockType: "hero", title: "x" }, { nested: [{ text: "y" }] }]);
-	});
-
-	it("drops the id of a single block value", () => {
-		expect(stripRowIds({ id: "a", blockType: "hero" })).toEqual({
-			blockType: "hero",
-		});
-	});
-
-	it("leaves plain objects and scalars alone", () => {
-		expect(stripRowIds({ id: "keep", title: "x" })).toEqual({
-			id: "keep",
-			title: "x",
-		});
-		expect(stripRowIds("tag-1")).toBe("tag-1");
-		expect(
-			stripRowIds({ root: { children: [{ id: "n", type: "text" }] } }),
-		).toEqual({ root: { children: [{ id: "n", type: "text" }] } });
-	});
-});
-
 describe("applyPatchToCopy", () => {
 	it("sets an absent field when replace addresses it", () => {
 		const result = applyPatchToCopy({ slug: "home" }, [
@@ -152,6 +123,34 @@ describe("applyPatchToCopy", () => {
 		expect(
 			(sections[2]?.["modules"] as Record<string, unknown>[])[0],
 		).not.toHaveProperty("id");
+	});
+
+	it("keeps stored row ids on a whole-field replace, so rows update in place", () => {
+		const result = applyPatchToCopy(DOC, [
+			{
+				op: "replace",
+				path: "/layout/sections",
+				value: [
+					{
+						id: "row-1",
+						blockType: "sectionWrapper",
+						identifier: "renamed",
+						modules: [{ id: "row-2", blockType: "hero", imageSize: "large" }],
+					},
+				],
+			},
+		]);
+
+		expect(result).toHaveProperty("next");
+
+		const { next } = result as { next: Record<string, unknown> };
+		const sections = (next["layout"] as { sections: Record<string, unknown>[] })
+			.sections;
+
+		expect(sections[0]).toMatchObject({ id: "row-1", identifier: "renamed" });
+		expect(
+			(sections[0]?.["modules"] as Record<string, unknown>[])[0],
+		).toMatchObject({ id: "row-2", imageSize: "large" });
 	});
 
 	it("strips a client id from a row appended to a plain array", () => {

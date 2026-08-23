@@ -76,51 +76,85 @@ const isRichTextState = (value: Record<string, unknown>): boolean =>
 	isPlainObject(value["root"]) && Array.isArray(value["root"]["children"]);
 
 /**
- * Removes row ids from an incoming value so Payload assigns fresh ones.
- *
- * A row is a plain object that carries `blockType` or sits directly inside an
- * array. Copying or re-adding a row would otherwise duplicate its id, which SQL
- * adapters reject as a primary key violation. Rich text states and scalar
- * values, including relationship ids, are left untouched.
+ * Visits every row in a value: a plain object that carries `blockType` or
+ * sits directly inside an array. Rich text states manage their own nodes and
+ * are never descended into.
  */
-const stripRowIds = (value: unknown, isRow = false): unknown => {
+const walkRows = (
+	value: unknown,
+	visit: (row: Record<string, unknown>) => void,
+	isRow = false,
+): void => {
 	if (Array.isArray(value)) {
-		return value.map((entry) => stripRowIds(entry, true));
-	}
+		for (const entry of value) {
+			walkRows(entry, visit, true);
+		}
 
-	if (!isPlainObject(value) || isRichTextState(value)) {
-		return value;
-	}
-
-	const dropId = isRow || typeof value["blockType"] === "string";
-
-	return Object.fromEntries(
-		Object.entries(value)
-			.filter(([key]) => !(dropId && key === "id"))
-			.map(([key, entry]) => [key, stripRowIds(entry)]),
-	);
-};
-
-/**
- * Replaces the value at `pointer` with its id-stripped copy. An append pointer
- * (`/-`) is resolved to the last element of its list.
- */
-const stripRowIdsAt = (doc: JsonObject, pointer: string): void => {
-	const segments = pointer.split("/").slice(1);
-	const parent = Pointer.fromJSON(["", ...segments.slice(0, -1)].join("/")).get(
-		doc,
-	) as unknown;
-	const last = segments.at(-1);
-
-	if (last === undefined || parent === null || typeof parent !== "object") {
 		return;
 	}
 
-	const key =
-		last === "-" && Array.isArray(parent) ? String(parent.length - 1) : last;
-	const target = parent as Record<string, unknown>;
+	if (!isPlainObject(value) || isRichTextState(value)) {
+		return;
+	}
 
-	target[key] = stripRowIds(target[key], isElementPointer(`/${key}`));
+	if (isRow || typeof value["blockType"] === "string") {
+		visit(value);
+	}
+
+	for (const entry of Object.values(value)) {
+		walkRows(entry, visit);
+	}
+};
+
+/**
+ * Keeps a row id only when the stored document already has it and no earlier
+ * row in the write claimed it; every other id is dropped so Payload assigns a
+ * fresh one.
+ *
+ * A kept id makes Payload update the row in place, which preserves the other
+ * locales of any localized field inside it. A duplicated id (a copied row) or
+ * an id from elsewhere would violate a SQL primary key, so those never pass.
+ */
+const reconcileRowIds = (next: JsonObject, stored: JsonObject): void => {
+	const known = new Set<unknown>();
+
+	walkRows(stored, (row) => {
+		if (row["id"] !== undefined) {
+			known.add(row["id"]);
+		}
+	});
+
+	const seen = new Set<unknown>();
+
+	walkRows(next, (row) => {
+		const id = row["id"];
+
+		if (id === undefined) {
+			return;
+		}
+
+		if (known.has(id) && !seen.has(id)) {
+			seen.add(id);
+
+			return;
+		}
+
+		delete row["id"];
+	});
+};
+
+/**
+ * Drops every row id from a copy of `value`. Used on create, where no stored
+ * row exists and any incoming id is client-invented.
+ */
+const stripRowIds = (value: unknown): unknown => {
+	const next = structuredClone(value);
+
+	walkRows(next, (row) => {
+		delete row["id"];
+	});
+
+	return next;
 };
 
 /**
@@ -133,29 +167,25 @@ const applyPatchToCopy = (
 ): { next: JsonObject } | { problems: string[] } => {
 	const next = structuredClone(doc);
 	const prepared = patches.map((operation) => {
-		const stripped =
+		// Values are cloned so the written document never shares references
+		// with the caller's operations.
+		const cloned =
 			"value" in operation
-				? {
-						...operation,
-						value: stripRowIds(
-							operation.value,
-							isElementPointer(operation.path),
-						),
-					}
+				? { ...operation, value: structuredClone<unknown>(operation.value) }
 				: operation;
 
 		// A localized field may have no value at all in the target locale.
 		// `replace` requires an existing value, so an absent field is set with
 		// `add` instead; element pointers keep replace semantics.
 		if (
-			stripped.op === "replace" &&
-			!isElementPointer(stripped.path) &&
-			(Pointer.fromJSON(stripped.path).get(next) as unknown) === undefined
+			cloned.op === "replace" &&
+			!isElementPointer(cloned.path) &&
+			(Pointer.fromJSON(cloned.path).get(next) as unknown) === undefined
 		) {
-			return { ...stripped, op: "add" as const };
+			return { ...cloned, op: "add" as const };
 		}
 
-		return stripped;
+		return cloned;
 	}) as Operation[];
 
 	const problems = applyPatch(next, prepared).flatMap((error, index) =>
@@ -166,13 +196,7 @@ const applyPatchToCopy = (
 		return { problems };
 	}
 
-	// A copy takes its value from the document, so its row ids are stripped at
-	// the target once it is in place.
-	for (const operation of prepared) {
-		if (operation.op === "copy") {
-			stripRowIdsAt(next, operation.path);
-		}
-	}
+	reconcileRowIds(next, doc);
 
 	return { next };
 };

@@ -29,7 +29,7 @@ The write always lands as a draft and is never published, whatever it contains; 
 
 Only the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. Use describeSchema to find a field's path, then turn it into a pointer by replacing "." with "/" and each "[]" with a 0-based index.
 
-Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null, or with [] to empty a list; "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so a concurrent edit is refused rather than overwritten.
+Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so a concurrent edit is refused rather than overwritten.
 
 A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but a human cannot publish the document until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update.`;
 

@@ -95,15 +95,16 @@ const isSubtreePrefix = (
 	});
 
 /**
- * Reads the value a descriptor path addresses, stopping at the array marker
- * since callers only need the rows that contain the element.
+ * Reads the value the given pointer segments address. Unlike a descriptor
+ * path, the segments carry real indices, so intervening array fields are
+ * descended through rather than skipped.
  */
-const valueAtPath = (data: unknown, parts: readonly string[]): unknown =>
-	parts.reduce<unknown>(
-		(current, part) =>
-			part === ARRAY_MARKER || current === null || typeof current !== "object"
-				? current
-				: (current as Record<string, unknown>)[part],
+const valueAtSegments = (data: unknown, segments: readonly string[]): unknown =>
+	segments.reduce<unknown>(
+		(current, segment) =>
+			current === null || typeof current !== "object"
+				? undefined
+				: (current as Record<string, unknown>)[segment],
 		data,
 	);
 
@@ -171,7 +172,7 @@ const resolveDataPointer = (
 
 		const parts = splitPath(match.descriptor.path);
 		const field = findBlocksField(fields, parts);
-		const rows = valueAtPath(data, parts);
+		const rows = valueAtSegments(data, segments.slice(0, match.consumed));
 
 		const existing =
 			Array.isArray(rows) && index !== "-"

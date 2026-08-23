@@ -49,3 +49,12 @@ export const sectionWrapperBlock: Block = {
 		},
 	],
 };
+
+/**
+ * Inline block used inside an array field, so pointer resolution through
+ * `array -> blocks` is covered.
+ */
+export const ctaBlock: Block = {
+	slug: "cta",
+	fields: [{ name: "label", type: "text", required: true }],
+};

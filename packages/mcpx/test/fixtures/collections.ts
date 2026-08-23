@@ -1,4 +1,4 @@
-import { richTextBlock, sectionWrapperBlock } from "./blocks.js";
+import { ctaBlock, richTextBlock, sectionWrapperBlock } from "./blocks.js";
 
 import type { CollectionConfig } from "payload";
 
@@ -60,6 +60,14 @@ export const posts: CollectionConfig = {
 			type: "relationship",
 			relationTo: "tags",
 			hasMany: true,
+		},
+		{
+			name: "items",
+			type: "array",
+			fields: [
+				{ name: "heading", type: "text", localized: true },
+				{ name: "actions", type: "blocks", blocks: [ctaBlock] },
+			],
 		},
 	],
 };
