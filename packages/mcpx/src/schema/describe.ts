@@ -23,6 +23,8 @@ interface NodeDescriptor {
 	blockType?: string;
 	collection: string;
 	fields: FieldDescriptor[];
+	/** Ready-to-use schema paths for every block this node's fields accept. */
+	next?: string[];
 	schemaPath: string;
 }
 
@@ -110,10 +112,18 @@ const describeNode = (
 		schemaPath,
 	);
 
+	const descriptors = describeFields(fields);
+	const next = descriptors.flatMap((descriptor) =>
+		(descriptor.blocks ?? []).map((slug) =>
+			[schemaPath, descriptor.path, slug].filter(Boolean).join("."),
+		),
+	);
+
 	return {
 		...(blockType === undefined ? {} : { blockType }),
 		collection,
-		fields: describeFields(fields),
+		fields: descriptors,
+		...(next.length > 0 ? { next } : {}),
 		schemaPath,
 	};
 };

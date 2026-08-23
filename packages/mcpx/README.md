@@ -121,22 +121,25 @@ The surface is fixed at seven tools plus your custom ones. `tools/list`
 reflects the key: write tools disappear for read-only keys, and every
 `collection` enum contains only the slugs the key may touch.
 
-| Tool               | Purpose                                                         | Key arguments                                                                                |
-| ------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `listCapabilities` | What this key may do; call first to orient.                     | none                                                                                         |
-| `describeSchema`   | Field shape of a collection root or one block, pulled per node. | `collection`, `paths?`, `expand?`                                                            |
-| `findDocuments`    | Query documents.                                                | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?` |
-| `getDocument`      | Read one document or a subtree of it.                           | `collection`, `id`, `path?` (JSON pointer), `depth?`, `locale?`, `draft?`                    |
-| `patchDocument`    | Apply RFC 6902 operations to the current draft.                 | `collection`, `id`, `locale`, `patches`, `expectedUpdatedAt?`                                |
-| `createDocument`   | Create a draft from a minimal seed.                             | `collection`, `locale`, `data`                                                               |
-| `validateDocument` | Publish blockers without writing.                               | `collection`, `id`, `locale`                                                                 |
+| Tool               | Purpose                                                     | Key arguments                                                                                |
+| ------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `listCapabilities` | What this key may do; call first to orient.                 | none                                                                                         |
+| `describeSchema`   | Field shape of one node; `next` lists the drill-down paths. | `collection`, `paths?`, `expand?`                                                            |
+| `findDocuments`    | Query documents.                                            | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?` |
+| `getDocument`      | Read one document or a subtree of it.                       | `collection`, `id`, `path?` (JSON pointer), `depth?`, `locale?`, `draft?`                    |
+| `patchDocument`    | Apply RFC 6902 operations to the current draft.             | `collection`, `id`, `locale`, `patches`, `expectedUpdatedAt?`                                |
+| `createDocument`   | Create a draft from a minimal seed.                         | `collection`, `locale`, `data`                                                               |
+| `validateDocument` | Publish blockers without writing.                           | `collection`, `id`, `locale`                                                                 |
 
 Rules the tools enforce and explain in their own descriptions:
 
 - `describeSchema` paths are dotted and stop at blocks fields, which list the
-  block slugs they accept; append a slug to descend
-  (`layout.sections.sectionWrapper`). A block is described as it exists at that
-  position.
+  block slugs they accept; every node carries `next`, the ready-to-use paths
+  for those blocks (`layout.sections.sectionWrapper`), so pass an entry of
+  `next` as a `paths` element to descend. A block is described as it exists at
+  that position.
+- Builtin tools reject unknown arguments by name instead of silently ignoring
+  them.
 - A schema path becomes a patch pointer by replacing `.` with `/`, adding a
   leading `/`, and replacing each `[]` with a 0-based index.
 - Adding a block requires `blockType` on the value; append with `/-`.
@@ -199,6 +202,10 @@ const publishQueue = defineMcpxTool({
 ```
 
 Each custom tool gets its own checkbox on every API key, default off.
+
+Custom tool shapes are registered as given, and the MCP SDK wraps them in a
+non-strict object: unknown arguments are stripped before your handler runs.
+Builtin tools reject them instead.
 
 ## Options
 

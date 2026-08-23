@@ -11,6 +11,7 @@ interface Node {
 	schemaPath: string;
 	blockType?: string;
 	fields: { path: string; type: string; blocks?: string[] }[];
+	next?: string[];
 	error?: string;
 }
 
@@ -49,7 +50,21 @@ describe("describeSchema", () => {
 		expect(
 			root?.fields.find((f) => f.path === "layout.sections")?.blocks,
 		).toEqual(["sectionWrapper", "richText"]);
+		expect(root?.next).toEqual([
+			"layout.sections.sectionWrapper",
+			"layout.sections.richText",
+		]);
 		expect(JSON.stringify(root)).not.toContain("identifier");
+	});
+
+	it("rejects an unknown argument by name", async () => {
+		const result = await describe_({
+			collection: "pages",
+			schemaPath: "layout.sections.sectionWrapper",
+		});
+
+		expect(result.isError).toBe(true);
+		expect(result.text).toMatch(/unrecognized|schemaPath/i);
 	});
 
 	it("describes a block in the context of its position", async () => {

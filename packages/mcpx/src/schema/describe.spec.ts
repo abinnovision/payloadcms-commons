@@ -29,6 +29,18 @@ describe("describeNode", () => {
 		]);
 	});
 
+	it("lists ready-to-use drill-down paths in next", () => {
+		expect(describeNode(config, "pages").next).toEqual([
+			SECTION_WRAPPER,
+			"layout.sections.richText",
+		]);
+		expect(describeNode(config, "pages", SECTION_WRAPPER).next).toEqual([
+			HERO,
+			`${SECTION_WRAPPER}.modules.richText`,
+		]);
+		expect(describeNode(config, "pages", HERO).next).toBeUndefined();
+	});
+
 	it("resolves a block in the context of its host", () => {
 		const node = describeNode(config, "pages", SECTION_WRAPPER);
 

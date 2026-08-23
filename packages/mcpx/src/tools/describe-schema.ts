@@ -12,7 +12,7 @@ import type { BuiltinTool } from "./types.js";
 
 const DESCRIPTION = `Describes the writable shape of a document, one node at a time.
 
-Call it with no "paths" to get a collection's own fields. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; append one of those slugs to that field's path to describe the block itself, so "layout.sections" becomes "layout.sections.sectionWrapper" and then "layout.sections.sectionWrapper.modules.hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
+Call it with no "paths" to get a collection's own fields. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; each node's "next" lists the ready-to-use paths for those blocks, so pass any entry of "next" as a "paths" element to descend, e.g. "layout.sections.sectionWrapper" and then "layout.sections.sectionWrapper.modules.hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
 
 Field paths are dotted and already resolved through anything that does not nest in the stored document. To turn one into a patchDocument pointer, replace each "." with "/", add a leading "/", and replace each "[]" with a 0-based index. Note a path here names a block by its slug where a pointer names it by its index.
 

@@ -9,6 +9,7 @@ import {
 	resolveCapabilities,
 	writableSlugs,
 } from "../capabilities.js";
+import { builtinInputSchema } from "../endpoint/server.js";
 import { normalizeOptions } from "../options.js";
 
 import type { ToolScope } from "./types.js";
@@ -55,7 +56,8 @@ const schemaOf = (scope: ToolScope, name: string) => {
 		throw new Error(`Unknown tool ${name}`);
 	}
 
-	return z.toJSONSchema(z.object(tool.inputSchema(scope))) as {
+	return z.toJSONSchema(builtinInputSchema(tool, scope)) as {
+		additionalProperties?: boolean;
 		properties: Record<string, Record<string, unknown>>;
 		required?: string[];
 	};
@@ -144,6 +146,14 @@ describe("builtin tool shapes", () => {
 
 		expect(find.properties["limit"]).toMatchObject({ maximum: 25 });
 		expect(find.properties["depth"]).toMatchObject({ maximum: 1 });
+	});
+
+	it("rejects unknown arguments on every builtin tool", () => {
+		const scope = scopeFor(FULL_KEY);
+
+		for (const tool of BUILTIN_TOOLS) {
+			expect(schemaOf(scope, tool.name).additionalProperties).toBe(false);
+		}
 	});
 
 	it("keeps the whole builtin surface small", () => {

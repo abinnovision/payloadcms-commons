@@ -1,10 +1,21 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 
 import { toToolError } from "./result.js";
 import { BUILTIN_TOOLS } from "../tools/index.js";
 
-import type { ToolScope } from "../tools/types.js";
+import type { BuiltinTool, ToolScope } from "../tools/types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
+/**
+ * Builds a builtin tool's input schema as a strict object, so an unknown
+ * argument is rejected with its name instead of being silently stripped and
+ * the tool answering as if it had not been passed.
+ */
+const builtinInputSchema = (
+	tool: BuiltinTool<never>,
+	scope: ToolScope,
+): z.ZodObject => z.strictObject(tool.inputSchema(scope));
 
 /**
  * Builds the MCP server for one request. Tools are registered against the
@@ -42,7 +53,7 @@ const createMcpServer = (scope: ToolScope): McpServer => {
 			tool.name,
 			{
 				description: tool.description,
-				inputSchema: tool.inputSchema(scope),
+				inputSchema: builtinInputSchema(tool, scope),
 				annotations: tool.annotations,
 			},
 			(args) => guarded(() => tool.handler(args as never, scope))(),
@@ -68,4 +79,4 @@ const createMcpServer = (scope: ToolScope): McpServer => {
 	return server;
 };
 
-export { createMcpServer };
+export { builtinInputSchema, createMcpServer };

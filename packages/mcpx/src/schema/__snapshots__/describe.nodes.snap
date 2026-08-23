@@ -35,6 +35,10 @@
 				"type": "text"
 			}
 		],
+		"next": [
+			"layout.sections.sectionWrapper",
+			"layout.sections.richText"
+		],
 		"schemaPath": ""
 	},
 	{
@@ -53,6 +57,10 @@
 					"richText"
 				]
 			}
+		],
+		"next": [
+			"layout.sections.sectionWrapper.modules.hero",
+			"layout.sections.sectionWrapper.modules.richText"
 		],
 		"schemaPath": "layout.sections.sectionWrapper"
 	},
