@@ -6,14 +6,18 @@ A collection of common packages and plugins for [Payload CMS](https://payloadcms
 
 ## Packages
 
-No packages yet. See [`packages/`](./packages) for the layout and conventions used
-when adding one.
+| Package                                            | Description                                                                      |
+| -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [`@abinnovision/payloadcms-mcpx`](./packages/mcpx) | MCP server plugin with a fixed, schema-aware tool surface and draft-only writes. |
+
+See [`packages/`](./packages) for the layout and conventions used when adding one.
+Private example apps live in [`apps/`](./apps).
 
 ## Compatibility
 
 - **Payload CMS** 3+
 - **Node.js** 24+ (see [`.tool-versions`](.tool-versions))
-- **Module formats**: ESM and CJS dual builds, types for both
+- **Module format**: ESM (Payload itself is ESM-only), with type declarations
 - **License**: Apache-2.0
 
 ## Versioning
@@ -45,6 +49,8 @@ yarn check          # Lint, format and type checks
 yarn fix            # Auto-fix lint and format issues
 yarn test           # Run all tests
 yarn test-unit      # Run unit tests only
+yarn test-integration # Run integration tests only
+yarn dev            # Start the example apps
 ```
 
 ## License

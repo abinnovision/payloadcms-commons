@@ -60,3 +60,6 @@ secrets/
 # Local (personal scripts, notes, scratch files)
 .local/
 .omc/
+
+# Example app data
+.data/
