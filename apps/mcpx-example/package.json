@@ -1,0 +1,49 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@internal/mcpx-example",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Example Payload CMS app mounting @abinnovision/payloadcms-mcpx.",
+	"type": "module",
+	"scripts": {
+		"build": "next build",
+		"dev": "next dev",
+		"format:check": "prettier --check 'src/**/*.{ts,tsx,scss}' '*.{json{,5},md,y{,a}ml,mjs}'",
+		"format:fix": "prettier --write 'src/**/*.{ts,tsx,scss}' '*.{json{,5},md,y{,a}ml,mjs}'",
+		"generate:importmap": "payload generate:importmap",
+		"generate:types": "payload generate:types",
+		"lint:check": "eslint 'src/**/*.{ts,tsx}'",
+		"lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
+		"start": "next start",
+		"typecheck": "tsc --noEmit"
+	},
+	"lint-staged": {
+		"src/**/*.{ts,tsx}": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{json{,5},md,y{,a}ml}": "prettier --write"
+	},
+	"prettier": "@abinnovision/prettier-config",
+	"dependencies": {
+		"@abinnovision/payloadcms-mcpx": "workspace:*",
+		"@payloadcms/db-sqlite": "3.88.0",
+		"@payloadcms/next": "3.88.0",
+		"@payloadcms/richtext-lexical": "3.88.0",
+		"graphql": "^16.11.0",
+		"next": "^16.2.6",
+		"payload": "3.88.0",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
+	},
+	"devDependencies": {
+		"@abinnovision/eslint-config-base": "^3.4.2",
+		"@abinnovision/prettier-config": "^2.2.0",
+		"@types/node": "^26.2.0",
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"eslint": "^10.7.0",
+		"prettier": "^3.9.5",
+		"typescript": "^6.0.3"
+	}
+}

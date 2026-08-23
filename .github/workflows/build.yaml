@@ -17,7 +17,7 @@ jobs:
     with:
       prerelease-channel: "beta"
       run-build-before-check: true
-      test-types: "unit"
+      test-types: "unit,integration"
 
       # Publish the packages to npm and the GitHub Package Registry.
       enable-package-publishing: true

@@ -3,5 +3,10 @@
 	"changelog-path": "CHANGELOG.md",
 	"release-type": "node",
 	"separate-pull-requests": true,
-	"packages": {}
+	"packages": {
+		"packages/mcpx": {
+			"package-name": "@abinnovision/payloadcms-mcpx",
+			"component": "payloadcms-mcpx"
+		}
+	}
 }
