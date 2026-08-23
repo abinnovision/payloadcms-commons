@@ -98,7 +98,7 @@ export type McpxPluginOptions = {
 	apiKeys?: {
 		/** Slug of the generated API key collection. Default `mcpx-api-keys`. */
 		slug?: string;
-		/** Last-word override of the generated collection. */
+		/** Final override applied to the generated collection. */
 		overrideCollection?: (collection: CollectionConfig) => CollectionConfig;
 	};
 	endpoint?: {

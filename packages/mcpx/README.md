@@ -1,11 +1,12 @@
 # @abinnovision/payloadcms-mcpx
 
 A Payload CMS plugin that mounts an MCP (Model Context Protocol) server whose
-tool surface stays small and truthful, whatever the size of the content model.
+tool surface stays small and accurate regardless of the size of the
+content model.
 
 Instead of generating one tool per collection with the full document schema
 inlined, the plugin types its surface in three layers. The tool signatures are
-tiny and static: collection slugs, locales and operations as enums, everything
+small and static: collection slugs, locales and operations as enums, everything
 else scalars. The field shapes are pulled on demand through `describeSchema`,
 one node at a time, stopping at every blocks boundary. And every write is
 resolved server-side against the real config and the real document, so unknown
@@ -13,9 +14,9 @@ fields, misplaced blocks and unusable rich text nodes are refused with the
 valid alternatives listed, never silently dropped.
 
 Writes are RFC 6902 patches that always land as drafts; publishing stays a
-human action in the admin panel. Every write returns the list of publish
-blockers, which is what still stands between the draft and a human being able
-to publish it. Capabilities are declared twice: the plugin config decides what
+human action in the admin panel. Every write returns the publish
+blockers: the validation failures that still prevent a human from publishing
+the draft. Capabilities are declared twice: the plugin config decides what
 can exist, a checkbox on each API key decides what does, and a missing checkbox
 means no (fail-closed).
 
@@ -74,7 +75,7 @@ to anyone who may read the key document (own keys only, by default). Each key:
 
 Keys authenticate only the MCP endpoint. They are deliberately not a Payload
 auth strategy, so a key can never authenticate the REST or GraphQL API; the
-reverse also holds, an admin session or JWT is ignored by the MCP endpoint.
+reverse also holds: an admin session or JWT is ignored by the MCP endpoint.
 
 Use `apiKeys.overrideCollection` to widen access (for example, admins manage
 all keys) or add fields.
@@ -164,8 +165,8 @@ refuses any write that would still not land as a draft.
 Publish blockers are advisory. Payload skips validation on draft saves (unless
 `versions.drafts.validate` is set), so after every write the plugin re-runs
 Payload's own field validation over the saved draft and returns the failures
-as `publishBlockers` with paths and labels. The write stands; the agent gets a
-checklist and can converge. Three limits: only the written locale is
+as `publishBlockers` with paths and labels. The write stands; the client gets a
+checklist of what remains. Three limits: only the written locale is
 validated; field `beforeChange` hooks run again during the check, so they must
 be pure; and the check runs privileged, so blocker paths and messages may name
 fields the key's user cannot read (values are never included).
@@ -217,7 +218,7 @@ Builtin tools reject them instead.
 | `collections.<slug>.allowLiveWrites` | `false`                        | Permit writes to a collection without drafts (they land live).                                                     |
 | `userCollection`                     | `config.admin.user` or `users` | Auth collection the keys act as.                                                                                   |
 | `apiKeys.slug`                       | `mcpx-api-keys`                | Slug of the generated key collection.                                                                              |
-| `apiKeys.overrideCollection`         | none                           | Last-word override of the generated collection.                                                                    |
+| `apiKeys.overrideCollection`         | none                           | Final override applied to the generated collection.                                                                |
 | `endpoint.path`                      | `/mcpx`                        | Endpoint path below the API route.                                                                                 |
 | `limits.maxLimit`                    | `25`                           | Upper bound for `findDocuments.limit`.                                                                             |
 | `limits.maxDepth`                    | `1`                            | Upper bound for `depth` on reads.                                                                                  |
