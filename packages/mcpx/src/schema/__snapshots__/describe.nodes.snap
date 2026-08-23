@@ -16,13 +16,19 @@
 			{
 				"path": "layout.color",
 				"type": "select",
-				"options": ["light", "dark"]
+				"options": [
+					"light",
+					"dark"
+				]
 			},
 			{
 				"path": "layout.sections",
 				"type": "blocks",
 				"required": true,
-				"blocks": ["sectionWrapper", "richText"]
+				"blocks": [
+					"sectionWrapper",
+					"richText"
+				]
 			},
 			{
 				"path": "meta.title",
@@ -42,7 +48,10 @@
 			{
 				"path": "modules",
 				"type": "blocks",
-				"blocks": ["hero", "richText"]
+				"blocks": [
+					"hero",
+					"richText"
+				]
 			}
 		],
 		"schemaPath": "layout.sections.sectionWrapper"
@@ -55,7 +64,13 @@
 				"path": "title",
 				"type": "richText",
 				"required": true,
-				"nodes": ["root", "paragraph", "text", "linebreak", "tab"]
+				"nodes": [
+					"root",
+					"paragraph",
+					"text",
+					"linebreak",
+					"tab"
+				]
 			},
 			{
 				"path": "body",
@@ -80,7 +95,10 @@
 			{
 				"path": "imageSize",
 				"type": "select",
-				"options": ["small", "large"]
+				"options": [
+					"small",
+					"large"
+				]
 			}
 		],
 		"schemaPath": "layout.sections.sectionWrapper.modules.hero"

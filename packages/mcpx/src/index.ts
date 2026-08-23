@@ -11,3 +11,4 @@ export type {
 	McpxToolExtra,
 } from "./types.js";
 export { isMcpxRequest } from "./write/draft-guard.js";
+export type { PublishBlocker } from "./write/publish-blockers.js";

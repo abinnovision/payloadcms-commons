@@ -132,7 +132,7 @@ describe("reachableSchemaPaths", () => {
 		);
 
 		await expect(`${JSON.stringify(nodes, null, "\t")}\n`).toMatchFileSnapshot(
-			"./__snapshots__/describe.nodes.json",
+			"./__snapshots__/describe.nodes.snap",
 		);
 	});
 });

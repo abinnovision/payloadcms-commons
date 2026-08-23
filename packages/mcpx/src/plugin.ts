@@ -1,19 +1,11 @@
 import { definePlugin } from "payload";
 
 import { createApiKeysCollection } from "./api-keys/collection.js";
-import { jsonRpcError } from "./endpoint/result.js";
+import { createMcpxHandler, methodNotAllowed } from "./endpoint/handler.js";
 import { normalizeOptions } from "./options.js";
 import { installDraftGuards } from "./write/draft-guard.js";
 
 import type { McpxPluginOptions } from "./types.js";
-import type { PayloadHandler } from "payload";
-
-const notImplemented: PayloadHandler = () =>
-	jsonRpcError({
-		status: 501,
-		code: -32000,
-		message: "The MCP endpoint is not implemented yet.",
-	});
 
 /**
  * Mounts the MCP endpoint, adds the API key collection and installs the
@@ -40,17 +32,17 @@ const mcpxPlugin = definePlugin<McpxPluginOptions>({
 				{
 					path: normalized.endpointPath,
 					method: "post",
-					handler: notImplemented,
+					handler: createMcpxHandler(normalized),
 				},
 				{
 					path: normalized.endpointPath,
 					method: "get",
-					handler: notImplemented,
+					handler: methodNotAllowed,
 				},
 				{
 					path: normalized.endpointPath,
 					method: "delete",
-					handler: notImplemented,
+					handler: methodNotAllowed,
 				},
 			],
 		};

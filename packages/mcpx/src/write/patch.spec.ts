@@ -1,13 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import {
 	applyPatchToCopy,
+	buildWriteData,
 	droppedPointer,
+	findPatchProblems,
 	isElementPointer,
 	isReservedPointer,
 	PATCH_OPERATION_SCHEMA,
 	stripRowIds,
 } from "./patch.js";
+import { buildFixtureConfig } from "../../test/fixtures/config.js";
+import { collectionOf } from "../schema/walk.js";
+
+import type { SanitizedConfig } from "payload";
+import type { Operation } from "rfc6902";
 
 const DOC = {
 	id: "p1",
@@ -137,5 +144,116 @@ describe("applyPatchToCopy", () => {
 		expect(
 			(sections[2]?.["modules"] as Record<string, unknown>[])[0],
 		).not.toHaveProperty("id");
+	});
+});
+
+describe("findPatchProblems", () => {
+	let config: SanitizedConfig;
+
+	beforeAll(async () => {
+		config = await buildFixtureConfig();
+	});
+
+	const problemsFor = (patches: Operation[]): string[] =>
+		findPatchProblems(config, { collection: "pages", doc: DOC, patches });
+
+	it("accepts a well-formed replace", () => {
+		expect(
+			problemsFor([{ op: "replace", path: "/title", value: "New" }]),
+		).toEqual([]);
+	});
+
+	it("refuses a pointer at a field Payload maintains", () => {
+		expect(
+			problemsFor([{ op: "replace", path: "/_status", value: "published" }]),
+		).toEqual([expect.stringContaining("a field Payload maintains")]);
+	});
+
+	it("refuses a pointer that does not resolve, listing what does", () => {
+		expect(
+			problemsFor([{ op: "replace", path: "/titel", value: "x" }]),
+		).toEqual([expect.stringContaining("Available: title, slug")]);
+	});
+
+	it("refuses remove on a field but allows it on a list element", () => {
+		expect(problemsFor([{ op: "remove", path: "/layout/color" }])).toEqual([
+			expect.stringContaining("is a field, not a list element"),
+		]);
+
+		expect(problemsFor([{ op: "remove", path: "/layout/sections/0" }])).toEqual(
+			[],
+		);
+	});
+
+	it("refuses a move that would clear a field", () => {
+		expect(
+			problemsFor([{ from: "/title", op: "move", path: "/meta/title" }]),
+		).toEqual([expect.stringContaining("is a field, not a list element")]);
+	});
+
+	it("gates the shape of an added block", () => {
+		expect(
+			problemsFor([
+				{
+					op: "add",
+					path: "/layout/sections/-",
+					value: { blockType: "richText", contnet: null },
+				},
+			]),
+		).toEqual([expect.stringContaining("no such field")]);
+
+		expect(
+			problemsFor([
+				{
+					op: "add",
+					path: "/layout/sections/-",
+					value: { blockType: "hero" },
+				},
+			]),
+		).toEqual([expect.stringContaining("is not allowed")]);
+	});
+
+	it("reports every bad operation rather than only the first", () => {
+		expect(
+			problemsFor([
+				{ op: "replace", path: "/titel", value: "x" },
+				{ op: "replace", path: "/_status", value: "published" },
+			]),
+		).toHaveLength(2);
+	});
+});
+
+describe("buildWriteData", () => {
+	let config: SanitizedConfig;
+
+	beforeAll(async () => {
+		config = await buildFixtureConfig();
+	});
+
+	it("keeps describable fields and row identity, drops what Payload owns", () => {
+		const data = buildWriteData(config, collectionOf(config, "pages"), {
+			...DOC,
+			_status: "draft",
+			createdAt: "2026-01-01T00:00:00.000Z",
+			updatedAt: "2026-01-01T00:00:00.000Z",
+			unknown: "x",
+			meta: { title: "Meta", stray: true },
+		});
+
+		expect(data).toEqual({
+			layout: {
+				color: "light",
+				sections: [
+					{
+						id: "row-1",
+						blockType: "sectionWrapper",
+						identifier: "first",
+						modules: [{ id: "row-2", blockType: "hero", imageSize: "small" }],
+					},
+				],
+			},
+			meta: { title: "Meta" },
+			title: "Home",
+		});
 	});
 });
