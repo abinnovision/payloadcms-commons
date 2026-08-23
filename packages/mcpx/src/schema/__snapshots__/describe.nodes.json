@@ -1,0 +1,88 @@
+[
+	{
+		"collection": "pages",
+		"fields": [
+			{
+				"path": "title",
+				"type": "text",
+				"required": true,
+				"localized": true
+			},
+			{
+				"path": "slug",
+				"type": "text",
+				"required": true
+			},
+			{
+				"path": "layout.color",
+				"type": "select",
+				"options": ["light", "dark"]
+			},
+			{
+				"path": "layout.sections",
+				"type": "blocks",
+				"required": true,
+				"blocks": ["sectionWrapper", "richText"]
+			},
+			{
+				"path": "meta.title",
+				"type": "text"
+			}
+		],
+		"schemaPath": ""
+	},
+	{
+		"blockType": "sectionWrapper",
+		"collection": "pages",
+		"fields": [
+			{
+				"path": "identifier",
+				"type": "text"
+			},
+			{
+				"path": "modules",
+				"type": "blocks",
+				"blocks": ["hero", "richText"]
+			}
+		],
+		"schemaPath": "layout.sections.sectionWrapper"
+	},
+	{
+		"blockType": "hero",
+		"collection": "pages",
+		"fields": [
+			{
+				"path": "title",
+				"type": "richText",
+				"required": true,
+				"nodes": ["root", "paragraph", "text", "linebreak", "tab"]
+			},
+			{
+				"path": "body",
+				"type": "richText",
+				"nodes": [
+					"root",
+					"paragraph",
+					"text",
+					"linebreak",
+					"tab",
+					"horizontalrule",
+					"upload",
+					"quote",
+					"relationship",
+					"autolink",
+					"link",
+					"list",
+					"listitem",
+					"heading"
+				]
+			},
+			{
+				"path": "imageSize",
+				"type": "select",
+				"options": ["small", "large"]
+			}
+		],
+		"schemaPath": "layout.sections.sectionWrapper.modules.hero"
+	}
+]
