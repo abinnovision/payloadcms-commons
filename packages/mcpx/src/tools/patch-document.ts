@@ -45,13 +45,46 @@ const sameInstant = (left: unknown, right: string): boolean =>
 	typeof left === "string" &&
 	new Date(left).getTime() === new Date(right).getTime();
 
-const normalize = (value: unknown): string =>
-	JSON.stringify(value === undefined ? null : value);
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
- * Pointers whose intended value did not survive the write. Only field
- * pointers are compared: rows get fresh ids on write, so element pointers
- * cannot be compared byte for byte.
+ * Whether the intended value survived the write. The saved document is
+ * allowed to carry more than was sent: Payload assigns fresh row ids and
+ * backfills defaults and nulls on save, so `id` keys are ignored and only
+ * the keys the client sent are compared. Null and absent count as equal.
+ */
+const survives = (expected: unknown, actual: unknown): boolean => {
+	if (expected === undefined || expected === null) {
+		return actual === undefined || actual === null;
+	}
+
+	if (Array.isArray(expected)) {
+		return (
+			Array.isArray(actual) &&
+			expected.length === actual.length &&
+			expected.every((entry, index) => survives(entry, actual[index]))
+		);
+	}
+
+	if (isPlainObject(expected)) {
+		return (
+			isPlainObject(actual) &&
+			Object.entries(expected).every(
+				([key, value]) => key === "id" || survives(value, actual[key]),
+			)
+		);
+	}
+
+	return isPlainObject(actual) || Array.isArray(actual)
+		? false
+		: JSON.stringify(expected) === JSON.stringify(actual);
+};
+
+/**
+ * Pointers whose intended value did not survive the write. Element pointers
+ * are skipped: an append pointer (`/-`) does not resolve against the saved
+ * document.
  */
 const notAppliedPointers = (
 	patches: PatchOperation[],
@@ -70,7 +103,7 @@ const notAppliedPointers = (
 		const expected = pointer.get(intended) as unknown;
 		const actual = pointer.get(saved) as unknown;
 
-		return normalize(expected) === normalize(actual) ? [] : [operation.path];
+		return survives(expected, actual) ? [] : [operation.path];
 	});
 
 const patchDocument: BuiltinTool<Args> = {

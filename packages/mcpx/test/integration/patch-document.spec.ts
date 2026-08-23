@@ -94,6 +94,33 @@ describe("patchDocument", () => {
 		);
 	});
 
+	it("does not flag a whole blocks field as notApplied", async () => {
+		const page = await createDraft({
+			title: "Whole field",
+			slug: "whole-field",
+			layout: { sections: [section("old")] },
+		});
+		const result = await patch({
+			collection: "pages",
+			id: page.id,
+			locale: "en",
+			patches: [
+				{
+					op: "replace",
+					path: "/layout/sections",
+					value: [section("fresh", [hero("Hi")])],
+				},
+			],
+		});
+
+		expect(result.isError).toBe(false);
+		expect(result.data).not.toHaveProperty("notApplied");
+
+		const [first] = (await readDraft(page.id)).layout?.sections ?? [];
+
+		expect(first?.["identifier"]).toBe("fresh");
+	});
+
 	it("applies nothing when one operation in the batch is invalid", async () => {
 		const page = await createDraft({ title: "Atomic", slug: "atomic" });
 		const result = await patch({
