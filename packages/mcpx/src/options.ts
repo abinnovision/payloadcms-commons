@@ -237,4 +237,4 @@ const normalizeOptions = (
 };
 
 export { normalizeOptions, toCamelCase };
-export type { NormalizedCollection, NormalizedOptions };
+export type { NormalizedOptions };

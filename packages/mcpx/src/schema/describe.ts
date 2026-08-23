@@ -167,4 +167,3 @@ const reachableSchemaPaths = (
 };
 
 export { describeNode, reachableSchemaPaths, REACHABLE_PATHS_LIMIT };
-export type { NodeDescriptor };

@@ -44,4 +44,4 @@ const allowedNodeTypes = (field: RichTextField): string[] => {
 	return [...new Set([...LEXICAL_CORE_NODES, ...registered])];
 };
 
-export { LEXICAL_CORE_NODES, allowedNodeTypes };
+export { allowedNodeTypes };

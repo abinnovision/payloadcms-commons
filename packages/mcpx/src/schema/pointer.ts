@@ -210,4 +210,4 @@ const resolveDataPointer = (
 };
 
 export { pointerSegments, resolveDataPointer };
-export type { PointerResolution, PointerTarget };
+export type { PointerResolution };
