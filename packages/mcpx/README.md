@@ -139,6 +139,10 @@ Rules the tools enforce and explain in their own descriptions:
   for those blocks (`layout.sections.sectionWrapper`), so pass an entry of
   `next` as a `paths` element to descend. A block is described as it exists at
   that position.
+- Field and collection `admin.description` values are included in
+  `describeSchema` and `listCapabilities`, so intent written for the admin
+  panel reaches the client. Strings and locale-keyed records pass through;
+  functions and components are dropped.
 - Builtin tools reject unknown arguments by name instead of silently ignoring
   them.
 - A schema path becomes a patch pointer by replacing `.` with `/`, adding a

@@ -47,6 +47,22 @@ describe("describeFields", () => {
 		expect(paths).not.toContain("General.title");
 	});
 
+	it("carries serializable admin descriptions and drops functions", () => {
+		const descriptors = describeFields(pagesFields());
+		const byPath = (path: string) =>
+			descriptors.find((field) => field.path === path);
+
+		expect(byPath("slug")?.description).toBe(
+			"URL segment of the page, lowercase.",
+		);
+		expect(byPath("title")?.description).toEqual({
+			en: "Page title",
+			de: "Seitentitel",
+		});
+		expect(byPath("meta.title")).not.toHaveProperty("description");
+		expect(byPath("layout.color")).not.toHaveProperty("description");
+	});
+
 	it("keeps named groups and flattens unnamed ones", () => {
 		const fields: Field[] = [
 			{ name: "meta", type: "group", fields: [{ name: "a", type: "text" }] },

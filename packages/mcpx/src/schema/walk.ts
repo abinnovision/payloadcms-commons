@@ -21,6 +21,7 @@ import type {
  */
 interface FieldDescriptor {
 	blocks?: string[];
+	description?: Record<string, string> | string;
 	hasMany?: true;
 	localized?: true;
 	maxRows?: number;
@@ -129,19 +130,47 @@ const isSkipped = (field: FlattenedField): boolean =>
 const isReadOnly = (field: FlattenedField): boolean =>
 	"admin" in field && field.admin.readOnly === true;
 
+/**
+ * The `admin.description` of a field or collection, when it is serializable:
+ * a string or a locale-keyed record. Functions and components are admin-UI
+ * constructs and are dropped.
+ */
+const staticDescription = (
+	description: unknown,
+): Record<string, string> | string | undefined => {
+	if (typeof description === "string") {
+		return description;
+	}
+
+	return typeof description === "object" &&
+		description !== null &&
+		Object.values(description).every((entry) => typeof entry === "string")
+		? (description as Record<string, string>)
+		: undefined;
+};
+
 const describeBase = (
 	field: FlattenedField,
 	path: string,
 	readOnly: boolean,
-): FieldDescriptor => ({
-	path,
-	type: field.type,
-	...("required" in field && field.required ? { required: true as const } : {}),
-	...("localized" in field && field.localized
-		? { localized: true as const }
-		: {}),
-	...(readOnly ? { readOnly: true as const } : {}),
-});
+): FieldDescriptor => {
+	const description = staticDescription(
+		"admin" in field ? field.admin.description : undefined,
+	);
+
+	return {
+		path,
+		type: field.type,
+		...(description === undefined ? {} : { description }),
+		...("required" in field && field.required
+			? { required: true as const }
+			: {}),
+		...("localized" in field && field.localized
+			? { localized: true as const }
+			: {}),
+		...(readOnly ? { readOnly: true as const } : {}),
+	};
+};
 
 const describeLeaf = (
 	field: FlattenedField,
@@ -288,5 +317,6 @@ export {
 	findBlocksField,
 	joinPath,
 	splitPath,
+	staticDescription,
 };
 export type { FieldDescriptor };

@@ -10,6 +10,7 @@ export const users: CollectionConfig = {
 
 export const pages: CollectionConfig = {
 	slug: "pages",
+	admin: { description: "Marketing pages rendered on the public site." },
 	versions: { drafts: true },
 	fields: [
 		{
@@ -18,8 +19,21 @@ export const pages: CollectionConfig = {
 				{
 					label: "General",
 					fields: [
-						{ name: "title", type: "text", required: true, localized: true },
-						{ name: "slug", type: "text", required: true },
+						{
+							name: "title",
+							type: "text",
+							required: true,
+							localized: true,
+							admin: {
+								description: { en: "Page title", de: "Seitentitel" },
+							},
+						},
+						{
+							name: "slug",
+							type: "text",
+							required: true,
+							admin: { description: "URL segment of the page, lowercase." },
+						},
 					],
 				},
 				{
@@ -44,7 +58,13 @@ export const pages: CollectionConfig = {
 		{
 			name: "meta",
 			type: "group",
-			fields: [{ name: "title", type: "text" }],
+			fields: [
+				{
+					name: "title",
+					type: "text",
+					admin: { description: () => "resolved in the admin UI only" },
+				},
+			],
 		},
 	],
 };
