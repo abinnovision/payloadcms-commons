@@ -6,9 +6,10 @@ A collection of common packages and plugins for [Payload CMS](https://payloadcms
 
 ## Packages
 
-| Package                                            | Description                                                                      |
-| -------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [`@abinnovision/payloadcms-mcpx`](./packages/mcpx) | MCP server plugin with a fixed, schema-aware tool surface and draft-only writes. |
+| Package                                                                    | Description                                                                      |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.             |
+| [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server plugin with a fixed, schema-aware tool surface and draft-only writes. |
 
 See [`packages/`](./packages) for the layout and conventions used when adding one.
 Private example apps live in [`apps/`](./apps).

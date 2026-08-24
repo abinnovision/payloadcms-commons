@@ -1,0 +1,81 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@abinnovision/payloadcms-email-lettermint",
+	"version": "0.0.0",
+	"description": "Payload CMS email adapter sending transactional mail through the Lettermint API.",
+	"keywords": [
+		"payload",
+		"payloadcms",
+		"email",
+		"email-adapter",
+		"lettermint"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/abinnovision/payloadcms-commons.git",
+		"directory": "packages/email-lettermint"
+	},
+	"license": "Apache-2.0",
+	"author": {
+		"name": "abi group GmbH",
+		"email": "info@abigroup.io",
+		"url": "https://abigroup.io"
+	},
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"default": "./dist/index.mjs"
+		}
+	},
+	"files": [
+		"dist",
+		"LICENSE",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsdown",
+		"format:check": "prettier --check 'src/**/*.ts' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"format:fix": "prettier --write 'src/**/*.ts' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"lint:check": "eslint 'src/**/*.ts' 'test/**/*.ts'",
+		"lint:fix": "eslint 'src/**/*.ts' 'test/**/*.ts' --fix",
+		"test-integration": "vitest --run --config test/integration/vitest.config.mts",
+		"test-unit": "vitest --run --coverage --config vitest.config.mts",
+		"test-unit:watch": "vitest --config vitest.config.mts",
+		"typecheck": "tsc --noEmit"
+	},
+	"lint-staged": {
+		"{src,test}/**/*.ts": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{json{,5},md,y{,a}ml}": "prettier --write"
+	},
+	"prettier": "@abinnovision/prettier-config",
+	"devDependencies": {
+		"@abinnovision/eslint-config-base": "^3.4.2",
+		"@abinnovision/prettier-config": "^2.2.0",
+		"@arethetypeswrong/core": "^0.18.5",
+		"@payloadcms/db-sqlite": "3.88.0",
+		"@swc/core": "^1.16.1",
+		"@types/node": "^26.2.0",
+		"@types/nodemailer": "^8.0.0",
+		"@vitest/coverage-v8": "^4.1.10",
+		"eslint": "^10.7.0",
+		"payload": "3.88.0",
+		"prettier": "^3.9.5",
+		"publint": "^0.3.24",
+		"tsdown": "^0.22.14",
+		"typescript": "^6.0.3",
+		"unplugin-swc": "^1.5.11",
+		"vitest": "^4.1.10"
+	},
+	"peerDependencies": {
+		"payload": ">=3.88.0 <4"
+	},
+	"publishConfig": {
+		"ghpr": true,
+		"npm": true,
+		"npmAccess": "public"
+	}
+}
