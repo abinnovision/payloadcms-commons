@@ -1,6 +1,8 @@
 import { NotFound } from "payload";
 import { z } from "zod";
 
+import { translateStatic } from "../i18n.js";
+
 import type { ResolvedTarget } from "./target.js";
 import type { ToolScope } from "./types.js";
 import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
@@ -196,15 +198,7 @@ const translateLabel = (
 	const { i18n, t } = scope.req;
 	const resolved = typeof label === "function" ? label({ i18n, t }) : label;
 
-	if (typeof resolved === "string") {
-		return resolved;
-	}
-
-	if (resolved && typeof resolved === "object") {
-		return resolved[i18n.language] ?? Object.values(resolved)[0] ?? fallback;
-	}
-
-	return fallback;
+	return translateStatic(resolved, i18n) ?? fallback;
 };
 
 export {

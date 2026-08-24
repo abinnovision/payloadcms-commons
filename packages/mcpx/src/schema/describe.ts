@@ -9,7 +9,9 @@ import {
 	splitPath,
 	targetOf,
 } from "./walk.js";
+import { translateAny } from "../i18n.js";
 
+import type { Translate } from "../i18n.js";
 import type { FieldDescriptor, SchemaTarget, TargetRef } from "./walk.js";
 import type { FlattenedField, SanitizedConfig } from "payload";
 
@@ -268,33 +270,38 @@ const branchesOf = (
 /**
  * Describes a collection or global root, one block reached through a schema
  * path, or the fields a Lexical node carries.
+ *
+ * Curried on the translator that resolves each `admin.description`, so a
+ * request binds its language once and the walk itself stays request-free.
  */
-const describeNode = (
-	config: SanitizedConfig,
-	ref: TargetRef,
-	schemaPath = "",
-): NodeDescriptor => {
-	const { blockType, fields } = fieldsAtSchemaPath(
-		config,
-		targetOf(config, ref),
-		schemaPath,
-	);
+const nodeDescriber =
+	(translate: Translate = translateAny) =>
+	(
+		config: SanitizedConfig,
+		ref: TargetRef,
+		schemaPath = "",
+	): NodeDescriptor => {
+		const { blockType, fields } = fieldsAtSchemaPath(
+			config,
+			targetOf(config, ref),
+			schemaPath,
+		);
 
-	const descriptors = describeFields(fields);
-	const next = descriptors.flatMap((descriptor) =>
-		branchesOf(fields, descriptor, schemaPath).map((branch) => branch.path),
-	);
+		const descriptors = describeFields(fields, translate);
+		const next = descriptors.flatMap((descriptor) =>
+			branchesOf(fields, descriptor, schemaPath).map((branch) => branch.path),
+		);
 
-	return {
-		...(blockType === undefined ? {} : { blockType }),
-		...(ref.kind === "collection"
-			? { collection: ref.slug }
-			: { global: ref.slug }),
-		fields: descriptors,
-		...(next.length > 0 ? { next } : {}),
-		schemaPath,
+		return {
+			...(blockType === undefined ? {} : { blockType }),
+			...(ref.kind === "collection"
+				? { collection: ref.slug }
+				: { global: ref.slug }),
+			fields: descriptors,
+			...(next.length > 0 ? { next } : {}),
+			schemaPath,
+		};
 	};
-};
 
 /**
  * Ceiling on the paths `reachableSchemaPaths` enumerates. The cycle guard only
@@ -346,4 +353,12 @@ const reachableSchemaPaths = (
 	return { paths: seen, truncated };
 };
 
-export { describeNode, reachableSchemaPaths, REACHABLE_PATHS_LIMIT };
+/** Describes a node without a request in hand, in whichever language comes first. */
+const describeNode = nodeDescriber();
+
+export {
+	describeNode,
+	nodeDescriber,
+	reachableSchemaPaths,
+	REACHABLE_PATHS_LIMIT,
+};

@@ -1,8 +1,10 @@
 import { fieldIsHiddenOrDisabled, fieldIsVirtual } from "payload/shared";
 
 import { allowedNodeTypes, nodeOptions } from "./lexical.js";
+import { translateAny } from "../i18n.js";
 
 import type { NodeOptions } from "./lexical.js";
+import type { Translate } from "../i18n.js";
 import type {
 	Field,
 	FlattenedBlock,
@@ -23,7 +25,7 @@ import type {
  */
 interface FieldDescriptor {
 	blocks?: string[];
-	description?: Record<string, string> | string;
+	description?: string;
 	hasMany?: true;
 	localized?: true;
 	max?: number;
@@ -145,30 +147,20 @@ const isReadOnly = (field: FlattenedField): boolean =>
 	"admin" in field && field.admin.readOnly === true;
 
 /**
- * The `admin.description` of a field or collection, when it is serializable:
- * a string or a locale-keyed record. Functions and components are admin-UI
- * constructs and are dropped.
+ * Where one field sits in the walk: its resolved path, whether anything above
+ * it is read-only, and the translator resolving its description.
  */
-const staticDescription = (
-	description: unknown,
-): Record<string, string> | string | undefined => {
-	if (typeof description === "string") {
-		return description;
-	}
-
-	return typeof description === "object" &&
-		description !== null &&
-		Object.values(description).every((entry) => typeof entry === "string")
-		? (description as Record<string, string>)
-		: undefined;
-};
+interface DescribeAt {
+	path: string;
+	readOnly: boolean;
+	translate: Translate;
+}
 
 const describeBase = (
 	field: FlattenedField,
-	path: string,
-	readOnly: boolean,
+	{ path, readOnly, translate }: DescribeAt,
 ): FieldDescriptor => {
-	const description = staticDescription(
+	const description = translate(
 		"admin" in field ? field.admin.description : undefined,
 	);
 
@@ -188,10 +180,9 @@ const describeBase = (
 
 const describeLeaf = (
 	field: FlattenedField,
-	path: string,
-	readOnly: boolean,
+	at: DescribeAt,
 ): FieldDescriptor => {
-	const descriptor = describeBase(field, path, readOnly);
+	const descriptor = describeBase(field, at);
 
 	if (field.type === "select" || field.type === "radio") {
 		descriptor.options = field.options.map((option) =>
@@ -289,54 +280,60 @@ const isInformative = (descriptor: FieldDescriptor): boolean =>
  * constraint. The walk stops at every blocks field and names the slugs instead
  * of descending, which keeps a node proportional to the number of blocks it
  * allows rather than to the size of their definitions.
+ *
+ * `translate` resolves each `admin.description` to the request's language.
+ * Callers that walk for paths alone leave it out and get the language-agnostic
+ * default, so a missing argument costs language selection, never the
+ * description itself.
  */
 const describeFields = (
 	fields: FlattenedField[],
-	prefix: readonly string[] = [],
-	parentReadOnly = false,
-): FieldDescriptor[] =>
-	fields.flatMap((field): FieldDescriptor[] => {
-		if (isSkipped(field)) {
-			return [];
-		}
+	translate: Translate = translateAny,
+): FieldDescriptor[] => {
+	const walk = (
+		current: FlattenedField[],
+		prefix: readonly string[],
+		parentReadOnly: boolean,
+	): FieldDescriptor[] =>
+		current.flatMap((field): FieldDescriptor[] => {
+			if (isSkipped(field)) {
+				return [];
+			}
 
-		const readOnly = parentReadOnly || isReadOnly(field);
-		const path = [...prefix, field.name];
+			const readOnly = parentReadOnly || isReadOnly(field);
+			const path = [...prefix, field.name];
+			const at = { path: joinPath(path), readOnly, translate };
 
-		if (field.type === "tab" || field.type === "group") {
-			const own = describeBase(field, joinPath(path), readOnly);
+			if (field.type === "tab" || field.type === "group") {
+				const own = describeBase(field, at);
 
-			return [
-				...(isInformative(own) ? [own] : []),
-				...describeFields(field.flattenedFields, path, readOnly),
-			];
-		}
+				return [
+					...(isInformative(own) ? [own] : []),
+					...walk(field.flattenedFields, path, readOnly),
+				];
+			}
 
-		if (field.type === "array") {
-			return [
-				withRows(describeBase(field, joinPath(path), readOnly), field),
-				...describeFields(
-					field.flattenedFields,
-					[...path, ARRAY_MARKER],
-					readOnly,
-				),
-			];
-		}
+			if (field.type === "array") {
+				return [
+					withRows(describeBase(field, at), field),
+					...walk(field.flattenedFields, [...path, ARRAY_MARKER], readOnly),
+				];
+			}
 
-		if (field.type === "blocks") {
-			return [
-				withRows(
-					{
-						...describeBase(field, joinPath(path), readOnly),
-						blocks: blockSlugsOf(field),
-					},
-					field,
-				),
-			];
-		}
+			if (field.type === "blocks") {
+				return [
+					withRows(
+						{ ...describeBase(field, at), blocks: blockSlugsOf(field) },
+						field,
+					),
+				];
+			}
 
-		return [describeLeaf(field, joinPath(path), readOnly)];
-	});
+			return [describeLeaf(field, at)];
+		});
+
+	return walk(fields, [], false);
+};
 
 /**
  * The descriptors that address a value, which is what every walk resolving a
@@ -468,7 +465,6 @@ export {
 	joinPath,
 	pointerFromPayloadPath,
 	splitPath,
-	staticDescription,
 	targetOf,
 };
 export type { FieldDescriptor, SchemaTarget, TargetRef };

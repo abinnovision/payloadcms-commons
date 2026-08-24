@@ -3,8 +3,9 @@ import { z } from "zod";
 import { targetShape } from "./shared.js";
 import { refOf, resolveTarget } from "./target.js";
 import { jsonResult } from "../endpoint/result.js";
+import { translatorFor } from "../i18n.js";
 import {
-	describeNode,
+	nodeDescriber,
 	REACHABLE_PATHS_LIMIT,
 	reachableSchemaPaths,
 } from "../schema/describe.js";
@@ -58,6 +59,7 @@ const describeSchema: BuiltinTool<Args> = {
 		const ref = refOf(resolveTarget(scope, args, "read"));
 
 		const { config } = scope.req.payload;
+		const describeNode = nodeDescriber(translatorFor(scope.req.i18n));
 		const expanded =
 			args.expand === true ? reachableSchemaPaths(config, ref) : undefined;
 

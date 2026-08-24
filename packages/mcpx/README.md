@@ -163,8 +163,9 @@ Rules the tools enforce and explain in their own descriptions:
   the only place the restriction is checked.
 - Field and collection `admin.description` values are included in
   `describeSchema` and `listCapabilities`, so intent written for the admin
-  panel reaches the client. Strings and locale-keyed records pass through;
-  functions and components are dropped.
+  panel reaches the client. A locale-keyed record is resolved to one string for
+  the request's language, falling back to the deployment's fallback language and
+  then to the record's first entry; functions and components are dropped.
 - Builtin tools reject unknown arguments by name instead of silently ignoring
   them.
 - Every path this plugin accepts or reports is a JSON Pointer. A schema path

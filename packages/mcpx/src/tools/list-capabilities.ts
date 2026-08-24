@@ -2,7 +2,7 @@ import { hasDraftValidationEnabled } from "payload/shared";
 
 import { translateLabel } from "./shared.js";
 import { jsonResult } from "../endpoint/result.js";
-import { staticDescription } from "../schema/walk.js";
+import { translatorFor } from "../i18n.js";
 
 import type { BuiltinTool } from "./types.js";
 
@@ -18,6 +18,7 @@ const listCapabilities: BuiltinTool<Record<string, never>> = {
 	inputSchema: () => ({}),
 	handler: (_args, scope) => {
 		const { payload } = scope.req;
+		const translate = translatorFor(scope.req.i18n);
 
 		const collections = scope.options.collections.flatMap((entry) => {
 			const capability = scope.capabilities.collections[entry.slug];
@@ -32,7 +33,7 @@ const listCapabilities: BuiltinTool<Record<string, never>> = {
 			}
 
 			const { config } = collection;
-			const description = staticDescription(config.admin.description);
+			const description = translate(config.admin.description);
 
 			return [
 				{
@@ -62,7 +63,7 @@ const listCapabilities: BuiltinTool<Record<string, never>> = {
 				return [];
 			}
 
-			const description = staticDescription(config.admin.description);
+			const description = translate(config.admin.description);
 
 			return [
 				{

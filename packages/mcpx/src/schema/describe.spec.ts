@@ -1,7 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { describeNode, reachableSchemaPaths } from "./describe.js";
+import {
+	describeNode,
+	nodeDescriber,
+	reachableSchemaPaths,
+} from "./describe.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
+import { translatorFor } from "../i18n.js";
 
 import type { SanitizedConfig } from "payload";
 
@@ -32,6 +37,16 @@ describe("describeNode", () => {
 			"/meta",
 			"/meta/title",
 		]);
+	});
+
+	it("resolves descriptions through the translator it is given", () => {
+		const node = nodeDescriber(
+			translatorFor({ fallbackLanguage: "en", language: "de" }),
+		)(config, PAGES_REF);
+
+		expect(
+			node.fields.find((field) => field.path === "/title")?.description,
+		).toBe("Seitentitel");
 	});
 
 	it("lists ready-to-use drill-down paths in next", () => {
