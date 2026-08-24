@@ -4,6 +4,10 @@
 	"release-type": "node",
 	"separate-pull-requests": true,
 	"packages": {
+		"packages/email-lettermint": {
+			"package-name": "@abinnovision/payloadcms-email-lettermint",
+			"component": "payloadcms-email-lettermint"
+		},
 		"packages/mcpx": {
 			"package-name": "@abinnovision/payloadcms-mcpx",
 			"component": "payloadcms-mcpx"
