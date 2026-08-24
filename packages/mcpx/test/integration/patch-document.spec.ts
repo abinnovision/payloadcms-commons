@@ -318,8 +318,43 @@ describe("patchDocument", () => {
 		expect((await readDraft(other.id, "en")).title).toBe("Only english");
 	});
 
+	/** An editor state holding a single link node carrying `fields`. */
+	const linkState = (fields: Record<string, unknown>) => ({
+		root: {
+			children: [
+				{
+					children: [
+						{
+							detail: 0,
+							format: 0,
+							mode: "normal",
+							style: "",
+							text: "x",
+							type: "text",
+							version: 1,
+						},
+					],
+					direction: "ltr",
+					fields,
+					format: "",
+					indent: 0,
+					type: "link",
+					version: 3,
+				},
+			],
+			direction: "ltr",
+			format: "",
+			indent: 0,
+			type: "root",
+			version: 1,
+		},
+	});
+
 	interface PostDoc {
 		id: number | string;
+		content?: {
+			root: { children: { fields?: Record<string, unknown> }[] };
+		};
 		items?: {
 			id?: string;
 			heading?: string | null;
@@ -367,6 +402,56 @@ describe("patchDocument", () => {
 		const saved = await readPost(post.id, "en");
 
 		expect(saved.items?.[0]?.actions?.[0]?.label).toBe("New");
+	});
+
+	it("refuses a Lexical link field the editor does not declare", async () => {
+		const post = await createPost({ title: "Post" });
+		const result = await patch({
+			collection: "posts",
+			id: post.id,
+			locale: "en",
+			patches: [
+				{
+					op: "replace",
+					path: "/content",
+					value: linkState({ relation: "nofollow", url: "/x" }),
+				},
+			],
+		});
+
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result.data)).toContain(
+			"/content/root/children/0/fields/relation: no such field",
+		);
+	});
+
+	it("writes a Lexical link field the editor declares", async () => {
+		const post = await createPost({ title: "Post" });
+		const result = await patch({
+			collection: "posts",
+			id: post.id,
+			locale: "en",
+			patches: [
+				{
+					op: "replace",
+					path: "/content",
+					value: linkState({
+						linkType: "custom",
+						rel: "nofollow",
+						url: "/x",
+					}),
+				},
+			],
+		});
+
+		expect(result.isError).toBe(false);
+
+		const saved = await readPost(post.id, "en");
+
+		expect(saved.content?.root.children[0]?.fields).toMatchObject({
+			rel: "nofollow",
+			url: "/x",
+		});
 	});
 
 	it("keeps row identity on a whole-field replace, so other locales survive", async () => {

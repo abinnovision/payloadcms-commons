@@ -3,7 +3,7 @@ import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { buildConfig } from "payload";
 import { z } from "zod";
 
-import { richTextBlock } from "./blocks.js";
+import { calloutBlock, richTextBlock } from "./blocks.js";
 import { pages, posts, tags, users } from "./collections.js";
 import { banner, siteSettings } from "./globals.js";
 import { defineMcpxTool, mcpxPlugin } from "../../src/index.js";
@@ -53,7 +53,7 @@ export const buildFixtureConfig = (
 		db: sqliteAdapter({ client: { url: ":memory:" } }),
 		editor: lexicalEditor(),
 		localization: { locales: ["en", "de"], defaultLocale: "en" },
-		blocks: [richTextBlock],
+		blocks: [calloutBlock, richTextBlock],
 		collections: [users, pages, posts, tags],
 		// Registered on the config but deliberately absent from
 		// `defaultPluginOptions`: every existing spec then keeps running against

@@ -17,6 +17,8 @@ Pass exactly one of "collection" and "global". A global is a singleton: it has n
 
 Call it with no "paths" to get a collection's own fields. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; each node's "next" lists the ready-to-use paths for those blocks, so pass any entry of "next" as a "paths" element to descend, e.g. "/layout/sections/sectionWrapper" and then "/layout/sections/sectionWrapper/modules/hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
 
+A "richText" field stops there too. It lists the Lexical node types it accepts in "nodes", and "next" carries a path for every node type that holds fields of its own: "/content/link" for a link node, "/content/block/callout" and "/content/inlineBlock/badge" for the block nodes. Descend to get the real field list instead of guessing what a node carries. Upload nodes are not addressable, because their fields depend on the collection the node points at.
+
 Paths here use the same JSON Pointer syntax as getDocument and patchDocument, and are already resolved through anything that does not nest in the stored document. The difference is only what stands in an element position: a path names an array element "*" and a block by its slug, where a pointer into a document carries a 0-based index. So "/items/*/title" is written at "/items/0/title", and "/layout/sections/hero" at "/layout/sections/0".
 
 Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;

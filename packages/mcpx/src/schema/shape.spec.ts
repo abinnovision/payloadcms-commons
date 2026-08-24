@@ -29,6 +29,31 @@ const lexical = (type: string) => ({
 	},
 });
 
+const POST = { content: { root: { children: [], type: "root" } } };
+
+/** An editor state holding one node of `type`, carrying `fields`. */
+const nodeState = (type: string, fields: unknown) => ({
+	root: { children: [{ children: [], fields, type }], type: "root" },
+});
+
+const linkNode = (fields: unknown) => nodeState("link", fields);
+const blockNode = (fields: unknown) => nodeState("block", fields);
+
+const checkPost = (value: unknown) =>
+	validateWriteValue(
+		config,
+		{
+			pointer: "/content",
+			resolution: resolveDataPointer(config, {
+				addedValue: value,
+				doc: POST,
+				pointer: "/content",
+				ref: { kind: "collection", slug: "posts" },
+			}),
+		},
+		value,
+	);
+
 const check = (pointer: string, value: unknown) =>
 	validateWriteValue(
 		config,
@@ -87,10 +112,36 @@ describe("validateWriteValue", () => {
 				{ blockType: "hero", title: lexical("heading") },
 			]),
 		).toEqual([
-			'/layout/sections/0/modules/0/title: "heading" is not available in this field\'s editor. Allowed: root, paragraph, text, linebreak, tab',
+			'/layout/sections/0/modules/0/title/root/children/0: "heading" is not available in this field\'s editor. Allowed: root, paragraph, text, linebreak, tab',
 		]);
 		expect(check("/layout/sections/0/modules/0/title", "plain")).toEqual([
 			'/layout/sections/0/modules/0/title: expected a Lexical editor state with a "root".',
+		]);
+	});
+
+	it("checks the fields a Lexical node carries", () => {
+		expect(
+			checkPost(linkNode({ linkType: "custom", rel: "nofollow", url: "/x" })),
+		).toEqual([]);
+		expect(checkPost(linkNode({ relation: "nofollow", url: "/x" }))).toEqual([
+			"/content/root/children/0/fields/relation: no such field. Available: linkType, url, doc, newTab, rel",
+		]);
+		expect(checkPost(linkNode("nope"))).toEqual([
+			'/content/root/children/0: a "link" node carries a "fields" object.',
+		]);
+	});
+
+	it("checks a Lexical block against the definition its slug names", () => {
+		expect(
+			checkPost(blockNode({ blockType: "callout", tone: "info" })),
+		).toEqual([]);
+		expect(checkPost(blockNode({ blockType: "badge", label: "new" }))).toEqual([
+			'/content/root/children/0/fields: "badge" is not allowed here. Allowed: callout',
+		]);
+		expect(
+			checkPost(blockNode({ blockType: "callout", tune: "info" })),
+		).toEqual([
+			"/content/root/children/0/fields/tune: no such field. Available: tone, note",
 		]);
 	});
 

@@ -7,6 +7,7 @@ import type {
 	FlattenedBlock,
 	FlattenedBlocksField,
 	FlattenedField,
+	RichTextField,
 	SanitizedCollectionConfig,
 	SanitizedConfig,
 	TabAsField,
@@ -300,6 +301,35 @@ const findBlocksField = (
 };
 
 /**
+ * Locates the rich text field that a resolved descriptor path refers to, so
+ * its editor can be introspected for the fields its nodes carry.
+ */
+const findRichTextField = (
+	fields: FlattenedField[],
+	path: readonly string[],
+): RichTextField | undefined => {
+	for (const field of fields) {
+		if (!("name" in field) || field.name !== path[0]) {
+			continue;
+		}
+
+		if (field.type === "richText" && path.length === 1) {
+			return field;
+		}
+
+		if (field.type === "tab" || field.type === "group") {
+			return findRichTextField(field.flattenedFields, path.slice(1));
+		}
+
+		if (field.type === "array" && path[1] === ARRAY_MARKER) {
+			return findRichTextField(field.flattenedFields, path.slice(2));
+		}
+	}
+
+	return undefined;
+};
+
+/**
  * Names a collection or a global before its config is looked up. Everything in
  * the schema layer is written against this rather than a bare slug, because a
  * slug alone cannot say which of the two namespaces it belongs to.
@@ -357,6 +387,7 @@ export {
 	collectionOf,
 	describeFields,
 	findBlocksField,
+	findRichTextField,
 	joinPath,
 	pointerFromPayloadPath,
 	splitPath,

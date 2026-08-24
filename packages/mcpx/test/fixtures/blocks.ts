@@ -1,4 +1,8 @@
-import { lexicalEditor, ParagraphFeature } from "@payloadcms/richtext-lexical";
+import {
+	BlocksFeature,
+	lexicalEditor,
+	ParagraphFeature,
+} from "@payloadcms/richtext-lexical";
 
 import type { Block } from "payload";
 
@@ -56,5 +60,32 @@ export const sectionWrapperBlock: Block = {
  */
 export const ctaBlock: Block = {
 	slug: "cta",
+	fields: [{ name: "label", type: "text", required: true }],
+};
+
+/**
+ * Lexical block, registered on `config.blocks` and reached only through a rich
+ * text node. Its own editor accepts the block again, so the cycle guard of
+ * `reachableSchemaPaths` has something to stop.
+ */
+export const calloutBlock: Block = {
+	slug: "callout",
+	fields: [
+		{ name: "tone", type: "select", options: ["info", "warning"] },
+		{
+			name: "note",
+			type: "richText",
+			editor: lexicalEditor({
+				features: [BlocksFeature({ blocks: ["callout"] })],
+			}),
+		},
+	],
+};
+
+/**
+ * Lexical inline block, so the node type taking a slug is covered twice.
+ */
+export const badgeBlock: Block = {
+	slug: "badge",
 	fields: [{ name: "label", type: "text", required: true }],
 };

@@ -1,8 +1,10 @@
+import { lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
 import {
 	blockOf,
 	blockSlugsOf,
 	describeFields,
 	findBlocksField,
+	findRichTextField,
 	joinPath,
 	splitPath,
 	targetOf,
@@ -27,8 +29,149 @@ interface NodeDescriptor {
 	schemaPath: string;
 }
 
-const blocksDescriptors = (fields: FlattenedField[]): FieldDescriptor[] =>
-	describeFields(fields).filter((descriptor) => descriptor.type === "blocks");
+/**
+ * One drill-down out of a node: the schema path leading there, and the token
+ * {@link reachableSchemaPaths} tracks to stop a definition reachable from
+ * itself from being enumerated forever.
+ */
+interface Branch {
+	path: string;
+	token: string;
+}
+
+/**
+ * The longest descriptor path that is a prefix of `remaining`. Blocks and rich
+ * text fields are both leaves of the walk, so at most one can match.
+ */
+const longestMatch = (
+	descriptors: FieldDescriptor[],
+	remaining: readonly string[],
+): string[] | undefined =>
+	descriptors
+		.map((descriptor) => splitPath(descriptor.path))
+		.filter((parts) =>
+			parts.every((part, offset) => part === remaining[offset]),
+		)
+		.sort((left, right) => right.length - left.length)[0];
+
+/**
+ * A position mid-walk: the fields in scope, the descriptor path matched there,
+ * and the segments still to consume.
+ */
+interface StepAt {
+	config: SanitizedConfig;
+	fields: FlattenedField[];
+	match: string[];
+	remaining: readonly string[];
+}
+
+/** Where one step of a schema path lands. */
+interface Step {
+	blockType?: string;
+	fields: FlattenedField[];
+	rest: string[];
+}
+
+/**
+ * Walks one step of a schema path through a blocks field.
+ */
+const stepThroughBlocks = ({
+	config,
+	fields,
+	match,
+	remaining,
+}: StepAt): Step => {
+	const field = findBlocksField(fields, match);
+
+	if (!field) {
+		throw new Error(`"${joinPath(match)}" could not be resolved.`);
+	}
+
+	const slug = remaining.at(match.length);
+
+	if (slug === undefined) {
+		throw new Error(
+			`"${joinPath(match)}" is a blocks field; append one of: ${blockSlugsOf(field).join(", ")}`,
+		);
+	}
+
+	const block = blockOf(config, field, slug);
+
+	if (!block) {
+		throw new Error(
+			`"${slug}" is not allowed at "${joinPath(match)}". Allowed: ${blockSlugsOf(field).join(", ")}`,
+		);
+	}
+
+	return {
+		blockType: slug,
+		fields: block.flattenedFields,
+		rest: remaining.slice(match.length + 1),
+	};
+};
+
+/**
+ * Walks one step of a schema path into a Lexical node's own fields.
+ *
+ * A node that picks a block by slug takes one segment more, so `/content/block`
+ * addresses the choice and `/content/block/callout` the definition. Everything
+ * else, a link node being the usual case, resolves in a single segment.
+ */
+const stepThroughLexical = ({
+	config,
+	fields,
+	match,
+	remaining,
+}: StepAt): Step => {
+	const field = findRichTextField(fields, match);
+
+	if (!field) {
+		throw new Error(`"${joinPath(match)}" could not be resolved.`);
+	}
+
+	const available = subSchemaNodeTypes(field).join(", ") || "none";
+	const nodeType = remaining.at(match.length);
+
+	if (nodeType === undefined) {
+		throw new Error(
+			`"${joinPath(match)}" is a rich text field; append one of: ${available}`,
+		);
+	}
+
+	const sub = lexicalSubSchema(field, nodeType);
+	const reached = joinPath([...match, nodeType]);
+
+	if (!sub) {
+		throw new Error(
+			`"${nodeType}" carries no fields in this field's editor. Node types with fields here: ${available}`,
+		);
+	}
+
+	if (sub.kind === "fields") {
+		return { fields: sub.fields, rest: remaining.slice(match.length + 1) };
+	}
+
+	const slug = remaining.at(match.length + 1);
+	const slugs = blockSlugsOf(sub.blocksField).join(", ");
+
+	if (slug === undefined) {
+		throw new Error(`"${reached}" selects a block; append one of: ${slugs}`);
+	}
+
+	const block = blockOf(config, sub.blocksField, slug);
+
+	if (!block) {
+		throw new Error(
+			`"${slug}" is not allowed at "${reached}". Allowed: ${slugs}`,
+		);
+	}
+
+	return {
+		blockType: slug,
+		fields: block.flattenedFields,
+		rest: remaining.slice(match.length + 2),
+	};
+};
 
 /**
  * Walks a schema path to the field list it addresses.
@@ -36,7 +179,9 @@ const blocksDescriptors = (fields: FlattenedField[]): FieldDescriptor[] =>
  * A schema path alternates a blocks field's own path with the slug of one of
  * the blocks it accepts, so `/layout/sections/sectionWrapper/modules/hero`
  * reaches `hero` as it exists under `pages` specifically. The slug sits where
- * a pointer into a document would carry the element's index.
+ * a pointer into a document would carry the element's index. A rich text
+ * field's path continues the same way, naming a Lexical node type and, for the
+ * block nodes, the slug it holds.
  */
 const fieldsAtSchemaPath = (
 	config: SanitizedConfig,
@@ -48,59 +193,81 @@ const fieldsAtSchemaPath = (
 	let remaining = splitPath(schemaPath);
 
 	while (remaining.length > 0) {
+		const descendable = describeFields(fields).filter(
+			(descriptor) =>
+				descriptor.type === "blocks" || descriptor.type === "richText",
+		);
+
 		/**
-		 * A blocks field's own path may span several segments
-		 * (`/layout/sections`), so the longest matching one is taken.
+		 * A field's own path may span several segments (`/layout/sections`), so
+		 * the longest matching one is taken. Blocks and rich text fields are both
+		 * leaves of the walk, so no two of these paths overlap.
 		 */
-		const match = blocksDescriptors(fields)
-			.map((descriptor) => splitPath(descriptor.path))
-			.filter((parts) =>
-				parts.every((part, offset) => part === remaining[offset]),
-			)
-			.sort((left, right) => right.length - left.length)[0];
+		const match = longestMatch(descendable, remaining);
 
 		if (!match) {
 			throw new Error(
-				`"${joinPath(remaining)}" does not address a blocks field. Blocks fields here: ${
-					blocksDescriptors(fields)
-						.map((descriptor) => descriptor.path)
-						.join(", ") || "none"
+				`"${joinPath(remaining)}" does not address a blocks or rich text field. Available here: ${
+					descendable.map((descriptor) => descriptor.path).join(", ") || "none"
 				}`,
 			);
 		}
 
-		const slug = remaining.at(match.length);
-		const field = findBlocksField(fields, match);
+		const at = { config, fields, match, remaining };
+		const step =
+			findBlocksField(fields, match) === undefined
+				? stepThroughLexical(at)
+				: stepThroughBlocks(at);
 
-		if (!field) {
-			throw new Error(`"${joinPath(match)}" could not be resolved.`);
-		}
-
-		if (slug === undefined) {
-			throw new Error(
-				`"${joinPath(match)}" is a blocks field; append one of: ${blockSlugsOf(field).join(", ")}`,
-			);
-		}
-
-		const block = blockOf(config, field, slug);
-
-		if (!block) {
-			throw new Error(
-				`"${slug}" is not allowed at "${joinPath(match)}". Allowed: ${blockSlugsOf(field).join(", ")}`,
-			);
-		}
-
-		fields = block.flattenedFields;
-		blockType = slug;
-		remaining = remaining.slice(match.length + 1);
+		blockType = step.blockType;
+		fields = step.fields;
+		remaining = step.rest;
 	}
 
 	return { ...(blockType === undefined ? {} : { blockType }), fields };
 };
 
 /**
- * Describes a collection or global root, or one block reached through a schema
- * path.
+ * Where a descriptor can be drilled into: one branch per block a blocks field
+ * accepts, and one per Lexical node type that carries fields.
+ */
+const branchesOf = (
+	fields: FlattenedField[],
+	descriptor: FieldDescriptor,
+	schemaPath: string,
+): Branch[] => {
+	const base = `${schemaPath}${descriptor.path}`;
+
+	if (descriptor.type === "richText") {
+		const field = findRichTextField(fields, splitPath(descriptor.path));
+
+		if (!field) {
+			return [];
+		}
+
+		return subSchemaNodeTypes(field).flatMap((nodeType) => {
+			const sub = lexicalSubSchema(field, nodeType);
+
+			if (sub?.kind !== "blocks") {
+				return [{ path: `${base}/${nodeType}`, token: `lexical:${nodeType}` }];
+			}
+
+			return blockSlugsOf(sub.blocksField).map((slug) => ({
+				path: `${base}/${nodeType}/${slug}`,
+				token: `lexical:${nodeType}:${slug}`,
+			}));
+		});
+	}
+
+	return (descriptor.blocks ?? []).map((slug) => ({
+		path: `${base}/${slug}`,
+		token: slug,
+	}));
+};
+
+/**
+ * Describes a collection or global root, one block reached through a schema
+ * path, or the fields a Lexical node carries.
  */
 const describeNode = (
 	config: SanitizedConfig,
@@ -115,9 +282,7 @@ const describeNode = (
 
 	const descriptors = describeFields(fields);
 	const next = descriptors.flatMap((descriptor) =>
-		(descriptor.blocks ?? []).map(
-			(slug) => `${schemaPath}${descriptor.path}/${slug}`,
-		),
+		branchesOf(fields, descriptor, schemaPath).map((branch) => branch.path),
 	);
 
 	return {
@@ -159,13 +324,19 @@ const reachableSchemaPaths = (
 
 		seen.push(schemaPath);
 
-		for (const descriptor of describeNode(config, ref, schemaPath).fields) {
-			for (const slug of descriptor.blocks ?? []) {
-				if (visited.includes(slug)) {
+		const { fields } = fieldsAtSchemaPath(
+			config,
+			targetOf(config, ref),
+			schemaPath,
+		);
+
+		for (const descriptor of describeFields(fields)) {
+			for (const branch of branchesOf(fields, descriptor, schemaPath)) {
+				if (visited.includes(branch.token)) {
 					continue;
 				}
 
-				walk(`${schemaPath}${descriptor.path}/${slug}`, [...visited, slug]);
+				walk(branch.path, [...visited, branch.token]);
 			}
 		}
 	};

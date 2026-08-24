@@ -9,6 +9,7 @@ const SECTION_WRAPPER = "/layout/sections/sectionWrapper";
 const HERO = `${SECTION_WRAPPER}/modules/hero`;
 
 const PAGES_REF = { kind: "collection", slug: "pages" } as const;
+const POSTS_REF = { kind: "collection", slug: "posts" } as const;
 const SETTINGS_REF = { kind: "global", slug: "site-settings" } as const;
 
 let config: SanitizedConfig;
@@ -41,7 +42,11 @@ describe("describeNode", () => {
 			HERO,
 			`${SECTION_WRAPPER}/modules/richText`,
 		]);
-		expect(describeNode(config, PAGES_REF, HERO).next).toBeUndefined();
+		// `title` enables paragraphs only, `body` the default features, so only
+		// the latter contributes a Lexical branch.
+		expect(describeNode(config, PAGES_REF, HERO).next).toEqual([
+			`${HERO}/body/link`,
+		]);
 	});
 
 	it("resolves a block in the context of its host", () => {
@@ -102,9 +107,9 @@ describe("describeNode", () => {
 		);
 	});
 
-	it("lists the blocks fields when the path does not address one", () => {
+	it("lists the descendable fields when the path addresses none", () => {
 		expect(() => describeNode(config, PAGES_REF, "/title")).toThrow(
-			'"/title" does not address a blocks field. Blocks fields here: /layout/sections',
+			'"/title" does not address a blocks or rich text field. Available here: /layout/sections',
 		);
 	});
 
@@ -128,8 +133,11 @@ describe("reachableSchemaPaths", () => {
 				"",
 				SECTION_WRAPPER,
 				HERO,
+				`${HERO}/body/link`,
 				`${SECTION_WRAPPER}/modules/richText`,
+				`${SECTION_WRAPPER}/modules/richText/content/link`,
 				"/layout/sections/richText",
+				"/layout/sections/richText/content/link",
 			],
 			truncated: false,
 		});
@@ -154,6 +162,89 @@ describe("reachableSchemaPaths", () => {
 		await expect(`${JSON.stringify(nodes, null, "\t")}\n`).toMatchFileSnapshot(
 			"./__snapshots__/describe.nodes.snap",
 		);
+	});
+});
+
+describe("describeNode into Lexical nodes", () => {
+	const CONTENT = "/content";
+
+	it("offers one drill-down per node type that carries fields", () => {
+		expect(describeNode(config, POSTS_REF).next).toEqual([
+			`${CONTENT}/link`,
+			`${CONTENT}/block/callout`,
+			`${CONTENT}/inlineBlock/badge`,
+			"/items/*/actions/cta",
+		]);
+	});
+
+	it("resolves the link fields the feature was configured with", () => {
+		const node = describeNode(config, POSTS_REF, `${CONTENT}/link`);
+
+		expect(node.blockType).toBeUndefined();
+		expect(node.fields.map((field) => field.path)).toEqual([
+			"/linkType",
+			"/url",
+			"/doc",
+			"/newTab",
+			"/rel",
+		]);
+		expect(node.fields.find((field) => field.path === "/rel")).toEqual({
+			options: ["nofollow", "sponsored"],
+			path: "/rel",
+			type: "select",
+		});
+	});
+
+	it("resolves a Lexical block and keeps descending from it", () => {
+		const node = describeNode(config, POSTS_REF, `${CONTENT}/block/callout`);
+
+		expect(node.blockType).toBe("callout");
+		expect(node.fields.map((field) => field.path)).toEqual(["/tone", "/note"]);
+		expect(node.next).toEqual([`${CONTENT}/block/callout/note/block/callout`]);
+	});
+
+	it("resolves an inline block", () => {
+		const node = describeNode(
+			config,
+			POSTS_REF,
+			`${CONTENT}/inlineBlock/badge`,
+		);
+
+		expect(node.blockType).toBe("badge");
+		expect(node.fields).toEqual([
+			{ path: "/label", required: true, type: "text" },
+		]);
+	});
+
+	it("stops a Lexical block reachable from itself", () => {
+		const { paths, truncated } = reachableSchemaPaths(config, POSTS_REF);
+
+		expect(truncated).toBe(false);
+		expect(paths).toEqual([
+			"",
+			`${CONTENT}/link`,
+			`${CONTENT}/block/callout`,
+			`${CONTENT}/inlineBlock/badge`,
+			"/items/*/actions/cta",
+		]);
+	});
+
+	it("names the node types when the path stops at a rich text field", () => {
+		expect(() => describeNode(config, POSTS_REF, CONTENT)).toThrow(
+			'"/content" is a rich text field; append one of: link, block, inlineBlock',
+		);
+	});
+
+	it("refuses a node type with no addressable fields", () => {
+		expect(() => describeNode(config, POSTS_REF, `${CONTENT}/upload`)).toThrow(
+			'"upload" carries no fields in this field\'s editor. Node types with fields here: link, block, inlineBlock',
+		);
+	});
+
+	it("refuses a block the Lexical feature does not allow", () => {
+		expect(() =>
+			describeNode(config, POSTS_REF, `${CONTENT}/block/badge`),
+		).toThrow('"badge" is not allowed at "/content/block". Allowed: callout');
 	});
 });
 

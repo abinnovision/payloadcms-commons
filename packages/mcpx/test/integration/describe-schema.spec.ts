@@ -105,4 +105,17 @@ describe("describeSchema", () => {
 		expect(bad?.error).toContain("carousel");
 		expect(bad?.error).toContain("sectionWrapper");
 	});
+
+	it("drills into the fields a Lexical node carries", async () => {
+		const root = nodes((await describe_({ collection: "posts" })).data)[0];
+
+		expect(root?.next).toContain("/content/link");
+		expect(root?.next).toContain("/content/block/callout");
+
+		const link = nodes(
+			(await describe_({ collection: "posts", paths: ["/content/link"] })).data,
+		)[0];
+
+		expect(link?.fields.map((f) => f.path)).toContain("/rel");
+	});
 });

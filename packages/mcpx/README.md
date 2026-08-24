@@ -10,7 +10,7 @@ small and static: collection slugs, locales and operations as enums, everything
 else scalars. The field shapes are pulled on demand through `describeSchema`,
 one node at a time, stopping at every blocks boundary. And every write is
 resolved server-side against the real config and the real document, so unknown
-fields, misplaced blocks and unusable rich text nodes are refused with the
+fields, misplaced blocks and unusable rich text nodes or node fields are refused with the
 valid alternatives listed, never silently dropped.
 
 Writes are RFC 6902 patches that always land as drafts; publishing stays a
@@ -142,6 +142,15 @@ Rules the tools enforce and explain in their own descriptions:
   accept; every node carries `next`, the ready-to-use paths for those blocks
   (`/layout/sections/sectionWrapper`), so pass an entry of `next` as a `paths`
   element to descend. A block is described as it exists at that position.
+- Rich text paths continue the same way. A `richText` field lists the Lexical
+  node types it accepts in `nodes`, and `next` carries a path for every node
+  type that holds fields of its own: `/content/link` for a link node,
+  `/content/block/callout` and `/content/inlineBlock/badge` for the block
+  nodes. Descending returns the real field list, so a link extended through
+  `LinkFeature({ fields })` and a Lexical block are both described rather than
+  guessed. Any feature declaring `getSubFields` is picked up, custom ones
+  included. `upload` nodes are the exception: their fields depend on the
+  collection the node points at, so they are not addressable.
 - Field and collection `admin.description` values are included in
   `describeSchema` and `listCapabilities`, so intent written for the admin
   panel reaches the client. Strings and locale-keyed records pass through;
@@ -302,9 +311,11 @@ key of every user.
 
 ## Non-goals of v1 / roadmap
 
-Deletes, uploads, markdown authoring for rich text, row addressing by id
-instead of index, cross-locale publish blockers, pagination of `describeSchema`
-with `expand`, and a handler-level timeout are all deliberate omissions for now.
+Deletes, uploads, markdown authoring for rich text, addressing a rich text node
+by position in a patch (an editor state is written whole), schemas for `upload`
+node fields, row addressing by id instead of index, cross-locale publish
+blockers, pagination of `describeSchema` with `expand`, and a handler-level
+timeout are all deliberate omissions for now.
 
 ## License
 

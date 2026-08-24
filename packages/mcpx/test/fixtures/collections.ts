@@ -1,6 +1,34 @@
-import { ctaBlock, richTextBlock, sectionWrapperBlock } from "./blocks.js";
+import {
+	BlocksFeature,
+	LinkFeature,
+	lexicalEditor,
+} from "@payloadcms/richtext-lexical";
+
+import {
+	badgeBlock,
+	ctaBlock,
+	richTextBlock,
+	sectionWrapperBlock,
+} from "./blocks.js";
 
 import type { CollectionConfig } from "payload";
+
+/**
+ * Editor carrying every kind of node sub-schema: blocks by slug, inline blocks
+ * by slug, and a link whose fields were extended beyond the defaults.
+ */
+const postContentEditor = lexicalEditor({
+	features: ({ defaultFeatures }) => [
+		...defaultFeatures.filter((feature) => feature.key !== "link"),
+		BlocksFeature({ blocks: ["callout"], inlineBlocks: [badgeBlock] }),
+		LinkFeature({
+			fields: ({ defaultFields }) => [
+				...defaultFields,
+				{ name: "rel", type: "select", options: ["nofollow", "sponsored"] },
+			],
+		}),
+	],
+});
 
 export const users: CollectionConfig = {
 	slug: "users",
@@ -74,7 +102,12 @@ export const posts: CollectionConfig = {
 	versions: { drafts: true },
 	fields: [
 		{ name: "title", type: "text", required: true },
-		{ name: "content", type: "richText", localized: true },
+		{
+			name: "content",
+			type: "richText",
+			localized: true,
+			editor: postContentEditor,
+		},
 		{
 			name: "tags",
 			type: "relationship",

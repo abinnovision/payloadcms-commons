@@ -114,6 +114,9 @@
 				]
 			}
 		],
+		"next": [
+			"/layout/sections/sectionWrapper/modules/hero/body/link"
+		],
 		"schemaPath": "/layout/sections/sectionWrapper/modules/hero"
 	}
 ]
