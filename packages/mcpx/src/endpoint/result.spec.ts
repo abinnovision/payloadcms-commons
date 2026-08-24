@@ -57,7 +57,7 @@ describe("toToolError", () => {
 
 		expect(parse(toToolError(error, logger))).toMatchObject({
 			status: 400,
-			validationErrors: [{ path: "title", message: "Required" }],
+			validationErrors: [{ path: "/title", message: "Required" }],
 		});
 	});
 

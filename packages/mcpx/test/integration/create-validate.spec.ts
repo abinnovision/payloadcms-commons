@@ -48,7 +48,7 @@ describe("createDocument and validateDocument", () => {
 		const blockers = result.data["publishBlockers"] as { path: string }[];
 
 		expect(blockers.map((b) => b.path)).toEqual(
-			expect.arrayContaining(["slug", "layout.sections"]),
+			expect.arrayContaining(["/slug", "/layout/sections"]),
 		);
 	});
 

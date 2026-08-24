@@ -82,9 +82,9 @@ describe("collectPublishBlockers", () => {
 		});
 
 		expect(blockers.map((blocker) => blocker.path).sort()).toEqual([
-			"layout.sections",
-			"slug",
-			"title",
+			"/layout/sections",
+			"/slug",
+			"/title",
 		]);
 		expect(blockers[0]).toMatchObject({
 			field: expect.any(String),
@@ -112,7 +112,7 @@ describe("collectPublishBlockers", () => {
 
 		expect(blockers).toEqual([
 			expect.objectContaining({
-				path: "layout.sections.0.modules.0.title",
+				path: "/layout/sections/0/modules/0/title",
 				field: expect.stringContaining("Title"),
 			}),
 		]);

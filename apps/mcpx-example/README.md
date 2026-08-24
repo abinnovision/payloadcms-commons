@@ -2,7 +2,7 @@
 
 A minimal Payload CMS app that mounts
 [`@abinnovision/payloadcms-mcpx`](../../packages/mcpx) with a blocks-based
-content model: `pages` with a `layout.sections` block graph
+content model: `pages` with a `/layout/sections` block graph
 (`sectionWrapper` nesting `hero` and `richText` modules), localized `posts`
 with a Lexical rich text field, and read-only `tags`. Two locales (`en`,
 `de`), drafts on `pages` and `posts`, SQLite storage.
@@ -71,9 +71,9 @@ Claude Desktop (via `mcp-remote`):
 
 1. `listCapabilities` shows what the key may do, the locales and the limits.
 2. `describeSchema` with `collection: "pages"` lists the root fields and stops
-   at `layout.sections`, naming the block slugs. Append a slug to descend:
-   `layout.sections.sectionWrapper`, then
-   `layout.sections.sectionWrapper.modules.hero`.
+   at `/layout/sections`, naming the block slugs. Append a slug to descend:
+   `/layout/sections/sectionWrapper`, then
+   `/layout/sections/sectionWrapper/modules/hero`.
 3. `createDocument` with a minimal seed creates a draft and returns the
    publish blockers that remain.
 4. `patchDocument` applies RFC 6902 operations to the draft (for example an

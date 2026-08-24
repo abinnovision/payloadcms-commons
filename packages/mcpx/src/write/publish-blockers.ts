@@ -3,6 +3,8 @@ import {
 	beforeValidateTraverseFields,
 } from "payload";
 
+import { pointerFromPayloadPath } from "../schema/walk.js";
+
 import type {
 	JsonObject,
 	PayloadRequest,
@@ -17,6 +19,7 @@ interface PublishBlocker {
 	/** Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title". */
 	field?: string;
 	message: string;
+	/** JSON Pointer to the offending value, e.g. "/layout/2/title". */
 	path: string;
 }
 
@@ -95,7 +98,7 @@ const collectPublishBlockers = async (
 
 	return errors.map((error) => ({
 		message: error.message,
-		path: error.path,
+		path: pointerFromPayloadPath(error.path),
 		...(typeof error.label === "string" ? { field: error.label } : {}),
 	}));
 };

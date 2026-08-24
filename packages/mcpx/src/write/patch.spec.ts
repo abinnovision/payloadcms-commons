@@ -193,7 +193,7 @@ describe("findPatchProblems", () => {
 	it("refuses a pointer that does not resolve, listing what does", () => {
 		expect(
 			problemsFor([{ op: "replace", path: "/titel", value: "x" }]),
-		).toEqual([expect.stringContaining("Available: title, slug")]);
+		).toEqual([expect.stringContaining("Available: /title, /slug")]);
 	});
 
 	it("refuses remove on a field but allows it on a list element", () => {
