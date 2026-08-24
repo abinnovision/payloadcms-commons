@@ -198,7 +198,7 @@ describe("patchDocument", () => {
 				context: {
 					mcpx: {
 						apiKeyId: "test",
-						capabilities: { collections: {}, tools: {} },
+						capabilities: { collections: {}, globals: {}, tools: {} },
 					},
 				},
 			},

@@ -299,6 +299,40 @@ const findBlocksField = (
 	return undefined;
 };
 
+/**
+ * Names a collection or a global before its config is looked up. Everything in
+ * the schema layer is written against this rather than a bare slug, because a
+ * slug alone cannot say which of the two namespaces it belongs to.
+ */
+interface TargetRef {
+	kind: "collection" | "global";
+	slug: string;
+}
+
+/**
+ * The part of a sanitized config the schema walkers actually consume. Both
+ * `SanitizedCollectionConfig` and `SanitizedGlobalConfig` satisfy it, so
+ * `targetOf` returns without a cast and no caller has to narrow.
+ */
+interface SchemaTarget {
+	fields: Field[];
+	flattenedFields: FlattenedField[];
+	slug: string;
+}
+
+const targetOf = (config: SanitizedConfig, ref: TargetRef): SchemaTarget => {
+	const found =
+		ref.kind === "collection"
+			? config.collections.find((candidate) => candidate.slug === ref.slug)
+			: config.globals.find((candidate) => candidate.slug === ref.slug);
+
+	if (!found) {
+		throw new Error(`Unknown ${ref.kind} "${ref.slug}".`);
+	}
+
+	return found;
+};
+
 const collectionOf = (
 	config: SanitizedConfig,
 	collection: string,
@@ -327,5 +361,6 @@ export {
 	pointerFromPayloadPath,
 	splitPath,
 	staticDescription,
+	targetOf,
 };
-export type { FieldDescriptor };
+export type { FieldDescriptor, SchemaTarget, TargetRef };

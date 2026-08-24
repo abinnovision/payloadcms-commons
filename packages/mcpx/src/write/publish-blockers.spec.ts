@@ -8,6 +8,7 @@ import type {
 	Field,
 	PayloadRequest,
 	SanitizedCollectionConfig,
+	SanitizedGlobalConfig,
 	SanitizedConfig,
 } from "payload";
 
@@ -32,6 +33,7 @@ const paragraph = (text: string) => ({
 });
 
 let config: SanitizedConfig;
+let siteSettingsGlobal: SanitizedGlobalConfig;
 let pages: SanitizedCollectionConfig;
 let warn: ReturnType<typeof vi.fn>;
 let req: PayloadRequest;
@@ -69,6 +71,16 @@ const createReq = async (
 
 beforeAll(async () => {
 	config = await buildFixtureConfig();
+
+	const found = config.globals.find(
+		(candidate) => candidate.slug === "site-settings",
+	);
+
+	if (!found) {
+		throw new Error("site-settings fixture missing");
+	}
+
+	siteSettingsGlobal = found;
 	pages = config.collections.find((candidate) => candidate.slug === "pages")!;
 	warn = vi.fn();
 	req = await createReq(config);
@@ -77,7 +89,7 @@ beforeAll(async () => {
 describe("collectPublishBlockers", () => {
 	it("reports the required fields a draft is still missing", async () => {
 		const blockers = await collectPublishBlockers(req, {
-			collection: pages,
+			entity: { kind: "collection", slug: pages.slug, config: pages },
 			doc: { id: "p1", layout: { color: "light" } },
 		});
 
@@ -94,7 +106,7 @@ describe("collectPublishBlockers", () => {
 
 	it("reports a required field inside a block with its label path", async () => {
 		const blockers = await collectPublishBlockers(req, {
-			collection: pages,
+			entity: { kind: "collection", slug: pages.slug, config: pages },
 			doc: {
 				id: "p1",
 				title: "Home",
@@ -120,7 +132,7 @@ describe("collectPublishBlockers", () => {
 
 	it("reports nothing for a draft that could be published", async () => {
 		const blockers = await collectPublishBlockers(req, {
-			collection: pages,
+			entity: { kind: "collection", slug: pages.slug, config: pages },
 			doc: {
 				id: "p1",
 				title: "Home",
@@ -162,7 +174,7 @@ describe("collectPublishBlockers", () => {
 		const broken: SanitizedCollectionConfig = { ...pages, fields };
 
 		const blockers = await collectPublishBlockers(req, {
-			collection: broken,
+			entity: { kind: "collection", slug: broken.slug, config: broken },
 			doc: { id: "p1", boom: "x" },
 		});
 
@@ -170,5 +182,23 @@ describe("collectPublishBlockers", () => {
 		expect(warn).toHaveBeenCalledWith(
 			expect.stringContaining("Could not validate the pages draft"),
 		);
+	});
+});
+
+describe("collectPublishBlockers for a global", () => {
+	it("reports the required fields a global draft is still missing", async () => {
+		const blockers = await collectPublishBlockers(req, {
+			entity: {
+				kind: "global",
+				slug: siteSettingsGlobal.slug,
+				config: siteSettingsGlobal,
+			},
+			doc: {},
+		});
+
+		expect(blockers.map((blocker) => blocker.path).sort()).toEqual([
+			"/tagline",
+			"/title",
+		]);
 	});
 });

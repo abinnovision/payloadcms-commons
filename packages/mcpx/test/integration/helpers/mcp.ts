@@ -9,6 +9,8 @@ const ENDPOINT = "http://localhost/api/mcpx";
 let nextId = 0;
 
 interface PostArgs {
+	/** Payload instance cache key, when the spec booted its own instance. */
+	cacheKey?: string;
 	key?: string;
 	body?: unknown;
 	method?: string;
@@ -38,7 +40,7 @@ export const mcpPost = (
 
 	return handleEndpoints({
 		config,
-		payloadInstanceCacheKey: CACHE_KEY,
+		payloadInstanceCacheKey: args.cacheKey ?? CACHE_KEY,
 		request: new Request(ENDPOINT, { method, headers, ...body }),
 	});
 };
@@ -61,9 +63,11 @@ export const rpc = async (
 	key: string | undefined,
 	method: string,
 	params?: unknown,
+	cacheKey?: string,
 ): Promise<RpcResponse> => {
 	const response = await mcpPost(config, {
 		...(key === undefined ? {} : { key }),
+		...(cacheKey === undefined ? {} : { cacheKey }),
 		body: { jsonrpc: "2.0", id: ++nextId, method, params },
 	});
 
@@ -81,8 +85,9 @@ export interface ListedTool {
 export const toolsList = async (
 	config: Promise<SanitizedConfig>,
 	key: string,
+	cacheKey?: string,
 ): Promise<ListedTool[]> => {
-	const { body } = await rpc(config, key, "tools/list");
+	const { body } = await rpc(config, key, "tools/list", undefined, cacheKey);
 
 	return body.result?.tools ?? [];
 };
@@ -109,11 +114,15 @@ export const callTool = async (
 	key: string,
 	name: string,
 	args: Record<string, unknown> = {},
+	cacheKey?: string,
 ): Promise<CallResult> => {
-	const { status, body } = await rpc(config, key, "tools/call", {
-		name,
-		arguments: args,
-	});
+	const { status, body } = await rpc(
+		config,
+		key,
+		"tools/call",
+		{ name, arguments: args },
+		cacheKey,
+	);
 	const text = body.result?.content?.[0]?.text;
 
 	const parse = (): Record<string, unknown> => {

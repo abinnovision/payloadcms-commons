@@ -5,6 +5,9 @@ import type {
 	CollectionBeforeChangeHook,
 	CollectionBeforeOperationHook,
 	CollectionConfig,
+	GlobalBeforeChangeHook,
+	GlobalBeforeOperationHook,
+	GlobalConfig,
 	PayloadRequest,
 } from "payload";
 
@@ -40,19 +43,9 @@ const isMcpxRequest = (req: PayloadRequest): boolean =>
  * builtin tools. Deletes are not guarded in v1; custom tools that delete are
  * the integrator's responsibility.
  */
-const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
-	// The argument union carries a deprecated `read` member, which is what the
-	// deprecation rule reacts to; the operation name itself is current API.
-	// eslint-disable-next-line @typescript-eslint/no-deprecated
-	const { args, operation, req } = hookArgs;
-
-	if (
-		!isMcpxRequest(req) ||
-		(operation !== "create" && operation !== "update")
-	) {
-		return args;
-	}
-
+const scrubWriteArgs = (
+	args: Record<string, unknown>,
+): Record<string, unknown> => {
 	const next = Object.fromEntries(
 		Object.entries(args).filter(([key]) => !STRIPPED_ARGS.has(key)),
 	);
@@ -72,7 +65,47 @@ const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 	next["overrideLock"] = false;
 	next["trash"] = false;
 
-	return next as typeof args;
+	return next;
+};
+
+const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
+	// The argument union carries a deprecated `read` member, which is what the
+	// deprecation rule reacts to; the operation name itself is current API.
+	// eslint-disable-next-line @typescript-eslint/no-deprecated
+	const { args, operation, req } = hookArgs;
+
+	if (
+		!isMcpxRequest(req) ||
+		(operation !== "create" && operation !== "update")
+	) {
+		return args;
+	}
+
+	return scrubWriteArgs(args) as typeof args;
+};
+
+/**
+ * The global counterpart of {@link forceDraftWrite}. Payload invokes a global's
+ * `beforeOperation` with the whole argument bag and assigns the result back,
+ * exactly as the collection path does and before it reads `draft`,
+ * `publishAllLocales` or `data._status`, so the guard has the same reach here:
+ * every MCP write to a global, builtin tool or custom.
+ *
+ * The global operation union has no `create` member because a global always
+ * exists, so only `update` is intercepted. `STRIPPED_ARGS` covers the three
+ * publish vectors `updateGlobal` accepts; the rest of the set does not exist on
+ * that signature and filtering it is a harmless no-op. `slug` survives the
+ * filter, so the operation still knows what it is updating.
+ */
+const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
+	const { operation, req } = hookArgs;
+	const args = hookArgs.args as Record<string, unknown>;
+
+	if (!isMcpxRequest(req) || operation !== "update") {
+		return args;
+	}
+
+	return scrubWriteArgs(args);
 };
 
 /**
@@ -81,29 +114,48 @@ const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
  * instead of correcting `_status` because Payload has already chosen the write
  * branch by the time a `beforeChange` hook runs.
  */
-const refusePublish: CollectionBeforeChangeHook = ({
-	collection,
-	data,
-	req,
-}) => {
+const refuseUnlessDraft = (
+	req: PayloadRequest,
+	slug: string,
+	data: unknown,
+): void => {
 	if (!isMcpxRequest(req)) {
-		return data;
+		return;
 	}
 
 	const status = (data as { _status?: unknown })._status;
 
 	if (status === "draft") {
-		return data;
+		return;
 	}
 
 	req.payload.logger.warn(
-		`[payloadcms-mcpx] Refused a write to ${collection.slug} that would not have been a draft (_status: ${String(status)}).`,
+		`[payloadcms-mcpx] Refused a write to ${slug} that would not have been a draft (_status: ${String(status)}).`,
 	);
 
 	throw new APIError(
 		"MCP clients may only write drafts. This write was refused because it would not have been saved as one.",
 		403,
 	);
+};
+
+const refusePublish: CollectionBeforeChangeHook = ({
+	collection,
+	data,
+	req,
+}) => {
+	refuseUnlessDraft(req, collection.slug, data);
+
+	return data;
+};
+
+/** The global counterpart of {@link refusePublish}. */
+const refusePublishGlobal: GlobalBeforeChangeHook = ({ data, global, req }) => {
+	const next = data as Record<string, unknown>;
+
+	refuseUnlessDraft(req, global.slug, next);
+
+	return next;
 };
 
 /**
@@ -134,4 +186,38 @@ const installDraftGuards = (
 		},
 	}));
 
-export { forceDraftWrite, installDraftGuards, isMcpxRequest, refusePublish };
+/**
+ * Attaches the guard to every global, exposed or not, for the same reason
+ * `installDraftGuards` covers every collection: a custom tool running on an MCP
+ * request must not be able to publish through a global the plugin config never
+ * mentioned.
+ */
+const installGlobalDraftGuards = (globals: GlobalConfig[]): GlobalConfig[] =>
+	globals.map((global) => ({
+		...global,
+		hooks: {
+			...global.hooks,
+			beforeOperation: [
+				...(global.hooks?.beforeOperation ?? []),
+				forceDraftWriteGlobal,
+			],
+			...(hasDraftsEnabled(global)
+				? {
+						beforeChange: [
+							...(global.hooks?.beforeChange ?? []),
+							refusePublishGlobal,
+						],
+					}
+				: {}),
+		},
+	}));
+
+export {
+	forceDraftWrite,
+	forceDraftWriteGlobal,
+	installDraftGuards,
+	installGlobalDraftGuards,
+	isMcpxRequest,
+	refusePublish,
+	refusePublishGlobal,
+};

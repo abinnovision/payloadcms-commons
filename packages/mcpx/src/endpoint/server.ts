@@ -30,7 +30,7 @@ const createMcpServer = (scope: ToolScope): McpServer => {
 		{ name: options.serverInfo.name, version: options.serverInfo.version },
 		{
 			instructions:
-				"Start with listCapabilities, then describeSchema for the collection you work on. Writes always land as drafts; a human publishes.",
+				"Start with listCapabilities, then describeSchema for the collection or global you work on. Writes always land as drafts; a human publishes.",
 		},
 	);
 

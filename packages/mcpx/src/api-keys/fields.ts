@@ -83,9 +83,10 @@ const createKeyFields = (): Field[] => [
 ];
 
 /**
- * One checkbox per exposed operation, grouped per collection and per custom
- * tool. Only operations the plugin config exposes get a checkbox, so a key can
- * never enable more than the config allows. Everything defaults to off.
+ * One checkbox per exposed operation, grouped per collection, per global and
+ * per custom tool. Only operations the plugin config exposes get a checkbox, so
+ * a key can never enable more than the config allows. Everything defaults to
+ * off, which is why a key issued before a capability existed stays closed to it.
  */
 const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 	const collectionGroups: GroupField[] = options.collections.map(
@@ -104,6 +105,20 @@ const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 		}),
 	);
 
+	const globalGroups: GroupField[] = options.globals.map((global) => ({
+		name: global.fieldName,
+		type: "group",
+		label: global.slug,
+		fields: [
+			...(global.read
+				? [checkbox("read", "Describe and read this global.")]
+				: []),
+			...(global.write
+				? [checkbox("write", "Patch and validate this global's draft.")]
+				: []),
+		],
+	}));
+
 	const toolCheckboxes: CheckboxField[] = options.tools.map((tool) =>
 		checkbox(tool.name, tool.description),
 	);
@@ -115,6 +130,15 @@ const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 						name: "collections",
 						type: "group" as const,
 						fields: collectionGroups,
+					},
+				]
+			: []),
+		...(globalGroups.length > 0
+			? [
+					{
+						name: "globals",
+						type: "group" as const,
+						fields: globalGroups,
 					},
 				]
 			: []),

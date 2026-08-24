@@ -36,9 +36,9 @@ const check = (pointer: string, value: unknown) =>
 			pointer,
 			resolution: resolveDataPointer(config, {
 				addedValue: value,
-				collection: "pages",
 				doc: DOC,
 				pointer,
+				ref: { kind: "collection", slug: "pages" },
 			}),
 		},
 		value,

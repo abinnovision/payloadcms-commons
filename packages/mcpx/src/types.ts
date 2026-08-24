@@ -8,6 +8,7 @@ import type {
 import type {
 	CollectionConfig,
 	CollectionSlug,
+	GlobalSlug,
 	PayloadRequest,
 	TypedUser,
 } from "payload";
@@ -37,6 +38,27 @@ export interface McpxCollectionOptions {
 	write?: boolean;
 	/**
 	 * Permit writes to a collection without drafts. Such writes land on the live
+	 * document because there is no draft to land on. Default `false`.
+	 */
+	allowLiveWrites?: boolean;
+}
+
+/**
+ * What an exposed global offers to MCP clients. Structurally the same as
+ * {@link McpxCollectionOptions}, kept separate because the tools it names
+ * differ: a global is a singleton, so neither `findDocuments` nor
+ * `createDocument` reaches one.
+ */
+export interface McpxGlobalOptions {
+	/** Expose `describeSchema` and `getDocument`. Default `true`. */
+	read?: boolean;
+	/**
+	 * Expose `patchDocument` and `validateDocument`. Default `false`. Requires
+	 * `versions.drafts` unless `allowLiveWrites` is set.
+	 */
+	write?: boolean;
+	/**
+	 * Permit writes to a global without drafts. Such writes land on the live
 	 * document because there is no draft to land on. Default `false`.
 	 */
 	allowLiveWrites?: boolean;
@@ -93,6 +115,8 @@ export interface McpxAuthResult {
 export type McpxPluginOptions = {
 	/** Allow-list of collections. `true` is shorthand for `{ read: true }`. */
 	collections: Partial<Record<CollectionSlug, McpxCollectionOptions | true>>;
+	/** Allow-list of globals. `true` is shorthand for `{ read: true }`. */
+	globals?: Partial<Record<GlobalSlug, McpxGlobalOptions | true>>;
 	/** Collection the keys act as. Default `config.admin.user`, then `users`. */
 	userCollection?: CollectionSlug;
 	apiKeys?: {
@@ -132,6 +156,7 @@ export interface McpxCollectionCapabilities {
  */
 export interface McpxResolvedCapabilities {
 	collections: Record<string, McpxCollectionCapabilities>;
+	globals: Record<string, McpxCollectionCapabilities>;
 	tools: Record<string, boolean>;
 }
 

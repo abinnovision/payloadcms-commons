@@ -2,6 +2,7 @@ import { getPayload } from "payload";
 
 import { buildFixtureConfig } from "../../fixtures/config.js";
 
+import type { McpxPluginOptions } from "../../../src/index.js";
 import type { Payload, SanitizedConfig } from "payload";
 
 /** Cache key shared by `getPayload` and `handleEndpoints` within one file. */
@@ -16,15 +17,24 @@ export interface Booted {
 	payload: Payload;
 }
 
-export const bootPayload = async (): Promise<Booted> => {
-	const config = buildFixtureConfig();
-	const payload = await getPayload({ config, key: CACHE_KEY });
+/**
+ * `getPayload` caches by `key`, so a spec that boots a different plugin config
+ * must pass its own or it silently reuses the default instance.
+ */
+export const bootPayload = async (
+	args: { key?: string; plugin?: Partial<McpxPluginOptions> } = {},
+): Promise<Booted> => {
+	const config = buildFixtureConfig(
+		args.plugin === undefined ? {} : { plugin: args.plugin },
+	);
+	const payload = await getPayload({ config, key: args.key ?? CACHE_KEY });
 
 	return { config, payload };
 };
 
 export interface KeyCapabilities {
 	collections?: Record<string, { read?: boolean; write?: boolean }>;
+	globals?: Record<string, { read?: boolean; write?: boolean }>;
 	tools?: Record<string, boolean>;
 }
 
@@ -146,3 +156,5 @@ export const section = (
 	identifier,
 	modules,
 });
+
+export type { ListedTool } from "./mcp.js";

@@ -2,8 +2,10 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 
 import { resolveApiKeyAuth } from "../auth/resolve.js";
 import {
+	readableGlobalSlugs,
 	readableSlugs,
 	resolveCapabilities,
+	writableGlobalSlugs,
 	writableSlugs,
 } from "../capabilities.js";
 import { jsonRpcError } from "./result.js";
@@ -26,6 +28,8 @@ const buildScope = (
 		capabilities,
 		readable: readableSlugs(capabilities),
 		writable: writableSlugs(capabilities),
+		readableGlobals: readableGlobalSlugs(capabilities),
+		writableGlobals: writableGlobalSlugs(capabilities),
 		locales: localization ? localization.localeCodes : null,
 		defaultLocale: localization ? localization.defaultLocale : null,
 	};

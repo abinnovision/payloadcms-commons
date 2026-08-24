@@ -5,12 +5,8 @@ import {
 
 import { pointerFromPayloadPath } from "../schema/walk.js";
 
-import type {
-	JsonObject,
-	PayloadRequest,
-	SanitizedCollectionConfig,
-	ValidationFieldError,
-} from "payload";
+import type { ResolvedTarget } from "../tools/target.js";
+import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
 
 /**
  * One reason a human could not publish the draft as it stands.
@@ -43,20 +39,22 @@ interface PublishBlocker {
  */
 const collectPublishBlockers = async (
 	req: PayloadRequest,
-	target: { collection: SanitizedCollectionConfig; doc: JsonObject },
+	target: { doc: JsonObject; entity: ResolvedTarget },
 ): Promise<PublishBlocker[]> => {
-	const { collection, doc } = target;
+	const { doc, entity } = target;
+	// A global doc has no id, so the guard below simply omits it, which is
+	// what the traversal wants for a global.
 	const id = doc["id"] as number | string | undefined;
 	const errors: ValidationFieldError[] = [];
 	const data: JsonObject = { ...structuredClone(doc), _status: "published" };
 	const context = { ...req.context };
 
 	const shared = {
-		collection,
+		collection: entity.kind === "collection" ? entity.config : null,
 		context,
 		data,
 		doc,
-		global: null,
+		global: entity.kind === "global" ? entity.config : null,
 		operation: "update" as const,
 		overrideAccess: true,
 		parentIndexPath: "",
@@ -71,7 +69,7 @@ const collectPublishBlockers = async (
 	try {
 		await beforeValidateTraverseFields({
 			...shared,
-			fields: collection.fields,
+			fields: entity.config.fields,
 			siblingData: data,
 		});
 
@@ -80,7 +78,7 @@ const collectPublishBlockers = async (
 			docWithLocales: doc,
 			errors,
 			fieldLabelPath: "",
-			fields: collection.fields,
+			fields: entity.config.fields,
 			mergeLocaleActions: [],
 			siblingData: data,
 			siblingDocWithLocales: doc,
@@ -90,7 +88,7 @@ const collectPublishBlockers = async (
 		// Advisory only: a failing traversal must not turn a write that already
 		// landed into a reported failure.
 		req.payload.logger.warn(
-			`[payloadcms-mcpx] Could not validate the ${collection.slug} draft: ${error instanceof Error ? error.message : "unknown error"}`,
+			`[payloadcms-mcpx] Could not validate the ${entity.slug} draft: ${error instanceof Error ? error.message : "unknown error"}`,
 		);
 
 		return [];

@@ -44,6 +44,9 @@ export default buildConfig({
         posts: { read: true, write: true },
         tags: true, // shorthand for { read: true }
       },
+      globals: {
+        "site-settings": { read: true, write: true },
+      },
       limits: { maxLimit: 25, maxDepth: 1 },
     }),
   ],
@@ -56,8 +59,8 @@ The plugin adds:
   JSON responses; `GET`/`DELETE` answer 405),
 - an `mcpx-api-keys` collection (admin group "MCP") holding the keys and their
   capability checkboxes,
-- a draft guard on every collection, so any write carrying the MCP request
-  marker lands as a draft, including writes made by custom tools.
+- a draft guard on every collection and global, so any write carrying the MCP
+  request marker lands as a draft, including writes made by custom tools.
 
 ## API keys
 
@@ -118,19 +121,20 @@ Claude Desktop (no direct HTTP header support) via `mcp-remote`:
 
 ## Tools
 
-The surface is fixed at seven tools plus your custom ones. `tools/list`
-reflects the key: write tools disappear for read-only keys, and every
-`collection` enum contains only the slugs the key may touch.
+The surface is fixed at seven tools plus your custom ones; exposing a global
+adds an argument, never a tool. `tools/list` reflects the key: write tools
+disappear for read-only keys, and every `collection` and `global` enum contains
+only the slugs the key may touch.
 
 | Tool               | Purpose                                                     | Key arguments                                                                                |
 | ------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `listCapabilities` | What this key may do; call first to orient.                 | none                                                                                         |
-| `describeSchema`   | Field shape of one node; `next` lists the drill-down paths. | `collection`, `paths?`, `expand?`                                                            |
+| `describeSchema`   | Field shape of one node; `next` lists the drill-down paths. | `collection` \| `global`, `paths?`, `expand?`                                                |
 | `findDocuments`    | Query documents.                                            | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?` |
-| `getDocument`      | Read one document or a subtree of it.                       | `collection`, `id`, `path?` (JSON pointer), `depth?`, `locale?`, `draft?`                    |
-| `patchDocument`    | Apply RFC 6902 operations to the current draft.             | `collection`, `id`, `locale`, `patches`, `expectedUpdatedAt?`                                |
+| `getDocument`      | Read one document or a subtree of it.                       | `collection` + `id` \| `global`, `path?` (JSON pointer), `depth?`, `locale?`, `draft?`       |
+| `patchDocument`    | Apply RFC 6902 operations to the current draft.             | `collection` + `id` \| `global`, `locale`, `patches`, `expectedUpdatedAt?`                   |
 | `createDocument`   | Create a draft from a minimal seed.                         | `collection`, `locale`, `data`                                                               |
-| `validateDocument` | Publish blockers without writing.                           | `collection`, `id`, `locale`                                                                 |
+| `validateDocument` | Publish blockers without writing.                           | `collection` + `id` \| `global`, `locale`                                                    |
 
 Rules the tools enforce and explain in their own descriptions:
 
@@ -161,13 +165,55 @@ Rules the tools enforce and explain in their own descriptions:
   `deletedAt`) are never listed and never writable; `readOnly` fields are
   listed but refused on write.
 
+## Globals
+
+A global is exposed the same way a collection is, and reached through the same
+tools rather than tools of its own:
+
+```ts
+mcpxPlugin({
+  collections: { pages: { read: true, write: true } },
+  globals: { "site-settings": { read: true, write: true } },
+});
+```
+
+Two rules follow from a global being a singleton, and because JSON Schema cannot
+state either one, both are enforced in the handler and repeated in every
+affected tool description:
+
+- Pass exactly **one** of `collection` and `global`.
+- `id` is required with `collection` and must be omitted with `global`.
+
+Refusals name the offending argument and the slug, so one failed call teaches
+the rule. `findDocuments` and `createDocument` stay collection-only: there is
+nothing to list and nothing to create when the document always exists. They
+reject a `global` argument by name.
+
+Globals get their own `capabilities.globals.<name>` checkbox group, a separate
+namespace from `capabilities.collections.<name>`, so a global may share a
+camelCase name with a collection. Keys issued before a global was exposed have
+no such group, and an absent checkbox reads as `false`, so they stay closed to
+every global until one is ticked.
+
+Globals always carry `updatedAt` — Payload appends it and there is no
+`timestamps: false` for globals — so `expectedUpdatedAt` behaves as it does for
+collections. The one exception is a global that has never been saved: it has no
+`updatedAt` to compare against, so the first write must omit
+`expectedUpdatedAt`, and supplying one is refused as a concurrency failure.
+
+If `tools/list` omits `global` entirely, no global is exposed to that key; the
+argument only appears once one is. A deployment that uses no globals sees the
+tool schemas exactly as they were.
+
 ## Drafts and publish blockers
 
 Draft-only writing is enforced on the Payload operation, not in the tool
 handlers: a `beforeOperation` hook forces `draft: true` and strips `_status`
 from every write carrying the MCP request marker, so custom tools and anything
 else writing through the same request are covered too. A `beforeChange` hook
-refuses any write that would still not land as a draft.
+refuses any write that would still not land as a draft. Globals expose the same
+`beforeOperation` interception point at the same position in the operation, so
+they are guarded exactly as strongly as collections, exposed or not.
 
 Publish blockers are advisory. Payload skips validation on draft saves (unless
 `versions.drafts.validate` is set), so after every write the plugin re-runs
@@ -224,6 +270,10 @@ Builtin tools reject them instead.
 | `collections.<slug>.read`            | `true`                         | Expose `describeSchema`, `findDocuments`, `getDocument`.                                                           |
 | `collections.<slug>.write`           | `false`                        | Expose `patchDocument`, `createDocument`, `validateDocument`. Requires `versions.drafts` unless `allowLiveWrites`. |
 | `collections.<slug>.allowLiveWrites` | `false`                        | Permit writes to a collection without drafts (they land live).                                                     |
+| `globals`                            | `{}`                           | Allow-list of globals. `true` means `{ read: true }`.                                                              |
+| `globals.<slug>.read`                | `true`                         | Expose `describeSchema`, `getDocument`.                                                                            |
+| `globals.<slug>.write`               | `false`                        | Expose `patchDocument`, `validateDocument`. Requires `versions.drafts` unless `allowLiveWrites`.                   |
+| `globals.<slug>.allowLiveWrites`     | `false`                        | Permit writes to a global without drafts (they land live).                                                         |
 | `userCollection`                     | `config.admin.user` or `users` | Auth collection the keys act as.                                                                                   |
 | `apiKeys.slug`                       | `mcpx-api-keys`                | Slug of the generated key collection.                                                                              |
 | `apiKeys.overrideCollection`         | none                           | Final override applied to the generated collection.                                                                |
@@ -247,15 +297,14 @@ key of every user.
 - The endpoint authenticates with Bearer keys only; admin JWTs and cookies are
   ignored. Keys cannot authenticate REST or GraphQL.
 - Every operation runs under the linked user with `overrideAccess: false`.
-- Not covered in v1: `delete` (no tool exists and none is generated), globals,
-  uploads. Custom tools are trusted code and can do what the linked user may.
+- Not covered in v1: `delete` (no tool exists and none is generated), uploads.
+  Custom tools are trusted code and can do what the linked user may.
 
 ## Non-goals of v1 / roadmap
 
-Globals, deletes, uploads, markdown authoring for rich text, row addressing by
-id instead of index, cross-locale publish blockers, pagination of
-`describeSchema` with `expand`, and a handler-level timeout are all deliberate
-omissions for now.
+Deletes, uploads, markdown authoring for rich text, row addressing by id
+instead of index, cross-locale publish blockers, pagination of `describeSchema`
+with `expand`, and a handler-level timeout are all deliberate omissions for now.
 
 ## License
 

@@ -103,8 +103,12 @@ export interface Config {
 		| null
 		| ("en" | "de")
 		| ("en" | "de")[];
-	globals: {};
-	globalsSelect: {};
+	globals: {
+		"site-settings": SiteSetting;
+	};
+	globalsSelect: {
+		"site-settings": SiteSettingsSelect<false> | SiteSettingsSelect<true>;
+	};
 	locale: "en" | "de";
 	widgets: {
 		collections: CollectionsWidget;
@@ -378,6 +382,18 @@ export interface McpxApiKey {
 				read?: boolean | null;
 			};
 		};
+		globals?: {
+			siteSettings?: {
+				/**
+				 * Describe and read this global.
+				 */
+				read?: boolean | null;
+				/**
+				 * Patch and validate this global's draft.
+				 */
+				write?: boolean | null;
+			};
+		};
 	};
 	updatedAt: string;
 	createdAt: string;
@@ -597,6 +613,16 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 										read?: T;
 								  };
 					  };
+				globals?:
+					| T
+					| {
+							siteSettings?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+								  };
+					  };
 		  };
 	updatedAt?: T;
 	createdAt?: T;
@@ -640,6 +666,35 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 	batch?: T;
 	updatedAt?: T;
 	createdAt?: T;
+}
+/**
+ * Settings shared by every page, such as the site title.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-settings".
+ */
+export interface SiteSetting {
+	id: number;
+	/**
+	 * Shown in the browser tab and in search results.
+	 */
+	title: string;
+	sections?: RichText[] | null;
+	_status?: ("draft" | "published") | null;
+	updatedAt?: string | null;
+	createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-settings_select".
+ */
+export interface SiteSettingsSelect<T extends boolean = true> {
+	title?: T;
+	sections?: T | {};
+	_status?: T;
+	updatedAt?: T;
+	createdAt?: T;
+	globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

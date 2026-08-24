@@ -1,5 +1,8 @@
 import type { NormalizedOptions } from "./options.js";
-import type { McpxResolvedCapabilities } from "./types.js";
+import type {
+	McpxCollectionCapabilities as McpxEntityCapabilities,
+	McpxResolvedCapabilities,
+} from "./types.js";
 
 /** Name of the capability group on the key document. */
 const CAPABILITIES_FIELD = "capabilities";
@@ -22,6 +25,9 @@ const resolveCapabilities = (
 	const collectionsGroup = isRecord(keyCapabilities)
 		? keyCapabilities["collections"]
 		: undefined;
+	const globalsGroup = isRecord(keyCapabilities)
+		? keyCapabilities["globals"]
+		: undefined;
 	const toolsGroup = isRecord(keyCapabilities)
 		? keyCapabilities["tools"]
 		: undefined;
@@ -39,28 +45,55 @@ const resolveCapabilities = (
 		};
 	}
 
+	const globals: McpxResolvedCapabilities["globals"] = {};
+
+	for (const global of options.globals) {
+		const group = isRecord(globalsGroup)
+			? globalsGroup[global.fieldName]
+			: undefined;
+
+		globals[global.slug] = {
+			read: global.read && flag(group, "read"),
+			write: global.write && flag(group, "write"),
+		};
+	}
+
 	const tools: McpxResolvedCapabilities["tools"] = {};
 
 	for (const tool of options.tools) {
 		tools[tool.name] = flag(toolsGroup, tool.name);
 	}
 
-	return { collections, tools };
+	return { collections, globals, tools };
 };
 
-const readableSlugs = (capabilities: McpxResolvedCapabilities): string[] =>
-	Object.entries(capabilities.collections)
-		.filter(([, value]) => value.read)
+const pick = (
+	entries: Record<string, McpxEntityCapabilities>,
+	operation: "read" | "write",
+): string[] =>
+	Object.entries(entries)
+		.filter(([, value]) => value[operation])
 		.map(([slug]) => slug);
 
+const readableSlugs = (capabilities: McpxResolvedCapabilities): string[] =>
+	pick(capabilities.collections, "read");
+
 const writableSlugs = (capabilities: McpxResolvedCapabilities): string[] =>
-	Object.entries(capabilities.collections)
-		.filter(([, value]) => value.write)
-		.map(([slug]) => slug);
+	pick(capabilities.collections, "write");
+
+const readableGlobalSlugs = (
+	capabilities: McpxResolvedCapabilities,
+): string[] => pick(capabilities.globals, "read");
+
+const writableGlobalSlugs = (
+	capabilities: McpxResolvedCapabilities,
+): string[] => pick(capabilities.globals, "write");
 
 export {
 	CAPABILITIES_FIELD,
+	readableGlobalSlugs,
 	readableSlugs,
 	resolveCapabilities,
+	writableGlobalSlugs,
 	writableSlugs,
 };

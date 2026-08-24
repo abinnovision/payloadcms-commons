@@ -4,6 +4,7 @@ export type {
 	McpxAuthResult,
 	McpxCollectionCapabilities,
 	McpxCollectionOptions,
+	McpxGlobalOptions,
 	McpxPluginOptions,
 	McpxRequestContext,
 	McpxResolvedCapabilities,

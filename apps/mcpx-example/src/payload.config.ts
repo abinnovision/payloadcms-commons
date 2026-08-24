@@ -10,6 +10,7 @@ import { pages } from "./collections/pages";
 import { posts } from "./collections/posts";
 import { tags } from "./collections/tags";
 import { users } from "./collections/users";
+import { siteSettings } from "./globals/site-settings";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,12 +25,16 @@ export default buildConfig({
 	localization: { locales: ["en", "de"], defaultLocale: "en" },
 	blocks: [richTextBlock],
 	collections: [users, pages, posts, tags],
+	globals: [siteSettings],
 	plugins: [
 		mcpxPlugin({
 			collections: {
 				pages: { read: true, write: true },
 				posts: { read: true, write: true },
 				tags: true,
+			},
+			globals: {
+				"site-settings": { read: true, write: true },
 			},
 			limits: { maxLimit: 25, maxDepth: 1 },
 		}),

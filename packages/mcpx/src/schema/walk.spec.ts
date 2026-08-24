@@ -9,6 +9,7 @@ import {
 	findBlocksField,
 	joinPath,
 	splitPath,
+	targetOf,
 } from "./walk.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
@@ -253,5 +254,25 @@ describe("allowedNodeTypes", () => {
 			"linebreak",
 			"tab",
 		]);
+	});
+});
+
+describe("targetOf", () => {
+	it("resolves a collection and a global from the same config", () => {
+		expect(targetOf(config, { kind: "collection", slug: "pages" }).slug).toBe(
+			"pages",
+		);
+		expect(
+			targetOf(config, { kind: "global", slug: "site-settings" }).slug,
+		).toBe("site-settings");
+	});
+
+	it("keeps the two namespaces apart in its error message", () => {
+		expect(() => targetOf(config, { kind: "global", slug: "pages" })).toThrow(
+			'Unknown global "pages".',
+		);
+		expect(() =>
+			targetOf(config, { kind: "collection", slug: "site-settings" }),
+		).toThrow('Unknown collection "site-settings".');
 	});
 });

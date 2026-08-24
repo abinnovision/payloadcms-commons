@@ -2,13 +2,13 @@ import { Pointer } from "rfc6902";
 import { z } from "zod";
 
 import {
-	collectionEnum,
-	ensureAllowed,
-	idSchema,
+	idShape,
 	localeOf,
 	localeShape,
-	readDraft,
+	readTarget,
+	targetShape,
 } from "./shared.js";
+import { refOf, requireIdFor, resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../endpoint/result.js";
 import {
 	applyPatchToCopy,
@@ -25,6 +25,8 @@ import type { PatchOperation } from "../write/patch.js";
 
 const DESCRIPTION = `Applies RFC 6902 JSON Patch operations to one document.
 
+Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
+
 The write always lands as a draft and is never published, whatever it contains; publishing stays a human action in the admin panel.
 
 Only the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. describeSchema reports field paths in this same pointer syntax; a path becomes a pointer into a document by replacing each "*" and each block slug with its 0-based index.
@@ -34,9 +36,10 @@ Adding a block requires "blockType" on the value. Append with "/-" as the last s
 A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but a human cannot publish the document until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update.`;
 
 interface Args {
-	collection: string;
+	collection?: string;
 	expectedUpdatedAt?: string;
-	id: number | string;
+	global?: string;
+	id?: number | string;
 	locale?: string;
 	patches: PatchOperation[];
 }
@@ -115,12 +118,14 @@ const patchDocument: BuiltinTool<Args> = {
 		idempotentHint: false,
 		openWorldHint: false,
 	},
-	isEnabled: (scope) => scope.writable.length > 0,
+	isEnabled: (scope) =>
+		scope.writable.length + scope.writableGlobals.length > 0,
 	inputSchema: (scope) => ({
-		collection: collectionEnum(scope.writable).describe(
-			"Collection holding the document.",
-		),
-		id: idSchema,
+		...targetShape(scope, "write", {
+			collection: "Collection holding the document.",
+			global: "Global to patch.",
+		}),
+		...idShape(scope, "write"),
 		...localeShape(scope, {
 			required: true,
 			description:
@@ -138,16 +143,13 @@ const patchDocument: BuiltinTool<Args> = {
 			),
 	}),
 	handler: async (args, scope) => {
-		const collection = ensureAllowed(scope, args.collection, "write");
+		const target = resolveTarget(scope, args, "write");
+		const id = requireIdFor(target, args.id);
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
 
 		return await withTransaction(scope.req, async () => {
-			const doc = await readDraft(scope, {
-				collection: args.collection,
-				id: args.id,
-				locale,
-			});
+			const doc = await readTarget(scope, { target, id, locale });
 
 			if (
 				args.expectedUpdatedAt !== undefined &&
@@ -160,9 +162,9 @@ const patchDocument: BuiltinTool<Args> = {
 			}
 
 			const problems = findPatchProblems(payload.config, {
-				collection: args.collection,
 				doc,
 				patches: args.patches,
+				ref: refOf(target),
 			});
 
 			if (problems.length > 0) {
@@ -177,32 +179,42 @@ const patchDocument: BuiltinTool<Args> = {
 				});
 			}
 
-			await payload.update({
-				collection: args.collection,
-				id: args.id,
-				data: buildWriteData(payload.config, collection, applied.next),
+			const write = {
+				data: buildWriteData(payload.config, target.config, applied.next),
 				depth: 0,
 				draft: true,
 				overrideAccess: false,
 				req: scope.req,
 				...(locale === undefined ? {} : { locale }),
-			});
+			};
 
-			const saved = await readDraft(scope, {
-				collection: args.collection,
-				id: args.id,
+			if (target.kind === "collection") {
+				await payload.update({
+					...write,
+					collection: target.slug,
+					id: id as number | string,
+				});
+			} else {
+				await payload.updateGlobal({ ...write, slug: target.slug });
+			}
+
+			const saved = await readTarget(scope, {
+				target,
+				id,
 				locale,
 				privileged: true,
 			});
 
 			const notApplied = notAppliedPointers(args.patches, applied.next, saved);
 			const publishBlockers = await collectPublishBlockers(scope.req, {
-				collection,
 				doc: saved,
+				entity: target,
 			});
 
 			return jsonResult({
-				id: saved["id"],
+				...(target.kind === "collection"
+					? { id: saved["id"] }
+					: { global: target.slug }),
 				status: saved["_status"],
 				updatedAt: saved["updatedAt"],
 				...(publishBlockers.length > 0 ? { publishBlockers } : {}),

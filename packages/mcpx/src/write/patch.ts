@@ -13,12 +13,8 @@ import {
 	splitPath,
 } from "../schema/walk.js";
 
-import type {
-	FlattenedField,
-	JsonObject,
-	SanitizedCollectionConfig,
-	SanitizedConfig,
-} from "payload";
+import type { TargetRef } from "../schema/walk.js";
+import type { FlattenedField, JsonObject, SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
 
 type PatchOperation = Operation;
@@ -208,7 +204,7 @@ const applyPatchToCopy = (
  */
 const findPatchProblems = (
 	config: SanitizedConfig,
-	target: { collection: string; doc: unknown; patches: Operation[] },
+	target: { doc: unknown; patches: Operation[]; ref: TargetRef },
 ): string[] =>
 	target.patches.flatMap((operation, index) => {
 		const at = `patches[${String(index)}]`;
@@ -250,9 +246,9 @@ const findPatchProblems = (
 			for (const pointer of pointers) {
 				const resolution = resolveDataPointer(config, {
 					addedValue: value ?? moved,
-					collection: target.collection,
 					doc: target.doc,
 					pointer,
+					ref: target.ref,
 				});
 
 				if (pointer === operation.path && value !== undefined) {
@@ -373,11 +369,13 @@ const pickDescribed = (
  */
 const buildWriteData = (
 	config: SanitizedConfig,
-	collection: SanitizedCollectionConfig,
+	// Widened to the structural minimum this reads, so a sanitized collection
+	// and a sanitized global both satisfy it without a union.
+	target: { flattenedFields: FlattenedField[] },
 	doc: JsonObject,
 ): JsonObject => {
 	return pickDescribed(config, doc, {
-		fields: collection.flattenedFields,
+		fields: target.flattenedFields,
 		prefix: [],
 		isRow: false,
 	});
