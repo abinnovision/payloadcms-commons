@@ -119,6 +119,38 @@ describe("validateWriteValue", () => {
 		]);
 	});
 
+	it("rejects a node property the field's editor narrows", () => {
+		const heading = (tag: string) => ({
+			root: {
+				children: [{ children: [], tag, type: "heading" }],
+				type: "root",
+			},
+		});
+		const summary = (value: unknown) =>
+			validateWriteValue(
+				config,
+				{
+					pointer: "/summary",
+					resolution: resolveDataPointer(config, {
+						addedValue: value,
+						doc: POST,
+						pointer: "/summary",
+						ref: { kind: "collection", slug: "posts" },
+					}),
+				},
+				value,
+			);
+
+		expect(summary(heading("h4"))).toEqual([]);
+		expect(summary(heading("h3"))).toEqual([
+			'/summary/root/children/0/tag: "h3" is not available for a "heading" node in this field\'s editor. Allowed: h4',
+		]);
+	});
+
+	it("leaves a node property alone when the editor narrows nothing", () => {
+		expect(checkPost(nodeState("heading", undefined))).toEqual([]);
+	});
+
 	it("checks the fields a Lexical node carries", () => {
 		expect(
 			checkPost(linkNode({ linkType: "custom", rel: "nofollow", url: "/x" })),

@@ -10,7 +10,15 @@ interface Node {
 	collection: string;
 	schemaPath: string;
 	blockType?: string;
-	fields: { path: string; type: string; blocks?: string[] }[];
+	fields: {
+		path: string;
+		type: string;
+		blocks?: string[];
+		maxLength?: number;
+		maxRows?: number;
+		minRows?: number;
+		nodeOptions?: Record<string, Record<string, string[]>>;
+	}[];
 	next?: string[];
 	error?: string;
 }
@@ -45,6 +53,7 @@ describe("describeSchema", () => {
 			"/slug",
 			"/layout/color",
 			"/layout/sections",
+			"/meta",
 			"/meta/title",
 		]);
 		expect(
@@ -104,6 +113,19 @@ describe("describeSchema", () => {
 		expect(root?.fields.length).toBeGreaterThan(0);
 		expect(bad?.error).toContain("carousel");
 		expect(bad?.error).toContain("sectionWrapper");
+	});
+
+	it("carries the constraints a field declares", async () => {
+		const root = nodes((await describe_({ collection: "posts" })).data)[0];
+		const at = (path: string) => root?.fields.find((f) => f.path === path);
+
+		expect(at("/items")).toMatchObject({
+			maxRows: 4,
+			minRows: 1,
+			type: "array",
+		});
+		expect(at("/title")?.maxLength).toBe(120);
+		expect(at("/summary")?.nodeOptions).toEqual({ heading: { tag: ["h4"] } });
 	});
 
 	it("drills into the fields a Lexical node carries", async () => {

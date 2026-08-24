@@ -75,6 +75,24 @@ describe("resolveDataPointer", () => {
 		expect(label.descriptor).toMatchObject({ type: "text", required: true });
 	});
 
+	it("reads a container as the subtree beneath it, not as a field", () => {
+		const doc = { items: [{ heading: "One" }], title: "Post" };
+		const at = (pointer: string) =>
+			resolveDataPointer(config, {
+				doc,
+				pointer,
+				ref: { kind: "collection", slug: "posts" },
+			});
+
+		expect(at("/items").descriptor).toBeUndefined();
+		expect(at("/items").prefix).toEqual(["items"]);
+		expect(at("/items/0").descriptor).toBeUndefined();
+		expect(at("/items/0").prefix).toEqual(["items", "0"]);
+		expect(at("/items/0/heading").descriptor).toMatchObject({ type: "text" });
+		expect(resolve("/meta").descriptor).toBeUndefined();
+		expect(resolve("/meta/title").descriptor).toMatchObject({ type: "text" });
+	});
+
 	it("takes the discriminant from the value when appending", () => {
 		const appended = resolve("/layout/sections/-", { blockType: "richText" });
 

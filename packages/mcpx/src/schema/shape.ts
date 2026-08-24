@@ -3,12 +3,13 @@ import {
 	ARRAY_MARKER,
 	blockOf,
 	blockSlugsOf,
-	describeFields,
+	describeAddressableFields,
 	findBlocksField,
 	findRichTextField,
 	splitPath,
 } from "./walk.js";
 
+import type { NodeOptions } from "./lexical.js";
 import type { PointerResolution } from "./pointer.js";
 import type { FieldDescriptor } from "./walk.js";
 import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
@@ -97,11 +98,17 @@ const checkNodeFields = (
  * few node types that register one, so a `heading` inside a field whose
  * editor has no heading feature is stored without complaint and only fails
  * later, at render or when the document is reopened in the admin editor. A key
- * a node's fields do not declare is dropped just as silently.
+ * a node's fields do not declare is dropped just as silently. The same holds
+ * one level down, for the node properties a feature narrows: an `h3` in an
+ * editor restricted to `h4` is stored as readily as an `h4`.
  */
 const checkRichText = (
 	scope: CheckScope,
-	editor: { allowed: readonly string[]; field: RichTextField | undefined },
+	editor: {
+		allowed: readonly string[];
+		field: RichTextField | undefined;
+		nodeOptions: NodeOptions | undefined;
+	},
 	value: unknown,
 ): void => {
 	if (!isPlainObject(value) || !isPlainObject(value["root"])) {
@@ -132,6 +139,18 @@ const checkRichText = (
 				);
 
 				return;
+			}
+
+			for (const [property, values] of Object.entries(
+				editor.nodeOptions?.[node["type"]] ?? {},
+			)) {
+				const value = node[property];
+
+				if (typeof value === "string" && !values.includes(value)) {
+					scope.problems.push(
+						`${at}/${property}: "${value}" is not available for a "${node["type"]}" node in this field's editor. Allowed: ${values.join(", ")}`,
+					);
+				}
 			}
 
 			if (editor.field) {
@@ -167,6 +186,7 @@ const checkLeafValue = (
 			{
 				allowed: descriptor.nodes ?? [],
 				field: findRichTextField(scope.fields, splitPath(descriptor.path)),
+				nodeOptions: descriptor.nodeOptions,
 			},
 			value,
 		);
@@ -219,11 +239,12 @@ const checkLeafValue = (
  * Walks an incoming value against the schema, reporting every shape problem
  * rather than the first.
  *
- * Shape only: unknown field names, unknown block slugs, read-only fields and
- * unusable rich text nodes. Required-ness, row counts, enum membership and
- * relationship existence stay with Payload, which already checks them and
- * reports them per field. Without this pass a misspelled field inside a new
- * block would be stripped in silence.
+ * Shape only: unknown field names, unknown block slugs, read-only fields, and
+ * rich text nodes or node properties the field's editor cannot produce.
+ * Required-ness, row counts, lengths, enum membership and relationship
+ * existence stay with Payload, which already checks them and reports them per
+ * field. Without this pass a misspelled field inside a new block would be
+ * stripped in silence.
  */
 const checkValue = (scope: CheckScope, value: unknown): void => {
 	if (!isPlainObject(value)) {
@@ -232,13 +253,15 @@ const checkValue = (scope: CheckScope, value: unknown): void => {
 
 	const prefixParts = scope.prefix;
 
-	const relative = describeFields(scope.fields).flatMap((descriptor) => {
-		const parts = splitPath(descriptor.path);
+	const relative = describeAddressableFields(scope.fields).flatMap(
+		(descriptor) => {
+			const parts = splitPath(descriptor.path);
 
-		return prefixParts.every((part, offset) => part === parts[offset])
-			? [{ descriptor, parts: parts.slice(prefixParts.length) }]
-			: [];
-	});
+			return prefixParts.every((part, offset) => part === parts[offset])
+				? [{ descriptor, parts: parts.slice(prefixParts.length) }]
+				: [];
+		},
+	);
 
 	for (const [key, entry] of Object.entries(value)) {
 		if (TOLERATED_VALUE_KEYS.has(key)) {
