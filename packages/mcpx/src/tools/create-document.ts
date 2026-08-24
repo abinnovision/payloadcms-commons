@@ -1,12 +1,7 @@
 import { z } from "zod";
 
-import {
-	collectionEnum,
-	ensureAllowed,
-	localeOf,
-	localeShape,
-	readDraft,
-} from "./shared.js";
+import { slugEnum, localeOf, localeShape, readTarget } from "./shared.js";
+import { resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../endpoint/result.js";
 import { validateWriteValue } from "../schema/shape.js";
 import { stripRowIds } from "../write/patch.js";
@@ -33,7 +28,7 @@ const createDocument: BuiltinTool<Args> = {
 	},
 	isEnabled: (scope) => scope.writable.length > 0,
 	inputSchema: (scope) => ({
-		collection: collectionEnum(scope.writable).describe(
+		collection: slugEnum(scope.writable).describe(
 			"Collection to create the document in.",
 		),
 		...localeShape(scope, {
@@ -45,7 +40,11 @@ const createDocument: BuiltinTool<Args> = {
 			.describe("Initial field values, as describeSchema lists them."),
 	}),
 	handler: async (args, scope) => {
-		const collection = ensureAllowed(scope, args.collection, "write");
+		const target = resolveTarget(
+			scope,
+			{ collection: args.collection },
+			"write",
+		);
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
 
@@ -56,7 +55,7 @@ const createDocument: BuiltinTool<Args> = {
 			payload.config,
 			{
 				pointer: "",
-				resolution: { fields: collection.flattenedFields, prefix: "" },
+				resolution: { fields: target.config.flattenedFields, prefix: "" },
 			},
 			seed,
 		);
@@ -75,16 +74,16 @@ const createDocument: BuiltinTool<Args> = {
 			...(locale === undefined ? {} : { locale }),
 		})) as Record<string, unknown>;
 
-		const saved = await readDraft(scope, {
-			collection: args.collection,
+		const saved = await readTarget(scope, {
+			target,
 			id: created["id"] as number | string,
 			locale,
 			privileged: true,
 		});
 
 		const publishBlockers = await collectPublishBlockers(scope.req, {
-			collection,
 			doc: saved,
+			entity: target,
 		});
 
 		return jsonResult({

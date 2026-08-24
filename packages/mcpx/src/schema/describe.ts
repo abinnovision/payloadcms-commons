@@ -1,19 +1,15 @@
 import {
 	blockOf,
 	blockSlugsOf,
-	collectionOf,
 	describeFields,
 	findBlocksField,
 	joinPath,
 	splitPath,
+	targetOf,
 } from "./walk.js";
 
-import type { FieldDescriptor } from "./walk.js";
-import type {
-	FlattenedField,
-	SanitizedCollectionConfig,
-	SanitizedConfig,
-} from "payload";
+import type { FieldDescriptor, SchemaTarget, TargetRef } from "./walk.js";
+import type { FlattenedField, SanitizedConfig } from "payload";
 
 /**
  * A collection root or a single block, described without inlining anything
@@ -21,7 +17,10 @@ import type {
  */
 interface NodeDescriptor {
 	blockType?: string;
-	collection: string;
+	/** Set when the node belongs to a collection. */
+	collection?: string;
+	/** Set when the node belongs to a global. */
+	global?: string;
 	fields: FieldDescriptor[];
 	/** Ready-to-use schema paths for every block this node's fields accept. */
 	next?: string[];
@@ -40,10 +39,10 @@ const blocksDescriptors = (fields: FlattenedField[]): FieldDescriptor[] =>
  */
 const fieldsAtSchemaPath = (
 	config: SanitizedConfig,
-	collection: SanitizedCollectionConfig,
+	target: SchemaTarget,
 	schemaPath: string,
 ): { blockType?: string; fields: FlattenedField[] } => {
-	let fields = collection.flattenedFields;
+	let fields = target.flattenedFields;
 	let blockType: string | undefined;
 	let remaining = splitPath(schemaPath).filter(Boolean);
 
@@ -99,16 +98,17 @@ const fieldsAtSchemaPath = (
 };
 
 /**
- * Describes a collection root, or one block reached through a schema path.
+ * Describes a collection or global root, or one block reached through a schema
+ * path.
  */
 const describeNode = (
 	config: SanitizedConfig,
-	collection: string,
+	ref: TargetRef,
 	schemaPath = "",
 ): NodeDescriptor => {
 	const { blockType, fields } = fieldsAtSchemaPath(
 		config,
-		collectionOf(config, collection),
+		targetOf(config, ref),
 		schemaPath,
 	);
 
@@ -121,7 +121,9 @@ const describeNode = (
 
 	return {
 		...(blockType === undefined ? {} : { blockType }),
-		collection,
+		...(ref.kind === "collection"
+			? { collection: ref.slug }
+			: { global: ref.slug }),
 		fields: descriptors,
 		...(next.length > 0 ? { next } : {}),
 		schemaPath,
@@ -136,13 +138,13 @@ const describeNode = (
 const REACHABLE_PATHS_LIMIT = 400;
 
 /**
- * Every schema path reachable from a collection root, capped at
+ * Every schema path reachable from an entity root, capped at
  * {@link REACHABLE_PATHS_LIMIT}. `truncated` tells the caller the cap was hit
  * and explicit paths are the way to go deeper.
  */
 const reachableSchemaPaths = (
 	config: SanitizedConfig,
-	collection: string,
+	ref: TargetRef,
 ): { paths: string[]; truncated: boolean } => {
 	const seen: string[] = [];
 	let truncated = false;
@@ -156,8 +158,7 @@ const reachableSchemaPaths = (
 
 		seen.push(schemaPath);
 
-		for (const descriptor of describeNode(config, collection, schemaPath)
-			.fields) {
+		for (const descriptor of describeNode(config, ref, schemaPath).fields) {
 			for (const slug of descriptor.blocks ?? []) {
 				if (visited.includes(slug)) {
 					continue;

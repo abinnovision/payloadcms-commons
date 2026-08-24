@@ -1,12 +1,7 @@
 import { z } from "zod";
 
-import {
-	collectionEnum,
-	depthShape,
-	ensureAllowed,
-	localeOf,
-	localeShape,
-} from "./shared.js";
+import { slugEnum, depthShape, localeOf, localeShape } from "./shared.js";
+import { resolveTarget } from "./target.js";
 import { jsonResult } from "../endpoint/result.js";
 
 import type { BuiltinTool } from "./types.js";
@@ -32,9 +27,7 @@ const findDocuments: BuiltinTool<Args> = {
 	annotations: { readOnlyHint: true, openWorldHint: false },
 	isEnabled: (scope) => scope.readable.length > 0,
 	inputSchema: (scope) => ({
-		collection: collectionEnum(scope.readable).describe(
-			"Collection to search.",
-		),
+		collection: slugEnum(scope.readable).describe("Collection to search."),
 		where: z
 			.record(z.string(), z.unknown())
 			.optional()
@@ -68,7 +61,7 @@ const findDocuments: BuiltinTool<Args> = {
 			.describe("Include the latest drafts. Default true."),
 	}),
 	handler: async (args, scope) => {
-		ensureAllowed(scope, args.collection, "read");
+		resolveTarget(scope, { collection: args.collection }, "read");
 
 		const locale = localeOf(scope, args.locale);
 		const result = await scope.req.payload.find({

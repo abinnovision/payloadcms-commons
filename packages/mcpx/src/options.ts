@@ -5,7 +5,7 @@ import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
 import { MCPX_VERSION } from "./version.js";
 
 import type { McpxPluginOptions, McpxTool } from "./types.js";
-import type { CollectionConfig, Config } from "payload";
+import type { CollectionConfig, Config, GlobalConfig } from "payload";
 
 const DEFAULT_API_KEYS_SLUG = "mcpx-api-keys";
 const DEFAULT_ENDPOINT_PATH = "/mcpx";
@@ -13,7 +13,11 @@ const DEFAULT_MAX_LIMIT = 25;
 const DEFAULT_MAX_DEPTH = 1;
 const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
-interface NormalizedCollection {
+/**
+ * An exposed collection or global, resolved against the config. The two carry
+ * the same settings; only the validation that produced them differs.
+ */
+interface NormalizedEntity {
 	slug: string;
 	read: boolean;
 	write: boolean;
@@ -23,8 +27,12 @@ interface NormalizedCollection {
 	fieldName: string;
 }
 
+type NormalizedCollection = NormalizedEntity;
+type NormalizedGlobal = NormalizedEntity;
+
 interface NormalizedOptions {
 	collections: NormalizedCollection[];
+	globals: NormalizedGlobal[];
 	userCollection: string;
 	apiKeysSlug: string;
 	endpointPath: string;
@@ -97,6 +105,32 @@ const assertWritable = (
 	}
 };
 
+/**
+ * Refuses globals that must never be reachable. Globals cannot be auth or
+ * upload entities, so only Payload's own reserved namespace is left to guard.
+ */
+const assertGlobalExposable = (global: GlobalConfig): void => {
+	if (global.slug.startsWith("payload-")) {
+		fail(`Global "${global.slug}" cannot be exposed.`);
+	}
+};
+
+/**
+ * `GlobalConfig` has no `timestamps` option and `sanitizeGlobal` always appends
+ * `createdAt`/`updatedAt`, so the concurrency check the collection path guards
+ * for is always available here. Drafts are the only requirement left.
+ */
+const assertGlobalWritable = (
+	global: GlobalConfig,
+	options: { allowLiveWrites: boolean; hasDrafts: boolean },
+): void => {
+	if (!options.hasDrafts && !options.allowLiveWrites) {
+		fail(
+			`Global "${global.slug}" has no drafts. Enable versions.drafts or set allowLiveWrites.`,
+		);
+	}
+};
+
 const normalizeCollections = (
 	config: Config,
 	options: McpxPluginOptions,
@@ -139,6 +173,57 @@ const normalizeCollections = (
 			if (fieldNames.has(normalized.fieldName)) {
 				fail(
 					`Collection "${slug}" maps to capability field "${normalized.fieldName}", which another exposed collection already uses.`,
+				);
+			}
+
+			fieldNames.add(normalized.fieldName);
+
+			return [normalized];
+		},
+	);
+};
+
+const normalizeGlobals = (
+	config: Config,
+	options: McpxPluginOptions,
+): NormalizedGlobal[] => {
+	const globals = config.globals ?? [];
+	// Scoped to globals on purpose: a global and a collection may share a
+	// camelCase name because they land in separate capability groups.
+	const fieldNames = new Set<string>();
+
+	return Object.entries(options.globals ?? {}).flatMap(
+		([slug, raw]): NormalizedGlobal[] => {
+			if (raw === undefined) {
+				return [];
+			}
+
+			const global = globals.find((candidate) => candidate.slug === slug);
+
+			if (!global) {
+				return fail(`Exposed global "${slug}" does not exist.`);
+			}
+
+			assertGlobalExposable(global);
+
+			const settings = raw === true ? {} : raw;
+			const hasDrafts = hasDraftsEnabled(global);
+			const normalized: NormalizedGlobal = {
+				slug,
+				read: settings.read ?? true,
+				write: settings.write ?? false,
+				allowLiveWrites: settings.allowLiveWrites ?? false,
+				hasDrafts,
+				fieldName: toCamelCase(slug),
+			};
+
+			if (normalized.write) {
+				assertGlobalWritable(global, normalized);
+			}
+
+			if (fieldNames.has(normalized.fieldName)) {
+				fail(
+					`Global "${slug}" maps to capability field "${normalized.fieldName}", which another exposed global already uses.`,
 				);
 			}
 
@@ -223,6 +308,7 @@ const normalizeOptions = (
 
 	return {
 		collections: normalizeCollections(config, options, apiKeysSlug),
+		globals: normalizeGlobals(config, options),
 		userCollection,
 		apiKeysSlug,
 		endpointPath: options.endpoint?.path ?? DEFAULT_ENDPOINT_PATH,

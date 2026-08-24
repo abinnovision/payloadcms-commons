@@ -170,7 +170,11 @@ describe("findPatchProblems", () => {
 	});
 
 	const problemsFor = (patches: Operation[]): string[] =>
-		findPatchProblems(config, { collection: "pages", doc: DOC, patches });
+		findPatchProblems(config, {
+			doc: DOC,
+			patches,
+			ref: { kind: "collection", slug: "pages" },
+		});
 
 	it("accepts a well-formed replace", () => {
 		expect(

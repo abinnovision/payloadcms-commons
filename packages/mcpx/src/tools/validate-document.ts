@@ -1,21 +1,24 @@
 import {
-	collectionEnum,
-	ensureAllowed,
-	idSchema,
+	idShape,
 	localeOf,
 	localeShape,
-	readDraft,
+	readTarget,
+	targetShape,
 } from "./shared.js";
+import { requireIdFor, resolveTarget } from "./target.js";
 import { jsonResult } from "../endpoint/result.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 import type { BuiltinTool } from "./types.js";
 
-const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".`;
+const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
+
+Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
 interface Args {
-	collection: string;
-	id: number | string;
+	collection?: string;
+	global?: string;
+	id?: number | string;
 	locale?: string;
 }
 
@@ -23,42 +26,43 @@ const validateDocument: BuiltinTool<Args> = {
 	name: "validateDocument",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
-	isEnabled: (scope) => scope.writable.length > 0,
+	isEnabled: (scope) =>
+		scope.writable.length + scope.writableGlobals.length > 0,
 	inputSchema: (scope) => ({
-		collection: collectionEnum(scope.writable).describe(
-			"Collection holding the document.",
-		),
-		id: idSchema,
+		...targetShape(scope, "write", {
+			collection: "Collection holding the document.",
+			global: "Global to validate.",
+		}),
+		...idShape(scope, "write"),
 		...localeShape(scope, {
 			required: true,
 			description: "Locale to validate.",
 		}),
 	}),
 	handler: async (args, scope) => {
-		const collection = ensureAllowed(scope, args.collection, "write");
+		const target = resolveTarget(scope, args, "write");
+		const id = requireIdFor(target, args.id);
 		const locale = localeOf(scope, args.locale);
 
 		// The first read checks the key's access; the second sees every field.
-		await readDraft(scope, {
-			collection: args.collection,
-			id: args.id,
-			locale,
-		});
+		await readTarget(scope, { target, id, locale });
 
-		const doc = await readDraft(scope, {
-			collection: args.collection,
-			id: args.id,
+		const doc = await readTarget(scope, {
+			target,
+			id,
 			locale,
 			privileged: true,
 		});
 
 		const publishBlockers = await collectPublishBlockers(scope.req, {
-			collection,
 			doc,
+			entity: target,
 		});
 
 		return jsonResult({
-			id: doc["id"],
+			...(target.kind === "collection"
+				? { id: doc["id"] }
+				: { global: target.slug }),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			publishBlockers,

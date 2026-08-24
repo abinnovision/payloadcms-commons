@@ -34,9 +34,9 @@ const DOC = {
 const resolve = (pointer: string, added?: unknown) =>
 	resolveDataPointer(config, {
 		...(added === undefined ? {} : { addedValue: added }),
-		collection: "pages",
 		doc: DOC,
 		pointer,
+		ref: { kind: "collection", slug: "pages" },
 	});
 
 describe("pointerSegments", () => {
@@ -73,9 +73,9 @@ describe("resolveDataPointer", () => {
 			title: "Post",
 		};
 		const label = resolveDataPointer(config, {
-			collection: "posts",
 			doc,
 			pointer: "/items/1/actions/0/label",
+			ref: { kind: "collection", slug: "posts" },
 		});
 
 		expect(label.blockType).toBe("cta");

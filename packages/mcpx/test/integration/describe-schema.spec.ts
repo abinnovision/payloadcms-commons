@@ -87,7 +87,7 @@ describe("describeSchema", () => {
 		const config = await booted.config;
 
 		expect(nodes(result.data).map((n) => n.schemaPath)).toEqual(
-			reachableSchemaPaths(config, "pages").paths,
+			reachableSchemaPaths(config, { kind: "collection", slug: "pages" }).paths,
 		);
 	});
 

@@ -2,16 +2,22 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	forceDraftWrite,
+	forceDraftWriteGlobal,
 	installDraftGuards,
+	installGlobalDraftGuards,
 	isMcpxRequest,
 	refusePublish,
+	refusePublishGlobal,
 } from "./draft-guard.js";
 
-import type { CollectionConfig, PayloadRequest } from "payload";
+import type { CollectionConfig, GlobalConfig, PayloadRequest } from "payload";
 
 const mcpxRequest = {
 	context: {
-		mcpx: { apiKeyId: "key", capabilities: { collections: {}, tools: {} } },
+		mcpx: {
+			apiKeyId: "key",
+			capabilities: { collections: {}, globals: {}, tools: {} },
+		},
 	},
 };
 const restRequest = { context: {} };
@@ -186,5 +192,127 @@ describe("installDraftGuards", () => {
 
 		expect(tags?.hooks?.beforeChange).toBeUndefined();
 		expect(pages?.hooks?.beforeChange).toEqual([refusePublish]);
+	});
+});
+
+/**
+ * Runs the global `beforeOperation` hook and returns the arguments the
+ * operation would actually receive.
+ */
+const globalOperationArgumentsFor = (
+	args: Record<string, unknown>,
+	operation = "update",
+	req: Record<string, unknown> = mcpxRequest,
+): Record<string, unknown> => {
+	const hookArgs: unknown = { args, operation, req };
+
+	return forceDraftWriteGlobal(hookArgs as never) as Record<string, unknown>;
+};
+
+describe("forceDraftWriteGlobal", () => {
+	it("leaves a non-MCP request untouched", () => {
+		const args = { data: { _status: "published" }, slug: "site-settings" };
+
+		expect(globalOperationArgumentsFor(args, "update", restRequest)).toBe(args);
+	});
+
+	it("leaves a read untouched", () => {
+		const args = { slug: "site-settings" };
+
+		expect(globalOperationArgumentsFor(args, "read")).toBe(args);
+	});
+
+	it("forces the write into a draft save", () => {
+		const next = globalOperationArgumentsFor({
+			data: { _status: "published", title: "Home" },
+			slug: "site-settings",
+		});
+
+		expect(next["draft"]).toBe(true);
+		expect(next["data"]).toEqual({ title: "Home" });
+	});
+
+	it("strips every publish vector updateGlobal accepts", () => {
+		const next = globalOperationArgumentsFor({
+			data: { title: "Home" },
+			publishAllLocales: true,
+			publishSpecificLocale: "de",
+			slug: "site-settings",
+			unpublishAllLocales: true,
+		});
+
+		expect(next).not.toHaveProperty("publishAllLocales");
+		expect(next).not.toHaveProperty("publishSpecificLocale");
+		expect(next).not.toHaveProperty("unpublishAllLocales");
+	});
+
+	it("keeps the slug, so the operation still knows what it updates", () => {
+		const next = globalOperationArgumentsFor({
+			data: { title: "Home" },
+			slug: "site-settings",
+		});
+
+		expect(next["slug"]).toBe("site-settings");
+	});
+});
+
+describe("refusePublishGlobal", () => {
+	const run = (status: unknown, req: Record<string, unknown> = mcpxRequest) => {
+		const warn = vi.fn();
+		const hookArgs: unknown = {
+			data: status === undefined ? {} : { _status: status },
+			global: { slug: "site-settings" },
+			req: { ...req, payload: { logger: { warn } } },
+		};
+
+		return { call: () => refusePublishGlobal(hookArgs as never), warn };
+	};
+
+	it("passes a draft through", () => {
+		expect(() => run("draft").call()).not.toThrow();
+	});
+
+	it("refuses anything that would not land as a draft", () => {
+		const { call, warn } = run("published");
+
+		expect(call).toThrow(/may only write drafts/);
+		expect(warn).toHaveBeenCalledWith(expect.stringContaining("site-settings"));
+	});
+
+	it("ignores writes that did not come from MCP", () => {
+		expect(() => run("published", restRequest).call()).not.toThrow();
+	});
+});
+
+describe("installGlobalDraftGuards", () => {
+	const drafts: GlobalConfig = {
+		slug: "site-settings",
+		versions: { drafts: true },
+		fields: [],
+	};
+	const live: GlobalConfig = { slug: "banner", fields: [] };
+
+	it("guards every global and refuses publishing only where drafts exist", () => {
+		const [guardedDrafts, guardedLive] = installGlobalDraftGuards([
+			drafts,
+			live,
+		]);
+
+		expect(guardedDrafts?.hooks?.beforeOperation).toHaveLength(1);
+		expect(guardedDrafts?.hooks?.beforeChange).toEqual([refusePublishGlobal]);
+		expect(guardedLive?.hooks?.beforeOperation).toHaveLength(1);
+		expect(guardedLive?.hooks?.beforeChange).toBeUndefined();
+	});
+
+	it("keeps hooks the global already declared", () => {
+		const existing = vi.fn();
+		const [guarded] = installGlobalDraftGuards([
+			{ ...drafts, hooks: { beforeOperation: [existing] } },
+		]);
+
+		expect(guarded?.hooks?.beforeOperation).toEqual([
+			existing,
+			forceDraftWriteGlobal,
+		]);
 	});
 });

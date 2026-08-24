@@ -15,8 +15,12 @@ interface ToolScope {
 	req: PayloadRequest;
 	options: NormalizedOptions;
 	capabilities: McpxResolvedCapabilities;
+	/** Collection slugs the key may read / write. */
 	readable: string[];
 	writable: string[];
+	/** Global slugs the key may read / write. */
+	readableGlobals: string[];
+	writableGlobals: string[];
 	/** Configured locale codes, or `null` when localization is off. */
 	locales: null | string[];
 	defaultLocale: null | string;

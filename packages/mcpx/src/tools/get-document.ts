@@ -2,24 +2,27 @@ import { Pointer } from "rfc6902";
 import { z } from "zod";
 
 import {
-	collectionEnum,
 	depthShape,
-	ensureAllowed,
-	idSchema,
+	idShape,
 	localeOf,
 	localeShape,
+	targetShape,
 } from "./shared.js";
+import { requireIdFor, resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../endpoint/result.js";
 
 import type { BuiltinTool } from "./types.js";
 
-const DESCRIPTION = `Reads one document, or one subtree of it when "path" is given as a JSON pointer such as "/layout/sections/2". Returns the latest draft by default. Read before patching: the response carries "updatedAt" for expectedUpdatedAt and the indices pointers need.`;
+const DESCRIPTION = `Reads one document, or one subtree of it when "path" is given as a JSON pointer such as "/layout/sections/2". Returns the latest draft by default. Read before patching: the response carries "updatedAt" for expectedUpdatedAt and the indices pointers need.
+
+Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
 interface Args {
-	collection: string;
+	collection?: string;
 	depth?: number;
 	draft?: boolean;
-	id: number | string;
+	global?: string;
+	id?: number | string;
 	locale?: string;
 	path?: string;
 }
@@ -28,12 +31,14 @@ const getDocument: BuiltinTool<Args> = {
 	name: "getDocument",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
-	isEnabled: (scope) => scope.readable.length > 0,
+	isEnabled: (scope) =>
+		scope.readable.length + scope.readableGlobals.length > 0,
 	inputSchema: (scope) => ({
-		collection: collectionEnum(scope.readable).describe(
-			"Collection holding the document.",
-		),
-		id: idSchema,
+		...targetShape(scope, "read", {
+			collection: "Collection holding the document.",
+			global: "Global to read.",
+		}),
+		...idShape(scope, "read"),
 		path: z
 			.string()
 			.optional()
@@ -51,18 +56,28 @@ const getDocument: BuiltinTool<Args> = {
 			.describe("Return the latest draft. Default true."),
 	}),
 	handler: async (args, scope) => {
-		ensureAllowed(scope, args.collection, "read");
+		const target = resolveTarget(scope, args, "read");
+		const id = requireIdFor(target, args.id);
 
 		const locale = localeOf(scope, args.locale);
-		const doc = (await scope.req.payload.findByID({
-			collection: args.collection,
-			id: args.id,
+		const shared = {
 			depth: args.depth ?? 0,
 			draft: args.draft ?? true,
 			overrideAccess: false,
 			req: scope.req,
 			...(locale === undefined ? {} : { locale }),
-		})) as Record<string, unknown>;
+		};
+
+		const doc = (await (target.kind === "collection"
+			? scope.req.payload.findByID({
+					...shared,
+					collection: target.slug,
+					id: id as number | string,
+				})
+			: scope.req.payload.findGlobal({
+					...shared,
+					slug: target.slug,
+				}))) as Record<string, unknown>;
 
 		if (args.path === undefined || args.path === "") {
 			return jsonResult(doc);
@@ -77,7 +92,9 @@ const getDocument: BuiltinTool<Args> = {
 		}
 
 		return jsonResult({
-			id: doc["id"],
+			...(target.kind === "collection"
+				? { id: doc["id"] }
+				: { global: target.slug }),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			path: args.path,

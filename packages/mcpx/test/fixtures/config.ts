@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { richTextBlock } from "./blocks.js";
 import { pages, posts, tags, users } from "./collections.js";
+import { banner, siteSettings } from "./globals.js";
 import { defineMcpxTool, mcpxPlugin } from "../../src/index.js";
 
 import type { McpxPluginOptions } from "../../src/index.js";
@@ -54,6 +55,12 @@ export const buildFixtureConfig = (
 		localization: { locales: ["en", "de"], defaultLocale: "en" },
 		blocks: [richTextBlock],
 		collections: [users, pages, posts, tags],
+		// Registered on the config but deliberately absent from
+		// `defaultPluginOptions`: every existing spec then keeps running against
+		// a collections-only plugin, which is what proves globals changed
+		// nothing for deployments that do not use them. Globals specs opt in
+		// through `overrides.plugin`.
+		globals: [siteSettings, banner],
 		plugins: [mcpxPlugin({ ...defaultPluginOptions, ...overrides.plugin })],
 		typescript: { autoGenerate: false },
 		graphQL: { disable: true },

@@ -2,14 +2,14 @@ import {
 	ARRAY_MARKER,
 	blockOf,
 	blockSlugsOf,
-	collectionOf,
 	describeFields,
 	findBlocksField,
 	joinPath,
 	splitPath,
+	targetOf,
 } from "./walk.js";
 
-import type { FieldDescriptor } from "./walk.js";
+import type { FieldDescriptor, TargetRef } from "./walk.js";
 import type { FlattenedField, SanitizedConfig } from "payload";
 
 /**
@@ -34,9 +34,9 @@ interface PointerResolution {
  */
 interface PointerTarget {
 	addedValue?: unknown;
-	collection: string;
 	doc: unknown;
 	pointer: string;
+	ref: TargetRef;
 }
 
 const isIndexSegment = (segment: string): boolean =>
@@ -120,7 +120,7 @@ const resolveDataPointer = (
 	config: SanitizedConfig,
 	target: PointerTarget,
 ): PointerResolution => {
-	let fields = collectionOf(config, target.collection).flattenedFields;
+	let fields = targetOf(config, target.ref).flattenedFields;
 	let data: unknown = target.doc;
 	let blockType: string | undefined;
 	let segments = pointerSegments(target.pointer);

@@ -3,16 +3,19 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeOptions, toCamelCase } from "./options.js";
 import { pages, posts, tags, users } from "../test/fixtures/collections.js";
+import { banner, siteSettings } from "../test/fixtures/globals.js";
 
 import type { McpxPluginOptions } from "./types.js";
-import type { CollectionConfig, Config } from "payload";
+import type { CollectionConfig, Config, GlobalConfig } from "payload";
 
 const rawConfig = (
 	collections: CollectionConfig[] = [users, pages, posts, tags],
+	globals: GlobalConfig[] = [siteSettings, banner],
 ): Config => ({
 	secret: "secret",
 	db: sqliteAdapter({ client: { url: ":memory:" } }),
 	collections,
+	globals,
 });
 
 const normalize = (options: McpxPluginOptions, config = rawConfig()) =>
@@ -107,6 +110,86 @@ describe("normalizeOptions", () => {
 		expect(() =>
 			normalize({ collections: { pages: { write: true } } }, config),
 		).toThrow(/timestamps/);
+	});
+
+	it("leaves globals empty when the option is omitted", () => {
+		expect(normalize({ collections: { pages: true } }).globals).toEqual([]);
+	});
+
+	it("applies global defaults", () => {
+		expect(
+			normalize({ collections: {}, globals: { "site-settings": true } })
+				.globals,
+		).toEqual([
+			{
+				slug: "site-settings",
+				read: true,
+				write: false,
+				allowLiveWrites: false,
+				hasDrafts: true,
+				fieldName: "siteSettings",
+			},
+		]);
+	});
+
+	it("refuses an unknown global", () => {
+		expect(() =>
+			normalize({ collections: {}, globals: { nope: true } }),
+		).toThrow(/Exposed global "nope" does not exist/);
+	});
+
+	it("refuses write on a global without drafts", () => {
+		expect(() =>
+			normalize({ collections: {}, globals: { banner: { write: true } } }),
+		).toThrow(/Global "banner" has no drafts/);
+	});
+
+	it("accepts write on a global without drafts when live writes are allowed", () => {
+		const [entry] = normalize({
+			collections: {},
+			globals: { banner: { write: true, allowLiveWrites: true } },
+		}).globals;
+
+		expect(entry).toMatchObject({
+			write: true,
+			hasDrafts: false,
+			allowLiveWrites: true,
+		});
+	});
+
+	it("lets a global and a collection share a capability field name", () => {
+		const settings: GlobalConfig = { slug: "settings", fields: [] };
+		const collection: CollectionConfig = { slug: "settings", fields: [] };
+		const config = rawConfig([users, collection], [settings]);
+
+		// Separate capability groups, so the two never collide.
+		const normalized = normalize(
+			{ collections: { settings: true }, globals: { settings: true } },
+			config,
+		);
+
+		expect(normalized.collections[0]?.fieldName).toBe("settings");
+		expect(normalized.globals[0]?.fieldName).toBe("settings");
+	});
+
+	it("refuses two globals mapping to the same capability field name", () => {
+		const config = rawConfig(
+			[users],
+			[
+				{ slug: "site-settings", fields: [] },
+				{ slug: "site_settings", fields: [] },
+			],
+		);
+
+		expect(() =>
+			normalize(
+				{
+					collections: {},
+					globals: { "site-settings": true, site_settings: true },
+				},
+				config,
+			),
+		).toThrow(/another exposed global already uses/);
 	});
 
 	it("requires an existing auth user collection", () => {
