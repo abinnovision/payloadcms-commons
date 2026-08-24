@@ -141,7 +141,7 @@ export const paragraph = (text: string): Record<string, unknown> => ({
 	},
 });
 
-/** A hero module block as stored in `layout.sections[].modules[]`. */
+/** A hero module block, as stored in a section wrapper's `modules`. */
 export const hero = (title: string): Record<string, unknown> => ({
 	blockType: "hero",
 	title: paragraph(title),

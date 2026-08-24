@@ -15,9 +15,9 @@ import type {
 /**
  * One writable field, addressed relative to the node that declares it.
  *
- * `path` is dotted and already resolved through every construct that does not
- * nest in the stored document, so it becomes a JSON Pointer by replacing `.`
- * with `/` and each `[]` with an index.
+ * `path` uses JSON Pointer syntax and is already resolved through every
+ * construct that does not nest in the stored document, so it becomes a pointer
+ * into a document by replacing each {@link ARRAY_MARKER} with an index.
  */
 interface FieldDescriptor {
 	blocks?: string[];
@@ -47,37 +47,44 @@ const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Marks the element position of an array inside a descriptor path.
+ * Marks the element position of an array inside a descriptor path, where a
+ * pointer into a document carries an index. Not a legal Payload field name,
+ * and deliberately not `-`, which RFC 6901 already reads as "append here".
  */
-const ARRAY_MARKER = "[]";
+const ARRAY_MARKER = "*";
 
 /**
- * Joins path segments, attaching the array marker to its field rather than
- * separating it, so an array subfield reads `items[].title`.
+ * Shape a JSON Pointer must have to be parseable at all.
+ */
+const JSON_POINTER_PATTERN = /^(\/([^~/]|~[01])*)*$/;
+
+/**
+ * Joins segments into a JSON Pointer, so the segments `items`, `*`, `title`
+ * read as one path to a subfield of every element of `items`. No segments is
+ * the root pointer, `""`.
  */
 const joinPath = (parts: readonly string[]): string =>
-	parts.reduce(
-		(path, part) =>
-			part === ARRAY_MARKER
-				? `${path}${ARRAY_MARKER}`
-				: path
-					? `${path}.${part}`
-					: part,
-		"",
-	);
+	parts
+		.map((part) => `/${part.replace(/~/g, "~0").replace(/\//g, "~1")}`)
+		.join("");
 
 /**
- * Splits a descriptor path back into pointer-comparable segments, with the
- * array marker as a segment of its own.
+ * Splits a JSON Pointer into its segments, unescaping `~1` and `~0`. The root
+ * pointer yields no segments.
  */
 const splitPath = (path: string): string[] =>
 	path
-		.split(".")
-		.flatMap((part) =>
-			part.endsWith(ARRAY_MARKER)
-				? [part.slice(0, -ARRAY_MARKER.length), ARRAY_MARKER]
-				: [part],
-		);
+		.split("/")
+		.slice(1)
+		.map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
+
+/**
+ * Restates a path Payload reports on a validation error (`layout.0.title`) as
+ * a JSON Pointer, so everything this plugin hands back addresses documents the
+ * same way. Payload's path already carries real indices, so it maps directly.
+ */
+const pointerFromPayloadPath = (path: string): string =>
+	path ? joinPath(path.split(".")) : "";
 
 /**
  * Blocks a blocks field accepts, by slug. On a flattened field, whichever of
@@ -343,6 +350,7 @@ const collectionOf = (
 
 export {
 	ARRAY_MARKER,
+	JSON_POINTER_PATTERN,
 	RESERVED_FIELD_NAMES,
 	blockOf,
 	blockSlugsOf,
@@ -350,6 +358,7 @@ export {
 	describeFields,
 	findBlocksField,
 	joinPath,
+	pointerFromPayloadPath,
 	splitPath,
 	staticDescription,
 	targetOf,

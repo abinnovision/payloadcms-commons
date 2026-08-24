@@ -1,5 +1,7 @@
 import { APIError, ValidationError } from "payload";
 
+import { pointerFromPayloadPath } from "../schema/walk.js";
+
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Payload } from "payload";
 
@@ -54,14 +56,19 @@ const errorResult = (
  * Maps an exception thrown by a tool to a result the client can read.
  *
  * Payload's public errors keep their message and status; a `ValidationError`
- * also surfaces its per-field detail. Anything else is logged and reported as
- * an internal error so no stack or driver message leaks to the client.
+ * also surfaces its per-field detail, with each field's path restated as a
+ * JSON Pointer so it reads like every other path this plugin reports. Anything
+ * else is logged and reported as an internal error so no stack or driver
+ * message leaks to the client.
  */
 const toToolError = (error: unknown, logger: Logger): CallToolResult => {
 	if (error instanceof ValidationError) {
 		return errorResult(error.message, {
 			status: error.status,
-			validationErrors: error.data.errors,
+			validationErrors: error.data.errors.map((entry) => ({
+				...entry,
+				path: pointerFromPayloadPath(entry.path),
+			})),
 		});
 	}
 

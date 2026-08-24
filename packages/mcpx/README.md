@@ -138,19 +138,22 @@ only the slugs the key may touch.
 
 Rules the tools enforce and explain in their own descriptions:
 
-- `describeSchema` paths are dotted and stop at blocks fields, which list the
-  block slugs they accept; every node carries `next`, the ready-to-use paths
-  for those blocks (`layout.sections.sectionWrapper`), so pass an entry of
-  `next` as a `paths` element to descend. A block is described as it exists at
-  that position.
+- `describeSchema` paths stop at blocks fields, which list the block slugs they
+  accept; every node carries `next`, the ready-to-use paths for those blocks
+  (`/layout/sections/sectionWrapper`), so pass an entry of `next` as a `paths`
+  element to descend. A block is described as it exists at that position.
 - Field and collection `admin.description` values are included in
   `describeSchema` and `listCapabilities`, so intent written for the admin
   panel reaches the client. Strings and locale-keyed records pass through;
   functions and components are dropped.
 - Builtin tools reject unknown arguments by name instead of silently ignoring
   them.
-- A schema path becomes a patch pointer by replacing `.` with `/`, adding a
-  leading `/`, and replacing each `[]` with a 0-based index.
+- Every path this plugin accepts or reports is a JSON Pointer. A schema path
+  and a pointer into a document differ only in what stands in an element
+  position: a schema path writes `*` for an array element and names a block by
+  its slug, where a pointer carries a 0-based index. So `/items/*/title` is
+  written at `/items/0/title`, and `/layout/sections/hero` at
+  `/layout/sections/0`.
 - Adding a block requires `blockType` on the value; append with `/-`.
 - Clearing is `replace` with `null`; a list is emptied with `[]` and refuses
   `null`. `remove` is only valid on list elements, because Payload keeps
@@ -221,7 +224,8 @@ validated; field `beforeChange` hooks run again during the check, so they must
 be pure; and the check runs privileged, so blocker paths and messages may name
 fields the key's user cannot read (values are never included).
 Collections with `versions.drafts.validate: true` refuse invalid drafts
-outright; those failures come back as `validationErrors`.
+outright; those failures come back as `validationErrors`. Both carry pointers,
+restated from the dotted paths Payload reports internally.
 
 Writes also report `notApplied`: pointers whose value Payload kept unchanged,
 which happens when field-level access denies the update.

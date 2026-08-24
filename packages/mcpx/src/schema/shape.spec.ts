@@ -116,17 +116,17 @@ describe("validateWriteValue", () => {
 		expect(
 			validateWriteValue(
 				config,
-				{ pointer: "", resolution: { fields: flattened, prefix: "" } },
+				{ pointer: "", resolution: { fields: flattened, prefix: [] } },
 				{ locked: "x" },
 			),
-		).toEqual(['/locked: "locked" is read-only and cannot be written.']);
+		).toEqual(["/locked: this field is read-only and cannot be written."]);
 	});
 
 	it("validates a whole document at the root", () => {
 		const resolution = {
 			fields: config.collections.find((c) => c.slug === "pages")!
 				.flattenedFields,
-			prefix: "",
+			prefix: [],
 		};
 
 		expect(

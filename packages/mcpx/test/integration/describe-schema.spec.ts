@@ -41,18 +41,18 @@ describe("describeSchema", () => {
 		expect(result.isError).toBe(false);
 		expect(root?.schemaPath).toBe("");
 		expect(root?.fields.map((f) => f.path)).toEqual([
-			"title",
-			"slug",
-			"layout.color",
-			"layout.sections",
-			"meta.title",
+			"/title",
+			"/slug",
+			"/layout/color",
+			"/layout/sections",
+			"/meta/title",
 		]);
 		expect(
-			root?.fields.find((f) => f.path === "layout.sections")?.blocks,
+			root?.fields.find((f) => f.path === "/layout/sections")?.blocks,
 		).toEqual(["sectionWrapper", "richText"]);
 		expect(root?.next).toEqual([
-			"layout.sections.sectionWrapper",
-			"layout.sections.richText",
+			"/layout/sections/sectionWrapper",
+			"/layout/sections/richText",
 		]);
 		expect(JSON.stringify(root)).not.toContain("identifier");
 	});
@@ -60,7 +60,7 @@ describe("describeSchema", () => {
 	it("rejects an unknown argument by name", async () => {
 		const result = await describe_({
 			collection: "pages",
-			schemaPath: "layout.sections.sectionWrapper",
+			schemaPath: "/layout/sections/sectionWrapper",
 		});
 
 		expect(result.isError).toBe(true);
@@ -70,13 +70,16 @@ describe("describeSchema", () => {
 	it("describes a block in the context of its position", async () => {
 		const result = await describe_({
 			collection: "pages",
-			paths: ["layout.sections.sectionWrapper"],
+			paths: ["/layout/sections/sectionWrapper"],
 		});
 		const [node] = nodes(result.data);
 
 		expect(node?.blockType).toBe("sectionWrapper");
-		expect(node?.fields.map((f) => f.path)).toEqual(["identifier", "modules"]);
-		expect(node?.fields.find((f) => f.path === "modules")?.blocks).toEqual([
+		expect(node?.fields.map((f) => f.path)).toEqual([
+			"/identifier",
+			"/modules",
+		]);
+		expect(node?.fields.find((f) => f.path === "/modules")?.blocks).toEqual([
 			"hero",
 			"richText",
 		]);
@@ -94,7 +97,7 @@ describe("describeSchema", () => {
 	it("reports an unresolvable path per node", async () => {
 		const result = await describe_({
 			collection: "pages",
-			paths: ["", "layout.sections.carousel"],
+			paths: ["", "/layout/sections/carousel"],
 		});
 		const [root, bad] = nodes(result.data);
 

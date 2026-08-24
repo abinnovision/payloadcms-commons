@@ -29,7 +29,7 @@ Pass exactly one of "collection" and "global". "id" is required with "collection
 
 The write always lands as a draft and is never published, whatever it contains; publishing stays a human action in the admin panel.
 
-Only the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. Use describeSchema to find a field's path, then turn it into a pointer by replacing "." with "/" and each "[]" with a 0-based index.
+Only the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. describeSchema reports field paths in this same pointer syntax; a path becomes a pointer into a document by replacing each "*" and each block slug with its 0-based index.
 
 Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so a concurrent edit is refused rather than overwritten.
 

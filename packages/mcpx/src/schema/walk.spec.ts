@@ -32,9 +32,19 @@ const pagesFields = () =>
 
 describe("path helpers", () => {
 	it("round-trips array markers", () => {
-		expect(joinPath(["items", "[]", "title"])).toBe("items[].title");
-		expect(splitPath("items[].title")).toEqual(["items", "[]", "title"]);
-		expect(splitPath("layout.sections")).toEqual(["layout", "sections"]);
+		expect(joinPath(["items", "*", "title"])).toBe("/items/*/title");
+		expect(splitPath("/items/*/title")).toEqual(["items", "*", "title"]);
+		expect(splitPath("/layout/sections")).toEqual(["layout", "sections"]);
+	});
+
+	it("treats no segments as the root", () => {
+		expect(joinPath([])).toBe("");
+		expect(splitPath("")).toEqual([]);
+	});
+
+	it("escapes segments that would otherwise split", () => {
+		expect(joinPath(["a/b", "c~d"])).toBe("/a~1b/c~0d");
+		expect(splitPath("/a~1b/c~0d")).toEqual(["a/b", "c~d"]);
 	});
 });
 
@@ -42,10 +52,10 @@ describe("describeFields", () => {
 	it("flattens unnamed tabs and keeps named ones", () => {
 		const paths = describeFields(pagesFields()).map((field) => field.path);
 
-		expect(paths).toContain("title");
-		expect(paths).toContain("slug");
-		expect(paths).toContain("layout.color");
-		expect(paths).not.toContain("General.title");
+		expect(paths).toContain("/title");
+		expect(paths).toContain("/slug");
+		expect(paths).toContain("/layout/color");
+		expect(paths).not.toContain("/General/title");
 	});
 
 	it("carries serializable admin descriptions and drops functions", () => {
@@ -53,15 +63,15 @@ describe("describeFields", () => {
 		const byPath = (path: string) =>
 			descriptors.find((field) => field.path === path);
 
-		expect(byPath("slug")?.description).toBe(
+		expect(byPath("/slug")?.description).toBe(
 			"URL segment of the page, lowercase.",
 		);
-		expect(byPath("title")?.description).toEqual({
+		expect(byPath("/title")?.description).toEqual({
 			en: "Page title",
 			de: "Seitentitel",
 		});
-		expect(byPath("meta.title")).not.toHaveProperty("description");
-		expect(byPath("layout.color")).not.toHaveProperty("description");
+		expect(byPath("/meta/title")).not.toHaveProperty("description");
+		expect(byPath("/layout/color")).not.toHaveProperty("description");
 	});
 
 	it("keeps named groups and flattens unnamed ones", () => {
@@ -84,7 +94,7 @@ describe("describeFields", () => {
 			(field) => field.path,
 		);
 
-		expect(paths).toEqual(["meta.a", "b", "c", "d"]);
+		expect(paths).toEqual(["/meta/a", "/b", "/c", "/d"]);
 	});
 
 	it("never describes reserved, join, virtual or hidden fields", () => {
@@ -104,22 +114,22 @@ describe("describeFields", () => {
 			(field) => field.path,
 		);
 
-		expect(paths).toEqual(["visible"]);
+		expect(paths).toEqual(["/visible"]);
 
 		const fromConfig = describeFields(pagesFields()).map((field) => field.path);
 
-		expect(fromConfig).not.toContain("_status");
-		expect(fromConfig).not.toContain("id");
+		expect(fromConfig).not.toContain("/_status");
+		expect(fromConfig).not.toContain("/id");
 	});
 
 	it("stops at a blocks field and names the slugs", () => {
 		const sections = describeFields(pagesFields()).find(
-			(field) => field.path === "layout.sections",
+			(field) => field.path === "/layout/sections",
 		);
 
 		expect(sections).toEqual({
 			blocks: ["sectionWrapper", "richText"],
-			path: "layout.sections",
+			path: "/layout/sections",
 			required: true,
 			type: "blocks",
 		});
@@ -135,7 +145,7 @@ describe("describeFields", () => {
 		];
 
 		expect(describeFields(flattenAllFields({ fields }))).toEqual([
-			{ localized: true, path: "items[].title", type: "text" },
+			{ localized: true, path: "/items/*/title", type: "text" },
 		]);
 	});
 
@@ -152,10 +162,15 @@ describe("describeFields", () => {
 		];
 
 		expect(describeFields(flattenAllFields({ fields }))).toEqual([
-			{ options: ["light", "dark"], path: "color", type: "select" },
-			{ options: ["a"], path: "mode", type: "radio" },
-			{ hasMany: true, path: "tags", relationTo: "tags", type: "relationship" },
-			{ path: "any", relationTo: ["tags", "pages"], type: "relationship" },
+			{ options: ["light", "dark"], path: "/color", type: "select" },
+			{ options: ["a"], path: "/mode", type: "radio" },
+			{
+				hasMany: true,
+				path: "/tags",
+				relationTo: "tags",
+				type: "relationship",
+			},
+			{ path: "/any", relationTo: ["tags", "pages"], type: "relationship" },
 		]);
 	});
 
@@ -171,8 +186,8 @@ describe("describeFields", () => {
 		];
 
 		expect(describeFields(flattenAllFields({ fields }))).toEqual([
-			{ path: "locked", readOnly: true, type: "text" },
-			{ path: "frozen.inner", readOnly: true, type: "text" },
+			{ path: "/locked", readOnly: true, type: "text" },
+			{ path: "/frozen/inner", readOnly: true, type: "text" },
 		]);
 	});
 });

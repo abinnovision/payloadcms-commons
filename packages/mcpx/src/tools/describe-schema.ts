@@ -15,9 +15,9 @@ const DESCRIPTION = `Describes the writable shape of a document, one node at a t
 
 Pass exactly one of "collection" and "global". A global is a singleton: it has no id, is not listed by findDocuments and cannot be created.
 
-Call it with no "paths" to get a collection's own fields. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; each node's "next" lists the ready-to-use paths for those blocks, so pass any entry of "next" as a "paths" element to descend, e.g. "layout.sections.sectionWrapper" and then "layout.sections.sectionWrapper.modules.hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
+Call it with no "paths" to get a collection's own fields. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; each node's "next" lists the ready-to-use paths for those blocks, so pass any entry of "next" as a "paths" element to descend, e.g. "/layout/sections/sectionWrapper" and then "/layout/sections/sectionWrapper/modules/hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
 
-Field paths are dotted and already resolved through anything that does not nest in the stored document. To turn one into a patchDocument pointer, replace each "." with "/", add a leading "/", and replace each "[]" with a 0-based index. Note a path here names a block by its slug where a pointer names it by its index.
+Paths here use the same JSON Pointer syntax as getDocument and patchDocument, and are already resolved through anything that does not nest in the stored document. The difference is only what stands in an element position: a path names an array element "*" and a block by its slug, where a pointer into a document carries a 0-based index. So "/items/*/title" is written at "/items/0/title", and "/layout/sections/hero" at "/layout/sections/0".
 
 Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;
 
@@ -43,7 +43,7 @@ const describeSchema: BuiltinTool<Args> = {
 			.array(z.string())
 			.optional()
 			.describe(
-				'Schema paths to describe, e.g. "layout.sections.sectionWrapper". Omit for the collection root.',
+				'Schema paths to describe, e.g. "/layout/sections/sectionWrapper". Omit for the collection root.',
 			),
 		expand: z
 			.boolean()

@@ -139,6 +139,16 @@ describe("read tools", () => {
 		expect(result.data).toHaveProperty("updatedAt");
 	});
 
+	it("refuses a path that is not a JSON pointer", async () => {
+		const result = await call("getDocument", {
+			collection: "pages",
+			id: pageId,
+			path: "layout.sections.0.identifier",
+		});
+
+		expect(result.isError).toBe(true);
+	});
+
 	it("refuses a depth above the configured cap", async () => {
 		const result = await call("getDocument", {
 			collection: "pages",

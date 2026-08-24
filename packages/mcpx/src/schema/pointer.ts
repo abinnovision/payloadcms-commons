@@ -17,13 +17,15 @@ import type { FlattenedField, SanitizedConfig } from "payload";
  *
  * `descriptor` is set when the pointer addresses one field exactly. Otherwise
  * the pointer addresses a subtree (a whole group, an array element or a block
- * element) and `fields`/`prefix` describe what may appear beneath it.
+ * element) and `fields`/`prefix` describe what may appear beneath it. `prefix`
+ * is held as segments, since it is a position inside `fields` rather than an
+ * address a client could use.
  */
 interface PointerResolution {
 	blockType?: string;
 	descriptor?: FieldDescriptor;
 	fields: FlattenedField[];
-	prefix: string;
+	prefix: readonly string[];
 }
 
 /**
@@ -41,15 +43,6 @@ interface PointerTarget {
 
 const isIndexSegment = (segment: string): boolean =>
 	segment === "-" || /^\d+$/.test(segment);
-
-/**
- * Decodes a JSON Pointer into its segments, unescaping `~1` and `~0`.
- */
-const pointerSegments = (pointer: string): string[] =>
-	pointer
-		.split("/")
-		.slice(1)
-		.map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
 
 const partMatches = (part: string, segment: string | undefined): boolean =>
 	segment !== undefined &&
@@ -123,7 +116,7 @@ const resolveDataPointer = (
 	let fields = targetOf(config, target.ref).flattenedFields;
 	let data: unknown = target.doc;
 	let blockType: string | undefined;
-	let segments = pointerSegments(target.pointer);
+	let segments = splitPath(target.pointer);
 
 	while (segments.length > 0) {
 		const descriptors = describeFields(fields);
@@ -134,7 +127,7 @@ const resolveDataPointer = (
 				return {
 					...(blockType === undefined ? {} : { blockType }),
 					fields,
-					prefix: joinPath(segments),
+					prefix: segments,
 				};
 			}
 
@@ -152,13 +145,13 @@ const resolveDataPointer = (
 				...(blockType === undefined ? {} : { blockType }),
 				descriptor: match.descriptor,
 				fields,
-				prefix: "",
+				prefix: [],
 			};
 		}
 
 		if (match.descriptor.type !== "blocks") {
 			throw new Error(
-				`"${match.descriptor.path}" is a ${match.descriptor.type} field and has no "${rest.join("/")}" beneath it.`,
+				`"${match.descriptor.path}" is a ${match.descriptor.type} field and has no "${joinPath(rest)}" beneath it.`,
 			);
 		}
 
@@ -206,9 +199,9 @@ const resolveDataPointer = (
 	return {
 		...(blockType === undefined ? {} : { blockType }),
 		fields,
-		prefix: "",
+		prefix: [],
 	};
 };
 
-export { pointerSegments, resolveDataPointer };
+export { resolveDataPointer };
 export type { PointerResolution };

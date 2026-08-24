@@ -8,6 +8,7 @@ import {
 	blockOf,
 	describeFields,
 	findBlocksField,
+	JSON_POINTER_PATTERN,
 	RESERVED_FIELD_NAMES,
 	splitPath,
 } from "../schema/walk.js";
@@ -21,8 +22,6 @@ type PatchOperation = Operation;
 /**
  * One RFC 6902 operation as accepted by `patchDocument`.
  */
-const JSON_POINTER_PATTERN = /^(\/([^~/]|~[01])*)*$/;
-
 const PATCH_OPERATION_SCHEMA = z
 	.object({
 		from: z.string().regex(JSON_POINTER_PATTERN).optional(),

@@ -55,7 +55,7 @@ const createDocument: BuiltinTool<Args> = {
 			payload.config,
 			{
 				pointer: "",
-				resolution: { fields: target.config.flattenedFields, prefix: "" },
+				resolution: { fields: target.config.flattenedFields, prefix: [] },
 			},
 			seed,
 		);

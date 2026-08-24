@@ -10,6 +10,7 @@ import {
 } from "./shared.js";
 import { requireIdFor, resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../endpoint/result.js";
+import { JSON_POINTER_PATTERN } from "../schema/walk.js";
 
 import type { BuiltinTool } from "./types.js";
 
@@ -41,6 +42,7 @@ const getDocument: BuiltinTool<Args> = {
 		...idShape(scope, "read"),
 		path: z
 			.string()
+			.regex(JSON_POINTER_PATTERN)
 			.optional()
 			.describe(
 				'JSON pointer to return only a subtree, e.g. "/layout/sections/0".',

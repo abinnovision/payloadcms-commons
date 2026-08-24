@@ -97,9 +97,9 @@ describe("globals", () => {
 		expect(node?.global).toBe(SETTINGS);
 		expect(node).not.toHaveProperty("collection");
 		expect(node?.fields.map((field) => field.path)).toEqual([
-			"title",
-			"tagline",
-			"sections",
+			"/title",
+			"/tagline",
+			"/sections",
 		]);
 	});
 
@@ -134,7 +134,7 @@ describe("globals", () => {
 		const blockers = data["publishBlockers"] as { path: string }[];
 
 		// `title` was filled by the patch above; `tagline` is still empty.
-		expect(blockers.map((blocker) => blocker.path)).toContain("tagline");
+		expect(blockers.map((blocker) => blocker.path)).toContain("/tagline");
 		expect(data["global"]).toBe(SETTINGS);
 	});
 
