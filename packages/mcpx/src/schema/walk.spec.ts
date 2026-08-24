@@ -157,7 +157,73 @@ describe("describeFields", () => {
 		];
 
 		expect(describeFields(flattenAllFields({ fields }))).toEqual([
+			{ path: "/items", type: "array" },
 			{ localized: true, path: "/items/*/title", type: "text" },
+		]);
+	});
+
+	it("reports what an array itself declares", () => {
+		const fields: Field[] = [
+			{
+				name: "items",
+				type: "array",
+				required: true,
+				minRows: 1,
+				maxRows: 4,
+				admin: { description: "Repeated content rows." },
+				fields: [{ name: "title", type: "text" }],
+			},
+		];
+
+		expect(describeFields(flattenAllFields({ fields }))[0]).toEqual({
+			description: "Repeated content rows.",
+			maxRows: 4,
+			minRows: 1,
+			path: "/items",
+			required: true,
+			type: "array",
+		});
+	});
+
+	it("describes a group only when it declares something of its own", () => {
+		const fields: Field[] = [
+			{
+				name: "bare",
+				type: "group",
+				fields: [{ name: "inner", type: "text" }],
+			},
+			{
+				name: "described",
+				type: "group",
+				admin: { description: "Search engine metadata." },
+				fields: [{ name: "inner", type: "text" }],
+			},
+		];
+
+		expect(describeFields(flattenAllFields({ fields }))).toEqual([
+			{ path: "/bare/inner", type: "text" },
+			{
+				description: "Search engine metadata.",
+				path: "/described",
+				type: "group",
+			},
+			{ path: "/described/inner", type: "text" },
+		]);
+	});
+
+	it("reports length and range constraints on leaves", () => {
+		const fields: Field[] = [
+			{ name: "title", type: "text", maxLength: 120, minLength: 3 },
+			{ name: "body", type: "textarea", maxLength: 256 },
+			{ name: "weight", type: "number", min: 1, max: 10 },
+			{ name: "loose", type: "text" },
+		];
+
+		expect(describeFields(flattenAllFields({ fields }))).toEqual([
+			{ maxLength: 120, minLength: 3, path: "/title", type: "text" },
+			{ maxLength: 256, path: "/body", type: "textarea" },
+			{ max: 10, min: 1, path: "/weight", type: "number" },
+			{ path: "/loose", type: "text" },
 		]);
 	});
 

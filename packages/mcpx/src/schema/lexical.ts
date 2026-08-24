@@ -48,6 +48,10 @@ interface LexicalLikeEditor {
 			>;
 			nodes?: { node?: { getType?: () => string } }[];
 		};
+		resolvedFeatureMap?: Map<
+			string,
+			{ clientFeatureProps?: unknown; sanitizedServerFeatureProps?: unknown }
+		>;
 	};
 }
 
@@ -147,4 +151,96 @@ const subSchemaNodeTypes = (field: RichTextField): string[] =>
 		(nodeType) => lexicalSubSchema(field, nodeType) !== undefined,
 	);
 
-export { allowedNodeTypes, lexicalSubSchema, subSchemaNodeTypes };
+/**
+ * Values a feature restricts a node property to, keyed by node type and then by
+ * the property on the node that carries the value.
+ */
+type NodeOptions = Record<string, Record<string, string[]>>;
+
+/**
+ * One node property a feature narrows, and where its setting is configured.
+ *
+ * `defaults` is what the feature falls back to, because a feature added without
+ * arguments records nothing: the default lives in the feature's own
+ * destructuring and never reaches its props.
+ */
+interface NodeOptionSource {
+	defaults: readonly string[];
+	featureKey: string;
+	featureProp: string;
+	nodeProp: string;
+	nodeType: string;
+}
+
+/**
+ * Node properties worth reporting and enforcing.
+ *
+ * Only properties a feature narrows and Lexical does not check on its own
+ * belong here. Everything else a feature restricts is already visible: a
+ * link's targets through its sub-schema, a block node's choices through the
+ * slugs it accepts.
+ */
+const NODE_OPTION_SOURCES: readonly NodeOptionSource[] = [
+	{
+		defaults: ["h1", "h2", "h3", "h4", "h5", "h6"],
+		featureKey: "heading",
+		featureProp: "enabledHeadingSizes",
+		nodeProp: "tag",
+		nodeType: "heading",
+	},
+];
+
+/**
+ * The props a feature was resolved with.
+ *
+ * Sanitizing the editor drops every feature's props from `editorConfig.features`
+ * but leaves them on `resolvedFeatureMap`. A feature that declares no server
+ * props keeps only the client ones, so both are tried.
+ */
+const featurePropsOf = (
+	field: RichTextField,
+	featureKey: string,
+): Record<string, unknown> | undefined => {
+	const resolved = (
+		field.editor as LexicalLikeEditor | undefined
+	)?.editorConfig?.resolvedFeatureMap?.get(featureKey);
+
+	const props =
+		resolved?.sanitizedServerFeatureProps ?? resolved?.clientFeatureProps;
+
+	return typeof props === "object" && props !== null
+		? (props as Record<string, unknown>)
+		: undefined;
+};
+
+const stringList = (value: unknown): string[] | undefined =>
+	Array.isArray(value) &&
+	value.every((entry): entry is string => typeof entry === "string")
+		? value
+		: undefined;
+
+/**
+ * The narrowed node properties of a rich text field, for the node types it
+ * actually accepts.
+ */
+const nodeOptions = (
+	field: RichTextField,
+	allowed: readonly string[],
+): NodeOptions | undefined => {
+	const entries = NODE_OPTION_SOURCES.flatMap((source) => {
+		if (!allowed.includes(source.nodeType)) {
+			return [];
+		}
+
+		const values = stringList(
+			featurePropsOf(field, source.featureKey)?.[source.featureProp],
+		) ?? [...source.defaults];
+
+		return [[source.nodeType, { [source.nodeProp]: values }] as const];
+	});
+
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+};
+
+export { allowedNodeTypes, lexicalSubSchema, nodeOptions, subSchemaNodeTypes };
+export type { NodeOptions };

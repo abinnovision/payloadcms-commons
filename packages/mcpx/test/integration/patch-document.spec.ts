@@ -380,6 +380,29 @@ describe("patchDocument", () => {
 			fallbackLocale: false,
 		});
 
+	it("refuses a heading size the field's editor does not enable", async () => {
+		const post = await createPost({ title: "Post" });
+		const summary = (tag: string) => ({
+			root: {
+				children: [{ children: [], tag, type: "heading" }],
+				type: "root",
+			},
+		});
+		const write = (tag: string) =>
+			patch({
+				collection: "posts",
+				id: post.id,
+				locale: "en",
+				patches: [{ op: "replace", path: "/summary", value: summary(tag) }],
+			});
+
+		const refused = await write("h3");
+
+		expect(refused.isError).toBe(true);
+		expect(refused.text).toContain("h4");
+		expect((await write("h4")).isError).toBe(false);
+	});
+
 	it("patches a scalar inside a block nested under an array field", async () => {
 		const post = await createPost({
 			title: "Post",

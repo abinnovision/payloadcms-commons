@@ -34,6 +34,7 @@ describe("describeNode", () => {
 			"/slug",
 			"/layout/color",
 			"/layout/sections",
+			"/meta",
 			"/meta/title",
 		]);
 	});
@@ -90,12 +91,36 @@ describe("describeNode", () => {
 		]);
 		expect(richText.fields).toEqual([
 			{
+				nodeOptions: { heading: { tag: ["h1", "h2", "h3", "h4", "h5", "h6"] } },
 				nodes: expect.arrayContaining(["paragraph", "heading"]),
 				path: "/content",
 				required: true,
 				type: "richText",
 			},
 		]);
+	});
+
+	it("reports what containers and leaves constrain", () => {
+		const fields = describeNode(config, POSTS_REF).fields;
+		const at = (path: string) => fields.find((field) => field.path === path);
+
+		expect(at("/items")).toEqual({
+			description: "Repeated content rows.",
+			maxRows: 4,
+			minRows: 1,
+			path: "/items",
+			type: "array",
+		});
+		expect(at("/items/*/actions")).toMatchObject({ maxRows: 2, minRows: 1 });
+		expect(at("/title")).toEqual({
+			maxLength: 120,
+			path: "/title",
+			required: true,
+			type: "text",
+		});
+		expect(at("/summary")).toMatchObject({
+			nodeOptions: { heading: { tag: ["h4"] } },
+		});
 	});
 
 	it("reports rich text node types per field", () => {
