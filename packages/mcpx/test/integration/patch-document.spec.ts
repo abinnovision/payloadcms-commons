@@ -61,7 +61,7 @@ describe("patchDocument", () => {
 		expect(result.isError).toBe(false);
 		expect(result.data["status"]).toBe("draft");
 		expect(result.data["publishBlockers"]).toEqual([
-			expect.objectContaining({ path: "layout.sections" }),
+			expect.objectContaining({ path: "/layout/sections" }),
 		]);
 		expect((await readDraft(page.id)).title).toBe("Renamed");
 	});

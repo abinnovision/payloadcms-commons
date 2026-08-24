@@ -35,8 +35,9 @@ const blocksDescriptors = (fields: FlattenedField[]): FieldDescriptor[] =>
  * Walks a schema path to the field list it addresses.
  *
  * A schema path alternates a blocks field's own path with the slug of one of
- * the blocks it accepts, so `layout.sections.sectionWrapper.modules.hero`
- * reaches `hero` as it exists under `pages` specifically.
+ * the blocks it accepts, so `/layout/sections/sectionWrapper/modules/hero`
+ * reaches `hero` as it exists under `pages` specifically. The slug sits where
+ * a pointer into a document would carry the element's index.
  */
 const fieldsAtSchemaPath = (
 	config: SanitizedConfig,
@@ -45,12 +46,12 @@ const fieldsAtSchemaPath = (
 ): { blockType?: string; fields: FlattenedField[] } => {
 	let fields = collection.flattenedFields;
 	let blockType: string | undefined;
-	let remaining = splitPath(schemaPath).filter(Boolean);
+	let remaining = splitPath(schemaPath);
 
 	while (remaining.length > 0) {
 		/**
 		 * A blocks field's own path may span several segments
-		 * (`layout.sections`), so the longest matching one is taken.
+		 * (`/layout/sections`), so the longest matching one is taken.
 		 */
 		const match = blocksDescriptors(fields)
 			.map((descriptor) => splitPath(descriptor.path))
@@ -73,7 +74,7 @@ const fieldsAtSchemaPath = (
 		const field = findBlocksField(fields, match);
 
 		if (!field) {
-			throw new Error(`"${match.join(".")}" could not be resolved.`);
+			throw new Error(`"${joinPath(match)}" could not be resolved.`);
 		}
 
 		if (slug === undefined) {
@@ -114,8 +115,8 @@ const describeNode = (
 
 	const descriptors = describeFields(fields);
 	const next = descriptors.flatMap((descriptor) =>
-		(descriptor.blocks ?? []).map((slug) =>
-			[schemaPath, descriptor.path, slug].filter(Boolean).join("."),
+		(descriptor.blocks ?? []).map(
+			(slug) => `${schemaPath}${descriptor.path}/${slug}`,
 		),
 	);
 
@@ -163,10 +164,7 @@ const reachableSchemaPaths = (
 					continue;
 				}
 
-				walk([schemaPath, descriptor.path, slug].filter(Boolean).join("."), [
-					...visited,
-					slug,
-				]);
+				walk(`${schemaPath}${descriptor.path}/${slug}`, [...visited, slug]);
 			}
 		}
 	};

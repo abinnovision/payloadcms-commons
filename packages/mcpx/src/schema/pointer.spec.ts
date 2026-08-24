@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { pointerSegments, resolveDataPointer } from "./pointer.js";
+import { resolveDataPointer } from "./pointer.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type { SanitizedConfig } from "payload";
@@ -38,13 +38,6 @@ const resolve = (pointer: string, added?: unknown) =>
 		doc: DOC,
 		pointer,
 	});
-
-describe("pointerSegments", () => {
-	it("decodes escaped segments", () => {
-		expect(pointerSegments("/a~1b/c~0d/0")).toEqual(["a/b", "c~d", "0"]);
-		expect(pointerSegments("")).toEqual([]);
-	});
-});
 
 describe("resolveDataPointer", () => {
 	it("resolves a top-level field", () => {
@@ -94,36 +87,36 @@ describe("resolveDataPointer", () => {
 
 	it("refuses an element whose block cannot be told", () => {
 		expect(() => resolve("/layout/sections/-")).toThrow(
-			'Cannot tell which block "layout.sections/-" is. Supply a "blockType" on the value, one of: sectionWrapper, richText',
+			'Cannot tell which block "/layout/sections/-" is. Supply a "blockType" on the value, one of: sectionWrapper, richText',
 		);
 		expect(() => resolve("/layout/sections/-", { blockType: "hero" })).toThrow(
-			'"hero" is not allowed at "layout.sections". Allowed: sectionWrapper, richText',
+			'"hero" is not allowed at "/layout/sections". Allowed: sectionWrapper, richText',
 		);
 	});
 
 	it("lists the available fields when a path does not resolve", () => {
 		expect(() => resolve("/nope")).toThrow(
-			'"nope" is not a field here. Available: title, slug, layout.color, layout.sections, meta.title',
+			'"/nope" is not a field here. Available: /title, /slug, /layout/color, /layout/sections, /meta/title',
 		);
 	});
 
 	it("resolves a group as a subtree rather than a field", () => {
 		expect(resolve("/meta")).toEqual({
 			fields: expect.any(Array),
-			prefix: "meta",
+			prefix: ["meta"],
 		});
 		expect(resolve("/layout/sections/0")).toMatchObject({
 			blockType: "sectionWrapper",
-			prefix: "",
+			prefix: [],
 		});
 	});
 
 	it("refuses to descend into a leaf", () => {
 		expect(() => resolve("/title/x")).toThrow(
-			'"title" is a text field and has no "x" beneath it.',
+			'"/title" is a text field and has no "/x" beneath it.',
 		);
 		expect(() => resolve("/layout/sections/x")).toThrow(
-			'"layout.sections" is an array; "x" is not an index.',
+			'"/layout/sections" is an array; "x" is not an index.',
 		);
 	});
 });

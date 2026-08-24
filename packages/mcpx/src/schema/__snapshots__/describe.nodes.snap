@@ -3,7 +3,7 @@
 		"collection": "pages",
 		"fields": [
 			{
-				"path": "title",
+				"path": "/title",
 				"type": "text",
 				"description": {
 					"en": "Page title",
@@ -13,13 +13,13 @@
 				"localized": true
 			},
 			{
-				"path": "slug",
+				"path": "/slug",
 				"type": "text",
 				"description": "URL segment of the page, lowercase.",
 				"required": true
 			},
 			{
-				"path": "layout.color",
+				"path": "/layout/color",
 				"type": "select",
 				"options": [
 					"light",
@@ -27,7 +27,7 @@
 				]
 			},
 			{
-				"path": "layout.sections",
+				"path": "/layout/sections",
 				"type": "blocks",
 				"required": true,
 				"blocks": [
@@ -36,13 +36,13 @@
 				]
 			},
 			{
-				"path": "meta.title",
+				"path": "/meta/title",
 				"type": "text"
 			}
 		],
 		"next": [
-			"layout.sections.sectionWrapper",
-			"layout.sections.richText"
+			"/layout/sections/sectionWrapper",
+			"/layout/sections/richText"
 		],
 		"schemaPath": ""
 	},
@@ -51,11 +51,11 @@
 		"collection": "pages",
 		"fields": [
 			{
-				"path": "identifier",
+				"path": "/identifier",
 				"type": "text"
 			},
 			{
-				"path": "modules",
+				"path": "/modules",
 				"type": "blocks",
 				"blocks": [
 					"hero",
@@ -64,17 +64,17 @@
 			}
 		],
 		"next": [
-			"layout.sections.sectionWrapper.modules.hero",
-			"layout.sections.sectionWrapper.modules.richText"
+			"/layout/sections/sectionWrapper/modules/hero",
+			"/layout/sections/sectionWrapper/modules/richText"
 		],
-		"schemaPath": "layout.sections.sectionWrapper"
+		"schemaPath": "/layout/sections/sectionWrapper"
 	},
 	{
 		"blockType": "hero",
 		"collection": "pages",
 		"fields": [
 			{
-				"path": "title",
+				"path": "/title",
 				"type": "richText",
 				"required": true,
 				"nodes": [
@@ -86,7 +86,7 @@
 				]
 			},
 			{
-				"path": "body",
+				"path": "/body",
 				"type": "richText",
 				"nodes": [
 					"root",
@@ -106,7 +106,7 @@
 				]
 			},
 			{
-				"path": "imageSize",
+				"path": "/imageSize",
 				"type": "select",
 				"options": [
 					"small",
@@ -114,6 +114,6 @@
 				]
 			}
 		],
-		"schemaPath": "layout.sections.sectionWrapper.modules.hero"
+		"schemaPath": "/layout/sections/sectionWrapper/modules/hero"
 	}
 ]

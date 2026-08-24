@@ -4,7 +4,6 @@ import {
 	blockSlugsOf,
 	describeFields,
 	findBlocksField,
-	joinPath,
 	splitPath,
 } from "./walk.js";
 
@@ -22,12 +21,16 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * A position in an incoming value, and where the problems go.
+ *
+ * `pointer` is the address of the value in the document, reported back to the
+ * client. `prefix` is where the value sits inside `fields`, held as segments
+ * because nothing outside this walk reads it.
  */
 interface CheckScope {
 	config: SanitizedConfig;
 	fields: FlattenedField[];
 	pointer: string;
-	prefix: string;
+	prefix: readonly string[];
 	problems: string[];
 }
 
@@ -85,7 +88,7 @@ const checkLeafValue = (
 ): void => {
 	if (descriptor.readOnly) {
 		scope.problems.push(
-			`${scope.pointer}: "${descriptor.path}" is read-only and cannot be written.`,
+			`${scope.pointer}: this field is read-only and cannot be written.`,
 		);
 
 		return;
@@ -131,7 +134,7 @@ const checkLeafValue = (
 				...scope,
 				fields: block.flattenedFields,
 				pointer: `${scope.pointer}/${String(index)}`,
-				prefix: "",
+				prefix: [],
 			},
 			row,
 		);
@@ -153,7 +156,7 @@ const checkValue = (scope: CheckScope, value: unknown): void => {
 		return;
 	}
 
-	const prefixParts = scope.prefix ? splitPath(scope.prefix) : [];
+	const prefixParts = scope.prefix;
 
 	const relative = describeFields(scope.fields).flatMap((descriptor) => {
 		const parts = splitPath(descriptor.path);
@@ -201,7 +204,7 @@ const checkValue = (scope: CheckScope, value: unknown): void => {
 					{
 						...scope,
 						pointer: `${pointer}/${String(index)}`,
-						prefix: joinPath([...prefixParts, key, ARRAY_MARKER]),
+						prefix: [...prefixParts, key, ARRAY_MARKER],
 					},
 					row,
 				);
@@ -210,10 +213,7 @@ const checkValue = (scope: CheckScope, value: unknown): void => {
 			continue;
 		}
 
-		checkValue(
-			{ ...scope, pointer, prefix: joinPath([...prefixParts, key]) },
-			entry,
-		);
+		checkValue({ ...scope, pointer, prefix: [...prefixParts, key] }, entry);
 	}
 };
 
