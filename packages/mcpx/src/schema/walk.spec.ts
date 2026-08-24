@@ -12,6 +12,7 @@ import {
 	targetOf,
 } from "./walk.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
+import { translatorFor } from "../i18n.js";
 
 import type {
 	Field,
@@ -66,12 +67,23 @@ describe("describeFields", () => {
 		expect(byPath("/slug")?.description).toBe(
 			"URL segment of the page, lowercase.",
 		);
-		expect(byPath("/title")?.description).toEqual({
-			en: "Page title",
-			de: "Seitentitel",
-		});
+		// No translator, so a locale record falls back to its first entry.
+		expect(byPath("/title")?.description).toBe("Page title");
 		expect(byPath("/meta/title")).not.toHaveProperty("description");
 		expect(byPath("/layout/color")).not.toHaveProperty("description");
+	});
+
+	it("resolves a localized description for the request's language", () => {
+		const titleFor = (language: string, fallbackLanguage: string) =>
+			describeFields(
+				pagesFields(),
+				translatorFor({ fallbackLanguage, language }),
+			).find((field) => field.path === "/title")?.description;
+
+		expect(titleFor("de", "en")).toBe("Seitentitel");
+		expect(titleFor("fr", "de")).toBe("Seitentitel");
+		// Neither language is declared, so the first entry stands in.
+		expect(titleFor("fr", "fr")).toBe("Page title");
 	});
 
 	it("keeps named groups and flattens unnamed ones", () => {

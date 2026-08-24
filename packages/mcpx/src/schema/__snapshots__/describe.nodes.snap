@@ -5,10 +5,7 @@
 			{
 				"path": "/title",
 				"type": "text",
-				"description": {
-					"en": "Page title",
-					"de": "Seitentitel"
-				},
+				"description": "Page title",
 				"required": true,
 				"localized": true
 			},

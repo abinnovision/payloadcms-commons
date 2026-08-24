@@ -10,7 +10,12 @@ import type { GlobalConfig } from "payload";
  */
 export const siteSettings: GlobalConfig = {
 	slug: "site-settings",
-	admin: { description: "Settings shared by every page." },
+	admin: {
+		description: {
+			en: "Settings shared by every page.",
+			de: "Einstellungen für jede Seite.",
+		},
+	},
 	versions: { drafts: true },
 	fields: [
 		{
