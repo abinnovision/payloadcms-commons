@@ -1,7 +1,8 @@
 import { fieldIsHiddenOrDisabled, fieldIsVirtual } from "payload/shared";
 
-import { allowedNodeTypes } from "./lexical.js";
+import { allowedNodeTypes, nodeOptions } from "./lexical.js";
 
+import type { NodeOptions } from "./lexical.js";
 import type {
 	Field,
 	FlattenedBlock,
@@ -25,8 +26,13 @@ interface FieldDescriptor {
 	description?: Record<string, string> | string;
 	hasMany?: true;
 	localized?: true;
+	max?: number;
+	maxLength?: number;
 	maxRows?: number;
+	min?: number;
+	minLength?: number;
 	minRows?: number;
+	nodeOptions?: NodeOptions;
 	nodes?: string[];
 	options?: string[];
 	path: string;
@@ -206,8 +212,36 @@ const describeLeaf = (
 		descriptor.hasMany = true;
 	}
 
+	if (
+		(field.type === "text" || field.type === "textarea") &&
+		field.maxLength !== undefined
+	) {
+		descriptor.maxLength = field.maxLength;
+	}
+
+	if (
+		(field.type === "text" || field.type === "textarea") &&
+		field.minLength !== undefined
+	) {
+		descriptor.minLength = field.minLength;
+	}
+
+	if (field.type === "number" && field.max !== undefined) {
+		descriptor.max = field.max;
+	}
+
+	if (field.type === "number" && field.min !== undefined) {
+		descriptor.min = field.min;
+	}
+
 	if (field.type === "richText") {
 		descriptor.nodes = allowedNodeTypes(field);
+
+		const options = nodeOptions(field, descriptor.nodes);
+
+		if (options) {
+			descriptor.nodeOptions = options;
+		}
 	}
 
 	return descriptor;
@@ -223,14 +257,38 @@ const withRows = (
 });
 
 /**
+ * Whether a descriptor stands for a construct that only holds other fields.
+ *
+ * These describe a position rather than a value, so everything that resolves a
+ * path to something writable skips them; only {@link describeNode} reports
+ * them, to carry what the container itself declares.
+ */
+const isContainer = (descriptor: FieldDescriptor): boolean =>
+	descriptor.type === "array" ||
+	descriptor.type === "group" ||
+	descriptor.type === "tab";
+
+/**
+ * Whether a container declares anything a client could not infer from the
+ * fields beneath it. A group that exists only to nest is not worth reporting.
+ */
+const isInformative = (descriptor: FieldDescriptor): boolean =>
+	descriptor.description !== undefined ||
+	descriptor.required === true ||
+	descriptor.localized === true;
+
+/**
  * Flattens a field list into descriptors addressed relative to the node.
  *
  * The input is Payload's own flattened shape, which has already merged every
  * construct that exists only in the admin UI (unnamed tabs, unnamed groups,
  * `row`, `collapsible`) and dropped `ui` fields. Named tabs, groups and
- * arrays contribute a path segment. The walk stops at every blocks field and
- * names the slugs instead of descending, which keeps a node proportional to
- * the number of blocks it allows rather than to the size of their definitions.
+ * arrays contribute a path segment, and are described in their own right when
+ * they declare something of their own: an array always, since its row counts
+ * live nowhere else, a group or tab only when it carries a description or a
+ * constraint. The walk stops at every blocks field and names the slugs instead
+ * of descending, which keeps a node proportional to the number of blocks it
+ * allows rather than to the size of their definitions.
  */
 const describeFields = (
 	fields: FlattenedField[],
@@ -246,15 +304,23 @@ const describeFields = (
 		const path = [...prefix, field.name];
 
 		if (field.type === "tab" || field.type === "group") {
-			return describeFields(field.flattenedFields, path, readOnly);
+			const own = describeBase(field, joinPath(path), readOnly);
+
+			return [
+				...(isInformative(own) ? [own] : []),
+				...describeFields(field.flattenedFields, path, readOnly),
+			];
 		}
 
 		if (field.type === "array") {
-			return describeFields(
-				field.flattenedFields,
-				[...path, ARRAY_MARKER],
-				readOnly,
-			);
+			return [
+				withRows(describeBase(field, joinPath(path), readOnly), field),
+				...describeFields(
+					field.flattenedFields,
+					[...path, ARRAY_MARKER],
+					readOnly,
+				),
+			];
 		}
 
 		if (field.type === "blocks") {
@@ -271,6 +337,16 @@ const describeFields = (
 
 		return [describeLeaf(field, joinPath(path), readOnly)];
 	});
+
+/**
+ * The descriptors that address a value, which is what every walk resolving a
+ * path against a document needs. A container describes a position rather than
+ * a value, so only {@link describeNode} reports one.
+ */
+const describeAddressableFields = (
+	fields: FlattenedField[],
+): FieldDescriptor[] =>
+	describeFields(fields).filter((descriptor) => !isContainer(descriptor));
 
 /**
  * Locates the blocks field that a resolved descriptor path refers to.
@@ -385,6 +461,7 @@ export {
 	blockOf,
 	blockSlugsOf,
 	collectionOf,
+	describeAddressableFields,
 	describeFields,
 	findBlocksField,
 	findRichTextField,

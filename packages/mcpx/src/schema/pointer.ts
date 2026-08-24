@@ -2,7 +2,7 @@ import {
 	ARRAY_MARKER,
 	blockOf,
 	blockSlugsOf,
-	describeFields,
+	describeAddressableFields,
 	findBlocksField,
 	joinPath,
 	splitPath,
@@ -119,7 +119,7 @@ const resolveDataPointer = (
 	let segments = splitPath(target.pointer);
 
 	while (segments.length > 0) {
-		const descriptors = describeFields(fields);
+		const descriptors = describeAddressableFields(fields);
 		const match = longestMatch(descriptors, segments);
 
 		if (!match) {

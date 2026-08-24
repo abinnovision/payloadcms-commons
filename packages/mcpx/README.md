@@ -151,6 +151,16 @@ Rules the tools enforce and explain in their own descriptions:
   guessed. Any feature declaring `getSubFields` is picked up, custom ones
   included. `upload` nodes are the exception: their fields depend on the
   collection the node points at, so they are not addressable.
+- Constraints a field declares travel with it: `minRows`/`maxRows` on arrays
+  and blocks fields, `maxLength`/`minLength` on text, `min`/`max` on numbers.
+  An array is described in its own right, so the `*` in `/items/*/title` has
+  something to read; a group or named tab only when it declares a description
+  or a constraint of its own.
+- A `richText` field also reports `nodeOptions`, the node properties its editor
+  narrows. An editor built with `HeadingFeature({ enabledHeadingSizes: ["h4"] })`
+  answers `{ "heading": { "tag": ["h4"] } }`, and a write carrying any other
+  heading tag is refused. Lexical stores whatever tag it is given, so this is
+  the only place the restriction is checked.
 - Field and collection `admin.description` values are included in
   `describeSchema` and `listCapabilities`, so intent written for the admin
   panel reaches the client. Strings and locale-keyed records pass through;

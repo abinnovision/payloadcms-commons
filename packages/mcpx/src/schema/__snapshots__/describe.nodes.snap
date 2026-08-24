@@ -36,6 +36,11 @@
 				]
 			},
 			{
+				"path": "/meta",
+				"type": "group",
+				"description": "Search engine metadata."
+			},
+			{
 				"path": "/meta/title",
 				"type": "text"
 			}
@@ -103,7 +108,19 @@
 					"list",
 					"listitem",
 					"heading"
-				]
+				],
+				"nodeOptions": {
+					"heading": {
+						"tag": [
+							"h1",
+							"h2",
+							"h3",
+							"h4",
+							"h5",
+							"h6"
+						]
+					}
+				}
 			},
 			{
 				"path": "/imageSize",

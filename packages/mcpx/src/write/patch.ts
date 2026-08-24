@@ -6,7 +6,7 @@ import { validateWriteValue } from "../schema/shape.js";
 import {
 	ARRAY_MARKER,
 	blockOf,
-	describeFields,
+	describeAddressableFields,
 	findBlocksField,
 	JSON_POINTER_PATTERN,
 	RESERVED_FIELD_NAMES,
@@ -281,7 +281,7 @@ const pickDescribed = (
 	at: { fields: FlattenedField[]; prefix: readonly string[]; isRow: boolean },
 ): Record<string, unknown> => {
 	const { fields, prefix, isRow } = at;
-	const relative = describeFields(fields).flatMap((descriptor) => {
+	const relative = describeAddressableFields(fields).flatMap((descriptor) => {
 		const parts = splitPath(descriptor.path);
 
 		return prefix.every((part, offset) => part === parts[offset])

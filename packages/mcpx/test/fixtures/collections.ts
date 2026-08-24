@@ -1,6 +1,8 @@
 import {
 	BlocksFeature,
+	HeadingFeature,
 	LinkFeature,
+	ParagraphFeature,
 	lexicalEditor,
 } from "@payloadcms/richtext-lexical";
 
@@ -86,6 +88,7 @@ export const pages: CollectionConfig = {
 		{
 			name: "meta",
 			type: "group",
+			admin: { description: "Search engine metadata." },
 			fields: [
 				{
 					name: "title",
@@ -101,12 +104,22 @@ export const posts: CollectionConfig = {
 	slug: "posts",
 	versions: { drafts: true },
 	fields: [
-		{ name: "title", type: "text", required: true },
+		{ name: "title", type: "text", required: true, maxLength: 120 },
 		{
 			name: "content",
 			type: "richText",
 			localized: true,
 			editor: postContentEditor,
+		},
+		{
+			name: "summary",
+			type: "richText",
+			editor: lexicalEditor({
+				features: [
+					ParagraphFeature(),
+					HeadingFeature({ enabledHeadingSizes: ["h4"] }),
+				],
+			}),
 		},
 		{
 			name: "tags",
@@ -117,9 +130,18 @@ export const posts: CollectionConfig = {
 		{
 			name: "items",
 			type: "array",
+			minRows: 1,
+			maxRows: 4,
+			admin: { description: "Repeated content rows." },
 			fields: [
 				{ name: "heading", type: "text", localized: true },
-				{ name: "actions", type: "blocks", blocks: [ctaBlock] },
+				{
+					name: "actions",
+					type: "blocks",
+					minRows: 1,
+					maxRows: 2,
+					blocks: [ctaBlock],
+				},
 			],
 		},
 	],
