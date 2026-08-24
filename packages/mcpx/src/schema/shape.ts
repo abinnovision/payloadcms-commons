@@ -1,15 +1,17 @@
+import { lexicalSubSchema } from "./lexical.js";
 import {
 	ARRAY_MARKER,
 	blockOf,
 	blockSlugsOf,
 	describeFields,
 	findBlocksField,
+	findRichTextField,
 	splitPath,
 } from "./walk.js";
 
 import type { PointerResolution } from "./pointer.js";
 import type { FieldDescriptor } from "./walk.js";
-import type { FlattenedField, SanitizedConfig } from "payload";
+import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
 
 /**
  * Keys Payload manages on a row that a client may echo back harmlessly.
@@ -35,17 +37,71 @@ interface CheckScope {
 }
 
 /**
- * Checks every node type in an editor state against what the field's editor
- * can actually produce.
+ * Checks the fields a single Lexical node carries against the schema its
+ * feature declares for that node type.
+ *
+ * A node with nothing to declare, and one whose sub-fields cannot be named at
+ * a position, are both left alone.
+ */
+const checkNodeFields = (
+	scope: CheckScope,
+	field: RichTextField,
+	node: { fields: unknown; type: string },
+): void => {
+	const sub = lexicalSubSchema(field, node.type);
+
+	if (!sub) {
+		return;
+	}
+
+	const data = node.fields;
+
+	if (!isPlainObject(data)) {
+		scope.problems.push(
+			`${scope.pointer}: a "${node.type}" node carries a "fields" object.`,
+		);
+
+		return;
+	}
+
+	const nested = { ...scope, pointer: `${scope.pointer}/fields`, prefix: [] };
+
+	if (sub.kind === "fields") {
+		checkValue({ ...nested, fields: sub.fields }, data);
+
+		return;
+	}
+
+	const slug = data["blockType"];
+	const block =
+		typeof slug === "string"
+			? blockOf(scope.config, sub.blocksField, slug)
+			: undefined;
+
+	if (!block) {
+		scope.problems.push(
+			`${scope.pointer}/fields: "${String(slug)}" is not allowed here. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
+		);
+
+		return;
+	}
+
+	checkValue({ ...nested, fields: block.flattenedFields }, data);
+};
+
+/**
+ * Checks an editor state against what the field's editor can actually
+ * produce: every node type, and the fields each node carries.
  *
  * Payload does not: the Lexical validator runs node validations only for the
  * few node types that register one, so a `heading` inside a field whose
  * editor has no heading feature is stored without complaint and only fails
- * later, at render or when the document is reopened in the admin editor.
+ * later, at render or when the document is reopened in the admin editor. A key
+ * a node's fields do not declare is dropped just as silently.
  */
 const checkRichText = (
-	scope: Pick<CheckScope, "pointer" | "problems">,
-	allowed: readonly string[],
+	scope: CheckScope,
+	editor: { allowed: readonly string[]; field: RichTextField | undefined },
 	value: unknown,
 ): void => {
 	if (!isPlainObject(value) || !isPlainObject(value["root"])) {
@@ -56,29 +112,40 @@ const checkRichText = (
 		return;
 	}
 
-	const walk = (nodes: unknown): void => {
+	const walk = (nodes: unknown, pointer: string): void => {
 		if (!Array.isArray(nodes)) {
 			return;
 		}
 
-		for (const node of nodes) {
+		nodes.forEach((node, index) => {
+			const at = `${pointer}/${String(index)}`;
+
 			if (!isPlainObject(node) || typeof node["type"] !== "string") {
-				scope.problems.push(`${scope.pointer}: every node needs a "type".`);
+				scope.problems.push(`${at}: every node needs a "type".`);
 
-				continue;
+				return;
 			}
 
-			if (!allowed.includes(node["type"])) {
+			if (!editor.allowed.includes(node["type"])) {
 				scope.problems.push(
-					`${scope.pointer}: "${node["type"]}" is not available in this field's editor. Allowed: ${allowed.join(", ")}`,
+					`${at}: "${node["type"]}" is not available in this field's editor. Allowed: ${editor.allowed.join(", ")}`,
 				);
+
+				return;
 			}
 
-			walk(node["children"]);
-		}
+			if (editor.field) {
+				checkNodeFields({ ...scope, pointer: at }, editor.field, {
+					fields: node["fields"],
+					type: node["type"],
+				});
+			}
+
+			walk(node["children"], `${at}/children`);
+		});
 	};
 
-	walk(value["root"]["children"]);
+	walk(value["root"]["children"], `${scope.pointer}/root/children`);
 };
 
 const checkLeafValue = (
@@ -95,7 +162,14 @@ const checkLeafValue = (
 	}
 
 	if (descriptor.type === "richText") {
-		checkRichText(scope, descriptor.nodes ?? [], value);
+		checkRichText(
+			scope,
+			{
+				allowed: descriptor.nodes ?? [],
+				field: findRichTextField(scope.fields, splitPath(descriptor.path)),
+			},
+			value,
+		);
 
 		return;
 	}
