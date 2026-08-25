@@ -4,20 +4,31 @@ import { keyBeforeChange } from "./collection.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type {
+	Condition,
 	Field,
+	Operation,
 	SanitizedCollectionConfig,
 	SanitizedConfig,
 } from "payload";
 
-const fieldNames = (fields: Field[]): string[] =>
+/** Expands the tab wrapper so assertions can stay flat. */
+const flatten = (fields: Field[]): Field[] =>
 	fields.flatMap((field) =>
+		field.type === "tabs" ? field.tabs.flatMap((tab) => tab.fields) : [field],
+	);
+
+const fieldNames = (fields: Field[]): string[] =>
+	flatten(fields).flatMap((field) =>
 		"name" in field && field.name ? [field.name] : [],
 	);
 
-const subFields = (fields: Field[], name: string): Field[] => {
-	const field = fields.find(
+const findField = (fields: Field[], name: string): Field | undefined =>
+	flatten(fields).find(
 		(candidate) => "name" in candidate && candidate.name === name,
 	);
+
+const subFields = (fields: Field[], name: string): Field[] => {
+	const field = findField(fields, name);
 
 	return field && "fields" in field ? field.fields : [];
 };
@@ -81,6 +92,90 @@ describe("api keys collection", () => {
 
 	it("installs the key hook", () => {
 		expect(collection.hooks.beforeChange).toContain(keyBeforeChange);
+	});
+
+	// A `ui` field holds no data, so the guide can never widen what a key
+	// document stores or exposes over the REST API.
+	it("carries the setup guide as a ui field wired to the client component", () => {
+		expect(findField(collection.fields, "setupGuide")).toMatchObject({
+			type: "ui",
+			admin: {
+				components: {
+					Field: {
+						path: "@abinnovision/payloadcms-mcpx/client",
+						exportName: "McpxSetupGuide",
+						clientProps: { endpointPath: "/mcpx" },
+					},
+				},
+			},
+		});
+	});
+
+	it("passes a custom endpoint path to the component", async () => {
+		const built = await buildFixtureConfig({
+			plugin: { endpoint: { path: "/mcp" } },
+		});
+		const guide = findField(
+			built.collections.find((c) => c.slug === "mcpx-api-keys")?.fields ?? [],
+			"setupGuide",
+		);
+
+		expect(guide).toMatchObject({
+			admin: {
+				components: { Field: { clientProps: { endpointPath: "/mcp" } } },
+			},
+		});
+	});
+
+	// Unnamed tabs keep every field at the document root. Named tabs would nest
+	// the data and move `capabilities` off the root, breaking key resolution.
+	it("splits the form into unnamed tabs", () => {
+		const [tabs, ...rest] = collection.fields;
+
+		expect(tabs?.type).toBe("tabs");
+		// Everything else at the root is Payload's own appended timestamps.
+		expect(
+			rest.flatMap((field) => ("name" in field ? [field.name] : [])),
+		).toEqual(["updatedAt", "createdAt"]);
+
+		const labels =
+			tabs?.type === "tabs" ? tabs.tabs.map((tab) => tab.label) : [];
+
+		expect(labels).toEqual(["Key", "Connect a client"]);
+		expect(
+			tabs?.type === "tabs" && tabs.tabs.every((tab) => !("name" in tab)),
+		).toBe(true);
+	});
+
+	it("hides the guide tab on create and shows it on update", () => {
+		const [tabs] = collection.fields;
+		const guideTab = tabs?.type === "tabs" ? tabs.tabs[1] : undefined;
+		const condition = guideTab?.admin?.condition;
+
+		const args = (operation: Operation): Parameters<Condition>[2] => ({
+			blockData: {},
+			operation,
+			path: [],
+			user: null,
+		});
+
+		expect(condition).toBeTypeOf("function");
+		expect(condition?.({}, {}, args("create"))).toBe(false);
+		expect(condition?.({}, {}, args("update"))).toBe(true);
+	});
+
+	it("drops the tabs entirely when the guide is turned off", async () => {
+		const built = await buildFixtureConfig({
+			plugin: { apiKeys: { setupGuide: false } },
+		});
+		const without = built.collections.find((c) => c.slug === "mcpx-api-keys");
+
+		expect(fieldNames(without?.fields ?? [])).not.toContain("setupGuide");
+		expect(without?.fields.some((field) => field.type === "tabs")).toBe(false);
+		// The opt-out must leave the original flat layout untouched.
+		expect(fieldNames(without?.fields ?? [])).toEqual(
+			expect.arrayContaining(["user", "label", "apiKey", "capabilities"]),
+		);
 	});
 
 	it("applies the collection override", async () => {

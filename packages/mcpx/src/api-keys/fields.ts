@@ -35,6 +35,8 @@ const checkbox = (name: string, description: string): CheckboxField => ({
 	admin: { description },
 });
 
+const SETUP_GUIDE_FIELD = "setupGuide";
+
 /**
  * Fields every key carries. Key generation and the HMAC index live in the
  * collection-level `beforeChange` hook (see `collection.ts`), because sibling
@@ -81,6 +83,58 @@ const createKeyFields = (): Field[] => [
 		index: true,
 	},
 ];
+
+/**
+ * Wraps the key fields and the setup guide in unnamed tabs, so the wide
+ * snippets get the full form width without pushing the key itself out of view.
+ * Unnamed on purpose: named tabs would nest the data and move `capabilities`
+ * off the document root, which capability resolution reads.
+ *
+ * The guide tab is conditioned on the update operation. On create there is no
+ * key to hand out, and a tab leading to an empty panel is worse than no tab.
+ */
+const withSetupGuideTab = (
+	keyFields: Field[],
+	options: NormalizedOptions,
+): Field[] => {
+	if (!options.setupGuide) {
+		return keyFields;
+	}
+
+	return [
+		{
+			type: "tabs",
+			tabs: [
+				{ label: "Key", fields: keyFields },
+				{
+					label: "Connect a client",
+					admin: {
+						condition: (_data, _siblingData, { operation }) =>
+							operation === "update",
+					},
+					fields: [
+						{
+							name: SETUP_GUIDE_FIELD,
+							// A `ui` field carries no value: the component builds every
+							// snippet client-side from form state and the admin config.
+							type: "ui",
+							admin: {
+								disableListColumn: true,
+								components: {
+									Field: {
+										path: "@abinnovision/payloadcms-mcpx/client",
+										exportName: "McpxSetupGuide",
+										clientProps: { endpointPath: options.endpointPath },
+									},
+								},
+							},
+						},
+					],
+				},
+			],
+		},
+	];
+};
 
 /**
  * One checkbox per exposed operation, grouped per collection, per global and
@@ -164,4 +218,9 @@ const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 	];
 };
 
-export { createCapabilityFields, createKeyFields };
+export {
+	createCapabilityFields,
+	createKeyFields,
+	SETUP_GUIDE_FIELD,
+	withSetupGuideTab,
+};

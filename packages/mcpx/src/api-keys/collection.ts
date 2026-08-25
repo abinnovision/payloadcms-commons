@@ -1,4 +1,8 @@
-import { createCapabilityFields, createKeyFields } from "./fields.js";
+import {
+	createCapabilityFields,
+	createKeyFields,
+	withSetupGuideTab,
+} from "./fields.js";
 import { generateApiKey, hashApiKey } from "./key.js";
 
 import type { NormalizedOptions } from "../options.js";
@@ -64,25 +68,28 @@ const createApiKeysCollection = (
 		hooks: {
 			beforeChange: [keyBeforeChange],
 		},
-		fields: [
-			{
-				name: "user",
-				type: "relationship",
-				relationTo: userCollection,
-				required: true,
-				access: {
-					create: () => false,
-					update: () => false,
+		fields: withSetupGuideTab(
+			[
+				{
+					name: "user",
+					type: "relationship",
+					relationTo: userCollection,
+					required: true,
+					access: {
+						create: () => false,
+						update: () => false,
+					},
+					defaultValue: ({ req }: { req: PayloadRequest }) =>
+						isUser({ req }) ? req.user?.id : undefined,
+					admin: {
+						description: "The user this key acts as.",
+					},
 				},
-				defaultValue: ({ req }: { req: PayloadRequest }) =>
-					isUser({ req }) ? req.user?.id : undefined,
-				admin: {
-					description: "The user this key acts as.",
-				},
-			},
-			...createKeyFields(),
-			...createCapabilityFields(options),
-		],
+				...createKeyFields(),
+				...createCapabilityFields(options),
+			],
+			options,
+		),
 	};
 };
 

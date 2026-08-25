@@ -27,6 +27,9 @@ yarn add @abinnovision/payloadcms-mcpx
 ```
 
 - Peer dependency: `payload >=3.88.0 <4`.
+- `@payloadcms/ui` and `react` are optional peers, needed only by the admin
+  setup guide. A headless install can leave them out and set
+  `apiKeys.setupGuide: false`.
 - The package is published as ESM only, matching Payload itself.
 
 ## Usage
@@ -84,6 +87,22 @@ Use `apiKeys.overrideCollection` to widen access (for example, admins manage
 all keys) or add fields.
 
 ## Connecting a client
+
+Saved keys carry a **Connect a client** tab in the admin holding these same
+instructions with their own URL and key filled in, each block behind a copy
+button. The tab only exists once the key does, so the create form stays free of
+it. Turn it off with `apiKeys.setupGuide: false`, which also drops the tabs and
+restores the flat form.
+
+The tab renders an admin component, so it has to be in the import map:
+
+```bash
+payload generate:importmap
+```
+
+Without that entry Payload logs a missing-component error and renders nothing
+else; the rest of the plugin is unaffected. The URL comes from `serverURL` when
+the config sets one and from the browser's origin otherwise.
 
 The endpoint speaks streamable HTTP with `Authorization: Bearer <key>`:
 
@@ -296,6 +315,7 @@ Builtin tools reject them instead.
 | `globals.<slug>.allowLiveWrites`     | `false`                        | Permit writes to a global without drafts (they land live).                                                         |
 | `userCollection`                     | `config.admin.user` or `users` | Auth collection the keys act as.                                                                                   |
 | `apiKeys.slug`                       | `mcpx-api-keys`                | Slug of the generated key collection.                                                                              |
+| `apiKeys.setupGuide`                 | `true`                         | Add a "Connect a client" tab to saved keys. Needs the import map.                                                  |
 | `apiKeys.overrideCollection`         | none                           | Final override applied to the generated collection.                                                                |
 | `endpoint.path`                      | `/mcpx`                        | Endpoint path below the API route.                                                                                 |
 | `limits.maxLimit`                    | `25`                           | Upper bound for `findDocuments.limit`.                                                                             |

@@ -17,6 +17,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 export default buildConfig({
 	// Required. Both JWT signing and the API key index derive from it.
 	secret: process.env.PAYLOAD_SECRET ?? "",
+	// Lets the MCP key setup guide print an absolute endpoint URL.
+	serverURL: process.env.PAYLOAD_URL ?? "http://localhost:3000",
 	db: sqliteAdapter({
 		client: { url: process.env.DATABASE_URI ?? "file:./.data/mcpx.db" },
 	}),

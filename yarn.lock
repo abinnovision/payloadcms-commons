@@ -66,6 +66,7 @@ __metadata:
     "@modelcontextprotocol/sdk": "npm:^1.30.0"
     "@payloadcms/db-sqlite": "npm:3.88.0"
     "@payloadcms/richtext-lexical": "npm:3.88.0"
+    "@payloadcms/ui": "npm:3.88.0"
     "@swc/core": "npm:^1.16.1"
     "@types/node": "npm:^26.2.0"
     "@types/react": "npm:^19.2.18"
@@ -83,7 +84,14 @@ __metadata:
     vitest: "npm:^4.1.10"
     zod: "npm:^4.4.3"
   peerDependencies:
+    "@payloadcms/ui": ">=3.88.0 <4"
     payload: ">=3.88.0 <4"
+    react: ^19
+  peerDependenciesMeta:
+    "@payloadcms/ui":
+      optional: true
+    react:
+      optional: true
   languageName: unknown
   linkType: soft
 

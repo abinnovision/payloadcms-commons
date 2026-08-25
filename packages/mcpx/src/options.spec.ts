@@ -227,6 +227,13 @@ describe("normalizeOptions", () => {
 		).toThrow(/capability field/);
 	});
 
+	it("enables the setup guide by default", () => {
+		expect(normalize({ collections: {} }).setupGuide).toBe(true);
+		expect(
+			normalize({ collections: {}, apiKeys: { setupGuide: false } }).setupGuide,
+		).toBe(false);
+	});
+
 	it("validates limits", () => {
 		expect(() =>
 			normalize({ collections: {}, limits: { maxLimit: 0 } }),

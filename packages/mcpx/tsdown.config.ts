@@ -10,7 +10,7 @@ const { version } = JSON.parse(
 export default defineConfig({
 	attw: { profile: "esm-only", level: "error" },
 	publint: true,
-	entry: ["src/index.ts"],
+	entry: ["src/index.ts", "src/client/index.ts"],
 	unbundle: true,
 	format: ["esm"],
 	clean: true,
