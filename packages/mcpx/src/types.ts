@@ -122,6 +122,11 @@ export type McpxPluginOptions = {
 	apiKeys?: {
 		/** Slug of the generated API key collection. Default `mcpx-api-keys`. */
 		slug?: string;
+		/**
+		 * Add a "Connect a client" tab to saved keys, holding ready-to-paste MCP
+		 * client config. Default `true`. The snippets contain the key in full.
+		 */
+		setupGuide?: boolean;
 		/** Final override applied to the generated collection. */
 		overrideCollection?: (collection: CollectionConfig) => CollectionConfig;
 	};

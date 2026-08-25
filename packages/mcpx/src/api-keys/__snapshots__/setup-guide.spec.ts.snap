@@ -1,0 +1,43 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildSetupGuide > fills the URL and the key into every section 1`] = `
+[
+  {
+    "description": "Streamable HTTP. Point any MCP client at this URL.",
+    "id": "endpoint",
+    "snippet": "https://cms.example.com/api/mcpx",
+    "title": "Endpoint",
+  },
+  {
+    "description": "The only accepted credential; cookies and JWTs are ignored.",
+    "id": "header",
+    "snippet": "Authorization: Bearer s3cret",
+    "title": "Authorization header",
+  },
+  {
+    "id": "claude-code",
+    "snippet": "claude mcp add --transport http claude-code https://cms.example.com/api/mcpx \\
+  --header "Authorization: Bearer s3cret"",
+    "title": "Claude Code",
+  },
+  {
+    "description": "Has no direct header support, so it goes through mcp-remote.",
+    "id": "claude-desktop",
+    "snippet": "{
+  "mcpServers": {
+    "claude-code": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://cms.example.com/api/mcpx",
+        "--header",
+        "Authorization: Bearer s3cret"
+      ]
+    }
+  }
+}",
+    "title": "Claude Desktop",
+  },
+]
+`;

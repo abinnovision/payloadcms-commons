@@ -26,6 +26,10 @@
 		".": {
 			"types": "./dist/index.d.mts",
 			"default": "./dist/index.mjs"
+		},
+		"./client": {
+			"types": "./dist/client/index.d.mts",
+			"default": "./dist/client/index.mjs"
 		}
 	},
 	"files": [
@@ -35,17 +39,17 @@
 	],
 	"scripts": {
 		"build": "tsdown",
-		"format:check": "prettier --check 'src/**/*.ts' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
-		"format:fix": "prettier --write 'src/**/*.ts' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
-		"lint:check": "eslint 'src/**/*.ts' 'test/**/*.ts'",
-		"lint:fix": "eslint 'src/**/*.ts' 'test/**/*.ts' --fix",
+		"format:check": "prettier --check 'src/**/*.{ts,tsx}' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"format:fix": "prettier --write 'src/**/*.{ts,tsx}' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"lint:check": "eslint 'src/**/*.{ts,tsx}' 'test/**/*.ts'",
+		"lint:fix": "eslint 'src/**/*.{ts,tsx}' 'test/**/*.ts' --fix",
 		"test-integration": "vitest --run --config test/integration/vitest.config.mts",
 		"test-unit": "vitest --run --coverage --config vitest.config.mts",
 		"test-unit:watch": "vitest --config vitest.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"lint-staged": {
-		"{src,test}/**/*.ts": [
+		"{src,test}/**/*.{ts,tsx}": [
 			"eslint --fix",
 			"prettier --write"
 		],
@@ -63,6 +67,7 @@
 		"@arethetypeswrong/core": "^0.18.5",
 		"@payloadcms/db-sqlite": "3.88.0",
 		"@payloadcms/richtext-lexical": "3.88.0",
+		"@payloadcms/ui": "3.88.0",
 		"@swc/core": "^1.16.1",
 		"@types/node": "^26.2.0",
 		"@types/react": "^19.2.18",
@@ -79,7 +84,17 @@
 		"vitest": "^4.1.10"
 	},
 	"peerDependencies": {
-		"payload": ">=3.88.0 <4"
+		"@payloadcms/ui": ">=3.88.0 <4",
+		"payload": ">=3.88.0 <4",
+		"react": "^19"
+	},
+	"peerDependenciesMeta": {
+		"@payloadcms/ui": {
+			"optional": true
+		},
+		"react": {
+			"optional": true
+		}
 	},
 	"publishConfig": {
 		"ghpr": true,

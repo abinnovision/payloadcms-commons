@@ -27,6 +27,9 @@ Open <http://localhost:3000/admin> and create the first user.
    write). Capabilities are off by default; a key can never do more than the
    plugin config exposes.
 3. Copy the value of the **API Key** field.
+4. Or skip the rest of this file: after saving, the **Connect a client** tab
+   holds the snippets below with this key already filled in, each behind a copy
+   button.
 
 ## Connect an MCP client
 

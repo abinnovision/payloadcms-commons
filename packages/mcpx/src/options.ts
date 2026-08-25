@@ -36,6 +36,8 @@ interface NormalizedOptions {
 	userCollection: string;
 	apiKeysSlug: string;
 	endpointPath: string;
+	/** Whether the key form gets the "Connect a client" tab. */
+	setupGuide: boolean;
 	limits: { maxLimit: number; maxDepth: number };
 	tools: McpxTool[];
 	auth: McpxPluginOptions["auth"];
@@ -312,6 +314,7 @@ const normalizeOptions = (
 		userCollection,
 		apiKeysSlug,
 		endpointPath: options.endpoint?.path ?? DEFAULT_ENDPOINT_PATH,
+		setupGuide: options.apiKeys?.setupGuide ?? true,
 		limits: normalizeLimits(options.limits),
 		tools,
 		auth: options.auth,
