@@ -1,5 +1,12 @@
+import {
+	EmailEndpoint,
+	HttpRequestError,
+	LettermintClient,
+	TimeoutError,
+	ValidationError,
+} from "lettermint";
+
 import { LettermintEmailError } from "./errors.js";
-import { LETTERMINT_VERSION } from "./version.js";
 
 import type { LettermintSendRequest } from "./message.js";
 import type { LettermintSendResponse } from "./types.js";
@@ -23,28 +30,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
- * Reads the response body as JSON, falling back to text. Only `202` and `422`
- * are documented for this endpoint, so nothing about the shape can be assumed.
- */
-const readBody = async (response: Response): Promise<unknown> => {
-	const text = await response.text();
-
-	if (text === "") {
-		return undefined;
-	}
-
-	try {
-		return JSON.parse(text) as unknown;
-	} catch {
-		return text;
-	}
-};
-
-/**
- * Flattens the per-field messages into one sentence. The official SDK reads
- * this body as `body.error`, which does not exist, and so reports validation
- * failures as an empty string; keeping the detail is the point of this adapter
- * talking to the API directly.
+ * Flattens the per-field messages into one sentence. The SDK reads this body as
+ * `body.error`, which does not exist, so its own message carries no detail;
+ * reading `responseBody` here keeps it.
  */
 const describeValidation = (body: ValidationBody): string => {
 	const entries = Object.entries(body.errors ?? {});
@@ -58,20 +46,22 @@ const describeValidation = (body: ValidationBody): string => {
 		.join("; ");
 };
 
-const toError = (status: number, body: unknown): LettermintEmailError => {
-	if (status === 422 && isRecord(body)) {
-		const validation = body as ValidationBody;
+const toValidationError = (error: ValidationError): LettermintEmailError => {
+	const body = error.responseBody;
+	const validation: ValidationBody = isRecord(body) ? body : {};
 
-		return new LettermintEmailError(
-			`Lettermint rejected the message: ${describeValidation(validation)}`,
-			{
-				statusCode: status,
-				body,
-				...(validation.errors ? { errors: validation.errors } : {}),
-			},
-		);
-	}
+	return new LettermintEmailError(
+		`Lettermint rejected the message: ${describeValidation(validation)}`,
+		{
+			statusCode: error.statusCode,
+			body,
+			...(validation.errors ? { errors: validation.errors } : {}),
+		},
+	);
+};
 
+const toHttpError = (error: HttpRequestError): LettermintEmailError => {
+	const body = error.responseBody;
 	const detail =
 		isRecord(body) && typeof body["message"] === "string"
 			? body["message"]
@@ -80,51 +70,115 @@ const toError = (status: number, body: unknown): LettermintEmailError => {
 				: undefined;
 
 	return new LettermintEmailError(
-		`Lettermint responded with ${String(status)}${detail ? `: ${detail}` : "."}`,
-		{ statusCode: status, body },
+		`Lettermint responded with ${String(error.statusCode)}${detail ? `: ${detail}` : "."}`,
+		{ statusCode: error.statusCode, body },
 	);
 };
 
 /**
- * Posts one message. Anything that is not a 2xx becomes a
- * {@link LettermintEmailError}; a transport failure or a timeout is wrapped
- * with the original error kept as the cause.
+ * Builds the request on a fresh endpoint. The SDK's builder mutates in place
+ * and only resets once a send resolves, so sharing one across concurrent sends
+ * would let them overwrite each other. Neither constructor does I/O.
+ */
+const buildEndpoint = (
+	body: LettermintSendRequest,
+	options: ClientOptions,
+): EmailEndpoint => {
+	const endpoint = new EmailEndpoint(
+		new LettermintClient({
+			apiToken: options.apiToken,
+			baseUrl: options.baseUrl,
+			timeout: options.timeout,
+		}),
+	);
+
+	endpoint
+		.from(body.from)
+		.to(...body.to)
+		.subject(body.subject);
+
+	if (body.cc && body.cc.length > 0) {
+		endpoint.cc(...body.cc);
+	}
+
+	if (body.bcc && body.bcc.length > 0) {
+		endpoint.bcc(...body.bcc);
+	}
+
+	if (body.reply_to && body.reply_to.length > 0) {
+		endpoint.replyTo(...body.reply_to);
+	}
+
+	if (body.html !== undefined) {
+		endpoint.html(body.html);
+	}
+
+	if (body.text !== undefined) {
+		endpoint.text(body.text);
+	}
+
+	if (body.headers) {
+		endpoint.headers(body.headers);
+	}
+
+	if (body.route !== undefined) {
+		endpoint.route(body.route);
+	}
+
+	if (body.settings) {
+		endpoint.settings(body.settings);
+	}
+
+	if (body.metadata) {
+		endpoint.metadata(body.metadata);
+	}
+
+	if (body.tags) {
+		endpoint.tags(body.tags);
+	}
+
+	for (const attachment of body.attachments ?? []) {
+		endpoint.attach(
+			attachment.filename,
+			attachment.content,
+			attachment.content_id,
+			attachment.content_type,
+		);
+	}
+
+	return endpoint;
+};
+
+/**
+ * Sends one message through the Lettermint SDK. Anything the API refuses
+ * becomes a {@link LettermintEmailError}; a transport failure or a timeout is
+ * wrapped with the original error kept as the cause.
  */
 const sendMessage = async (
 	body: LettermintSendRequest,
 	options: ClientOptions,
 ): Promise<LettermintSendResponse> => {
-	let response: Response;
-
 	try {
-		response = await fetch(`${options.baseUrl}/send`, {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
-				"x-lettermint-token": options.apiToken,
-				"user-agent": `payloadcms-email-lettermint/${LETTERMINT_VERSION}`,
-			},
-			body: JSON.stringify(body),
-			signal: AbortSignal.timeout(options.timeout),
-		});
+		return (await buildEndpoint(
+			body,
+			options,
+		).send()) as LettermintSendResponse;
 	} catch (error) {
-		const timedOut = error instanceof Error && error.name === "TimeoutError";
+		if (error instanceof ValidationError) {
+			throw toValidationError(error);
+		}
+
+		if (error instanceof HttpRequestError) {
+			throw toHttpError(error);
+		}
 
 		throw new LettermintEmailError(
-			timedOut
+			error instanceof TimeoutError
 				? `Lettermint did not answer within ${String(options.timeout)}ms.`
 				: "Could not reach Lettermint.",
 			{ cause: error },
 		);
 	}
-
-	const parsed = await readBody(response);
-
-	if (!response.ok) {
-		throw toError(response.status, parsed);
-	}
-
-	return parsed as LettermintSendResponse;
 };
 
 export { DEFAULT_BASE_URL, DEFAULT_TIMEOUT, sendMessage };

@@ -53,8 +53,54 @@ describe("sendMessage", () => {
 
 		expect(url).toBe("https://api.lettermint.co/v1/send");
 		expect(init.method).toBe("POST");
-		expect(init.headers).toMatchObject({ "x-lettermint-token": "lm_test" });
+		// The SDK adds `Accept`, which the API ignores; the token header is what
+		// authenticates the send.
+		expect(init.headers).toMatchObject({
+			Accept: "application/json",
+			"Content-Type": "application/json",
+			"x-lettermint-token": "lm_test",
+		});
 		expect(JSON.parse(init.body as string)).toStrictEqual(body);
+	});
+
+	it("maps every optional field onto the request", async () => {
+		const fetchMock = respond(202, { message_id: "msg_2", status: "pending" });
+
+		vi.stubGlobal("fetch", fetchMock);
+
+		const full: LettermintSendRequest = {
+			from: "a@b.io",
+			to: ["c@d.io", "e@f.io"],
+			subject: "s",
+			cc: ["cc@d.io"],
+			bcc: ["bcc@d.io"],
+			reply_to: ["reply@d.io"],
+			html: "<p>hi</p>",
+			text: "hi",
+			headers: { "X-Custom": "1" },
+			metadata: { tenant: "acme" },
+			tags: [{ name: "kind", value: "auth" }],
+			route: "outgoing",
+			settings: { track_opens: false, tls: "enforced" },
+			attachments: [
+				{ filename: "a.txt", content: "aGk=" },
+				{
+					filename: "logo.png",
+					content: "aGk=",
+					content_type: "image/png",
+					content_id: "logo",
+				},
+			],
+		};
+
+		await sendMessage(full, options);
+
+		const [, init] = vi.mocked(fetchMock).mock.calls[0] as [
+			string,
+			RequestInit,
+		];
+
+		expect(JSON.parse(init.body as string)).toStrictEqual(full);
 	});
 
 	it("keeps the per-field detail of a 422", async () => {
@@ -108,7 +154,9 @@ describe("sendMessage", () => {
 	});
 
 	it("reports a timeout with the configured budget", async () => {
-		const cause = Object.assign(new Error("aborted"), { name: "TimeoutError" });
+		// What the SDK's abort controller produces once its budget elapses; it
+		// translates this into its own `TimeoutError`.
+		const cause = Object.assign(new Error("aborted"), { name: "AbortError" });
 
 		vi.stubGlobal(
 			"fetch",
