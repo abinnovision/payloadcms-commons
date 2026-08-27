@@ -1,11 +1,5 @@
-import { readFileSync } from "node:fs";
-
 import { defineConfig } from "tsdown";
 import swc from "unplugin-swc";
-
-const { version } = JSON.parse(
-	readFileSync(new URL("./package.json", import.meta.url), "utf8"),
-) as { version: string };
 
 export default defineConfig({
 	attw: { profile: "esm-only", level: "error" },
@@ -15,6 +9,5 @@ export default defineConfig({
 	format: ["esm"],
 	clean: true,
 	deps: { skipNodeModulesBundle: true },
-	define: { __LETTERMINT_VERSION__: JSON.stringify(version) },
 	plugins: [swc.rolldown()],
 });

@@ -44,6 +44,7 @@ __metadata:
     "@types/nodemailer": "npm:^8.0.0"
     "@vitest/coverage-v8": "npm:^4.1.10"
     eslint: "npm:^10.7.0"
+    lettermint: "npm:^2.4.1"
     payload: "npm:3.88.0"
     prettier: "npm:^3.9.5"
     publint: "npm:^0.3.24"
@@ -6243,6 +6244,13 @@ __metadata:
   version: 3.0.3
   resolution: "kleur@npm:3.0.3"
   checksum: 10/0c0ecaf00a5c6173d25059c7db2113850b5457016dfa1d0e3ef26da4704fbb186b4938d7611246d86f0ddf1bccf26828daa5877b1f232a65e7373d0122a83e7f
+  languageName: node
+  linkType: hard
+
+"lettermint@npm:^2.4.1":
+  version: 2.4.1
+  resolution: "lettermint@npm:2.4.1"
+  checksum: 10/7459abd6c5899d62ffb256a0b2bd3a059e3cf10000b34f6e4d2fde4de3eeb41851a88b85b9527e88590f320d697cbb9309974cad103340583cb6eca0eb8d5c82
   languageName: node
   linkType: hard
 

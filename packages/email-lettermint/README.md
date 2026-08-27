@@ -3,11 +3,13 @@
 A Payload CMS email adapter that sends transactional mail through
 [Lettermint](https://lettermint.co).
 
-It talks to `POST /v1/send` directly over `fetch`, so the package has no runtime
-dependencies and runs anywhere Payload does. Lettermint's own SDK is deliberately
-not used: it resolves to a CommonJS build, imports Node's `util/types`, and reads
-validation failures from a field the API does not return, so a rejected send
-arrives without any indication of what was wrong. This adapter keeps that detail.
+Sending goes through Lettermint's official `lettermint` SDK (`>=2.4.1`).
+
+- Requires a Node.js runtime: the SDK imports Node's `util/types`, so it will
+  not run on an edge or browser runtime.
+- Validation errors keep their per-field detail. The SDK's own error message
+  drops it, so the adapter reads the full `422` body off the thrown error
+  instead.
 
 ## Install
 
@@ -91,7 +93,7 @@ arrive in more forms than Payload itself ever produces.
   `references` become the matching threading headers.
 - **Attachments** are base64-encoded. `cid` becomes `content_id` for inline
   images. A declared `application/octet-stream` is dropped rather than sent,
-  because Lettermint blocks that type — omitting it lets the API detect a type
+  because Lettermint blocks that type, and omitting it lets the API detect one
   from the filename instead.
 
 Anything nodemailer-specific with no counterpart in the API is reported once per

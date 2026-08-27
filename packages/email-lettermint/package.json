@@ -52,6 +52,9 @@
 		"*.{json{,5},md,y{,a}ml}": "prettier --write"
 	},
 	"prettier": "@abinnovision/prettier-config",
+	"dependencies": {
+		"lettermint": "^2.4.1"
+	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
