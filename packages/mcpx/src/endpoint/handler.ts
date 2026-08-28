@@ -39,7 +39,7 @@ const buildScope = (
  * Answers GET and DELETE on the endpoint path. The server is stateless and
  * never streams, so only POST carries meaning.
  */
-const methodNotAllowed: PayloadHandler = () =>
+export const methodNotAllowed: PayloadHandler = () =>
 	jsonRpcError({
 		status: 405,
 		code: -32000,
@@ -53,11 +53,12 @@ const methodNotAllowed: PayloadHandler = () =>
  * transport. Any user Payload resolved from cookies or a JWT is ignored: only
  * an API key authenticates here.
  */
-const createMcpxHandler =
+export const createMcpxHandler =
 	(options: NormalizedOptions): PayloadHandler =>
 	async (req) => {
 		const resolveDefault = (): ReturnType<typeof resolveApiKeyAuth> =>
 			resolveApiKeyAuth(req, options);
+
 		const auth = options.auth?.resolve
 			? await options.auth.resolve({ req, resolveDefault })
 			: await resolveDefault();
@@ -80,7 +81,6 @@ const createMcpxHandler =
 		};
 
 		let parsedBody: unknown;
-
 		try {
 			parsedBody = await req.json?.();
 		} catch {
@@ -100,6 +100,7 @@ const createMcpxHandler =
 		}
 
 		const server = createMcpServer(buildScope(req, options, capabilities));
+
 		// No session id generator means stateless: one transport per request.
 		const transport = new WebStandardStreamableHTTPServerTransport({
 			enableJsonResponse: true,
@@ -107,8 +108,10 @@ const createMcpxHandler =
 
 		await server.connect(transport);
 
-		// The transport insists on both media types in Accept; every answer is
-		// JSON anyway, so the header is normalized rather than enforced.
+		/*
+		 * The transport insists on both media types in Accept; every answer is
+		 * JSON anyway, so the header is normalized rather than enforced.
+		 */
 		const headers = new Headers(req.headers);
 
 		headers.set("accept", "application/json, text/event-stream");
@@ -122,5 +125,3 @@ const createMcpxHandler =
 			await server.close();
 		}
 	};
-
-export { createMcpxHandler, methodNotAllowed };

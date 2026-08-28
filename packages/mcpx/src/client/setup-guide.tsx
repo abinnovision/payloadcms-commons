@@ -69,7 +69,9 @@ const styles = {
  * until the document is saved, because before that there is no key to hand to
  * a client.
  */
-const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({ endpointPath }) => {
+export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
+	endpointPath,
+}) => {
 	const { id } = useDocumentInfo();
 	const { config } = useConfig();
 	const apiKey = useFormFields(([fields]) => fields["apiKey"]?.value);
@@ -107,6 +109,3 @@ const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({ endpointPath }) => {
 		</div>
 	);
 };
-
-export { McpxSetupGuide };
-export type { McpxSetupGuideProps };

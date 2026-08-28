@@ -12,7 +12,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
  * argument is rejected with its name instead of being silently stripped and
  * the tool answering as if it had not been passed.
  */
-const builtinInputSchema = (
+export const builtinInputSchema = (
 	tool: BuiltinTool<never>,
 	scope: ToolScope,
 ): z.ZodObject => z.strictObject(tool.inputSchema(scope));
@@ -22,7 +22,7 @@ const builtinInputSchema = (
  * key's capabilities, so `tools/list` shows exactly what the key may call and
  * every `collection` enum is limited to what it may touch.
  */
-const createMcpServer = (scope: ToolScope): McpServer => {
+export const createMcpServer = (scope: ToolScope): McpServer => {
 	const { req, options, capabilities } = scope;
 	const { logger } = req.payload;
 
@@ -78,5 +78,3 @@ const createMcpServer = (scope: ToolScope): McpServer => {
 
 	return server;
 };
-
-export { builtinInputSchema, createMcpServer };

@@ -29,13 +29,17 @@ declare module "payload" {
  * what the config exposes here.
  */
 export interface McpxCollectionOptions {
-	/** Expose `describeSchema`, `findDocuments` and `getDocument`. Default `true`. */
+	/**
+	 * Expose `describeSchema`, `findDocuments` and `getDocument`. Default `true`.
+	 */
 	read?: boolean;
+
 	/**
 	 * Expose `patchDocument`, `createDocument` and `validateDocument`. Default
 	 * `false`. Requires `versions.drafts` unless `allowLiveWrites` is set.
 	 */
 	write?: boolean;
+
 	/**
 	 * Permit writes to a collection without drafts. Such writes land on the live
 	 * document because there is no draft to land on. Default `false`.
@@ -79,8 +83,10 @@ export interface McpxTool<Shape extends z.ZodRawShape = z.ZodRawShape> {
 	description: string;
 	inputSchema?: Shape;
 	annotations?: ToolAnnotations;
-	// Method syntax keeps the handler bivariant so tools with concrete
-	// shapes are assignable to `McpxTool[]`.
+	/*
+	 * Method syntax keeps the handler bivariant so tools with concrete
+	 * shapes are assignable to `McpxTool[]`.
+	 */
 	// eslint-disable-next-line @typescript-eslint/method-signature-style
 	handler(ctx: {
 		args: z.infer<z.ZodObject<Shape>>;

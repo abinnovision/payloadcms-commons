@@ -23,7 +23,10 @@ interface NormalizedEntity {
 	write: boolean;
 	allowLiveWrites: boolean;
 	hasDrafts: boolean;
-	/** Name of the capability group on the key document. */
+
+	/**
+	 * Name of the capability group on the key document.
+	 */
 	fieldName: string;
 }
 
@@ -190,8 +193,10 @@ const normalizeGlobals = (
 	options: McpxPluginOptions,
 ): NormalizedGlobal[] => {
 	const globals = config.globals ?? [];
-	// Scoped to globals on purpose: a global and a collection may share a
-	// camelCase name because they land in separate capability groups.
+	/*
+	 * Scoped to globals on purpose: a global and a collection may share a
+	 * camelCase name because they land in separate capability groups.
+	 */
 	const fieldNames = new Set<string>();
 
 	return Object.entries(options.globals ?? {}).flatMap(
