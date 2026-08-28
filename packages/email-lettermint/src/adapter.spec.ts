@@ -1,3 +1,4 @@
+import { LettermintClient } from "lettermint";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { lettermintAdapter } from "./adapter.js";
@@ -5,10 +6,14 @@ import { lettermintAdapter } from "./adapter.js";
 import type { LettermintAdapterArgs } from "./types.js";
 import type { Payload } from "payload";
 
-const args: LettermintAdapterArgs = {
-	apiToken: "lm_test",
+const identity: Omit<LettermintAdapterArgs, "apiToken" | "client"> = {
 	defaultFromAddress: "no-reply@example.com",
 	defaultFromName: "Example CMS",
+};
+
+const args: LettermintAdapterArgs = {
+	...identity,
+	apiToken: "lm_test",
 };
 
 const accepted = (): typeof fetch =>
@@ -38,6 +43,12 @@ afterEach(() => {
 describe("lettermintAdapter", () => {
 	it("refuses a blank token at config time", () => {
 		expect(() => lettermintAdapter({ ...args, apiToken: " " })).toThrow(
+			/apiToken is required/,
+		);
+	});
+
+	it("refuses config with neither apiToken nor client", () => {
+		expect(() => lettermintAdapter(identity as LettermintAdapterArgs)).toThrow(
 			/apiToken is required/,
 		);
 	});
@@ -107,6 +118,26 @@ describe("lettermintAdapter", () => {
 		expect(vi.mocked(fetchMock).mock.calls[0]?.[0]).toBe(
 			"https://example.test/v1/send",
 		);
+	});
+
+	it("reuses a caller-supplied client instead of building one", async () => {
+		const fetchMock = accepted();
+
+		vi.stubGlobal("fetch", fetchMock);
+
+		const client = new LettermintClient({ apiToken: "lm_shared" });
+		const adapter = lettermintAdapter({ ...identity, client })({
+			payload: fakePayload(),
+		});
+
+		await adapter.sendEmail({ to: "a@b.io", subject: "s" });
+
+		const [, init] = vi.mocked(fetchMock).mock.calls[0] as [
+			string,
+			RequestInit,
+		];
+
+		expect(init.headers).toMatchObject({ "x-lettermint-token": "lm_shared" });
 	});
 
 	it("warns about fields the API cannot express", async () => {

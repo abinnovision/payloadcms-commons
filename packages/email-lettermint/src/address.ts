@@ -18,7 +18,7 @@ const quoteName = (name: string): string =>
  * `"Doe, John" <j@x.io>, a@y.io` as a single string, and Lettermint wants the
  * two addresses as separate array entries.
  */
-const splitAddressList = (value: string): string[] => {
+export const splitAddressList = (value: string): string[] => {
 	const parts: string[] = [];
 	let current = "";
 	let quoted = false;
@@ -62,7 +62,7 @@ const splitAddressList = (value: string): string[] => {
  * One address as RFC 5322 text. An object without a usable name degrades to the
  * bare address, which is what nodemailer does too.
  */
-const normalizeAddress = (value: Address | string): string => {
+export const normalizeAddress = (value: Address | string): string => {
 	if (typeof value === "string") {
 		return value.trim();
 	}
@@ -77,7 +77,7 @@ const normalizeAddress = (value: Address | string): string => {
  * single string, but `SendEmailOptions` is nodemailer's option bag, so any of
  * the four shapes can arrive from user code.
  */
-const normalizeAddressList = (
+export const normalizeAddressList = (
 	value: Address | string | Array<Address | string> | undefined,
 ): string[] => {
 	if (value === undefined) {
@@ -92,5 +92,3 @@ const normalizeAddressList = (
 			: [normalizeAddress(entry)],
 	);
 };
-
-export { normalizeAddress, normalizeAddressList, splitAddressList };

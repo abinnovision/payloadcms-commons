@@ -242,8 +242,10 @@ const toSendMailRequest = async (
 		...(!override && cc.length > 0 ? { cc } : {}),
 		...(!override && bcc.length > 0 ? { bcc } : {}),
 		...(replyTo.length > 0 ? { reply_to: replyTo } : {}),
-		// Lettermint rejects a body shorter than three characters, so an empty
-		// one is left out entirely rather than sent and refused.
+		/*
+		 * Lettermint rejects a body shorter than three characters, so an empty
+		 * one is left out entirely rather than sent and refused.
+		 */
 		...(html !== undefined && html !== "" ? { html } : {}),
 		...(text !== undefined && text !== "" ? { text } : {}),
 		...(Object.keys(headers).length > 0 ? { headers } : {}),

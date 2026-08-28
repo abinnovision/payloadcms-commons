@@ -74,7 +74,7 @@ const toBuffer = async (value: Content, field: string): Promise<Buffer> => {
 /**
  * A body field as text. Lettermint takes `html` and `text` as strings.
  */
-const toText = async (
+export const toText = async (
 	value: Content | undefined,
 	field: string,
 ): Promise<string | undefined> => {
@@ -94,7 +94,7 @@ const toText = async (
  * A string already declared `base64` is passed through rather than encoded
  * twice.
  */
-const toBase64 = async (
+export const toBase64 = async (
 	value: Content,
 	field: string,
 	encoding?: string,
@@ -104,9 +104,11 @@ const toBase64 = async (
 	}
 
 	if (typeof value === "string" && encoding !== undefined) {
-		// Nodemailer accepts encodings Buffer does not, such as
-		// "quoted-printable". Passing one straight to Buffer.from throws a bare
-		// TypeError, so name the offending attachment instead.
+		/*
+		 * Nodemailer accepts encodings Buffer does not, such as
+		 * "quoted-printable". Passing one straight to Buffer.from throws a bare
+		 * TypeError, so name the offending attachment instead.
+		 */
 		if (!Buffer.isEncoding(encoding)) {
 			return unsupported(
 				`Attachment "${field}" declares encoding "${encoding}", which this adapter cannot decode.`,
@@ -118,5 +120,3 @@ const toBase64 = async (
 
 	return (await toBuffer(value, field)).toString("base64");
 };
-
-export { toBase64, toText };
