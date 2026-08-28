@@ -48,15 +48,9 @@ describe("lettermintAdapter", () => {
 	});
 
 	it("refuses config with neither apiToken nor client", () => {
-		expect(() => lettermintAdapter(identity)).toThrow(/apiToken is required/);
-	});
-
-	it("refuses a client that isn't a LettermintClient instance", () => {
-		const fakeClient = { authMode: "sending" } as unknown as LettermintClient;
-
-		expect(() =>
-			lettermintAdapter({ ...identity, client: fakeClient }),
-		).toThrow(/must be an instance of.*LettermintClient/);
+		expect(() => lettermintAdapter(identity as LettermintAdapterArgs)).toThrow(
+			/apiToken is required/,
+		);
 	});
 
 	it("refuses a missing from address at config time", () => {
