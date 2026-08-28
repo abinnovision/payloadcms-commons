@@ -12,11 +12,11 @@ import {
 	writableGlobalSlugs,
 	writableSlugs,
 } from "../capabilities.js";
-import { builtinInputSchema } from "../endpoint/server.js";
+import { isToolEnabled, toolInputSchema } from "../endpoint/server.js";
 import { normalizeOptions } from "../options.js";
 
-import type { ToolScope } from "./types.js";
 import type { NormalizedOptions } from "../options.js";
+import type { McpxToolScope } from "../types.js";
 import type { Config, PayloadRequest, SanitizedConfig } from "payload";
 
 const FULL_KEY = {
@@ -25,7 +25,7 @@ const FULL_KEY = {
 		posts: { read: true, write: true },
 		tags: { read: true },
 	},
-	tools: { echo: true },
+	tools: { echo: true, whichCollection: true },
 };
 
 const READ_ONLY_KEY = {
@@ -41,13 +41,12 @@ const scopeFor = (
 	keyCapabilities: unknown,
 	localization: "on" | "off" = "on",
 	source: () => NormalizedOptions = () => options,
-): ToolScope => {
+): McpxToolScope => {
 	const resolved = source();
 	const capabilities = resolveCapabilities(resolved, keyCapabilities);
 
 	return {
 		req: { payload: { config } } as unknown as PayloadRequest,
-		options: resolved,
 		capabilities,
 		readable: readableSlugs(capabilities),
 		writable: writableSlugs(capabilities),
@@ -55,17 +54,22 @@ const scopeFor = (
 		writableGlobals: writableGlobalSlugs(capabilities),
 		locales: localization === "on" ? ["en", "de"] : null,
 		defaultLocale: localization === "on" ? "en" : null,
+		limits: resolved.limits,
+		exposure: {
+			collections: resolved.collections,
+			globals: resolved.globals,
+		},
 	};
 };
 
-const schemaOf = (scope: ToolScope, name: string) => {
+const schemaOf = (scope: McpxToolScope, name: string) => {
 	const tool = BUILTIN_TOOLS.find((candidate) => candidate.name === name);
 
 	if (!tool) {
 		throw new Error(`Unknown tool ${name}`);
 	}
 
-	return z.toJSONSchema(builtinInputSchema(tool, scope)) as {
+	return z.toJSONSchema(toolInputSchema(tool, scope)) as {
 		additionalProperties?: boolean;
 		properties: Record<string, Record<string, unknown>>;
 		required?: string[];
@@ -124,8 +128,8 @@ describe("builtin tool shapes", () => {
 	});
 
 	it("enables write tools only for keys that may write", () => {
-		const enabled = (scope: ToolScope): string[] =>
-			BUILTIN_TOOLS.filter((tool) => tool.isEnabled(scope)).map(
+		const enabled = (scope: McpxToolScope): string[] =>
+			BUILTIN_TOOLS.filter((tool) => isToolEnabled(tool, scope)).map(
 				(tool) => tool.name,
 			);
 
@@ -233,7 +237,7 @@ describe("builtin tool shapes with globals", () => {
 
 	it("does not enable the collection-only tools for a globals-only key", () => {
 		const enabled = BUILTIN_TOOLS.filter((tool) =>
-			tool.isEnabled(globalsOnly()),
+			isToolEnabled(tool, globalsOnly()),
 		).map((tool) => tool.name);
 
 		expect(enabled).toEqual([

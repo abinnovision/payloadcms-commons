@@ -9,8 +9,7 @@ import {
 	REACHABLE_PATHS_LIMIT,
 	reachableSchemaPaths,
 } from "../schema/describe.js";
-
-import type { BuiltinTool } from "./types.js";
+import { defineMcpxTool } from "../types.js";
 
 const DESCRIPTION = `Describes the writable shape of a document, one node at a time.
 
@@ -24,14 +23,7 @@ Paths here use the same JSON Pointer syntax as getDocument and patchDocument, an
 
 Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;
 
-interface Args {
-	collection?: string;
-	expand?: boolean;
-	global?: string;
-	paths?: string[];
-}
-
-const describeSchema: BuiltinTool<Args> = {
+const describeSchema = defineMcpxTool({
 	name: "describeSchema",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
@@ -55,7 +47,7 @@ const describeSchema: BuiltinTool<Args> = {
 				"Return every node reachable from the root in one response. Ignores paths.",
 			),
 	}),
-	handler: (args, scope) => {
+	handler: ({ args, scope }) => {
 		const ref = refOf(resolveTarget(scope, args, "read"));
 
 		const { config } = scope.req.payload;
@@ -87,6 +79,6 @@ const describeSchema: BuiltinTool<Args> = {
 
 		return Promise.resolve(jsonResult(nodes));
 	},
-};
+});
 
 export { describeSchema };

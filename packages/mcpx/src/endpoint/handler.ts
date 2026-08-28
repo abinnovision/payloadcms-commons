@@ -12,19 +12,18 @@ import { jsonRpcError } from "./result.js";
 import { createMcpServer } from "./server.js";
 
 import type { NormalizedOptions } from "../options.js";
-import type { ToolScope } from "../tools/types.js";
+import type { McpxToolScope } from "../types.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
 const buildScope = (
 	req: PayloadRequest,
 	options: NormalizedOptions,
-	capabilities: ToolScope["capabilities"],
-): ToolScope => {
+	capabilities: McpxToolScope["capabilities"],
+): McpxToolScope => {
 	const { localization } = req.payload.config;
 
 	return {
 		req,
-		options,
 		capabilities,
 		readable: readableSlugs(capabilities),
 		writable: writableSlugs(capabilities),
@@ -32,6 +31,8 @@ const buildScope = (
 		writableGlobals: writableGlobalSlugs(capabilities),
 		locales: localization ? localization.localeCodes : null,
 		defaultLocale: localization ? localization.defaultLocale : null,
+		limits: options.limits,
+		exposure: { collections: options.collections, globals: options.globals },
 	};
 };
 
@@ -99,7 +100,10 @@ export const createMcpxHandler =
 			});
 		}
 
-		const server = createMcpServer(buildScope(req, options, capabilities));
+		const server = createMcpServer(
+			buildScope(req, options, capabilities),
+			options,
+		);
 
 		// No session id generator means stateless: one transport per request.
 		const transport = new WebStandardStreamableHTTPServerTransport({

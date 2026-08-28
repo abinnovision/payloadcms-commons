@@ -7,22 +7,14 @@ import {
 } from "./shared.js";
 import { requireIdFor, resolveTarget } from "./target.js";
 import { jsonResult } from "../endpoint/result.js";
+import { defineMcpxTool } from "../types.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
-
-import type { BuiltinTool } from "./types.js";
 
 const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
 
 Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
-interface Args {
-	collection?: string;
-	global?: string;
-	id?: number | string;
-	locale?: string;
-}
-
-const validateDocument: BuiltinTool<Args> = {
+const validateDocument = defineMcpxTool({
 	name: "validateDocument",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
@@ -39,7 +31,7 @@ const validateDocument: BuiltinTool<Args> = {
 			description: "Locale to validate.",
 		}),
 	}),
-	handler: async (args, scope) => {
+	handler: async ({ args, scope }) => {
 		const target = resolveTarget(scope, args, "write");
 		const id = requireIdFor(target, args.id);
 		const locale = localeOf(scope, args.locale);
@@ -68,6 +60,6 @@ const validateDocument: BuiltinTool<Args> = {
 			publishBlockers,
 		});
 	},
-};
+});
 
 export { validateDocument };

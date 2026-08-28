@@ -87,7 +87,7 @@ describe("api keys collection", () => {
 			"tools",
 		);
 
-		expect(fieldNames(tools)).toEqual(["echo"]);
+		expect(fieldNames(tools)).toEqual(["echo", "whichCollection"]);
 	});
 
 	it("installs the key hook", () => {

@@ -1,7 +1,7 @@
 import { APIError, Forbidden } from "payload";
 
-import type { ToolScope } from "./types.js";
 import type { TargetRef } from "../schema/walk.js";
+import type { McpxToolScope } from "../types.js";
 import type { SanitizedCollectionConfig, SanitizedGlobalConfig } from "payload";
 
 /**
@@ -28,8 +28,8 @@ const refOf = (target: ResolvedTarget): TargetRef => ({
  * failed call teaches it.
  */
 const resolveTarget = (
-	scope: ToolScope,
-	args: { collection?: string; global?: string },
+	scope: McpxToolScope,
+	args: { collection?: string | undefined; global?: string | undefined },
 	operation: "read" | "write",
 ): ResolvedTarget => {
 	const { collection, global } = args;

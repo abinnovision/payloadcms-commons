@@ -4,7 +4,7 @@ import { z } from "zod";
 import { translateStatic } from "../i18n.js";
 
 import type { ResolvedTarget } from "./target.js";
-import type { ToolScope } from "./types.js";
+import type { McpxToolScope } from "../types.js";
 import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
 
 const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
@@ -12,8 +12,52 @@ const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
 
 const idSchema = z.union([z.string(), z.number()]).describe("Document id.");
 
+type SlugEnum = z.ZodEnum<Record<string, string>>;
+
+/*
+ * The supersets the shape helpers below produce. Which keys a helper actually
+ * emits depends on the scope — `global` is left out when the key can reach no
+ * global, `locale` when localization is off — so no single branch describes
+ * what a handler must cope with. These types do, and a tool's arguments are
+ * inferred from them, which is what keeps the two from drifting apart. The
+ * cross-field rules they cannot state ("exactly one of collection and global",
+ * "id required with collection") are enforced by `resolveTarget` and
+ * `requireIdFor` at call time.
+ */
+/* eslint-disable @typescript-eslint/consistent-type-definitions */
+type TargetShape = {
+	collection: z.ZodOptional<SlugEnum>;
+	global: z.ZodOptional<SlugEnum>;
+};
+type IdShape = { id: z.ZodOptional<typeof idSchema> };
+type LocaleShape = { locale: z.ZodOptional<SlugEnum> };
+type DepthShape = { depth: z.ZodOptional<z.ZodNumber> };
+/* eslint-enable @typescript-eslint/consistent-type-definitions */
+
+/**
+ * One scope-dependent branch of a superset. It may leave a key out, and may
+ * emit the required form of a key the superset marks optional, but it cannot
+ * invent a key or change one's type: those are the ways a shape and the
+ * arguments inferred from it would drift apart.
+ */
+type Branch<Full extends z.ZodRawShape> = {
+	[K in keyof Full]?: Full[K] extends z.ZodOptional<
+		infer Inner extends z.core.$ZodType
+	>
+		? Full[K] | Inner
+		: Full[K];
+};
+
+/**
+ * Widens one branch to the superset a handler sees. The widening itself is
+ * unchecked — the runtime shape really does vary — so `Branch` checks what it
+ * can around it.
+ */
+const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
+	branch as unknown as Full;
+
 const slugsFor = (
-	scope: ToolScope,
+	scope: McpxToolScope,
 	operation: "read" | "write",
 ): { collections: string[]; globals: string[] } => ({
 	collections: operation === "read" ? scope.readable : scope.writable,
@@ -30,28 +74,30 @@ const slugsFor = (
  * argument optional, and the handler enforces the exclusivity there.
  */
 const targetShape = (
-	scope: ToolScope,
+	scope: McpxToolScope,
 	operation: "read" | "write",
 	descriptions: { collection: string; global: string },
-): z.ZodRawShape => {
+): TargetShape => {
 	const { collections, globals } = slugsFor(scope, operation);
 
 	if (globals.length === 0) {
-		return {
+		return widen<TargetShape>({
 			collection: slugEnum(collections).describe(descriptions.collection),
-		};
+		});
 	}
 
 	if (collections.length === 0) {
-		return { global: slugEnum(globals).describe(descriptions.global) };
+		return widen<TargetShape>({
+			global: slugEnum(globals).describe(descriptions.global),
+		});
 	}
 
-	return {
+	return widen<TargetShape>({
 		collection: slugEnum(collections)
 			.optional()
 			.describe(descriptions.collection),
 		global: slugEnum(globals).optional().describe(descriptions.global),
-	};
+	});
 };
 
 /**
@@ -60,57 +106,57 @@ const targetShape = (
  * in between, where `requireIdFor` enforces the dependency.
  */
 const idShape = (
-	scope: ToolScope,
+	scope: McpxToolScope,
 	operation: "read" | "write",
-): z.ZodRawShape => {
+): IdShape => {
 	const { collections, globals } = slugsFor(scope, operation);
 
 	if (collections.length === 0) {
-		return {};
+		return widen<IdShape>({});
 	}
 
 	if (globals.length === 0) {
-		return { id: idSchema };
+		return widen<IdShape>({ id: idSchema });
 	}
 
-	return {
+	return widen<IdShape>({
 		id: idSchema
 			.optional()
 			.describe(
 				'Document id. Required with "collection"; must be omitted with "global".',
 			),
-	};
+	});
 };
 
 /**
  * The `locale` argument, present only when localization is configured.
  */
 const localeShape = (
-	scope: ToolScope,
+	scope: McpxToolScope,
 	options: { required: boolean; description: string },
-): z.ZodRawShape => {
+): LocaleShape => {
 	if (!scope.locales) {
-		return {};
+		return widen<LocaleShape>({});
 	}
 
 	const locale = z.enum(scope.locales as [string, ...string[]]);
 
-	return {
+	return widen<LocaleShape>({
 		locale: (options.required ? locale : locale.optional()).describe(
 			options.description,
 		),
-	};
+	});
 };
 
-const depthShape = (scope: ToolScope): z.ZodRawShape => ({
+const depthShape = (scope: McpxToolScope): DepthShape => ({
 	depth: z
 		.number()
 		.int()
 		.min(0)
-		.max(scope.options.limits.maxDepth)
+		.max(scope.limits.maxDepth)
 		.optional()
 		.describe(
-			`Relationship population depth. Default 0, at most ${String(scope.options.limits.maxDepth)}.`,
+			`Relationship population depth. Default 0, at most ${String(scope.limits.maxDepth)}.`,
 		),
 });
 
@@ -119,7 +165,7 @@ const depthShape = (scope: ToolScope): z.ZodRawShape => ({
  * the default. `undefined` when localization is off.
  */
 const localeOf = (
-	scope: ToolScope,
+	scope: McpxToolScope,
 	locale: string | undefined,
 ): TypedLocale | undefined => {
 	if (!scope.locales) {
@@ -140,7 +186,7 @@ const localeOf = (
  * shape that may be written back or validated without mixing locales.
  */
 const readTarget = async (
-	scope: ToolScope,
+	scope: McpxToolScope,
 	args: {
 		target: ResolvedTarget;
 		id?: number | string | undefined;
@@ -193,7 +239,7 @@ const readTarget = async (
  * Resolves a collection label for the request's language.
  */
 const translateLabel = (
-	scope: ToolScope,
+	scope: McpxToolScope,
 	label: LabelFunction | StaticLabel | undefined,
 	fallback: string,
 ): string => {

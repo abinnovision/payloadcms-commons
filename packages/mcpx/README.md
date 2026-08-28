@@ -297,9 +297,62 @@ const publishQueue = defineMcpxTool({
 
 Each custom tool gets its own checkbox on every API key, default off.
 
-Custom tool shapes are registered as given, and the MCP SDK wraps them in a
-non-strict object: unknown arguments are stripped before your handler runs.
-Builtin tools reject them instead.
+Custom tools take the same route as the builtins: one `McpxTool` shape, one
+registration loop. Anything a builtin does, a custom tool can do.
+
+`handler` receives `scope` alongside `args`, `req` and `extra`. The scope
+carries what the key may touch (`readable`, `writable`, `readableGlobals`,
+`writableGlobals`), the configured locales, the limits in force and the
+exposed collections and globals. `req` is shorthand for `scope.req`.
+
+`inputSchema` may be a function of that scope instead of a fixed shape, which
+is how a tool narrows an enum to what the key may read:
+
+```ts
+import { defineMcpxTool } from "@abinnovision/payloadcms-mcpx";
+import { z } from "zod";
+
+const whichCollection = defineMcpxTool({
+  name: "whichCollection",
+  description: "Echoes back one of the collections this key may read.",
+  isEnabled: (scope) =>
+    scope.capabilities.tools["whichCollection"] === true &&
+    scope.readable.length > 0,
+  inputSchema: (scope) => ({
+    collection: z.enum(scope.readable as [string, ...string[]]),
+  }),
+  handler: ({ args }) => ({
+    content: [{ type: "text", text: args.collection }],
+  }),
+});
+```
+
+`defineMcpxTool` defines every tool, builtin ones included, and infers the
+handler's arguments from the input schema either way: from a fixed shape, or
+from the object literal a per-request shape returns. Above, `args` is
+`{ collection: string }` without being told.
+
+Inference reaches as far as the shape's static type. A helper returning
+`z.ZodRawShape` erases that type and leaves `args` as
+`Record<string, unknown>`, so the builtins' shape helpers declare the superset
+they produce instead: which keys a helper emits depends on the key's scope,
+and the declared type states what a handler must cope with across every scope.
+Their arguments stay derived from their schema that way, and cannot drift from
+it. If your own helpers erase, state the arguments as a type argument:
+`defineMcpxTool<Args>({ ... })`.
+
+`isEnabled` decides whether the tool is registered for this key at all: a tool
+that is not enabled never appears in `tools/list`. It defaults to the tool's
+own checkbox, which is what the builtins replace to derive their availability
+from the key's collection and global capabilities. Defining it **replaces**
+the checkbox check, so restate `scope.capabilities.tools[name]` when you still
+want it, as above.
+
+Every input schema is registered strictly, custom tools included: an unknown
+argument is rejected by name rather than stripped before the handler runs.
+
+`jsonResult` and `errorResult` are exported so a custom tool can return
+results shaped like a builtin's.
 
 ## Options
 
@@ -320,7 +373,7 @@ Builtin tools reject them instead.
 | `endpoint.path`                      | `/mcpx`                        | Endpoint path below the API route.                                                                                 |
 | `limits.maxLimit`                    | `25`                           | Upper bound for `findDocuments.limit`.                                                                             |
 | `limits.maxDepth`                    | `1`                            | Upper bound for `depth` on reads.                                                                                  |
-| `tools`                              | `[]`                           | Custom tools.                                                                                                      |
+| `tools`                              | `[]`                           | Custom tools, defined the same way as the builtins.                                                                |
 | `auth.resolve`                       | none                           | Replace or wrap the default key resolution.                                                                        |
 | `serverInfo`                         | package name and version       | Reported to MCP clients.                                                                                           |
 

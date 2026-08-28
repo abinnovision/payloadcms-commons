@@ -10,6 +10,7 @@ import {
 } from "./shared.js";
 import { refOf, requireIdFor, resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../endpoint/result.js";
+import { defineMcpxTool } from "../types.js";
 import {
 	applyPatchToCopy,
 	buildWriteData,
@@ -20,7 +21,6 @@ import {
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { withTransaction } from "../write/transaction.js";
 
-import type { BuiltinTool } from "./types.js";
 import type { PatchOperation } from "../write/patch.js";
 
 const DESCRIPTION = `Applies RFC 6902 JSON Patch operations to one document.
@@ -34,15 +34,6 @@ Only the fields describeSchema lists can be addressed. A pointer that does not r
 Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so a concurrent edit is refused rather than overwritten.
 
 A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but a human cannot publish the document until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update.`;
-
-interface Args {
-	collection?: string;
-	expectedUpdatedAt?: string;
-	global?: string;
-	id?: number | string;
-	locale?: string;
-	patches: PatchOperation[];
-}
 
 const sameInstant = (left: unknown, right: string): boolean =>
 	typeof left === "string" &&
@@ -109,7 +100,7 @@ const notAppliedPointers = (
 		return survives(expected, actual) ? [] : [operation.path];
 	});
 
-const patchDocument: BuiltinTool<Args> = {
+const patchDocument = defineMcpxTool({
 	name: "patchDocument",
 	description: DESCRIPTION,
 	annotations: {
@@ -142,11 +133,18 @@ const patchDocument: BuiltinTool<Args> = {
 				"The updatedAt read before patching. The write is refused if the document has changed since.",
 			),
 	}),
-	handler: async (args, scope) => {
+	handler: async ({ args, scope }) => {
 		const target = resolveTarget(scope, args, "write");
 		const id = requireIdFor(target, args.id);
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
+		/*
+		 * `PATCH_OPERATION_SCHEMA` is one flat object, so it accepts every op
+		 * with an optional `value`, while rfc6902's own union is stricter: a
+		 * `test` requires one. Narrowing here states that gap once instead of
+		 * at each use.
+		 */
+		const patches = args.patches as PatchOperation[];
 
 		return await withTransaction(scope.req, async () => {
 			const doc = await readTarget(scope, { target, id, locale });
@@ -163,7 +161,7 @@ const patchDocument: BuiltinTool<Args> = {
 
 			const problems = findPatchProblems(payload.config, {
 				doc,
-				patches: args.patches,
+				patches,
 				ref: refOf(target),
 			});
 
@@ -171,7 +169,7 @@ const patchDocument: BuiltinTool<Args> = {
 				return errorResult("No operation was applied.", { problems });
 			}
 
-			const applied = applyPatchToCopy(doc, args.patches);
+			const applied = applyPatchToCopy(doc, patches);
 
 			if ("problems" in applied) {
 				return errorResult("No operation was applied.", {
@@ -205,7 +203,7 @@ const patchDocument: BuiltinTool<Args> = {
 				privileged: true,
 			});
 
-			const notApplied = notAppliedPointers(args.patches, applied.next, saved);
+			const notApplied = notAppliedPointers(patches, applied.next, saved);
 			const publishBlockers = await collectPublishBlockers(scope.req, {
 				doc: saved,
 				entity: target,
@@ -222,6 +220,6 @@ const patchDocument: BuiltinTool<Args> = {
 			});
 		});
 	},
-};
+});
 
 export { patchDocument };

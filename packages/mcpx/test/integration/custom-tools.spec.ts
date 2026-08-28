@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool, toolNames } from "./helpers/mcp.js";
+import {
+	callTool,
+	collectionEnumOf,
+	toolNames,
+	toolsList,
+} from "./helpers/mcp.js";
 import {
 	bootPayload,
 	createKey,
@@ -43,5 +48,29 @@ describe("custom tools", () => {
 		expect(result.data["message"]).toBe("hi");
 		expect(result.data["userId"]).toBe(seeded.userId);
 		expect(result.data["apiKeyId"]).toBeDefined();
+	});
+
+	it("narrows a scope-built enum to what the key may read", async () => {
+		const full = await toolsList(booted.config, seeded.keys.full);
+
+		expect(
+			collectionEnumOf(full.find((tool) => tool.name === "whichCollection")),
+		).toEqual(["pages", "posts", "tags"]);
+		/*
+		 * The tags-only key has no `whichCollection` checkbox, so the tool is
+		 * absent rather than narrowed: the checkbox and the scope both gate it.
+		 */
+		expect(await toolNames(booted.config, seeded.keys.tagsOnly)).not.toContain(
+			"whichCollection",
+		);
+	});
+
+	it("rejects an unknown argument by name", async () => {
+		const result = await callTool(booted.config, seeded.keys.full, "echo", {
+			message: "hi",
+			mesage: "typo",
+		});
+
+		expect(result.rpcError?.message ?? result.text).toMatch(/mesage/);
 	});
 });

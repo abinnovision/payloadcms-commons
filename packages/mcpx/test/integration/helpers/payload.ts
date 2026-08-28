@@ -71,7 +71,7 @@ export const FULL_CAPABILITIES: KeyCapabilities = {
 		posts: { read: true, write: true },
 		tags: { read: true },
 	},
-	tools: { echo: true },
+	tools: { echo: true, whichCollection: true },
 };
 
 export interface Seeded {

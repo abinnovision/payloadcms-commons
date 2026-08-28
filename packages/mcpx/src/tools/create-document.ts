@@ -4,20 +4,13 @@ import { slugEnum, localeOf, localeShape, readTarget } from "./shared.js";
 import { resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../endpoint/result.js";
 import { validateWriteValue } from "../schema/shape.js";
+import { defineMcpxTool } from "../types.js";
 import { stripRowIds } from "../write/patch.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
-import type { BuiltinTool } from "./types.js";
-
 const DESCRIPTION = `Creates a new document as a draft from a minimal seed. Only the fields describeSchema lists may appear in "data"; unknown keys are refused with the valid siblings. The draft may be incomplete: the response lists "publishBlockers", which patchDocument can then work through. Use this when no document exists yet; prefer patching an existing draft otherwise.`;
 
-interface Args {
-	collection: string;
-	data: Record<string, unknown>;
-	locale?: string;
-}
-
-const createDocument: BuiltinTool<Args> = {
+const createDocument = defineMcpxTool({
 	name: "createDocument",
 	description: DESCRIPTION,
 	annotations: {
@@ -39,7 +32,7 @@ const createDocument: BuiltinTool<Args> = {
 			.record(z.string(), z.unknown())
 			.describe("Initial field values, as describeSchema lists them."),
 	}),
-	handler: async (args, scope) => {
+	handler: async ({ args, scope }) => {
 		const target = resolveTarget(
 			scope,
 			{ collection: args.collection },
@@ -93,6 +86,6 @@ const createDocument: BuiltinTool<Args> = {
 			...(publishBlockers.length > 0 ? { publishBlockers } : {}),
 		});
 	},
-};
+});
 
 export { createDocument };

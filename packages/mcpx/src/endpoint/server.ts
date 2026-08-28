@@ -4,26 +4,51 @@ import { z } from "zod";
 import { toToolError } from "./result.js";
 import { BUILTIN_TOOLS } from "../tools/index.js";
 
-import type { BuiltinTool, ToolScope } from "../tools/types.js";
+import type { NormalizedOptions } from "../options.js";
+import type { McpxAnyTool, McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 /**
- * Builds a builtin tool's input schema as a strict object, so an unknown
- * argument is rejected with its name instead of being silently stripped and
- * the tool answering as if it had not been passed.
+ * Builds a tool's input schema as a strict object, so an unknown argument is
+ * rejected with its name instead of being silently stripped and the tool
+ * answering as if it had not been passed. A tool may build its shape from the
+ * scope to narrow enums to what the key may touch.
  */
-export const builtinInputSchema = (
-	tool: BuiltinTool<never>,
-	scope: ToolScope,
-): z.ZodObject => z.strictObject(tool.inputSchema(scope));
+export const toolInputSchema = (
+	tool: McpxAnyTool,
+	scope: McpxToolScope,
+): z.ZodObject =>
+	z.strictObject(
+		typeof tool.inputSchema === "function"
+			? tool.inputSchema(scope)
+			: (tool.inputSchema ?? {}),
+	);
 
 /**
- * Builds the MCP server for one request. Tools are registered against the
- * key's capabilities, so `tools/list` shows exactly what the key may call and
- * every `collection` enum is limited to what it may touch.
+ * Whether the key may call the tool. A tool that does not decide for itself is
+ * gated by its own checkbox on the key, which is how the tools from
+ * `options.tools` work; the builtins derive it from the key's collection and
+ * global capabilities instead.
  */
-export const createMcpServer = (scope: ToolScope): McpServer => {
-	const { req, options, capabilities } = scope;
+export const isToolEnabled = (
+	tool: McpxAnyTool,
+	scope: McpxToolScope,
+): boolean =>
+	tool.isEnabled
+		? tool.isEnabled(scope)
+		: scope.capabilities.tools[tool.name] === true;
+
+/**
+ * Builds the MCP server for one request. Builtin and configured tools take the
+ * same route: each is registered against the key's capabilities, so
+ * `tools/list` shows exactly what the key may call and every `collection` enum
+ * is limited to what it may touch.
+ */
+export const createMcpServer = (
+	scope: McpxToolScope,
+	options: NormalizedOptions,
+): McpServer => {
+	const { req } = scope;
 	const { logger } = req.payload;
 
 	const server = new McpServer(
@@ -44,8 +69,8 @@ export const createMcpServer = (scope: ToolScope): McpServer => {
 			}
 		};
 
-	for (const tool of BUILTIN_TOOLS) {
-		if (!tool.isEnabled(scope)) {
+	for (const tool of [...BUILTIN_TOOLS, ...options.tools]) {
+		if (!isToolEnabled(tool, scope)) {
 			continue;
 		}
 
@@ -53,26 +78,13 @@ export const createMcpServer = (scope: ToolScope): McpServer => {
 			tool.name,
 			{
 				description: tool.description,
-				inputSchema: builtinInputSchema(tool, scope),
-				annotations: tool.annotations,
-			},
-			(args) => guarded(() => tool.handler(args as never, scope))(),
-		);
-	}
-
-	for (const tool of options.tools) {
-		if (capabilities.tools[tool.name] !== true) {
-			continue;
-		}
-
-		server.registerTool(
-			tool.name,
-			{
-				description: tool.description,
-				inputSchema: tool.inputSchema ?? {},
+				inputSchema: toolInputSchema(tool, scope),
 				...(tool.annotations ? { annotations: tool.annotations } : {}),
 			},
-			(args, extra) => guarded(() => tool.handler({ args, req, extra }))(),
+			(args, extra) =>
+				guarded(() =>
+					tool.handler({ args: args as never, scope, req, extra }),
+				)(),
 		);
 	}
 
