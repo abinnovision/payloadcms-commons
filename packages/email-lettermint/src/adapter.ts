@@ -1,10 +1,15 @@
+import { LettermintClient } from "lettermint";
 import { InvalidConfiguration } from "payload";
 
 import { normalizeAddress } from "./address.js";
-import { DEFAULT_BASE_URL, DEFAULT_TIMEOUT, sendMessage } from "./client.js";
+import {
+	createLettermintClient,
+	DEFAULT_BASE_URL,
+	DEFAULT_TIMEOUT,
+	sendMessage,
+} from "./client.js";
 import { toSendMailRequest } from "./message.js";
 
-import type { ClientOptions } from "./client.js";
 import type { MessageDefaults } from "./message.js";
 import type { LettermintAdapterArgs, LettermintSendResponse } from "./types.js";
 import type { EmailAdapter } from "payload";
@@ -32,7 +37,6 @@ const requireValue = (value: string | undefined, field: string): string => {
 const lettermintAdapter = (
 	args: LettermintAdapterArgs,
 ): EmailAdapter<LettermintSendResponse> => {
-	const apiToken = requireValue(args.apiToken, "apiToken");
 	const defaultFromAddress = requireValue(
 		args.defaultFromAddress,
 		"defaultFromAddress",
@@ -46,11 +50,19 @@ const lettermintAdapter = (
 		fail("timeout must be a positive number of milliseconds.");
 	}
 
-	const client: ClientOptions = {
-		apiToken,
-		baseUrl: (args.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
-		timeout: args.timeout ?? DEFAULT_TIMEOUT,
-	};
+	if (args.client && !(args.client instanceof LettermintClient)) {
+		fail(
+			"client must be an instance of the lettermint SDK's LettermintClient.",
+		);
+	}
+
+	const lettermintClient =
+		args.client ??
+		createLettermintClient({
+			apiToken: requireValue(args.apiToken, "apiToken"),
+			baseUrl: (args.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
+			timeout: args.timeout ?? DEFAULT_TIMEOUT,
+		});
 
 	const defaults: MessageDefaults = {
 		from: normalizeAddress({
@@ -77,7 +89,7 @@ const lettermintAdapter = (
 				);
 			}
 
-			return await sendMessage(body, client);
+			return await sendMessage(body, lettermintClient);
 		},
 	});
 };

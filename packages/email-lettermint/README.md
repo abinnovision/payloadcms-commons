@@ -44,18 +44,19 @@ The sending domain has to be verified in the project before anything goes out.
 
 ## Options
 
-| Option                     | Type                                    | Default                        | Description                                                     |
-| -------------------------- | --------------------------------------- | ------------------------------ | --------------------------------------------------------------- |
-| `apiToken`                 | `string`                                | —                              | Project API token. Required.                                    |
-| `defaultFromAddress`       | `string`                                | —                              | Sender used when a message carries no `from`. Required.         |
-| `defaultFromName`          | `string`                                | —                              | Display name paired with the address. Required.                 |
-| `route`                    | `string`                                | project default                | Route slug to send on.                                          |
-| `settings`                 | `{ track_opens?, track_clicks?, tls? }` | route's own                    | Applied to every message, overriding the route.                 |
-| `metadata`                 | `Record<string, string>`                | —                              | Attached to every message. Tracked, never sent as headers.      |
-| `tags`                     | `{ name, value }[]`                     | —                              | Attached to every message.                                      |
-| `overrideRecipientAddress` | `string`                                | —                              | Redirect every message to one address, dropping `cc` and `bcc`. |
-| `baseUrl`                  | `string`                                | `https://api.lettermint.co/v1` | API base URL.                                                   |
-| `timeout`                  | `number`                                | `30000`                        | Request timeout in milliseconds.                                |
+| Option                     | Type                                    | Default                        | Description                                                                                                      |
+| -------------------------- | --------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `apiToken`                 | `string`                                | —                              | Project API token. Required unless `client` is given.                                                            |
+| `client`                   | `LettermintClient`                      | —                              | An existing client to reuse instead of building one from `apiToken`. Must use the default `authMode: "sending"`. |
+| `defaultFromAddress`       | `string`                                | —                              | Sender used when a message carries no `from`. Required.                                                          |
+| `defaultFromName`          | `string`                                | —                              | Display name paired with the address. Required.                                                                  |
+| `route`                    | `string`                                | project default                | Route slug to send on.                                                                                           |
+| `settings`                 | `{ track_opens?, track_clicks?, tls? }` | route's own                    | Applied to every message, overriding the route.                                                                  |
+| `metadata`                 | `Record<string, string>`                | —                              | Attached to every message. Tracked, never sent as headers.                                                       |
+| `tags`                     | `{ name, value }[]`                     | —                              | Attached to every message.                                                                                       |
+| `overrideRecipientAddress` | `string`                                | —                              | Redirect every message to one address, dropping `cc` and `bcc`.                                                  |
+| `baseUrl`                  | `string`                                | `https://api.lettermint.co/v1` | API base URL.                                                                                                    |
+| `timeout`                  | `number`                                | `30000`                        | Request timeout in milliseconds.                                                                                 |
 
 Payload requires `defaultFromAddress` and `defaultFromName` because its own auth
 emails read them. All three required options are validated while the config is
@@ -67,6 +68,41 @@ password reset.
 Payload sends transactional mail, so `route` should name a **transactional**
 route. Broadcast routes add hosted unsubscribe handling, which does not belong on
 a password reset.
+
+### Sharing a client
+
+If the app already builds a `LettermintClient` for other Lettermint calls (e.g.
+managing domains or webhooks through the SDK's `ApiClient`), pass a client for
+sending mail instead of a raw `apiToken`, and reuse it directly wherever else
+it's needed:
+
+```ts
+import { createLettermintClient } from "@abinnovision/payloadcms-email-lettermint";
+
+const client = createLettermintClient({
+  apiToken: process.env.LETTERMINT_API_TOKEN!,
+});
+
+export default buildConfig({
+  // ...
+  email: lettermintAdapter({
+    client,
+    defaultFromAddress: "no-reply@example.com",
+    defaultFromName: "Example CMS",
+  }),
+});
+```
+
+The client is stateless, so the adapter reuses this single instance for every
+send rather than building a new one each time. `client` is checked with
+`instanceof LettermintClient`, so passing an `ApiClient` or another object
+fails at startup.
+
+It must also keep the default `authMode: "sending"` — a client built with
+`authMode: "api"` for the SDK's `ApiClient` sends the wrong auth header to
+`/send`. The SDK keeps `authMode` private, so the adapter cannot check that
+specific mismatch at startup; it surfaces as Lettermint refusing the message
+when a send is attempted.
 
 ### Redirecting mail in staging
 

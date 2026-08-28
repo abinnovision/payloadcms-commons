@@ -75,22 +75,25 @@ const toHttpError = (error: HttpRequestError): LettermintEmailError => {
 	);
 };
 
+/** Builds a client from resolved options. Does no I/O. */
+const createLettermintClient = (options: ClientOptions): LettermintClient =>
+	new LettermintClient({
+		apiToken: options.apiToken,
+		baseUrl: options.baseUrl,
+		timeout: options.timeout,
+	});
+
 /**
- * Builds the request on a fresh endpoint. The SDK's builder mutates in place
- * and only resets once a send resolves, so sharing one across concurrent sends
- * would let them overwrite each other. Neither constructor does I/O.
+ * Builds the request on a fresh endpoint wrapping the shared client. The SDK's
+ * builder mutates `this.payload` in place and only resets once a send
+ * resolves, so sharing an endpoint across concurrent sends would let them
+ * overwrite each other; the client itself is stateless and safe to reuse.
  */
 const buildEndpoint = (
 	body: LettermintSendRequest,
-	options: ClientOptions,
+	client: LettermintClient,
 ): EmailEndpoint => {
-	const endpoint = new EmailEndpoint(
-		new LettermintClient({
-			apiToken: options.apiToken,
-			baseUrl: options.baseUrl,
-			timeout: options.timeout,
-		}),
-	);
+	const endpoint = new EmailEndpoint(client);
 
 	endpoint
 		.from(body.from)
@@ -156,13 +159,10 @@ const buildEndpoint = (
  */
 const sendMessage = async (
 	body: LettermintSendRequest,
-	options: ClientOptions,
+	client: LettermintClient,
 ): Promise<LettermintSendResponse> => {
 	try {
-		return (await buildEndpoint(
-			body,
-			options,
-		).send()) as LettermintSendResponse;
+		return (await buildEndpoint(body, client).send()) as LettermintSendResponse;
 	} catch (error) {
 		if (error instanceof ValidationError) {
 			throw toValidationError(error);
@@ -174,12 +174,17 @@ const sendMessage = async (
 
 		throw new LettermintEmailError(
 			error instanceof TimeoutError
-				? `Lettermint did not answer within ${String(options.timeout)}ms.`
+				? "Lettermint did not answer within the configured timeout."
 				: "Could not reach Lettermint.",
 			{ cause: error },
 		);
 	}
 };
 
-export { DEFAULT_BASE_URL, DEFAULT_TIMEOUT, sendMessage };
+export {
+	createLettermintClient,
+	DEFAULT_BASE_URL,
+	DEFAULT_TIMEOUT,
+	sendMessage,
+};
 export type { ClientOptions };
