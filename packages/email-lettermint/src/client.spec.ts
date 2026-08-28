@@ -52,8 +52,10 @@ describe("sendMessage", () => {
 
 		expect(url).toBe("https://api.lettermint.co/v1/send");
 		expect(init.method).toBe("POST");
-		// The SDK adds `Accept`, which the API ignores; the token header is what
-		// authenticates the send.
+		/*
+		 * The SDK adds `Accept`, which the API ignores; the token header is what
+		 * authenticates the send.
+		 */
 		expect(init.headers).toMatchObject({
 			Accept: "application/json",
 			"Content-Type": "application/json",
@@ -153,8 +155,10 @@ describe("sendMessage", () => {
 	});
 
 	it("reports a timeout", async () => {
-		// What the SDK's abort controller produces once its budget elapses; it
-		// translates this into its own `TimeoutError`.
+		/*
+		 * What the SDK's abort controller produces once its budget elapses; it
+		 * translates this into its own `TimeoutError`.
+		 */
 		const cause = Object.assign(new Error("aborted"), { name: "AbortError" });
 
 		vi.stubGlobal(

@@ -1,15 +1,24 @@
 /**
- * A send that Lettermint refused, or that never reached it. Carries the parsed
- * response so callers can branch on the status or the per-field errors instead
- * of matching on the message.
+ * Lettermint refused, or that never reached it.
+ * Carries the parsed response so callers can branch on the status or the
+ * per-field errors instead of matching on the message.
  */
-class LettermintEmailError extends Error {
+export class LettermintEmailError extends Error {
 	public override readonly name = "LettermintEmailError";
-	/** HTTP status, absent when the request never produced a response. */
+
+	/**
+	 * HTTP status, absent when the request never produced a response.
+	 */
 	public readonly statusCode: number | undefined;
-	/** Parsed response body, or the raw text when it was not JSON. */
+
+	/**
+	 * Parsed response body, or the raw text when it was not JSON.
+	 */
 	public readonly body: unknown;
-	/** Per-field messages from a 422, keyed by the field Lettermint rejected. */
+
+	/**
+	 * Per-field messages from a 422, keyed by the field Lettermint rejected.
+	 */
 	public readonly errors: Record<string, string[]> | undefined;
 
 	public constructor(
@@ -27,5 +36,3 @@ class LettermintEmailError extends Error {
 		this.errors = options.errors;
 	}
 }
-
-export { LettermintEmailError };
