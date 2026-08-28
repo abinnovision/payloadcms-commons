@@ -2,6 +2,8 @@ import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { describe, expect, it } from "vitest";
 
 import { normalizeOptions, toCamelCase } from "./options.js";
+import { BUILTIN_TOOLS } from "./tools/index.js";
+import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
 import { pages, posts, tags, users } from "../test/fixtures/collections.js";
 import { banner, siteSettings } from "../test/fixtures/globals.js";
 
@@ -26,6 +28,14 @@ describe("toCamelCase", () => {
 		expect(toCamelCase("my-pages")).toBe("myPages");
 		expect(toCamelCase("Pages")).toBe("pages");
 		expect(toCamelCase("short_links")).toBe("shortLinks");
+	});
+});
+
+describe("bUILTIN_TOOL_NAMES", () => {
+	it("names every builtin tool", () => {
+		expect([...BUILTIN_TOOL_NAMES]).toEqual(
+			BUILTIN_TOOLS.map((tool) => tool.name),
+		);
 	});
 });
 

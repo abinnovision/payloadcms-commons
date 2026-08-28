@@ -11,24 +11,13 @@ import {
 import { requireIdFor, resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../endpoint/result.js";
 import { JSON_POINTER_PATTERN } from "../schema/walk.js";
-
-import type { BuiltinTool } from "./types.js";
+import { defineMcpxTool } from "../types.js";
 
 const DESCRIPTION = `Reads one document, or one subtree of it when "path" is given as a JSON pointer such as "/layout/sections/2". Returns the latest draft by default. Read before patching: the response carries "updatedAt" for expectedUpdatedAt and the indices pointers need.
 
 Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
-interface Args {
-	collection?: string;
-	depth?: number;
-	draft?: boolean;
-	global?: string;
-	id?: number | string;
-	locale?: string;
-	path?: string;
-}
-
-const getDocument: BuiltinTool<Args> = {
+const getDocument = defineMcpxTool({
 	name: "getDocument",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
@@ -57,7 +46,7 @@ const getDocument: BuiltinTool<Args> = {
 			.optional()
 			.describe("Return the latest draft. Default true."),
 	}),
-	handler: async (args, scope) => {
+	handler: async ({ args, scope }) => {
 		const target = resolveTarget(scope, args, "read");
 		const id = requireIdFor(target, args.id);
 
@@ -103,6 +92,6 @@ const getDocument: BuiltinTool<Args> = {
 			value,
 		});
 	},
-};
+});
 
 export { getDocument };

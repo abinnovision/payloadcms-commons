@@ -38,7 +38,7 @@ describe("capabilities", () => {
 	it("lists every builtin tool plus the enabled custom tool for a full key", async () => {
 		const names = await toolNames(booted.config, seeded.keys.full);
 
-		expect(names).toEqual([...BUILTIN, "echo"]);
+		expect(names).toEqual([...BUILTIN, "echo", "whichCollection"]);
 	});
 
 	it("hides the write tools and the custom tool from a read-only key", async () => {
@@ -94,7 +94,7 @@ describe("capabilities", () => {
 			default: "en",
 		});
 		expect(full.data["limits"]).toEqual({ maxLimit: 25, maxDepth: 1 });
-		expect(full.data["tools"]).toEqual(["echo"]);
+		expect(full.data["tools"]).toEqual(["echo", "whichCollection"]);
 
 		expect(readOnly.data["tools"]).toEqual([]);
 		expect(readOnly.data["collections"]).toEqual([

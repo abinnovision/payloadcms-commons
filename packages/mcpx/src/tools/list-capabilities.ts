@@ -3,24 +3,23 @@ import { hasDraftValidationEnabled } from "payload/shared";
 import { translateLabel } from "./shared.js";
 import { jsonResult } from "../endpoint/result.js";
 import { translatorFor } from "../i18n.js";
-
-import type { BuiltinTool } from "./types.js";
+import { defineMcpxTool } from "../types.js";
 
 const DESCRIPTION = `Lists what this key may do: the collections and globals it can read or write, their draft behaviour and id type, the configured locales, the limits in force and the custom tools available. Call it first to orient; nothing here changes with the content model.
 
 A global is a singleton: it has no id, is not listed by findDocuments and cannot be created. Address one with the "global" argument where a collection document would take "collection" and "id".`;
 
-const listCapabilities: BuiltinTool<Record<string, never>> = {
+const listCapabilities = defineMcpxTool({
 	name: "listCapabilities",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
 	isEnabled: () => true,
 	inputSchema: () => ({}),
-	handler: (_args, scope) => {
+	handler: ({ scope }) => {
 		const { payload } = scope.req;
 		const translate = translatorFor(scope.req.i18n);
 
-		const collections = scope.options.collections.flatMap((entry) => {
+		const collections = scope.exposure.collections.flatMap((entry) => {
 			const capability = scope.capabilities.collections[entry.slug];
 			const collection = payload.collections[entry.slug];
 
@@ -52,7 +51,7 @@ const listCapabilities: BuiltinTool<Record<string, never>> = {
 			];
 		});
 
-		const globals = scope.options.globals.flatMap((entry) => {
+		const globals = scope.exposure.globals.flatMap((entry) => {
 			const capability = scope.capabilities.globals[entry.slug];
 			// `payload.globals` is an array of configs, not a slug-keyed map.
 			const config = payload.globals.config.find(
@@ -87,13 +86,13 @@ const listCapabilities: BuiltinTool<Record<string, never>> = {
 				locales: scope.locales
 					? { codes: scope.locales, default: scope.defaultLocale }
 					: null,
-				limits: scope.options.limits,
+				limits: scope.limits,
 				tools: Object.entries(scope.capabilities.tools)
 					.filter(([, enabled]) => enabled)
 					.map(([name]) => name),
 			}),
 		);
 	},
-};
+});
 
 export { listCapabilities };

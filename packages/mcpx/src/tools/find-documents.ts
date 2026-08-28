@@ -3,25 +3,13 @@ import { z } from "zod";
 import { slugEnum, depthShape, localeOf, localeShape } from "./shared.js";
 import { resolveTarget } from "./target.js";
 import { jsonResult } from "../endpoint/result.js";
+import { defineMcpxTool } from "../types.js";
 
-import type { BuiltinTool } from "./types.js";
 import type { SelectType, Where } from "payload";
 
 const DESCRIPTION = `Finds documents in a collection. "where" is a Payload query object, e.g. {"title":{"contains":"home"}} or {"and":[...]}; "select" picks fields, e.g. {"title":true}. Drafts are included by default so unpublished work is visible. Keep depth at 0 unless populated relationships are needed; ids are enough for writes.`;
 
-interface Args {
-	collection: string;
-	depth?: number;
-	draft?: boolean;
-	limit?: number;
-	locale?: string;
-	page?: number;
-	select?: Record<string, unknown>;
-	sort?: string;
-	where?: Record<string, unknown>;
-}
-
-const findDocuments: BuiltinTool<Args> = {
+const findDocuments = defineMcpxTool({
 	name: "findDocuments",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
@@ -40,10 +28,10 @@ const findDocuments: BuiltinTool<Args> = {
 			.number()
 			.int()
 			.min(1)
-			.max(scope.options.limits.maxLimit)
+			.max(scope.limits.maxLimit)
 			.optional()
 			.describe(
-				`Documents per page. Default 10, at most ${String(scope.options.limits.maxLimit)}.`,
+				`Documents per page. Default 10, at most ${String(scope.limits.maxLimit)}.`,
 			),
 		page: z.number().int().min(1).optional().describe("Page number, from 1."),
 		...depthShape(scope),
@@ -60,7 +48,7 @@ const findDocuments: BuiltinTool<Args> = {
 			.optional()
 			.describe("Include the latest drafts. Default true."),
 	}),
-	handler: async (args, scope) => {
+	handler: async ({ args, scope }) => {
 		resolveTarget(scope, { collection: args.collection }, "read");
 
 		const locale = localeOf(scope, args.locale);
@@ -89,6 +77,6 @@ const findDocuments: BuiltinTool<Args> = {
 			hasNextPage: result.hasNextPage,
 		});
 	},
-};
+});
 
 export { findDocuments };

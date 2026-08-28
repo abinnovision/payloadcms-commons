@@ -74,34 +74,126 @@ export type McpxToolExtra = RequestHandlerExtra<
 >;
 
 /**
- * A custom tool. It is gated by its own checkbox on every API key and runs
- * with `req.user` resolved from the key and `req.context.mcpx` set.
+ * A collection or global the plugin config exposes, before an API key's
+ * checkboxes narrow it further.
  */
-export interface McpxTool<Shape extends z.ZodRawShape = z.ZodRawShape> {
+export interface McpxExposedEntity {
+	slug: string;
+	read: boolean;
+	write: boolean;
+	allowLiveWrites: boolean;
+	hasDrafts: boolean;
+	/** Name of the capability group on the key document. */
+	fieldName: string;
+}
+
+/**
+ * Everything a tool knows about the current request: the authenticated
+ * request, what this key may touch and the limits in force.
+ */
+export interface McpxToolScope {
+	req: PayloadRequest;
+	capabilities: McpxResolvedCapabilities;
+	/** Collection slugs the key may read / write. */
+	readable: string[];
+	writable: string[];
+	/** Global slugs the key may read / write. */
+	readableGlobals: string[];
+	writableGlobals: string[];
+	/** Configured locale codes, or `null` when localization is off. */
+	locales: null | string[];
+	defaultLocale: null | string;
+	limits: { maxLimit: number; maxDepth: number };
+	/** What the plugin config exposes, before the key's checkboxes apply. */
+	exposure: {
+		collections: McpxExposedEntity[];
+		globals: McpxExposedEntity[];
+	};
+}
+
+/**
+ * A tool. The builtins and any tool passed through `options.tools` use this
+ * same shape and register through the same loop. Every tool runs with
+ * `req.user` resolved from the key and `req.context.mcpx` set.
+ *
+ * `Args` only needs stating when `inputSchema` is built per request, which
+ * leaves no static shape to infer from; a tool with a fixed shape gets its
+ * argument type from that shape.
+ */
+export interface McpxTool<
+	Shape extends z.ZodRawShape = z.ZodRawShape,
+	Args = z.infer<z.ZodObject<Shape>>,
+> {
 	/** camelCase, unique, not one of the builtin tool names. */
 	name: string;
 	description: string;
-	inputSchema?: Shape;
 	annotations?: ToolAnnotations;
+	/**
+	 * Whether this key may call the tool; a tool that is not enabled never
+	 * appears in `tools/list`. Defaults to the tool's own checkbox on the API
+	 * key, which the builtins replace to derive availability from the key's
+	 * collection and global capabilities. Defining it replaces that checkbox
+	 * check rather than adding to it.
+	 */
+	isEnabled?: (scope: McpxToolScope) => boolean;
+	/**
+	 * A fixed shape, or one built per request so enums can be narrowed to what
+	 * the key may touch. Registered strictly either way: an unknown argument is
+	 * rejected by name instead of being stripped and the tool answering as if
+	 * it had not been passed.
+	 */
+	inputSchema?: Shape | ((scope: McpxToolScope) => z.ZodRawShape);
 	/*
 	 * Method syntax keeps the handler bivariant so tools with concrete
-	 * shapes are assignable to `McpxTool[]`.
+	 * argument types are assignable to `McpxTool[]`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/method-signature-style
 	handler(ctx: {
-		args: z.infer<z.ZodObject<Shape>>;
+		args: Args;
+		scope: McpxToolScope;
+		/** Shorthand for `scope.req`. */
 		req: PayloadRequest;
 		extra: McpxToolExtra;
 	}): CallToolResult | Promise<CallToolResult>;
 }
 
 /**
- * Identity helper that infers the argument type of a custom tool's handler
- * from its input schema.
+ * A tool with its argument type erased, which is how a registry holds tools of
+ * differing input shapes. Each tool validates its own arguments through its
+ * input schema.
  */
-export const defineMcpxTool = <Shape extends z.ZodRawShape>(
-	tool: McpxTool<Shape>,
-): McpxTool<Shape> => tool;
+export type McpxAnyTool = McpxTool<z.ZodRawShape, never>;
+
+/**
+ * Defines a tool with a fixed input shape. The handler's arguments are
+ * inferred from that shape.
+ */
+export function defineMcpxTool<Shape extends z.ZodRawShape>(
+	tool: McpxTool<Shape> & { inputSchema?: Shape },
+): McpxTool<Shape>;
+/**
+ * Defines a tool whose input shape is built per request and returned as an
+ * object literal. The handler's arguments are inferred from that literal, so
+ * a scope-narrowed enum still types as the value it produces.
+ */
+export function defineMcpxTool<Shape extends z.ZodRawShape>(
+	tool: McpxTool<Shape> & {
+		inputSchema: (scope: McpxToolScope) => Shape;
+	},
+): McpxAnyTool;
+/**
+ * Defines a tool whose input shape is assembled from helpers that erase to
+ * `z.ZodRawShape`, as the builtins do. Nothing is left to infer from, so the
+ * handler's arguments are stated instead: `defineMcpxTool<Args>({ ... })`.
+ */
+export function defineMcpxTool<Args>(
+	tool: McpxTool<z.ZodRawShape, Args> & {
+		inputSchema: (scope: McpxToolScope) => z.ZodRawShape;
+	},
+): McpxAnyTool;
+export function defineMcpxTool(tool: McpxAnyTool): McpxAnyTool {
+	return tool;
+}
 
 /**
  * Outcome of resolving an API key. `user` must carry `collection`.
@@ -146,7 +238,7 @@ export type McpxPluginOptions = {
 		/** Upper bound for `depth` on reads. Default 1. */
 		maxDepth?: number;
 	};
-	tools?: McpxTool[];
+	tools?: McpxAnyTool[];
 	auth?: {
 		/** Replace or wrap the default key resolution. Return `null` for 401. */
 		resolve?: (args: {

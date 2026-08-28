@@ -32,13 +32,33 @@ export const echoTool = defineMcpxTool({
 	}),
 });
 
+/**
+ * Custom tool taking the builtin route in full: its input shape is built per
+ * request so the `collection` enum is narrowed to what the key may read, and
+ * it decides for itself when to register. Overriding `isEnabled` replaces the
+ * checkbox check, so the checkbox is restated here.
+ */
+export const whichCollectionTool = defineMcpxTool({
+	name: "whichCollection",
+	description: "Echoes back one of the collections this key may read.",
+	isEnabled: (scope) =>
+		scope.capabilities.tools["whichCollection"] === true &&
+		scope.readable.length > 0,
+	inputSchema: (scope) => ({
+		collection: z.enum(scope.readable as [string, ...string[]]),
+	}),
+	handler: ({ args }) => ({
+		content: [{ type: "text", text: JSON.stringify(args) }],
+	}),
+});
+
 export const defaultPluginOptions: McpxPluginOptions = {
 	collections: {
 		pages: { read: true, write: true },
 		posts: { read: true, write: true },
 		tags: true,
 	},
-	tools: [echoTool],
+	tools: [echoTool, whichCollectionTool],
 };
 
 /**

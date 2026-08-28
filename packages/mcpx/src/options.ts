@@ -4,7 +4,11 @@ import { hasDraftsEnabled } from "payload/shared";
 import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
 import { MCPX_VERSION } from "./version.js";
 
-import type { McpxPluginOptions, McpxTool } from "./types.js";
+import type {
+	McpxAnyTool,
+	McpxExposedEntity,
+	McpxPluginOptions,
+} from "./types.js";
 import type { CollectionConfig, Config, GlobalConfig } from "payload";
 
 const DEFAULT_API_KEYS_SLUG = "mcpx-api-keys";
@@ -13,25 +17,12 @@ const DEFAULT_MAX_LIMIT = 25;
 const DEFAULT_MAX_DEPTH = 1;
 const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
-/**
+/*
  * An exposed collection or global, resolved against the config. The two carry
  * the same settings; only the validation that produced them differs.
  */
-interface NormalizedEntity {
-	slug: string;
-	read: boolean;
-	write: boolean;
-	allowLiveWrites: boolean;
-	hasDrafts: boolean;
-
-	/**
-	 * Name of the capability group on the key document.
-	 */
-	fieldName: string;
-}
-
-type NormalizedCollection = NormalizedEntity;
-type NormalizedGlobal = NormalizedEntity;
+type NormalizedCollection = McpxExposedEntity;
+type NormalizedGlobal = McpxExposedEntity;
 
 interface NormalizedOptions {
 	collections: NormalizedCollection[];
@@ -42,7 +33,7 @@ interface NormalizedOptions {
 	/** Whether the key form gets the "Connect a client" tab. */
 	setupGuide: boolean;
 	limits: { maxLimit: number; maxDepth: number };
-	tools: McpxTool[];
+	tools: McpxAnyTool[];
 	auth: McpxPluginOptions["auth"];
 	serverInfo: { name: string; version: string };
 }
@@ -253,7 +244,7 @@ const assertUserCollection = (config: Config, slug: string): void => {
 	}
 };
 
-const assertTools = (tools: McpxTool[]): void => {
+const assertTools = (tools: McpxAnyTool[]): void => {
 	const names = new Set<string>();
 
 	for (const tool of tools) {
