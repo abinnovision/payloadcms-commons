@@ -11,7 +11,7 @@ type Logger = Payload["logger"];
  * A JSON-RPC error response for failures that happen before the MCP server
  * is involved (auth, method, body parsing).
  */
-const jsonRpcError = (args: {
+export const jsonRpcError = (args: {
 	status: number;
 	code: number;
 	message: string;
@@ -34,7 +34,7 @@ const jsonRpcError = (args: {
 /**
  * A successful tool result carrying `value` as JSON text.
  */
-const jsonResult = (value: unknown): CallToolResult => ({
+export const jsonResult = (value: unknown): CallToolResult => ({
 	content: [{ type: "text", text: JSON.stringify(value) }],
 });
 
@@ -42,7 +42,7 @@ const jsonResult = (value: unknown): CallToolResult => ({
  * A failed tool result. `extras` travel alongside the message so the client
  * can act on them (problems, validation errors, the current `updatedAt`).
  */
-const errorResult = (
+export const errorResult = (
 	message: string,
 	extras: Record<string, unknown> = {},
 ): CallToolResult => ({
@@ -61,7 +61,7 @@ const errorResult = (
  * else is logged and reported as an internal error so no stack or driver
  * message leaks to the client.
  */
-const toToolError = (error: unknown, logger: Logger): CallToolResult => {
+export const toToolError = (error: unknown, logger: Logger): CallToolResult => {
 	if (error instanceof ValidationError) {
 		return errorResult(error.message, {
 			status: error.status,
@@ -80,5 +80,3 @@ const toToolError = (error: unknown, logger: Logger): CallToolResult => {
 
 	return errorResult("Internal error");
 };
-
-export { errorResult, jsonResult, jsonRpcError, toToolError };

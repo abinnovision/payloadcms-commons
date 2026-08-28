@@ -132,6 +132,7 @@ export const callTool = async (
 			return {};
 		}
 	};
+
 	const data = parse();
 
 	return {

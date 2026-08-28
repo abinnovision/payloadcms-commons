@@ -18,7 +18,7 @@ import type {
  * Runs after field `beforeValidate` fallbacks, so on update `data.apiKey` is the
  * decrypted plaintext of the stored key.
  */
-const keyBeforeChange: CollectionBeforeChangeHook = ({
+export const keyBeforeChange: CollectionBeforeChangeHook = ({
 	data,
 	operation,
 	req,
@@ -39,7 +39,7 @@ const keyBeforeChange: CollectionBeforeChangeHook = ({
  * purpose: keys must only ever authenticate the MCP endpoint, never the REST
  * or GraphQL API.
  */
-const createApiKeysCollection = (
+export const createApiKeysCollection = (
 	options: NormalizedOptions,
 ): CollectionConfig => {
 	const { userCollection } = options;
@@ -92,5 +92,3 @@ const createApiKeysCollection = (
 		),
 	};
 };
-
-export { createApiKeysCollection, keyBeforeChange };

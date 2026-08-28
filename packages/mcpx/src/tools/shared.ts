@@ -176,11 +176,13 @@ const readTarget = async (
 		return doc;
 	}
 
-	// `disableErrors` stays off for a global so Payload distinguishes the two
-	// cases itself: denied access throws `NotFound`, while a global that has
-	// simply never been saved comes back as an empty document. That empty
-	// document is a valid starting point — a global always exists conceptually,
-	// so refusing it would make the first write to one impossible.
+	/*
+	 * `disableErrors` stays off for a global so Payload distinguishes the two
+	 * cases itself: denied access throws `NotFound`, while a global that has
+	 * simply never been saved comes back as an empty document. That empty
+	 * document is a valid starting point — a global always exists conceptually,
+	 * so refusing it would make the first write to one impossible.
+	 */
 	return await payload.findGlobal({
 		...shared,
 		slug: args.target.slug,

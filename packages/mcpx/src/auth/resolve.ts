@@ -6,19 +6,6 @@ import type { PayloadRequest } from "payload";
 
 const BEARER = /^Bearer\s+(\S+)\s*$/i;
 
-/**
- * The bearer token of an `Authorization` header, or `null`.
- */
-const parseBearer = (headers: Headers): null | string => {
-	const header = headers.get("authorization");
-
-	if (!header) {
-		return null;
-	}
-
-	return BEARER.exec(header.trim())?.[1] ?? null;
-};
-
 const relationId = (value: unknown): number | string | undefined => {
 	if (typeof value === "string" || typeof value === "number") {
 		return value;
@@ -32,18 +19,30 @@ const relationId = (value: unknown): number | string | undefined => {
 };
 
 /**
+ * The bearer token of an `Authorization` header, or `null`.
+ */
+export const parseBearer = (headers: Headers): null | string => {
+	const header = headers.get("authorization");
+
+	if (!header) {
+		return null;
+	}
+
+	return BEARER.exec(header.trim())?.[1] ?? null;
+};
+
+/**
  * Resolves the bearer key of a request to the user it acts as.
  *
  * The key is looked up by its HMAC index, the same way Payload resolves its own
  * API keys. A missing, unknown, disabled or orphaned key yields `null`; nothing
  * here throws, so the handler alone decides how a refusal looks.
  */
-const resolveApiKeyAuth = async (
+export const resolveApiKeyAuth = async (
 	req: PayloadRequest,
 	options: NormalizedOptions,
 ): Promise<McpxAuthResult | null> => {
 	const key = parseBearer(req.headers);
-
 	if (key === null) {
 		return null;
 	}
@@ -101,5 +100,3 @@ const resolveApiKeyAuth = async (
 		capabilities: keyDoc.capabilities,
 	};
 };
-
-export { parseBearer, resolveApiKeyAuth };

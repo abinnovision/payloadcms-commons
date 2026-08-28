@@ -94,8 +94,10 @@ describe("api keys collection", () => {
 		expect(collection.hooks.beforeChange).toContain(keyBeforeChange);
 	});
 
-	// A `ui` field holds no data, so the guide can never widen what a key
-	// document stores or exposes over the REST API.
+	/*
+	 * A `ui` field holds no data, so the guide can never widen what a key
+	 * document stores or exposes over the REST API.
+	 */
 	it("carries the setup guide as a ui field wired to the client component", () => {
 		expect(findField(collection.fields, "setupGuide")).toMatchObject({
 			type: "ui",
@@ -127,8 +129,10 @@ describe("api keys collection", () => {
 		});
 	});
 
-	// Unnamed tabs keep every field at the document root. Named tabs would nest
-	// the data and move `capabilities` off the root, breaking key resolution.
+	/*
+	 * Unnamed tabs keep every field at the document root. Named tabs would nest
+	 * the data and move `capabilities` off the root, breaking key resolution.
+	 */
 	it("splits the form into unnamed tabs", () => {
 		const [tabs, ...rest] = collection.fields;
 
@@ -216,8 +220,10 @@ describe("keyBeforeChange", () => {
 		expect(data["apiKeyIndex"]).toMatch(/^[a-f0-9]{64}$/);
 	});
 
-	// Only privileged callers reach the hook with a value: the apiKey field
-	// denies create and update access, so client-supplied keys never arrive.
+	/*
+	 * Only privileged callers reach the hook with a value: the apiKey field
+	 * denies create and update access, so client-supplied keys never arrive.
+	 */
 	it("keeps a key supplied with overrideAccess and indexes it", () => {
 		const data = run({ apiKey: "given" }, "create");
 

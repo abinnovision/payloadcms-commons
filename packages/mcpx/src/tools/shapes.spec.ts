@@ -75,8 +75,10 @@ const schemaOf = (scope: ToolScope, name: string) => {
 beforeAll(async () => {
 	config = await buildFixtureConfig();
 
-	// Options are normalized against the raw config, before the plugin adds
-	// its own collection.
+	/*
+	 * Options are normalized against the raw config, before the plugin adds
+	 * its own collection.
+	 */
 	const raw: Config = {
 		secret: "",
 		db: config.db,
@@ -201,8 +203,10 @@ describe("builtin tool shapes with globals", () => {
 	const globalsOnly = () => scopeFor(GLOBAL_KEY, "on", () => withGlobals);
 
 	it("leaves the schema untouched for a key that reaches no global", () => {
-		// The regression guard: a collections-only key must see exactly the
-		// shape it saw before globals existed.
+		/*
+		 * The regression guard: a collections-only key must see exactly the
+		 * shape it saw before globals existed.
+		 */
 		const scope = scopeFor(FULL_KEY, "on", () => withGlobals);
 
 		for (const name of ["describeSchema", "getDocument", "patchDocument"]) {
