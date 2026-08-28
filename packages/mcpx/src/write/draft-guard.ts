@@ -69,8 +69,10 @@ const scrubWriteArgs = (
 };
 
 const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
-	// The argument union carries a deprecated `read` member, which is what the
-	// deprecation rule reacts to; the operation name itself is current API.
+	/*
+	 * The argument union carries a deprecated `read` member, which is what the
+	 * deprecation rule reacts to; the operation name itself is current API.
+	 */
 	// eslint-disable-next-line @typescript-eslint/no-deprecated
 	const { args, operation, req } = hookArgs;
 

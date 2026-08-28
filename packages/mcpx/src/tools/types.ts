@@ -36,8 +36,10 @@ interface BuiltinTool<Args = Record<string, unknown>> {
 	annotations: ToolAnnotations;
 	isEnabled: (scope: ToolScope) => boolean;
 	inputSchema: (scope: ToolScope) => z.ZodRawShape;
-	// Method syntax keeps the handler bivariant so tools with concrete
-	// argument types are assignable to `BuiltinTool[]`.
+	/*
+	 * Method syntax keeps the handler bivariant so tools with concrete
+	 * argument types are assignable to `BuiltinTool[]`.
+	 */
 	// eslint-disable-next-line @typescript-eslint/method-signature-style
 	handler(args: Args, scope: ToolScope): Promise<CallToolResult>;
 }

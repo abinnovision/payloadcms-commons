@@ -19,8 +19,10 @@ const decryptKey: KeyValueHook = ({ req, value }) => {
 		return value;
 	}
 
-	// A row seeded past the encrypt hook holds no valid ciphertext; a throwing
-	// afterRead would make the whole document unreadable.
+	/*
+	 * A row seeded past the encrypt hook holds no valid ciphertext; a throwing
+	 * afterRead would make the whole document unreadable.
+	 */
 	try {
 		return req.payload.decrypt(value);
 	} catch {
@@ -60,8 +62,10 @@ const createKeyFields = (): Field[] => [
 	{
 		name: "apiKey",
 		type: "text",
-		// Generated server-side only; a client-supplied value would replace a
-		// random secret with a chosen one.
+		/*
+		 * Generated server-side only; a client-supplied value would replace a
+		 * random secret with a chosen one.
+		 */
 		access: {
 			create: () => false,
 			update: () => false,
@@ -115,8 +119,10 @@ const withSetupGuideTab = (
 					fields: [
 						{
 							name: SETUP_GUIDE_FIELD,
-							// A `ui` field carries no value: the component builds every
-							// snippet client-side from form state and the admin config.
+							/*
+							 * A `ui` field carries no value: the component builds every
+							 * snippet client-side from form state and the admin config.
+							 */
 							type: "ui",
 							admin: {
 								disableListColumn: true,

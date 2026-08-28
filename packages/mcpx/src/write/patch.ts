@@ -162,16 +162,20 @@ const applyPatchToCopy = (
 ): { next: JsonObject } | { problems: string[] } => {
 	const next = structuredClone(doc);
 	const prepared = patches.map((operation) => {
-		// Values are cloned so the written document never shares references
-		// with the caller's operations.
+		/*
+		 * Values are cloned so the written document never shares references
+		 * with the caller's operations.
+		 */
 		const cloned =
 			"value" in operation
 				? { ...operation, value: structuredClone<unknown>(operation.value) }
 				: operation;
 
-		// A localized field may have no value at all in the target locale.
-		// `replace` requires an existing value, so an absent field is set with
-		// `add` instead; element pointers keep replace semantics.
+		/*
+		 * A localized field may have no value at all in the target locale.
+		 * `replace` requires an existing value, so an absent field is set with
+		 * `add` instead; element pointers keep replace semantics.
+		 */
 		if (
 			cloned.op === "replace" &&
 			!isElementPointer(cloned.path) &&
@@ -369,8 +373,10 @@ const pickDescribed = (
  */
 const buildWriteData = (
 	config: SanitizedConfig,
-	// Widened to the structural minimum this reads, so a sanitized collection
-	// and a sanitized global both satisfy it without a union.
+	/*
+	 * Widened to the structural minimum this reads, so a sanitized collection
+	 * and a sanitized global both satisfy it without a union.
+	 */
 	target: { flattenedFields: FlattenedField[] },
 	doc: JsonObject,
 ): JsonObject => {

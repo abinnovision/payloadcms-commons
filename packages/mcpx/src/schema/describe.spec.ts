@@ -58,8 +58,10 @@ describe("describeNode", () => {
 			HERO,
 			`${SECTION_WRAPPER}/modules/richText`,
 		]);
-		// `title` enables paragraphs only, `body` the default features, so only
-		// the latter contributes a Lexical branch.
+		/*
+		 * `title` enables paragraphs only, `body` the default features, so only
+		 * the latter contributes a Lexical branch.
+		 */
 		expect(describeNode(config, PAGES_REF, HERO).next).toEqual([
 			`${HERO}/body/link`,
 		]);

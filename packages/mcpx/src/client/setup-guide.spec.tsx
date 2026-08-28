@@ -18,8 +18,10 @@ const state: MockState = {
 	},
 };
 
-// The real module pulls in the whole admin bundle, including SCSS. Only the
-// four hooks the component touches matter here.
+/*
+ * The real module pulls in the whole admin bundle, including SCSS. Only the
+ * four hooks the component touches matter here.
+ */
 vi.mock("@payloadcms/ui", () => ({
 	CopyToClipboard: ({ value }: { value: string }) => (
 		<button data-copy={value} type="button" />
@@ -47,8 +49,10 @@ describe("mcpxSetupGuide", () => {
 		};
 	});
 
-	// The whole point of the guide is handing over a key, and on create there is
-	// no key yet: the field must stay out of the initial setup form entirely.
+	/*
+	 * The whole point of the guide is handing over a key, and on create there is
+	 * no key yet: the field must stay out of the initial setup form entirely.
+	 */
 	it("renders nothing before the document is saved", () => {
 		state.id = undefined;
 
@@ -67,8 +71,10 @@ describe("mcpxSetupGuide", () => {
 		expect(render().match(/data-copy=/g)).toHaveLength(4);
 	});
 
-	// Server render has no `window`; the origin fallback must wait for mount
-	// rather than throw or emit a mismatched URL.
+	/*
+	 * Server render has no `window`; the origin fallback must wait for mount
+	 * rather than throw or emit a mismatched URL.
+	 */
 	it("survives a server render without serverURL", () => {
 		state.serverURL = "";
 

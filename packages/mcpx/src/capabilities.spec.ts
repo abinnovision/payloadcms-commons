@@ -45,8 +45,10 @@ describe("resolveCapabilities", () => {
 	});
 
 	it("closes every global on a key issued before globals existed", () => {
-		// Such a key document has no `globals` group at all, which is the shape
-		// every pre-existing key has after this feature ships.
+		/*
+		 * Such a key document has no `globals` group at all, which is the shape
+		 * every pre-existing key has after this feature ships.
+		 */
 		const resolved = resolveCapabilities(options, {
 			collections: { pages: { read: true, write: true } },
 		});

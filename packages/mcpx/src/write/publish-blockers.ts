@@ -42,8 +42,10 @@ const collectPublishBlockers = async (
 	target: { doc: JsonObject; entity: ResolvedTarget },
 ): Promise<PublishBlocker[]> => {
 	const { doc, entity } = target;
-	// A global doc has no id, so the guard below simply omits it, which is
-	// what the traversal wants for a global.
+	/*
+	 * A global doc has no id, so the guard below simply omits it, which is
+	 * what the traversal wants for a global.
+	 */
 	const id = doc["id"] as number | string | undefined;
 	const errors: ValidationFieldError[] = [];
 	const data: JsonObject = { ...structuredClone(doc), _status: "published" };
@@ -85,8 +87,10 @@ const collectPublishBlockers = async (
 			skipValidation: false,
 		});
 	} catch (error) {
-		// Advisory only: a failing traversal must not turn a write that already
-		// landed into a reported failure.
+		/*
+		 * Advisory only: a failing traversal must not turn a write that already
+		 * landed into a reported failure.
+		 */
 		req.payload.logger.warn(
 			`[payloadcms-mcpx] Could not validate the ${entity.slug} draft: ${error instanceof Error ? error.message : "unknown error"}`,
 		);

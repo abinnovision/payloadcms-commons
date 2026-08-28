@@ -59,8 +59,10 @@ const resolveTarget = (
 	const slug = global as string;
 	const allowed =
 		operation === "read" ? scope.readableGlobals : scope.writableGlobals;
-	// `payload.globals` is `{ config: SanitizedGlobalConfig[] }`, an array,
-	// not the slug-keyed map `payload.collections` is.
+	/*
+	 * `payload.globals` is `{ config: SanitizedGlobalConfig[] }`, an array,
+	 * not the slug-keyed map `payload.collections` is.
+	 */
 	const found = scope.req.payload.globals.config.find(
 		(candidate) => candidate.slug === slug,
 	);

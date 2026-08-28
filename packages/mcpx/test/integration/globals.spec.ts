@@ -21,8 +21,10 @@ describe("globals", () => {
 	let collectionsOnly: string;
 
 	beforeAll(async () => {
-		// Its own cache key: `getPayload` partitions by key, so reusing the
-		// default one would silently hand back the collections-only instance.
+		/*
+		 * Its own cache key: `getPayload` partitions by key, so reusing the
+		 * default one would silently hand back the collections-only instance.
+		 */
 		booted = await bootPayload({
 			key: CACHE_KEY,
 			plugin: {
