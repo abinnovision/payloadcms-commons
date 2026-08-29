@@ -8,7 +8,7 @@ import {
 	refusePublish,
 	refusePublishGlobal,
 } from "./draft-guard.js";
-import { withPublishIntent } from "./publish-intent.js";
+import { hasPublishIntent, withPublishIntent } from "./publish-intent.js";
 import { isMcpxRequest } from "../request.js";
 
 import type { CollectionConfig, GlobalConfig, PayloadRequest } from "payload";
@@ -45,15 +45,18 @@ const operationArgumentsFor = (
 const runRefusal = (
 	status: unknown,
 	req: Record<string, unknown> = mcpxRequest,
+	publishing = false,
 ) => {
 	const warn = vi.fn();
+	const base = status === undefined ? {} : { _status: status };
+	const data = publishing ? withPublishIntent(base) : base;
 	const hookArgs: unknown = {
 		collection: { slug: "pages" },
-		data: status === undefined ? {} : { _status: status },
+		data,
 		req: { ...req, payload: { logger: { warn } } },
 	};
 
-	return { call: () => refusePublish(hookArgs as never), warn };
+	return { call: () => refusePublish(hookArgs as never), data, warn };
 };
 
 describe("isMcpxRequest", () => {
@@ -153,22 +156,20 @@ describe("forceDraftWrite", () => {
 	});
 });
 
-describe("forceDraftWrite on a claimed publish", () => {
-	const publishIntent = { kind: "collection", slug: "pages", id: "1" } as const;
-
-	it("turns the operation into a publish, and nothing else", async () => {
-		const args = await withPublishIntent(publishIntent, () =>
-			Promise.resolve(
-				operationArgumentsFor({
-					data: { title: "Probe", _status: "draft", deletedAt: "now" },
-					id: "1",
-					where: { id: { equals: "2" } },
-					publishSpecificLocale: "de",
-					overrideLock: true,
-					trash: true,
-				}),
-			),
-		);
+describe("forceDraftWrite on a marked publish", () => {
+	it("turns the operation into a publish, and nothing else", () => {
+		const args = operationArgumentsFor({
+			data: withPublishIntent({
+				title: "Probe",
+				_status: "draft",
+				deletedAt: "now",
+			}),
+			id: "1",
+			where: { id: { equals: "2" } },
+			publishSpecificLocale: "de",
+			overrideLock: true,
+			trash: true,
+		});
 
 		expect(args).toMatchObject({
 			draft: false,
@@ -184,18 +185,26 @@ describe("forceDraftWrite on a claimed publish", () => {
 		}
 	});
 
-	it("ignores an intent for another document", async () => {
-		const args = await withPublishIntent({ ...publishIntent, id: "2" }, () =>
-			Promise.resolve(operationArgumentsFor({ data: {}, id: "1" })),
-		);
+	it("carries the marker on, because the alarm still needs it", () => {
+		const args = operationArgumentsFor({
+			data: withPublishIntent({}),
+			id: "1",
+		});
+
+		expect(hasPublishIntent(args["data"])).toBe(true);
+	});
+
+	it("leaves an unmarked write on the same document a draft", () => {
+		const args = operationArgumentsFor({ data: {}, id: "1" });
 
 		expect(args).toMatchObject({ draft: true });
 		expect(args["data"]).not.toHaveProperty("_status");
 	});
 
-	it("does not publish a create", async () => {
-		const args = await withPublishIntent(publishIntent, () =>
-			Promise.resolve(operationArgumentsFor({ data: {}, id: "1" }, "create")),
+	it("does not publish a create", () => {
+		const args = operationArgumentsFor(
+			{ data: withPublishIntent({}), id: "1" },
+			"create",
 		);
 
 		expect(args).toMatchObject({ draft: true });
@@ -224,23 +233,21 @@ describe("refusePublish", () => {
 		expect(runRefusal(undefined).call).toThrow();
 	});
 
-	it("allows the publish the operation claimed, and only that", async () => {
-		const intent = { kind: "collection", slug: "pages", id: "1" } as const;
-
-		await withPublishIntent(intent, () => {
-			// Nothing has claimed it yet, so the alarm still expects a draft.
-			expect(runRefusal("published").call).toThrow(/only write drafts/);
-
-			// Claims the intent, exactly as the real operation does.
-			operationArgumentsFor({ data: {}, id: "1" });
-
-			expect(runRefusal("published").call()).toEqual({
-				_status: "published",
-			});
-			expect(runRefusal("draft").call).toThrow(/would not have saved/);
-
-			return Promise.resolve();
+	it("allows the publish the write was marked for, and only that", () => {
+		expect(runRefusal("published", mcpxRequest, true).call()).toMatchObject({
+			_status: "published",
 		});
+		expect(runRefusal("draft", mcpxRequest, true).call).toThrow(
+			/would not have saved/,
+		);
+	});
+
+	it("takes the marker off, so nothing downstream sees it", () => {
+		const { call, data } = runRefusal("published", mcpxRequest, true);
+
+		call();
+
+		expect(hasPublishIntent(data)).toBe(false);
 	});
 });
 
