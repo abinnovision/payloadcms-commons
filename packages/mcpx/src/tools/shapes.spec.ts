@@ -6,6 +6,8 @@ import { pages, posts, tags, users } from "../../test/fixtures/collections.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { banner, siteSettings } from "../../test/fixtures/globals.js";
 import {
+	publishableGlobalSlugs,
+	publishableSlugs,
 	readableGlobalSlugs,
 	readableSlugs,
 	resolveCapabilities,
@@ -50,8 +52,10 @@ const scopeFor = (
 		capabilities,
 		readable: readableSlugs(capabilities),
 		writable: writableSlugs(capabilities),
+		publishable: publishableSlugs(capabilities),
 		readableGlobals: readableGlobalSlugs(capabilities),
 		writableGlobals: writableGlobalSlugs(capabilities),
+		publishableGlobals: publishableGlobalSlugs(capabilities),
 		locales: localization === "on" ? ["en", "de"] : null,
 		defaultLocale: localization === "on" ? "en" : null,
 		limits: resolved.limits,
@@ -90,8 +94,8 @@ beforeAll(async () => {
 	};
 
 	const collections = {
-		pages: { read: true, write: true },
-		posts: { read: true, write: true },
+		pages: { read: true, write: "draft" },
+		posts: { read: true, write: "draft" },
 		tags: true,
 	} as const;
 	const tools = [
@@ -103,7 +107,7 @@ beforeAll(async () => {
 		{ ...raw, globals: [siteSettings, banner] },
 		{
 			collections,
-			globals: { "site-settings": { read: true, write: true } },
+			globals: { "site-settings": { read: true, write: "draft" } },
 			tools,
 		},
 	);

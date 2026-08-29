@@ -167,6 +167,16 @@ export const posts: CollectionConfig = {
 	],
 };
 
+/**
+ * Drafts that Payload validates on save, so an invalid draft never exists and a
+ * publish of a saved draft cannot fail validation.
+ */
+export const notes: CollectionConfig = {
+	slug: "notes",
+	versions: { drafts: { validate: true } },
+	fields: [{ name: "title", type: "text", required: true }],
+};
+
 export const tags: CollectionConfig = {
 	slug: "tags",
 	fields: [{ name: "name", type: "text", required: true }],

@@ -1,4 +1,4 @@
-import { CAPABILITIES_FIELD } from "../capabilities.js";
+import { canPublish, canWrite, CAPABILITIES_FIELD } from "../capabilities.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type {
@@ -142,11 +142,18 @@ export const withSetupGuideTab = (
 	];
 };
 
+const PUBLISH_DESCRIPTION =
+	"Publish the current draft. Changes what the public sees.";
+
 /**
  * One checkbox per exposed operation, grouped per collection, per global and
  * per custom tool. Only operations the plugin config exposes get a checkbox, so
  * a key can never enable more than the config allows. Everything defaults to
  * off, which is why a key issued before a capability existed stays closed to it.
+ *
+ * An entity without versions gets no `publish` checkbox even under
+ * `write: "live"`: there is no draft to promote there, the write itself is the
+ * live change, and a second checkbox would only make `write` a dead setting.
  */
 export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 	const collectionGroups: GroupField[] = options.collections.map(
@@ -158,8 +165,11 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 				...(collection.read
 					? [checkbox("read", "Describe, find and read documents.")]
 					: []),
-				...(collection.write
+				...(canWrite(collection)
 					? [checkbox("write", "Create, patch and validate drafts.")]
+					: []),
+				...(canPublish(collection)
+					? [checkbox("publish", PUBLISH_DESCRIPTION)]
 					: []),
 			],
 		}),
@@ -173,9 +183,10 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 			...(global.read
 				? [checkbox("read", "Describe and read this global.")]
 				: []),
-			...(global.write
+			...(canWrite(global)
 				? [checkbox("write", "Patch and validate this global's draft.")]
 				: []),
+			...(canPublish(global) ? [checkbox("publish", PUBLISH_DESCRIPTION)] : []),
 		],
 	}));
 

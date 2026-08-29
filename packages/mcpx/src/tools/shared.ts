@@ -1,11 +1,15 @@
 import { NotFound } from "payload";
 import { z } from "zod";
 
+import { canPublish, isLiveWrite } from "../capabilities.js";
 import { translateStatic } from "../i18n.js";
 
 import type { ResolvedTarget } from "./target.js";
 import type { McpxExposedEntity, McpxToolScope } from "../types.js";
 import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
+
+/** The operations a tool can address an entity for. */
+export type McpxOperation = "publish" | "read" | "write";
 
 export const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
 	z.enum(slugs as [string, ...string[]]);
@@ -16,39 +20,72 @@ export const idSchema = z
 
 type SlugEnum = z.ZodEnum<Record<string, string>>;
 
-/**
- * Slugs this key may write whose writes land live rather than as a draft,
- * which is what `allowLiveWrites` permits for an entity without versions.
- * Empty for every key that can only write drafts.
- */
-export const liveWriteSlugs = (scope: McpxToolScope): string[] => {
-	const live = (entities: McpxExposedEntity[], writable: string[]): string[] =>
+const slugsWhere = (
+	scope: McpxToolScope,
+	predicate: (entity: McpxExposedEntity) => boolean,
+	allowed: { collections: string[]; globals: string[] },
+): string[] => {
+	const pick = (entities: McpxExposedEntity[], slugs: string[]): string[] =>
 		entities
-			.filter(
-				(entity) =>
-					writable.includes(entity.slug) &&
-					entity.allowLiveWrites &&
-					!entity.hasDrafts,
-			)
+			.filter((entity) => slugs.includes(entity.slug) && predicate(entity))
 			.map((entity) => entity.slug);
 
 	return [
-		...live(scope.exposure.collections, scope.writable),
-		...live(scope.exposure.globals, scope.writableGlobals),
+		...pick(scope.exposure.collections, allowed.collections),
+		...pick(scope.exposure.globals, allowed.globals),
 	];
 };
 
 /**
- * The sentence the write tools and the server instructions end on: what a
- * write actually does for this key.
+ * Slugs this key may write whose writes land live rather than as a draft. An
+ * entity without versions has no draft to land on, so `write: "live"` there
+ * makes every write a live one. Empty for every key that can only write drafts.
+ */
+const liveWriteSlugs = (scope: McpxToolScope): string[] =>
+	slugsWhere(scope, isLiveWrite, {
+		collections: scope.writable,
+		globals: scope.writableGlobals,
+	});
+
+/** Slugs this key may write and, separately, publish. */
+const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
+	slugsWhere(scope, canPublish, {
+		collections: scope.publishable,
+		globals: scope.publishableGlobals,
+	});
+
+/**
+ * The sentence the write tools and the server instructions end on: what a write
+ * actually does for this key, and what it takes to make it public. The three
+ * groups are distinct — a live-write slug has no draft and no publish step, a
+ * publishable one has both — so a client is never told its writes are drafts
+ * while they are not, nor that publishing is out of reach when it is not.
  */
 export const draftSentence = (scope: McpxToolScope): string => {
 	const live = liveWriteSlugs(scope);
+	const publishable = publishableWriteSlugs(scope);
 
-	return live.length === 0
-		? "Every write lands as a draft and is never published; publishing stays a human action in the admin panel."
-		: `Writes land as drafts and are never published, except for ${live.join(", ")}, which have no drafts: a write there changes the live document immediately. Publishing anything else stays a human action in the admin panel.`;
+	const base =
+		live.length === 0
+			? "Every write lands as a draft."
+			: `Writes land as drafts, except for ${live.join(", ")}, which have no drafts: a write there changes the live document immediately.`;
+
+	const publishing =
+		publishable.length === 0
+			? "Nothing this key writes is ever published; publishing stays a human action in the admin panel."
+			: `Publish a draft with publishDocument, which this key may do for ${publishable.join(", ")}. Publishing anything else stays a human action in the admin panel.`;
+
+	return `${base} ${publishing}`;
 };
+
+/**
+ * Whether two timestamps name the same instant, which is how
+ * `expectedUpdatedAt` is compared: the value a client read back is a string,
+ * and what it is compared against may be a Date.
+ */
+export const sameInstant = (left: unknown, right: string): boolean =>
+	typeof left === "string" &&
+	new Date(left).getTime() === new Date(right).getTime();
 
 /*
  * The supersets the shape helpers below produce. Which keys a helper actually
@@ -92,13 +129,22 @@ type Branch<Full extends z.ZodRawShape> = {
 const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
 	branch as unknown as Full;
 
-const slugsFor = (
+export const slugsFor = (
 	scope: McpxToolScope,
-	operation: "read" | "write",
-): { collections: string[]; globals: string[] } => ({
-	collections: operation === "read" ? scope.readable : scope.writable,
-	globals: operation === "read" ? scope.readableGlobals : scope.writableGlobals,
-});
+	operation: McpxOperation,
+): { collections: string[]; globals: string[] } => {
+	switch (operation) {
+		case "publish":
+			return {
+				collections: scope.publishable,
+				globals: scope.publishableGlobals,
+			};
+		case "read":
+			return { collections: scope.readable, globals: scope.readableGlobals };
+		case "write":
+			return { collections: scope.writable, globals: scope.writableGlobals };
+	}
+};
 
 /**
  * The `collection` and `global` arguments.
@@ -111,7 +157,7 @@ const slugsFor = (
  */
 export const targetShape = (
 	scope: McpxToolScope,
-	operation: "read" | "write",
+	operation: McpxOperation,
 	descriptions: { collection: string; global: string },
 ): TargetShape => {
 	const { collections, globals } = slugsFor(scope, operation);
@@ -143,7 +189,7 @@ export const targetShape = (
  */
 export const idShape = (
 	scope: McpxToolScope,
-	operation: "read" | "write",
+	operation: McpxOperation,
 ): IdShape => {
 	const { collections, globals } = slugsFor(scope, operation);
 

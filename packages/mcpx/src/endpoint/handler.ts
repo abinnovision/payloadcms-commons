@@ -2,6 +2,8 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 
 import { resolveApiKeyAuth } from "../auth/index.js";
 import {
+	publishableGlobalSlugs,
+	publishableSlugs,
 	readableGlobalSlugs,
 	readableSlugs,
 	resolveCapabilities,
@@ -27,8 +29,10 @@ const buildScope = (
 		capabilities,
 		readable: readableSlugs(capabilities),
 		writable: writableSlugs(capabilities),
+		publishable: publishableSlugs(capabilities),
 		readableGlobals: readableGlobalSlugs(capabilities),
 		writableGlobals: writableGlobalSlugs(capabilities),
+		publishableGlobals: publishableGlobalSlugs(capabilities),
 		locales: localization ? localization.localeCodes : null,
 		defaultLocale: localization ? localization.defaultLocale : null,
 		limits: options.limits,

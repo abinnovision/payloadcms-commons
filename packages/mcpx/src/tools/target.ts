@@ -1,5 +1,8 @@
 import { APIError, Forbidden } from "payload";
 
+import { slugsFor } from "./shared.js";
+
+import type { McpxOperation } from "./shared.js";
 import type { TargetRef } from "../schema/index.js";
 import type { McpxToolScope } from "../types.js";
 import type { SanitizedCollectionConfig, SanitizedGlobalConfig } from "payload";
@@ -30,9 +33,10 @@ export const refOf = (target: ResolvedTarget): TargetRef => ({
 export const resolveTarget = (
 	scope: McpxToolScope,
 	args: { collection?: string | undefined; global?: string | undefined },
-	operation: "read" | "write",
+	operation: McpxOperation,
 ): ResolvedTarget => {
 	const { collection, global } = args;
+	const allowedSlugs = slugsFor(scope, operation);
 
 	if (collection !== undefined && global !== undefined) {
 		throw new APIError('Pass either "collection" or "global", not both.', 400);
@@ -46,10 +50,9 @@ export const resolveTarget = (
 	}
 
 	if (collection !== undefined) {
-		const allowed = operation === "read" ? scope.readable : scope.writable;
 		const found = scope.req.payload.collections[collection];
 
-		if (!allowed.includes(collection) || !found) {
+		if (!allowedSlugs.collections.includes(collection) || !found) {
 			throw new Forbidden(scope.req.t);
 		}
 
@@ -57,8 +60,6 @@ export const resolveTarget = (
 	}
 
 	const slug = global as string;
-	const allowed =
-		operation === "read" ? scope.readableGlobals : scope.writableGlobals;
 	/*
 	 * `payload.globals` is `{ config: SanitizedGlobalConfig[] }`, an array,
 	 * not the slug-keyed map `payload.collections` is.
@@ -67,7 +68,7 @@ export const resolveTarget = (
 		(candidate) => candidate.slug === slug,
 	);
 
-	if (!allowed.includes(slug) || !found) {
+	if (!allowedSlugs.globals.includes(slug) || !found) {
 		throw new Forbidden(scope.req.t);
 	}
 

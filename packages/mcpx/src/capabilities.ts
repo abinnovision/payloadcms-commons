@@ -1,17 +1,45 @@
 import type { NormalizedOptions } from "./options.js";
 import type {
 	McpxCollectionCapabilities as McpxEntityCapabilities,
+	McpxExposedEntity,
 	McpxResolvedCapabilities,
 } from "./types.js";
 
 /** Name of the capability group on the key document. */
 export const CAPABILITIES_FIELD = "capabilities";
 
+/** Whether any write tool reaches this entity. */
+export const canWrite = (entity: McpxExposedEntity): boolean =>
+	entity.write !== false;
+
+/**
+ * Whether `publishDocument` reaches this entity: the config lets MCP change
+ * live content and there is a draft to promote.
+ */
+export const canPublish = (entity: McpxExposedEntity): boolean =>
+	entity.write === "live" && entity.hasDrafts;
+
+/**
+ * Whether an ordinary write to this entity changes the live document. With no
+ * versions there is no draft to land on, so `write: "live"` is what permits the
+ * write at all and every write is live.
+ */
+export const isLiveWrite = (entity: McpxExposedEntity): boolean =>
+	entity.write === "live" && !entity.hasDrafts;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
 const flag = (group: unknown, name: string): boolean =>
 	isRecord(group) && group[name] === true;
+
+/**
+ * Publishing is an extension of writing, never a capability of its own: a key
+ * that may publish may also edit the draft it publishes. Both checkboxes are
+ * therefore required, on top of the config exposing publishing at all.
+ */
+const publishFlag = (entity: McpxExposedEntity, group: unknown): boolean =>
+	canPublish(entity) && flag(group, "write") && flag(group, "publish");
 
 /**
  * Capabilities in force for a key: the plugin config decides what can exist,
@@ -41,7 +69,8 @@ export const resolveCapabilities = (
 
 		collections[collection.slug] = {
 			read: collection.read && flag(group, "read"),
-			write: collection.write && flag(group, "write"),
+			write: canWrite(collection) && flag(group, "write"),
+			publish: publishFlag(collection, group),
 		};
 	}
 
@@ -54,7 +83,8 @@ export const resolveCapabilities = (
 
 		globals[global.slug] = {
 			read: global.read && flag(group, "read"),
-			write: global.write && flag(group, "write"),
+			write: canWrite(global) && flag(group, "write"),
+			publish: publishFlag(global, group),
 		};
 	}
 
@@ -69,7 +99,7 @@ export const resolveCapabilities = (
 
 const pick = (
 	entries: Record<string, McpxEntityCapabilities>,
-	operation: "read" | "write",
+	operation: "publish" | "read" | "write",
 ): string[] =>
 	Object.entries(entries)
 		.filter(([, value]) => value[operation])
@@ -83,6 +113,10 @@ export const writableSlugs = (
 	capabilities: McpxResolvedCapabilities,
 ): string[] => pick(capabilities.collections, "write");
 
+export const publishableSlugs = (
+	capabilities: McpxResolvedCapabilities,
+): string[] => pick(capabilities.collections, "publish");
+
 export const readableGlobalSlugs = (
 	capabilities: McpxResolvedCapabilities,
 ): string[] => pick(capabilities.globals, "read");
@@ -90,3 +124,7 @@ export const readableGlobalSlugs = (
 export const writableGlobalSlugs = (
 	capabilities: McpxResolvedCapabilities,
 ): string[] => pick(capabilities.globals, "write");
+
+export const publishableGlobalSlugs = (
+	capabilities: McpxResolvedCapabilities,
+): string[] => pick(capabilities.globals, "publish");

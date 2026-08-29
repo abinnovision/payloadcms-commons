@@ -31,12 +31,12 @@ export default buildConfig({
 	plugins: [
 		mcpxPlugin({
 			collections: {
-				pages: { read: true, write: true },
-				posts: { read: true, write: true },
+				pages: { read: true, write: "live" },
+				posts: { read: true, write: "draft" },
 				tags: true,
 			},
 			globals: {
-				"site-settings": { read: true, write: true },
+				"site-settings": { read: true, write: "live" },
 			},
 			limits: { maxLimit: 25, maxDepth: 1 },
 		}),

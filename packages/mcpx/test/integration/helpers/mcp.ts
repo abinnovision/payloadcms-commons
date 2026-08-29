@@ -78,6 +78,42 @@ export const rpc = async (
 	};
 };
 
+/**
+ * Sends several tool calls in one JSON-RPC batch, which the transport
+ * dispatches concurrently on a single PayloadRequest. Returns the results in
+ * request order.
+ */
+export const callToolBatch = async (
+	config: Promise<SanitizedConfig>,
+	key: string,
+	calls: { name: string; args?: Record<string, unknown> }[],
+	cacheKey?: string,
+): Promise<{ id: number; isError: boolean }[]> => {
+	const messages = calls.map((call) => ({
+		jsonrpc: "2.0",
+		id: ++nextId,
+		method: "tools/call",
+		params: { name: call.name, arguments: call.args ?? {} },
+	}));
+	const response = await mcpPost(config, {
+		key,
+		...(cacheKey === undefined ? {} : { cacheKey }),
+		body: messages,
+	});
+	const body = (await response.json()) as {
+		id: number;
+		result?: { isError?: boolean };
+	}[];
+	const byId = new Map(
+		(Array.isArray(body) ? body : [body]).map((entry) => [entry.id, entry]),
+	);
+
+	return messages.map((message) => ({
+		id: message.id,
+		isError: byId.get(message.id)?.result?.isError === true,
+	}));
+};
+
 export interface ListedTool {
 	name: string;
 	description?: string;

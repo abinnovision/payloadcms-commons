@@ -8,6 +8,7 @@ import {
 	refusePublish,
 	refusePublishGlobal,
 } from "./draft-guard.js";
+import { withPublishIntent } from "./publish-intent.js";
 import { isMcpxRequest } from "../request.js";
 
 import type { CollectionConfig, GlobalConfig, PayloadRequest } from "payload";
@@ -31,7 +32,12 @@ const operationArgumentsFor = (
 	operation = "update",
 	req: Record<string, unknown> = mcpxRequest,
 ): Record<string, unknown> => {
-	const hookArgs: unknown = { args, operation, req };
+	const hookArgs: unknown = {
+		args,
+		collection: { slug: "pages" },
+		operation,
+		req,
+	};
 
 	return forceDraftWrite(hookArgs as never) as Record<string, unknown>;
 };
@@ -147,6 +153,55 @@ describe("forceDraftWrite", () => {
 	});
 });
 
+describe("forceDraftWrite on a claimed publish", () => {
+	const publishIntent = { kind: "collection", slug: "pages", id: "1" } as const;
+
+	it("turns the operation into a publish, and nothing else", async () => {
+		const args = await withPublishIntent(publishIntent, () =>
+			Promise.resolve(
+				operationArgumentsFor({
+					data: { title: "Probe", _status: "draft", deletedAt: "now" },
+					id: "1",
+					where: { id: { equals: "2" } },
+					publishSpecificLocale: "de",
+					overrideLock: true,
+					trash: true,
+				}),
+			),
+		);
+
+		expect(args).toMatchObject({
+			draft: false,
+			data: { title: "Probe", _status: "published" },
+			autosave: false,
+			overrideLock: false,
+			trash: false,
+		});
+		expect(args["data"]).not.toHaveProperty("deletedAt");
+
+		for (const key of ["where", "publishSpecificLocale"]) {
+			expect(args).not.toHaveProperty(key);
+		}
+	});
+
+	it("ignores an intent for another document", async () => {
+		const args = await withPublishIntent({ ...publishIntent, id: "2" }, () =>
+			Promise.resolve(operationArgumentsFor({ data: {}, id: "1" })),
+		);
+
+		expect(args).toMatchObject({ draft: true });
+		expect(args["data"]).not.toHaveProperty("_status");
+	});
+
+	it("does not publish a create", async () => {
+		const args = await withPublishIntent(publishIntent, () =>
+			Promise.resolve(operationArgumentsFor({ data: {}, id: "1" }, "create")),
+		);
+
+		expect(args).toMatchObject({ draft: true });
+	});
+});
+
 describe("refusePublish", () => {
 	it("leaves a non-mcpx publish alone", () => {
 		const { call } = runRefusal("published", restRequest);
@@ -167,6 +222,25 @@ describe("refusePublish", () => {
 
 	it("refuses an mcpx write with no status", () => {
 		expect(runRefusal(undefined).call).toThrow();
+	});
+
+	it("allows the publish the operation claimed, and only that", async () => {
+		const intent = { kind: "collection", slug: "pages", id: "1" } as const;
+
+		await withPublishIntent(intent, () => {
+			// Nothing has claimed it yet, so the alarm still expects a draft.
+			expect(runRefusal("published").call).toThrow(/only write drafts/);
+
+			// Claims the intent, exactly as the real operation does.
+			operationArgumentsFor({ data: {}, id: "1" });
+
+			expect(runRefusal("published").call()).toEqual({
+				_status: "published",
+			});
+			expect(runRefusal("draft").call).toThrow(/would not have saved/);
+
+			return Promise.resolve();
+		});
 	});
 });
 
@@ -204,7 +278,12 @@ const globalOperationArgumentsFor = (
 	operation = "update",
 	req: Record<string, unknown> = mcpxRequest,
 ): Record<string, unknown> => {
-	const hookArgs: unknown = { args, operation, req };
+	const hookArgs: unknown = {
+		args,
+		global: { slug: "site-settings" },
+		operation,
+		req,
+	};
 
 	return forceDraftWriteGlobal(hookArgs as never) as Record<string, unknown>;
 };

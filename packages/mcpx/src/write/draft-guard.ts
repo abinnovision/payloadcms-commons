@@ -1,8 +1,10 @@
 import { APIError } from "payload";
 import { hasDraftsEnabled } from "payload/shared";
 
+import { claimPublishIntent, isClaimedPublish } from "./publish-intent.js";
 import { isMcpxRequest } from "../request.js";
 
+import type { PublishIntent } from "./publish-intent.js";
 import type {
 	CollectionBeforeChangeHook,
 	CollectionBeforeOperationHook,
@@ -15,7 +17,7 @@ import type {
 
 /**
  * Operation arguments that widen or redirect a write. Cleared on every MCP
- * create and update so a tool cannot smuggle them in.
+ * create and update, publishes included, so a tool cannot smuggle them in.
  */
 const STRIPPED_ARGS = new Set([
 	"where",
@@ -28,17 +30,28 @@ const STRIPPED_ARGS = new Set([
 ]);
 
 /**
- * Forces every MCP write into a draft save.
+ * Forces every MCP write into a draft save, unless it is the one write
+ * `publishDocument` asked for.
  *
  * `draft` alone is not enough: Payload's update path only saves a draft when
  * `data._status !== "published"`, so `_status` is dropped and left to Payload.
  * This runs as `beforeOperation`, before Payload reads any of these arguments,
  * so it holds for every create and update on an MCP request, not only the
  * builtin tools. Deletes are not guarded in v1; custom tools that delete are
- * the integrator's responsibility.
+ * the integrator's responsibility. `restoreVersion` and `duplicate` are outside
+ * the operation filter too — `restoreVersion` is caught by `refusePublish`
+ * because it runs the collection's `beforeChange` hooks, and anything going
+ * straight to `payload.db` bypasses all of this.
+ *
+ * On a claimed publish the argument scrubbing is unchanged — the whole
+ * `STRIPPED_ARGS` list still goes, `deletedAt` still goes, autosave, locks and
+ * trash are still forced off. Only `draft` and `_status` differ. Writing
+ * `_status` here rather than in the tool keeps the tool honest: it asks to
+ * publish, and this is the only thing that can grant it.
  */
 const scrubWriteArgs = (
 	args: Record<string, unknown>,
+	publishing: boolean,
 ): Record<string, unknown> => {
 	const next = Object.fromEntries(
 		Object.entries(args).filter(([key]) => !STRIPPED_ARGS.has(key)),
@@ -51,10 +64,10 @@ const scrubWriteArgs = (
 			...data
 		} = next["data"] as Record<string, unknown>;
 
-		next["data"] = data;
+		next["data"] = publishing ? { ...data, _status: "published" } : data;
 	}
 
-	next["draft"] = true;
+	next["draft"] = !publishing;
 	next["autosave"] = false;
 	next["overrideLock"] = false;
 	next["trash"] = false;
@@ -68,7 +81,7 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 	 * deprecation rule reacts to; the operation name itself is current API.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-deprecated
-	const { args, operation, req } = hookArgs;
+	const { args, collection, operation, req } = hookArgs;
 
 	if (
 		!isMcpxRequest(req) ||
@@ -77,42 +90,60 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 		return args;
 	}
 
-	return scrubWriteArgs(args) as typeof args;
+	const publishing =
+		operation === "update" &&
+		claimPublishIntent({
+			kind: "collection",
+			slug: collection.slug,
+			id: (args as { id?: number | string }).id,
+		});
+
+	return scrubWriteArgs(args, publishing) as typeof args;
 };
 
 /**
- * The global counterpart of {@link forceDraftWrite}. Payload invokes a global's
- * `beforeOperation` with the whole argument bag and assigns the result back,
- * exactly as the collection path does and before it reads `draft`,
- * `publishAllLocales` or `data._status`, so the guard has the same reach here:
- * every MCP write to a global, builtin tool or custom.
+ * The global counterpart of {@link forceDraftWrite}, with one important
+ * difference: Payload's `updateGlobal` destructures `draft`,
+ * `publishAllLocales`, `publishSpecificLocale`, `unpublishAllLocales` and
+ * `overrideLock` *before* it runs `beforeOperation`, and re-reads only `data`
+ * afterwards. Setting those here is a no-op. What still lands is `data`, and
+ * that is what the global draft guarantee actually rests on: `_status` is
+ * stripped, so a rogue `updateGlobal({ draft: false })` reaches
+ * {@link refusePublishGlobal} with no status and is refused there. The alarm,
+ * not the correction, is load-bearing for globals.
+ *
+ * The publish branch matters for the same reason. `publishDocument` passes
+ * `draft: false` at the call site because the hook cannot, and this hook must
+ * put `_status` back rather than strip it.
  *
  * The global operation union has no `create` member because a global always
- * exists, so only `update` is intercepted. `STRIPPED_ARGS` covers the three
- * publish vectors `updateGlobal` accepts; the rest of the set does not exist on
- * that signature and filtering it is a harmless no-op. `slug` survives the
- * filter, so the operation still knows what it is updating.
+ * exists, so only `update` is intercepted.
  */
 export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
-	const { operation, req } = hookArgs;
+	const { global, operation, req } = hookArgs;
 	const args = hookArgs.args as Record<string, unknown>;
 
 	if (!isMcpxRequest(req) || operation !== "update") {
 		return args;
 	}
 
-	return scrubWriteArgs(args);
+	const publishing = claimPublishIntent({ kind: "global", slug: global.slug });
+
+	return scrubWriteArgs(args, publishing);
 };
 
 /**
- * Refuses an MCP write that would still not land as a draft. An alarm rather
- * than the guarantee: `forceDraftWrite` should make it unreachable. It throws
- * instead of correcting `_status` because Payload has already chosen the write
- * branch by the time a `beforeChange` hook runs.
+ * Refuses an MCP write that would still not land as a draft, and — on the one
+ * operation that claimed a publish intent — refuses anything that would not
+ * land as a publish. An alarm rather than the guarantee for collections, where
+ * `forceDraftWrite` should make it unreachable; the guarantee itself for
+ * globals, per {@link forceDraftWriteGlobal}. It throws instead of correcting
+ * `_status` because Payload has already chosen the write branch by the time a
+ * `beforeChange` hook runs.
  */
-const refuseUnlessDraft = (
+const refuseUnlessExpected = (
 	req: PayloadRequest,
-	slug: string,
+	target: { kind: PublishIntent["kind"]; slug: string },
 	data: unknown,
 ): void => {
 	if (!isMcpxRequest(req)) {
@@ -120,17 +151,21 @@ const refuseUnlessDraft = (
 	}
 
 	const status = (data as { _status?: unknown })._status;
+	const publishing = isClaimedPublish(target.kind, target.slug);
+	const expected = publishing ? "published" : "draft";
 
-	if (status === "draft") {
+	if (status === expected) {
 		return;
 	}
 
 	req.payload.logger.warn(
-		`[payloadcms-mcpx] Refused a write to ${slug} that would not have been a draft (_status: ${String(status)}).`,
+		`[payloadcms-mcpx] Refused a write to ${target.slug} that would not have been a ${expected} (_status: ${String(status)}).`,
 	);
 
 	throw new APIError(
-		"MCP clients may only write drafts. This write was refused because it would not have been saved as one.",
+		publishing
+			? "This publish was refused because it would not have saved a published document."
+			: "MCP clients may only write drafts. This write was refused because it would not have been saved as one. Use publishDocument to publish.",
 		403,
 	);
 };
@@ -140,7 +175,11 @@ export const refusePublish: CollectionBeforeChangeHook = ({
 	data,
 	req,
 }) => {
-	refuseUnlessDraft(req, collection.slug, data);
+	refuseUnlessExpected(
+		req,
+		{ kind: "collection", slug: collection.slug },
+		data,
+	);
 
 	return data;
 };
@@ -153,7 +192,7 @@ export const refusePublishGlobal: GlobalBeforeChangeHook = ({
 }) => {
 	const next = data as Record<string, unknown>;
 
-	refuseUnlessDraft(req, global.slug, next);
+	refuseUnlessExpected(req, { kind: "global", slug: global.slug }, next);
 
 	return next;
 };
@@ -162,7 +201,7 @@ export const refusePublishGlobal: GlobalBeforeChangeHook = ({
  * Attaches the draft guard to every collection: `forceDraftWrite` everywhere
  * (it is a no-op outside MCP requests) and `refusePublish` wherever drafts
  * exist. Applied to the built collection list so nothing can join later
- * without being covered.
+ * without being covered. Both are appended last, so a user hook cannot win.
  */
 export const installDraftGuards = (
 	collections: CollectionConfig[],

@@ -9,4 +9,5 @@ export const BUILTIN_TOOL_NAMES = [
 	"patchDocument",
 	"createDocument",
 	"validateDocument",
+	"publishDocument",
 ] as const;

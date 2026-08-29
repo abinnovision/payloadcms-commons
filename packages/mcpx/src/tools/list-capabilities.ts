@@ -44,6 +44,7 @@ export const listCapabilities = defineMcpxTool({
 					...(description === undefined ? {} : { description }),
 					read: capability.read,
 					write: capability.write,
+					publish: capability.publish,
 					drafts: entry.hasDrafts,
 					draftValidation: hasDraftValidationEnabled(config),
 					idType: collection.customIDType ?? payload.db.defaultIDType,
@@ -72,6 +73,7 @@ export const listCapabilities = defineMcpxTool({
 					...(description === undefined ? {} : { description }),
 					read: capability.read,
 					write: capability.write,
+					publish: capability.publish,
 					drafts: entry.hasDrafts,
 					draftValidation: hasDraftValidationEnabled(config),
 					// No idType: a global is a singleton with no id.
