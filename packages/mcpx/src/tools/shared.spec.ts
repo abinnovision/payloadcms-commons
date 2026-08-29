@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { draftSentence } from "./shared.js";
+import { draftSentence, patchOnlySlugs, slugsFor } from "./shared.js";
 
 import type { McpxExposedEntity, McpxToolScope } from "../types.js";
 
@@ -8,11 +8,13 @@ const entity = (
 	slug: string,
 	write: McpxExposedEntity["write"],
 	hasDrafts: boolean,
+	isUpload = false,
 ): McpxExposedEntity => ({
 	slug,
 	read: true,
 	write,
 	hasDrafts,
+	isUpload,
 	fieldName: slug,
 });
 
@@ -94,5 +96,29 @@ describe("draftSentence", () => {
 
 		expect(sentence).toContain("Every write lands as a draft.");
 		expect(sentence).toContain("Nothing this key writes is ever published");
+	});
+});
+
+describe("create slugs", () => {
+	const scope = scopeFor({
+		collections: [
+			entity("pages", "draft", true),
+			entity("media", "draft", true, true),
+			entity("tags", false, false),
+		],
+		globals: [entity("banner", "draft", true)],
+		writable: ["pages", "media"],
+		writableGlobals: ["banner"],
+	});
+
+	it("leaves upload collections and every global out of create", () => {
+		expect(slugsFor(scope, "create")).toEqual({
+			collections: ["pages"],
+			globals: [],
+		});
+	});
+
+	it("names the writable slugs that cannot be created in", () => {
+		expect(patchOnlySlugs(scope)).toEqual(["media"]);
 	});
 });

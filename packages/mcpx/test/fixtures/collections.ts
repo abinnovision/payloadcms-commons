@@ -5,6 +5,8 @@ import {
 	ParagraphFeature,
 	lexicalEditor,
 } from "@payloadcms/richtext-lexical";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
 	badgeBlock,
@@ -180,4 +182,22 @@ export const notes: CollectionConfig = {
 export const tags: CollectionConfig = {
 	slug: "tags",
 	fields: [{ name: "name", type: "text", required: true }],
+};
+
+/**
+ * Upload collection. Its base fields (filename, url, mimeType, focal point) are
+ * what proves an `admin.hidden` field stays off the MCP surface.
+ */
+export const media: CollectionConfig = {
+	slug: "media",
+	/*
+	 * Written to a temp dir so an integration test that stores a file leaves
+	 * nothing behind in the repo.
+	 */
+	upload: { staticDir: join(tmpdir(), "mcpx-fixture-media") },
+	versions: { drafts: true },
+	fields: [
+		{ name: "alt", type: "text", required: true, localized: true },
+		{ name: "credit", type: "text" },
+	],
 };

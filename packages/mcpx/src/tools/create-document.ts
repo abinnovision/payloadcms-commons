@@ -4,8 +4,10 @@ import {
 	draftSentence,
 	localeOf,
 	localeShape,
+	patchOnlySlugs,
 	readTarget,
 	slugEnum,
+	slugsFor,
 } from "./shared.js";
 import { resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../result.js";
@@ -16,13 +18,23 @@ import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 import type { McpxToolScope } from "../types.js";
 
+/** Names the writable slugs this tool leaves out, so the gap reads as intent. */
+const uploadSentence = (scope: McpxToolScope): string => {
+	const slugs = patchOnlySlugs(scope);
+
+	return slugs.length === 0
+		? ""
+		: `\n\nLeft out of "collection" on purpose: ${slugs.join(", ")}. Those documents are files, and no tool here carries one. Upload the file in the admin panel, then edit its fields with patchDocument.`;
+};
+
 const DESCRIPTION = (scope: McpxToolScope): string =>
 	`Creates a new document from a minimal seed. Only the fields describeSchema lists may appear in "data"; unknown keys are refused with the valid siblings, and "id" is Payload's to assign. The document may be incomplete: the response lists "publishBlockers", which patchDocument can then work through, and "publishBlockersUnavailable" when that check itself failed. Use this when no document exists yet; prefer patching an existing draft otherwise.
 
-${draftSentence(scope)}`;
+${draftSentence(scope)}${uploadSentence(scope)}`;
 
 /**
- * Collection-only, because a global always exists.
+ * Collection-only, because a global always exists, and never reaches an upload
+ * collection, because a create there would have to carry the file.
  *
  * The seed is checked against the collection's fields before the create, so an
  * unknown key is refused with its valid siblings rather than dropped. Row ids
@@ -39,9 +51,9 @@ export const createDocument = defineMcpxTool({
 		idempotentHint: false,
 		openWorldHint: false,
 	},
-	isEnabled: (scope) => scope.writable.length > 0,
+	isEnabled: (scope) => slugsFor(scope, "create").collections.length > 0,
 	inputSchema: (scope) => ({
-		collection: slugEnum(scope.writable).describe(
+		collection: slugEnum(slugsFor(scope, "create").collections).describe(
 			"Collection to create the document in.",
 		),
 		...localeShape(scope, {
@@ -56,7 +68,7 @@ export const createDocument = defineMcpxTool({
 		const target = resolveTarget(
 			scope,
 			{ collection: args.collection },
-			"write",
+			"create",
 		);
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);

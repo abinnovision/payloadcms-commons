@@ -34,7 +34,8 @@ const STRIPPED_ARGS = new Set([
  * Writing it here rather than in the tool keeps the tool honest, since this is
  * the only thing that can grant a publish.
  *
- * Not covered: deletes, `duplicate`, and anything going straight to
+ * Not covered: deletes, `duplicate`, files (the local API lifts `file` and
+ * `filePath` onto `req` before this runs), and anything going straight to
  * `payload.db`. `restoreVersion` is caught by {@link refusePublish} instead,
  * because it runs the collection's `beforeChange` hooks.
  */

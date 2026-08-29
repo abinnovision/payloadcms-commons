@@ -17,6 +17,13 @@ export const canPublish = (entity: McpxExposedEntity): boolean =>
 	entity.write === "live" && entity.hasDrafts;
 
 /**
+ * An upload document is a file, and no tool here carries one. Its own fields
+ * stay patchable; the first version is made in the admin panel.
+ */
+export const canCreate = (entity: McpxExposedEntity): boolean =>
+	canWrite(entity) && !entity.isUpload;
+
+/**
  * With no versions there is no draft to land on, so `write: "live"` permits the
  * write at all and every write is live.
  */

@@ -4,7 +4,7 @@ import { buildConfig } from "payload";
 import { z } from "zod";
 
 import { calloutBlock, richTextBlock } from "./blocks.js";
-import { notes, pages, posts, tags, users } from "./collections.js";
+import { media, notes, pages, posts, tags, users } from "./collections.js";
 import { banner, siteSettings } from "./globals.js";
 import { defineMcpxTool, mcpxPlugin } from "../../src/index.js";
 
@@ -109,13 +109,13 @@ export const buildFixtureConfig = (
 		editor: lexicalEditor(),
 		localization: { locales: ["en", "de"], defaultLocale: "en" },
 		blocks: [calloutBlock, richTextBlock],
-		collections: [users, pages, posts, tags, notes],
+		collections: [users, pages, posts, tags, notes, media],
 		/*
 		 * Registered on the config but deliberately absent from
 		 * `defaultPluginOptions`: every existing spec then keeps running against
 		 * a collections-only plugin, which is what proves globals changed
-		 * nothing for deployments that do not use them. Globals specs opt in
-		 * through `overrides.plugin`.
+		 * nothing for deployments that do not use them. Globals and upload
+		 * specs opt in through `overrides.plugin`.
 		 */
 		globals: [siteSettings, banner],
 		plugins: [mcpxPlugin({ ...defaultPluginOptions, ...overrides.plugin })],

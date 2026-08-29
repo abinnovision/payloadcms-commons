@@ -159,12 +159,21 @@ Migrating from the previous option shape: `write: true` becomes
 `write: "live"`. A versioned entity moved to `write: "live"` gains a `publish`
 checkbox on every key, unticked, so nothing publishes until someone says so.
 
+An upload collection may be exposed for write. `patchDocument` and
+`validateDocument` reach it, and `publishDocument` under the same `write:
+"live"` rule as anywhere else, so an agent can edit the fields the collection
+declares itself, such as `alt` or a credit. Its base fields (`filename`, `url`,
+`filesize`, `sizes`, the focal point) are neither described nor writable, and
+`createDocument` leaves the slug out of its `collection` enum and says why in
+its description: a create there would have to carry the file, and no tool does.
+Upload the file in the admin panel first.
+
 Misconfiguration (unknown slugs, `write: "draft"` on a collection without
-drafts, upload collections exposed for write, tool name collisions) fails at
-startup with `InvalidConfiguration`. So does `write: "live"` on an entity using
-`versions.drafts.localizeStatus`, which is not supported yet. Auth collections cannot be exposed at all, read
-included: their documents carry credentials, such as the decrypted Payload API
-key of every user.
+drafts, tool name collisions) fails at startup with `InvalidConfiguration`. So
+does `write: "live"` on an entity using `versions.drafts.localizeStatus`, which
+is not supported yet. Auth collections cannot be exposed at all, read included:
+their documents carry credentials, such as the decrypted Payload API key of
+every user.
 
 ## Tools
 
@@ -173,16 +182,16 @@ adds an argument, never a tool. `tools/list` reflects the key: write tools
 disappear for read-only keys, and every `collection` and `global` enum contains
 only the slugs the key may touch.
 
-| Tool               | Purpose                                                     | Key arguments                                                                                |
-| ------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `listCapabilities` | What this key may do; call first to orient.                 | none                                                                                         |
-| `describeSchema`   | Field shape of one node; `next` lists the drill-down paths. | `collection` \| `global`, `paths?`, `expand?`                                                |
-| `findDocuments`    | Query documents.                                            | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?` |
-| `getDocument`      | Read one document or a subtree of it.                       | `collection` + `id` \| `global`, `path?` (JSON pointer), `depth?`, `locale?`, `draft?`       |
-| `patchDocument`    | Apply RFC 6902 operations to the current draft.             | `collection` + `id` \| `global`, `locale`, `patches`, `expectedUpdatedAt?`                   |
-| `createDocument`   | Create a draft from a minimal seed.                         | `collection`, `locale`, `data`                                                               |
-| `validateDocument` | Publish blockers without saving anything.                   | `collection` + `id` \| `global`, `locale`                                                    |
-| `publishDocument`  | Publish the current draft.                                  | `collection` + `id` \| `global`, `expectedUpdatedAt?`                                        |
+| Tool               | Purpose                                                                  | Key arguments                                                                                |
+| ------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `listCapabilities` | What this key may do, `create` apart from `write`; call first to orient. | none                                                                                         |
+| `describeSchema`   | Field shape of one node; `next` lists the drill-down paths.              | `collection` \| `global`, `paths?`, `expand?`                                                |
+| `findDocuments`    | Query documents.                                                         | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?` |
+| `getDocument`      | Read one document or a subtree of it.                                    | `collection` + `id` \| `global`, `path?` (JSON pointer), `depth?`, `locale?`, `draft?`       |
+| `patchDocument`    | Apply RFC 6902 operations to the current draft.                          | `collection` + `id` \| `global`, `locale`, `patches`, `expectedUpdatedAt?`                   |
+| `createDocument`   | Create a draft from a minimal seed. Not for upload collections.          | `collection`, `locale`, `data`                                                               |
+| `validateDocument` | Publish blockers without saving anything.                                | `collection` + `id` \| `global`, `locale`                                                    |
+| `publishDocument`  | Publish the current draft.                                               | `collection` + `id` \| `global`, `expectedUpdatedAt?`                                        |
 
 Rules the tools enforce and explain in their own descriptions:
 
@@ -199,6 +208,10 @@ Rules the tools enforce and explain in their own descriptions:
   guessed. Any feature declaring `getSubFields` is picked up, custom ones
   included. `upload` nodes are the exception: their fields depend on the
   collection the node points at, so they are not addressable.
+- A field marked `admin.hidden` is not described and cannot be written. Payload
+  keeps such a field out of the admin panel only, and this is where the plugin
+  parts from it: kept from an editor means kept from a client. It is also what
+  keeps the base fields of an upload collection off the surface.
 - Constraints a field declares travel with it: `minRows`/`maxRows` on arrays
   and blocks fields, `maxLength`/`minLength` on text, `min`/`max` on numbers.
   An array is described in its own right, so the `*` in `/items/*/title` has
@@ -481,20 +494,21 @@ may name fields the key's user cannot read, though values are never included.
 - Payload has no separate publish permission: at its access layer, anyone who
   may update a document may publish it. The `publish` checkbox is this plugin's
   fence, not Payload's.
-- Not covered in v1: `delete` (no tool exists and none is generated), uploads.
-  Custom tools are trusted code and can do what the linked user may.
+- Not covered in v1: `delete` (no tool exists and none is generated), creating
+  upload documents and writing any file. Custom tools are trusted code and can
+  do what the linked user may.
 
 How the draft and publish guarantees are enforced, and where they stop, is in
 [How it is enforced](#how-it-is-enforced).
 
 ## Non-goals of v1 / roadmap
 
-Unpublishing, `versions.drafts.localizeStatus`, deletes, uploads, markdown
-authoring for rich text, addressing a rich text node
-by position in a patch (an editor state is written whole), schemas for `upload`
-node fields, row addressing by id instead of index, cross-locale publish
-blockers, pagination of `describeSchema` with `expand`, and a handler-level
-timeout are all deliberate omissions for now.
+Unpublishing, `versions.drafts.localizeStatus`, deletes, creating upload
+documents and any file handling, markdown authoring for rich text, addressing a
+rich text node by position in a patch (an editor state is written whole),
+schemas for `upload` node fields, row addressing by id instead of index,
+cross-locale publish blockers, pagination of `describeSchema` with `expand`,
+and a handler-level timeout are all deliberate omissions for now.
 
 ## License
 

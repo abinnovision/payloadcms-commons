@@ -1,4 +1,9 @@
-import { canPublish, canWrite, CAPABILITIES_FIELD } from "../capabilities.js";
+import {
+	canCreate,
+	canPublish,
+	canWrite,
+	CAPABILITIES_FIELD,
+} from "../capabilities.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type {
@@ -155,6 +160,10 @@ const PUBLISH_DESCRIPTION =
  * An entity without versions gets no `publish` checkbox even under
  * `write: "live"`: there is no draft to promote there, the write itself is the
  * live change, and a second checkbox would only make `write` a dead setting.
+ *
+ * An upload collection gets the same checkboxes as any other, only worded for
+ * what `write` reaches there: a document's own fields, never `createDocument`,
+ * because the file comes from the admin panel.
  */
 export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 	const collectionGroups: GroupField[] = options.collections.map(
@@ -167,7 +176,14 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 					? [checkbox("read", "Describe, find and read documents.")]
 					: []),
 				...(canWrite(collection)
-					? [checkbox("write", "Create, patch and validate drafts.")]
+					? [
+							checkbox(
+								"write",
+								canCreate(collection)
+									? "Create, patch and validate drafts."
+									: "Patch and validate drafts. The file itself is uploaded in the admin panel.",
+							),
+						]
 					: []),
 				...(canPublish(collection)
 					? [checkbox("publish", PUBLISH_DESCRIPTION)]

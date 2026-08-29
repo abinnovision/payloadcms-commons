@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	canCreate,
 	publishableGlobalSlugs,
 	publishableSlugs,
 	readableGlobalSlugs,
@@ -11,6 +12,7 @@ import {
 } from "./capabilities.js";
 
 import type { NormalizedOptions } from "./options.js";
+import type { McpxExposedEntity } from "./types.js";
 
 const options = {
 	collections: [
@@ -157,5 +159,26 @@ describe("resolveCapabilities", () => {
 		});
 
 		expect(resolved.collections).not.toHaveProperty("users");
+	});
+});
+
+describe("canCreate", () => {
+	const entity = (
+		overrides: Partial<McpxExposedEntity>,
+	): McpxExposedEntity => ({
+		slug: "pages",
+		read: true,
+		write: "draft",
+		hasDrafts: true,
+		isUpload: false,
+		fieldName: "pages",
+		...overrides,
+	});
+
+	it("follows write everywhere but an upload collection", () => {
+		expect(canCreate(entity({}))).toBe(true);
+		expect(canCreate(entity({ write: "live" }))).toBe(true);
+		expect(canCreate(entity({ write: false }))).toBe(false);
+		expect(canCreate(entity({ isUpload: true }))).toBe(false);
 	});
 });

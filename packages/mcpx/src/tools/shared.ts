@@ -1,14 +1,14 @@
 import { NotFound } from "payload";
 import { z } from "zod";
 
-import { canPublish, isLiveWrite } from "../capabilities.js";
+import { canCreate, canPublish, isLiveWrite } from "../capabilities.js";
 import { translateStatic } from "../i18n.js";
 
 import type { ResolvedTarget } from "./target.js";
 import type { McpxExposedEntity, McpxToolScope } from "../types.js";
 import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
 
-export type McpxOperation = "publish" | "read" | "write";
+export type McpxOperation = "create" | "publish" | "read" | "write";
 
 /**
  * An out-of-scope slug fails schema validation before a handler runs, so a
@@ -49,6 +49,16 @@ const liveWriteSlugs = (scope: McpxToolScope): string[] =>
 	slugsWhere(scope, isLiveWrite, {
 		collections: scope.writable,
 		globals: scope.writableGlobals,
+	});
+
+/**
+ * Slugs this key may write but never create in, because their documents are
+ * files. Collection-only, since nothing creates a global either way.
+ */
+export const patchOnlySlugs = (scope: McpxToolScope): string[] =>
+	slugsWhere(scope, (entity) => !canCreate(entity), {
+		collections: scope.writable,
+		globals: [],
 	});
 
 /** Slugs this key may write and, separately, publish. */
@@ -130,6 +140,15 @@ export const slugsFor = (
 	operation: McpxOperation,
 ): { collections: string[]; globals: string[] } => {
 	switch (operation) {
+		case "create":
+			return {
+				collections: slugsWhere(scope, canCreate, {
+					collections: scope.writable,
+					globals: [],
+				}),
+				// A global always exists, so nothing creates one.
+				globals: [],
+			};
 		case "publish":
 			return {
 				collections: scope.publishable,
