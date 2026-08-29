@@ -1,5 +1,10 @@
+/**
+ * Stands in for the key in the snippets whenever the real one is unavailable,
+ * so the instructions still render and say what is missing.
+ */
 export const KEY_PLACEHOLDER = "<your-key>";
 
+/** What the guide needs to know about one key to write its snippets. */
 export interface SetupGuideInput {
 	/** Absolute MCP endpoint URL. */
 	endpointUrl: string;
@@ -9,6 +14,7 @@ export interface SetupGuideInput {
 	label?: null | string | undefined;
 }
 
+/** One instruction block, rendered behind its own copy button. */
 export interface SetupGuideSection {
 	/** Stable key for rendering and for tests. */
 	id: string;
@@ -32,9 +38,8 @@ export const toServerName = (label?: null | string): string => {
 };
 
 /**
- * The connection instructions for one key, split into independently copyable
- * blocks. Kept a pure builder so the admin component holds only rendering and
- * the snippets stay unit-testable.
+ * A pure builder, so the admin component holds only rendering and the snippets
+ * stay unit-testable.
  */
 export const buildSetupGuide = (
 	input: SetupGuideInput,

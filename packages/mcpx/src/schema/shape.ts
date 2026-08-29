@@ -14,9 +14,6 @@ import type { PointerResolution } from "./pointer.js";
 import type { FieldDescriptor } from "./walk.js";
 import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
 
-/**
- * Keys Payload manages on a row that a client may echo back harmlessly.
- */
 const TOLERATED_VALUE_KEYS = new Set(["blockName", "blockType", "id"]);
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -38,11 +35,8 @@ interface CheckScope {
 }
 
 /**
- * Checks the fields a single Lexical node carries against the schema its
- * feature declares for that node type.
- *
- * A node with nothing to declare, and one whose sub-fields cannot be named at
- * a position, are both left alone.
+ * A node with nothing to declare, and one whose sub-fields cannot be named at a
+ * position, are both left alone.
  */
 const checkNodeFields = (
 	scope: CheckScope,
@@ -91,10 +85,7 @@ const checkNodeFields = (
 };
 
 /**
- * Checks an editor state against what the field's editor can actually
- * produce: every node type, and the fields each node carries.
- *
- * Payload does not: the Lexical validator runs node validations only for the
+ * Payload does not check this: the Lexical validator runs node validations only for the
  * few node types that register one, so a `heading` inside a field whose
  * editor has no heading feature is stored without complaint and only fails
  * later, at render or when the document is reopened in the admin editor. A key
@@ -236,8 +227,7 @@ const checkLeafValue = (
 };
 
 /**
- * Walks an incoming value against the schema, reporting every shape problem
- * rather than the first.
+ * Reports every shape problem rather than the first.
  *
  * Shape only: unknown field names, unknown block slugs, read-only fields, and
  * rich text nodes or node properties the field's editor cannot produce.

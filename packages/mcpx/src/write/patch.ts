@@ -18,14 +18,12 @@ import type { PointerResolution, TargetRef } from "../schema/index.js";
 import type { FlattenedField, JsonObject, SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
 
+/** Re-exported so callers do not depend on the `rfc6902` package directly. */
 export type PatchOperation = Operation;
 
 const POINTER = z.string().regex(JSON_POINTER_PATTERN);
 
-/**
- * One RFC 6902 operation as accepted by `patchDocument`. Discriminated on `op`
- * so an operation carries only the members RFC 6902 defines for it.
- */
+/** Discriminated on `op`, so an operation carries only its own members. */
 export const PATCH_OPERATION_SCHEMA = z
 	.discriminatedUnion("op", [
 		z.strictObject({ op: z.literal("add"), path: POINTER, value: z.unknown() }),
@@ -45,18 +43,12 @@ export const PATCH_OPERATION_SCHEMA = z
 	])
 	.describe("An RFC 6902 operation.");
 
-/**
- * Whether a pointer touches a field Payload maintains.
- */
 export const isReservedPointer = (pointer: string): boolean =>
 	pointer
 		.split("/")
 		.slice(1)
 		.some((segment) => RESERVED_FIELD_NAMES.has(segment));
 
-/**
- * The pointer an operation removes a value from, if it removes one at all.
- */
 export const droppedPointer = (operation: Operation): string | undefined => {
 	if (operation.op === "remove") {
 		return operation.path;
@@ -65,9 +57,6 @@ export const droppedPointer = (operation: Operation): string | undefined => {
 	return operation.op === "move" ? operation.from : undefined;
 };
 
-/**
- * Whether a pointer addresses a list element rather than a field.
- */
 export const isElementPointer = (pointer: string): boolean => {
 	const last = pointer.split("/").pop() ?? "";
 
@@ -77,18 +66,11 @@ export const isElementPointer = (pointer: string): boolean => {
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
-/**
- * A Lexical editor state. Its nodes manage their own ids, so it is never
- * descended into.
- */
+/** Its nodes manage their own ids, so it is never descended into. */
 const isRichTextState = (value: Record<string, unknown>): boolean =>
 	isPlainObject(value["root"]) && Array.isArray(value["root"]["children"]);
 
-/**
- * Visits every row in a value: a plain object that carries `blockType` or
- * sits directly inside an array. Rich text states manage their own nodes and
- * are never descended into.
- */
+/** A row is a plain object carrying `blockType`, or one sitting in an array. */
 const walkRows = (
 	value: unknown,
 	visit: (row: Record<string, unknown>) => void,
@@ -152,10 +134,7 @@ const reconcileRowIds = (next: JsonObject, stored: JsonObject): void => {
 	});
 };
 
-/**
- * Drops every row id from a copy of `value`. Used on create, where no stored
- * row exists and any incoming id is client-invented.
- */
+/** For create, where no stored row exists and any incoming id is invented. */
 export const stripRowIds = (value: unknown): unknown => {
 	const next = structuredClone(value);
 
@@ -185,10 +164,7 @@ const prepare = (operation: Operation, doc: JsonObject): Operation => {
 		: cloned;
 };
 
-/**
- * The value an operation writes at its path: the one it carries, or the one it
- * takes from `from`. A `remove` writes nothing.
- */
+/** The one it carries, or the one it takes from `from`. `remove` writes nothing. */
 const effectiveValue = (operation: Operation, doc: JsonObject): unknown => {
 	if ("value" in operation) {
 		return operation.value;
@@ -199,10 +175,7 @@ const effectiveValue = (operation: Operation, doc: JsonObject): unknown => {
 		: undefined;
 };
 
-/**
- * Whether a resolved pointer lands in a read-only field. A pointer that stops
- * short of one addresses a subtree, and the fields beneath it decide.
- */
+/** A pointer stopping short addresses a subtree; the fields beneath decide. */
 const resolvesReadOnly = (resolution: PointerResolution): boolean => {
 	if (resolution.descriptor) {
 		return resolution.descriptor.readOnly === true;
@@ -218,10 +191,7 @@ const resolvesReadOnly = (resolution: PointerResolution): boolean => {
 	return below.length > 0 && below.every((descriptor) => descriptor.readOnly);
 };
 
-/**
- * Whether the pointer addresses something read-only. An element carries no
- * descriptor of its own, so the field it belongs to is read one segment up.
- */
+/** An element has no descriptor, so its field is read one segment up. */
 const isReadOnlyPointer = (
 	config: SanitizedConfig,
 	target: { doc: JsonObject; pointer: string; ref: TargetRef },
@@ -237,10 +207,9 @@ const isReadOnlyPointer = (
 	);
 
 /**
- * Checks one operation against the schema, in the state the document is in
- * when that operation runs. Both pointers must resolve, whatever the operation
- * writes at its path must pass write validation, and what it drops must not sit
- * in a read-only field.
+ * Checked against the document as it stands when this operation runs: both
+ * pointers must resolve, the written value must pass write validation, and what
+ * it drops must not sit in a read-only field.
  */
 const findOperationProblems = (
 	config: SanitizedConfig,
@@ -320,13 +289,10 @@ const findOperationProblems = (
 };
 
 /**
- * Validates and applies every operation against one evolving copy of the
- * document, so an operation that depends on an earlier one resolves against
- * the shape it actually modifies.
- *
- * The copy means a failing operation leaves the original untouched, and the
- * caller writes nothing unless the whole batch came back applied, so a
- * partially applied batch is never persisted.
+ * One evolving copy, so an operation depending on an earlier one resolves
+ * against the shape it actually modifies, and a failure leaves the original
+ * untouched. The caller writes nothing unless the whole batch came back
+ * applied, so a partial batch is never persisted.
  */
 export const applyPatchOperations = (
 	config: SanitizedConfig,
@@ -358,16 +324,12 @@ export const applyPatchOperations = (
 	return { next };
 };
 
-/**
- * Keys Payload manages on a row that travel back into the write unchanged.
- */
 const ROW_KEYS = new Set(["blockName", "blockType", "id"]);
 
 /**
- * Picks the keys the schema walker describes out of `value`, descending into
- * groups, named tabs, arrays and blocks. Everything Payload maintains or
- * derives (`_status`, timestamps, join and virtual fields, upload base fields)
- * is left out, so the write-back carries only what a client could have set.
+ * Everything Payload maintains or derives (`_status`, timestamps, join and
+ * virtual fields, upload base fields) is left out, so the write-back carries
+ * only what a client could have set.
  */
 const pickDescribed = (
 	config: SanitizedConfig,
@@ -457,10 +419,7 @@ const pickDescribed = (
 	return result;
 };
 
-/**
- * The data handed to `payload.update` after a patch: the patched document
- * reduced to the fields the client may write, plus row identity keys.
- */
+/** The patched document reduced to writable fields, plus row identity keys. */
 export const buildWriteData = (
 	config: SanitizedConfig,
 	/*

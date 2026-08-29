@@ -9,6 +9,14 @@ import type { SelectType, Where } from "payload";
 
 const DESCRIPTION = `Finds documents in a collection. "where" is a Payload query object, e.g. {"title":{"contains":"home"}} or {"and":[...]}; "select" picks fields, e.g. {"title":true}. Drafts are included by default so unpublished work is visible. Keep depth at 0 unless populated relationships are needed; ids are enough for writes.`;
 
+/**
+ * Collection-only: a global is a singleton, so there is nothing to list.
+ *
+ * The query goes to Payload with `overrideAccess: false`, so the collection's
+ * own access control decides what comes back. `limit` and `depth` are bounded
+ * by the configured limits in the schema itself, which puts the ceiling in
+ * front of the client rather than silently clamping behind it.
+ */
 export const findDocuments = defineMcpxTool({
 	name: "findDocuments",
 	description: DESCRIPTION,

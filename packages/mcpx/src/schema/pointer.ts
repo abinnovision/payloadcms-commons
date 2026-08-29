@@ -13,8 +13,6 @@ import type { FieldDescriptor, TargetRef } from "./walk.js";
 import type { FlattenedField, SanitizedConfig } from "payload";
 
 /**
- * Where a JSON Pointer lands in the schema.
- *
  * `descriptor` is set when the pointer addresses one field exactly. Otherwise
  * the pointer addresses a subtree (a whole group, an array element or a block
  * element) and `fields`/`prefix` describe what may appear beneath it. `prefix`
@@ -29,8 +27,6 @@ export interface PointerResolution {
 }
 
 /**
- * What a pointer is being resolved against.
- *
  * `addedValue` supplies the block discriminant for an `add` at a position the
  * document does not have yet.
  */
@@ -66,10 +62,7 @@ const longestMatch = (
 		)
 		.sort((left, right) => right.consumed - left.consumed)[0];
 
-/**
- * Whether the segments stop part-way through some descriptor's path, which
- * means they address a subtree rather than a field.
- */
+/** Stopping part-way through a descriptor's path means a subtree, not a field. */
 const isSubtreePrefix = (
 	descriptors: FieldDescriptor[],
 	segments: readonly string[],
@@ -88,9 +81,8 @@ const isSubtreePrefix = (
 	});
 
 /**
- * Reads the value the given pointer segments address. Unlike a descriptor
- * path, the segments carry real indices, so intervening array fields are
- * descended through rather than skipped.
+ * Unlike a descriptor path, the segments carry real indices, so intervening
+ * array fields are descended through rather than skipped.
  */
 const valueAtSegments = (data: unknown, segments: readonly string[]): unknown =>
 	segments.reduce<unknown>(
@@ -102,10 +94,8 @@ const valueAtSegments = (data: unknown, segments: readonly string[]): unknown =>
 	);
 
 /**
- * Resolves a JSON Pointer against the schema, using the stored document to
- * choose a branch at every blocks element.
- *
- * The document is required rather than optional: `/layout/sections/3/modules/1`
+ * The stored document chooses the branch at every blocks element, and is
+ * required rather than optional: `/layout/sections/3/modules/1`
  * can only be resolved by reading `blockType` off `sections[3]`, since a blocks
  * field admits many shapes at the same index.
  */

@@ -1,23 +1,16 @@
 import type { PayloadRequest } from "payload";
 
 /**
- * The part of a resolved request i18n that picks a language. Payload has
- * already folded `config.i18n.fallbackLanguage` into the request, so no
- * config lookup is needed.
+ * Payload has already folded `config.i18n.fallbackLanguage` into the request,
+ * so no config lookup is needed.
  */
 export type RequestLanguage = Pick<
 	PayloadRequest["i18n"],
 	"fallbackLanguage" | "language"
 >;
 
-/**
- * Resolves a serializable label or description to one string, or drops it.
- */
 export type Translate = (value: unknown) => string | undefined;
 
-/**
- * A locale-keyed record, once it is known to hold nothing but strings.
- */
 const stringRecord = (value: unknown): Record<string, string> | undefined =>
 	typeof value === "object" &&
 	value !== null &&
@@ -26,10 +19,7 @@ const stringRecord = (value: unknown): Record<string, string> | undefined =>
 		? (value as Record<string, string>)
 		: undefined;
 
-/**
- * Picks the entry a language addresses, treating an empty value as absent so
- * the chain continues rather than yielding a useless string.
- */
+/** Treats an empty value as absent, so the fallback chain continues. */
 const pick = (
 	record: Record<string, string>,
 	language: string | string[],
@@ -75,19 +65,13 @@ export const translateStatic = (
 	);
 };
 
-/**
- * Binds {@link translateStatic} to a request's language, so a walk that
- * resolves many descriptions carries no request of its own.
- */
+/** Bound to one request's language, so a walk carries no request of its own. */
 export const translatorFor =
 	(i18n: RequestLanguage): Translate =>
 	(value) =>
 		translateStatic(value, i18n);
 
-/**
- * Translator for callers with no request in hand. Both language keys miss, so
- * the chain degrades to the record's first entry.
- */
+/** For callers with no request: both keys miss, so the first entry wins. */
 export const translateAny: Translate = translatorFor({
 	fallbackLanguage: "",
 	language: "",

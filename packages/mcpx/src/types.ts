@@ -36,29 +36,18 @@ declare module "payload" {
  */
 export type McpxWriteMode = "draft" | "live" | false;
 
-/**
- * What an exposed collection offers to MCP clients. A key can only enable
- * what the config exposes here.
- */
+/** A key can only enable what the config exposes here. */
 export interface McpxCollectionOptions {
-	/**
-	 * Expose `describeSchema`, `findDocuments` and `getDocument`. Default `true`.
-	 */
+	/** Expose `describeSchema`, `findDocuments`, `getDocument`. Default `true`. */
 	read?: boolean;
-
 	/**
-	 * Expose `patchDocument`, `createDocument` and `validateDocument`, and how
-	 * far those writes reach. Default `false`.
+	 * Expose `patchDocument`, `createDocument`, `validateDocument`, and how far
+	 * those writes reach. Default `false`.
 	 */
 	write?: McpxWriteMode;
 }
 
-/**
- * What an exposed global offers to MCP clients. Structurally the same as
- * {@link McpxCollectionOptions}, kept separate because the tools it names
- * differ: a global is a singleton, so neither `findDocuments` nor
- * `createDocument` reaches one.
- */
+/** A singleton, so neither `findDocuments` nor `createDocument` reaches one. */
 export interface McpxGlobalOptions {
 	/** Expose `describeSchema` and `getDocument`. Default `true`. */
 	read?: boolean;
@@ -74,10 +63,7 @@ export type McpxToolExtra = RequestHandlerExtra<
 	ServerNotification
 >;
 
-/**
- * A collection or global the plugin config exposes, before an API key's
- * checkboxes narrow it further.
- */
+/** What the config exposes, before an API key's checkboxes narrow it. */
 export interface McpxExposedEntity {
 	slug: string;
 	read: boolean;
@@ -87,26 +73,20 @@ export interface McpxExposedEntity {
 	fieldName: string;
 }
 
-/**
- * Everything a tool knows about the current request: the authenticated
- * request, what this key may touch and the limits in force.
- */
+/** What a tool knows about the current request. */
 export interface McpxToolScope {
 	req: PayloadRequest;
 	capabilities: McpxResolvedCapabilities;
-	/** Collection slugs the key may read / write / publish. */
 	readable: string[];
 	writable: string[];
 	publishable: string[];
-	/** Global slugs the key may read / write / publish. */
 	readableGlobals: string[];
 	writableGlobals: string[];
 	publishableGlobals: string[];
-	/** Configured locale codes, or `null` when localization is off. */
+	/** `null` when localization is off. */
 	locales: null | string[];
 	defaultLocale: null | string;
 	limits: { maxLimit: number; maxDepth: number };
-	/** What the plugin config exposes, before the key's checkboxes apply. */
 	exposure: {
 		collections: McpxExposedEntity[];
 		globals: McpxExposedEntity[];
@@ -114,13 +94,9 @@ export interface McpxToolScope {
 }
 
 /**
- * A tool. The builtins and any tool passed through `options.tools` use this
- * same shape and register through the same loop. Every tool runs with
- * `req.user` resolved from the key and `req.context.mcpx` set.
- *
- * `Args` only needs stating when `inputSchema` is built per request, which
- * leaves no static shape to infer from; a tool with a fixed shape gets its
- * argument type from that shape.
+ * A tool, builtin or custom. Runs with `req.user` resolved from the key and
+ * `req.context.mcpx` set. `Args` only needs stating when `inputSchema` is built
+ * per request, leaving no static shape to infer from.
  */
 export interface McpxTool<
 	Shape extends z.ZodRawShape = z.ZodRawShape,
@@ -128,25 +104,19 @@ export interface McpxTool<
 > {
 	/** camelCase, unique, not one of the builtin tool names. */
 	name: string;
-	/**
-	 * Fixed text, or text built per request so it can state what this key's
-	 * writes actually do.
-	 */
+	/** Built per request so it can state what this key's writes actually do. */
 	description: string | ((scope: McpxToolScope) => string);
 	annotations?: ToolAnnotations;
 	/**
-	 * Whether this key may call the tool; a tool that is not enabled never
-	 * appears in `tools/list`. Defaults to the tool's own checkbox on the API
-	 * key, which the builtins replace to derive availability from the key's
-	 * collection and global capabilities. Defining it replaces that checkbox
-	 * check rather than adding to it.
+	 * A tool that is not enabled never appears in `tools/list`. Defaults to the
+	 * tool's own checkbox on the API key; defining it replaces that check rather
+	 * than adding to it.
 	 */
 	isEnabled?: (scope: McpxToolScope) => boolean;
 	/**
-	 * A fixed shape, or one built per request so enums can be narrowed to what
-	 * the key may touch. Registered strictly either way: an unknown argument is
-	 * rejected by name instead of being stripped and the tool answering as if
-	 * it had not been passed.
+	 * Built per request so enums can be narrowed to what the key may touch.
+	 * Registered strictly either way: an unknown argument is rejected by name
+	 * rather than stripped.
 	 */
 	inputSchema?: Shape | ((scope: McpxToolScope) => z.ZodRawShape);
 	/*
@@ -163,34 +133,22 @@ export interface McpxTool<
 	}): CallToolResult | Promise<CallToolResult>;
 }
 
-/**
- * A tool with its argument type erased, which is how a registry holds tools of
- * differing input shapes. Each tool validates its own arguments through its
- * input schema.
- */
+/** Argument type erased, so a registry can hold tools of differing shapes. */
 export type McpxAnyTool = McpxTool<z.ZodRawShape, never>;
 
-/**
- * Defines a tool with a fixed input shape. The handler's arguments are
- * inferred from that shape.
- */
+/** Fixed shape; arguments inferred from it. */
 export function defineMcpxTool<Shape extends z.ZodRawShape>(
 	tool: McpxTool<Shape> & { inputSchema?: Shape },
 ): McpxTool<Shape>;
-/**
- * Defines a tool whose input shape is built per request and returned as an
- * object literal. The handler's arguments are inferred from that literal, so
- * a scope-narrowed enum still types as the value it produces.
- */
+/** Per-request shape returned as an object literal; arguments inferred from it. */
 export function defineMcpxTool<Shape extends z.ZodRawShape>(
 	tool: McpxTool<Shape> & {
 		inputSchema: (scope: McpxToolScope) => Shape;
 	},
 ): McpxAnyTool;
 /**
- * Defines a tool whose input shape is assembled from helpers that erase to
- * `z.ZodRawShape`, as the builtins do. Nothing is left to infer from, so the
- * handler's arguments are stated instead: `defineMcpxTool<Args>({ ... })`.
+ * Per-request shape built from helpers that erase to `z.ZodRawShape`, as the
+ * builtins do. Nothing to infer from, so state the arguments instead.
  */
 export function defineMcpxTool<Args>(
 	tool: McpxTool<z.ZodRawShape, Args> & {
@@ -201,17 +159,17 @@ export function defineMcpxTool(tool: McpxAnyTool): McpxAnyTool {
 	return tool;
 }
 
-/**
- * Outcome of resolving an API key. `user` must carry `collection`.
- */
 export interface McpxAuthResult {
+	/** Must carry `collection`. */
 	user: TypedUser;
 	apiKeyId: number | string;
 	/** The `capabilities` group as stored on the key document. */
 	capabilities: unknown;
 }
 
-/*
+/**
+ * Everything the plugin accepts. `collections` is the only required option.
+ *
  * A type alias rather than an interface: `definePlugin` constrains its options
  * to `Record<string, unknown>`, which interfaces do not satisfy.
  */
@@ -255,33 +213,28 @@ export type McpxPluginOptions = {
 	serverInfo?: { name?: string; version?: string };
 };
 
+/** What a key may do with one entity. Globals reuse this shape. */
 export interface McpxCollectionCapabilities {
 	read: boolean;
 	write: boolean;
-	/**
-	 * Whether the key may publish this entity's draft. Only ever true where the
-	 * config sets `write: "live"` and the entity has drafts.
-	 */
+	/** Only ever true where the config sets `write: "live"` and drafts exist. */
 	publish: boolean;
 }
 
-/**
- * Capabilities in force for one request: plugin config AND key checkboxes.
- */
+/** In force for one request: plugin config AND key checkboxes. */
 export interface McpxResolvedCapabilities {
 	collections: Record<string, McpxCollectionCapabilities>;
 	globals: Record<string, McpxCollectionCapabilities>;
 	tools: Record<string, boolean>;
 }
 
+/** Stamped on `req.context.mcpx`; see {@link isMcpxRequest}. */
 export interface McpxRequestContext {
 	apiKeyId: number | string;
 	capabilities: McpxResolvedCapabilities;
 }
 
-/**
- * One reason a human could not publish the draft as it stands.
- */
+/** One reason a human could not publish the draft as it stands. */
 export interface PublishBlocker {
 	/** Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title". */
 	field?: string;

@@ -3,9 +3,8 @@ import { commitTransaction, initTransaction, killTransaction } from "payload";
 import type { PayloadRequest } from "payload";
 
 /**
- * Runs `fn` inside one database transaction on `req`, so a read followed by a
- * write is committed or rolled back together. Adapters without transaction
- * support, or a request that already owns one, run `fn` as is.
+ * Adapters without transaction support, or a request that already owns one, run
+ * `fn` as is.
  *
  * Atomicity, not isolation: neither SQLite nor Postgres at read committed locks
  * the row on the read, so an `expectedUpdatedAt` check remains best effort. Nor

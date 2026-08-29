@@ -12,23 +12,17 @@ import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
 /**
  * Runs Payload's own field validation over a draft without saving anything.
  *
- * Draft saves skip validation unless `versions.drafts.validate` is set, so an
- * agent building a document incrementally gets no signal until a human presses
- * Publish. This is the same traversal a real save runs, exported from
- * `payload`, called with `skipValidation: false` so it collects into `errors`
- * instead of throwing. The `beforeValidate` pass runs first because some field
- * hooks (Lexical's) prepare state in `context` that their `beforeChange`
- * counterpart depends on.
+ * The same traversal a real save runs, exported from `payload` and called with
+ * `skipValidation: false` so it collects into `errors` instead of throwing. The
+ * `beforeValidate` pass runs first because some field hooks (Lexical's) prepare
+ * state in `context` that their `beforeChange` counterpart depends on.
  *
  * Nothing is written: `data` is a copy, the context is a scratch copy and the
  * locale merge actions are discarded. `overrideAccess` is true because the
  * question is "could this be published", not "may this client write it".
  *
- * Limits: only the locale the doc was read in is checked, and field-level
- * `beforeChange` hooks run again, which is safe only for pure ones.
- *
- * `unavailable` marks a traversal that threw, which is not the same answer as
- * a document with nothing wrong with it.
+ * `unavailable` marks a traversal that threw, which is not the same answer as a
+ * document with nothing wrong with it.
  */
 export const collectPublishBlockers = async (
 	req: PayloadRequest,

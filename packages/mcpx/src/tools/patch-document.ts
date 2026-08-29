@@ -100,6 +100,13 @@ const notAppliedPointers = (
 		return survives(expected, actual) ? [] : [operation.path];
 	});
 
+/**
+ * The handler validates the whole batch against the schema and the current
+ * document before it writes anything, runs the write in a transaction, then
+ * re-reads the saved document to report which pointers survived and what still
+ * blocks publishing. Nothing here decides where the write lands: the draft
+ * guard does that on the Payload operation.
+ */
 export const patchDocument = defineMcpxTool({
 	name: "patchDocument",
 	description: DESCRIPTION,

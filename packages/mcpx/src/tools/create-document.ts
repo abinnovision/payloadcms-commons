@@ -21,6 +21,15 @@ const DESCRIPTION = (scope: McpxToolScope): string =>
 
 ${draftSentence(scope)}`;
 
+/**
+ * Collection-only, because a global always exists.
+ *
+ * The seed is checked against the collection's fields before the create, so an
+ * unknown key is refused with its valid siblings rather than dropped. Row ids
+ * in the seed are stripped and a top-level `id` is refused outright. The new
+ * document is re-read privileged afterwards to collect publish blockers, which
+ * is why an incomplete seed still succeeds and comes back with a checklist.
+ */
 export const createDocument = defineMcpxTool({
 	name: "createDocument",
 	description: DESCRIPTION,

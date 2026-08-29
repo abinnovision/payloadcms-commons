@@ -1,28 +1,40 @@
 # @abinnovision/payloadcms-mcpx
 
 A Payload CMS plugin that mounts an MCP (Model Context Protocol) server whose
-tool surface stays small and accurate regardless of the size of the
-content model.
+tool surface stays small and accurate regardless of the size of the content
+model.
 
 Instead of generating one tool per collection with the full document schema
-inlined, the plugin types its surface in three layers. The tool signatures are
-small and static: collection slugs, locales and operations as enums, everything
-else scalars. The field shapes are pulled on demand through `describeSchema`,
-one node at a time, stopping at every blocks boundary. And every write is
-resolved server-side against the real config and the real document, so unknown
-fields, misplaced blocks and unusable rich text nodes or node fields are refused with the
-valid alternatives listed, never silently dropped.
+inlined, the plugin types its surface in three layers. Tool signatures are small
+and static: collection slugs, locales and operations as enums, everything else
+scalars. Field shapes are pulled on demand through `describeSchema`, one node at
+a time, stopping at every blocks boundary. And every write is resolved
+server-side against the real config and the real document, so an unknown field,
+a misplaced block or an unusable rich text node comes back refused, with the
+valid alternatives listed rather than quietly dropped.
 
-Writes are RFC 6902 patches that land as drafts. One config axis decides how far
-they reach: `write: "draft"` never changes live content, `write: "live"` does —
-by exposing `publishDocument` where versions exist, and by permitting the write
-at all where they do not. Every write returns the publish blockers: the
-validation failures that still prevent the draft from being published.
-Capabilities are declared twice: the plugin config decides what can exist, a
-checkbox on each API key decides what does, and a missing checkbox means no
-(fail-closed).
+Writes are RFC 6902 patches that land as drafts, and every write returns the
+publish blockers still standing between that draft and a publish. One config
+axis decides how far a write reaches. `write: "draft"` never changes live
+content. `write: "live"` does, by exposing `publishDocument` where versions
+exist and by permitting the write at all where they do not. Capabilities are
+declared twice: the plugin config decides what can exist, a checkbox on each API
+key decides what does, and a missing checkbox reads as no (fail-closed).
 
-## Install
+## Contents
+
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Tools](#tools)
+- [Globals](#globals)
+- [API keys](#api-keys)
+- [Drafts and publishing](#drafts-and-publishing)
+- [Custom tools](#custom-tools)
+- [How it is enforced](#how-it-is-enforced)
+- [Security notes](#security-notes)
+- [Non-goals of v1 / roadmap](#non-goals-of-v1--roadmap)
+
+## Quick start
 
 ```bash
 yarn add @abinnovision/payloadcms-mcpx
@@ -34,7 +46,8 @@ yarn add @abinnovision/payloadcms-mcpx
   `apiKeys.setupGuide: false`.
 - The package is published as ESM only, matching Payload itself.
 
-## Usage
+Add the plugin and name the collections and globals it may reach. Nothing is
+exposed that is not listed here:
 
 ```ts
 import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
@@ -67,49 +80,12 @@ The plugin adds:
 - a draft guard on every collection and global, so any write carrying the MCP
   request marker lands as a draft, including writes made by custom tools.
 
-## API keys
+Then create a key in the admin panel under MCP > API Keys, tick the capabilities
+it should have, and copy the plaintext key shown after saving. Checkboxes
+default to off, so a fresh key can do nothing until you say otherwise. See
+[API keys](#api-keys) for what a key is and is not.
 
-Keys are created in the admin panel under MCP > API Keys. The plaintext key is
-generated on create, stored encrypted with an HMAC index for lookup, and shown
-to anyone who may read the key document (own keys only, by default). Each key:
-
-- is bound to the user who created it and acts as that user: every operation
-  runs with `req.user` set to the linked user and `overrideAccess: false`, so
-  your collection access control applies unchanged;
-- carries one checkbox per exposed collection and operation, plus one per
-  custom tool. All checkboxes default to off. A key can never enable an
-  operation the plugin config does not expose, and keys created before a
-  capability existed stay without it. The `publish` checkbox only exists where
-  a versioned entity is configured `write: "live"`, so a key issued before
-  publishing was possible stays closed to it, and it counts only alongside
-  `write`: publishing is an extension of writing, not a capability of its own.
-
-Keys authenticate only the MCP endpoint. They are deliberately not a Payload
-auth strategy, so a key can never authenticate the REST or GraphQL API; the
-reverse also holds: an admin session or JWT is ignored by the MCP endpoint.
-
-Use `apiKeys.overrideCollection` to widen access (for example, admins manage
-all keys) or add fields.
-
-## Connecting a client
-
-Saved keys carry a **Connect a client** tab in the admin holding these same
-instructions with their own URL and key filled in, each block behind a copy
-button. The tab only exists once the key does, so the create form stays free of
-it. Turn it off with `apiKeys.setupGuide: false`, which also drops the tabs and
-restores the flat form.
-
-The tab renders an admin component, so it has to be in the import map:
-
-```bash
-payload generate:importmap
-```
-
-Without that entry Payload logs a missing-component error and renders nothing
-else; the rest of the plugin is unaffected. The URL comes from `serverURL` when
-the config sets one and from the browser's origin otherwise.
-
-The endpoint speaks streamable HTTP with `Authorization: Bearer <key>`:
+Then point a client at the endpoint, passing the key as a bearer token:
 
 ```bash
 npx @modelcontextprotocol/inspector
@@ -142,6 +118,53 @@ Claude Desktop (no direct HTTP header support) via `mcp-remote`:
   }
 }
 ```
+
+## Configuration
+
+| Option                       | Default                        | Description                                                       |
+| ---------------------------- | ------------------------------ | ----------------------------------------------------------------- |
+| `collections`                | required                       | Allow-list. `true` means `{ read: true }`.                        |
+| `collections.<slug>.read`    | `true`                         | Expose `describeSchema`, `findDocuments`, `getDocument`.          |
+| `collections.<slug>.write`   | `false`                        | `"draft"` or `"live"`. See below.                                 |
+| `globals`                    | `{}`                           | Allow-list of globals. `true` means `{ read: true }`.             |
+| `globals.<slug>.read`        | `true`                         | Expose `describeSchema`, `getDocument`.                           |
+| `globals.<slug>.write`       | `false`                        | `"draft"` or `"live"`. See below.                                 |
+| `userCollection`             | `config.admin.user` or `users` | Auth collection the keys act as.                                  |
+| `apiKeys.slug`               | `mcpx-api-keys`                | Slug of the generated key collection.                             |
+| `apiKeys.setupGuide`         | `true`                         | Add a "Connect a client" tab to saved keys. Needs the import map. |
+| `apiKeys.overrideCollection` | none                           | Final override applied to the generated collection.               |
+| `endpoint.path`              | `/mcpx`                        | Endpoint path below the API route.                                |
+| `limits.maxLimit`            | `25`                           | Upper bound for `findDocuments.limit`.                            |
+| `limits.maxDepth`            | `1`                            | Upper bound for `depth` on reads.                                 |
+| `tools`                      | `[]`                           | Custom tools, defined the same way as the builtins.               |
+| `auth.resolve`               | none                           | Replace or wrap the default key resolution.                       |
+| `serverInfo`                 | package name and version       | Reported to MCP clients.                                          |
+
+`write` is one axis: how far MCP writes to this entity reach.
+
+| `write`   | With `versions.drafts`                                  | Without                                        |
+| --------- | ------------------------------------------------------- | ---------------------------------------------- |
+| `false`   | no write tool reaches it                                | no write tool reaches it                       |
+| `"draft"` | writes land as drafts, nothing is ever published        | refused at startup: there is no draft to write |
+| `"live"`  | writes land as drafts, and `publishDocument` is exposed | writes land on the live document               |
+
+`"live"` is the only way an MCP write reaches live content, whichever of the two
+shapes it takes. Wherever it is set, the server instructions and the
+`patchDocument` and `createDocument` descriptions name those slugs for the key in
+question, so a client is never told its writes are drafts while they are not,
+nor that publishing is out of reach when it is not.
+
+Migrating from the previous option shape: `write: true` becomes
+`write: "draft"`, and `write: true` with `allowLiveWrites: true` becomes
+`write: "live"`. A versioned entity moved to `write: "live"` gains a `publish`
+checkbox on every key, unticked, so nothing publishes until someone says so.
+
+Misconfiguration (unknown slugs, `write: "draft"` on a collection without
+drafts, upload collections exposed for write, tool name collisions) fails at
+startup with `InvalidConfiguration`. So does `write: "live"` on an entity using
+`versions.drafts.localizeStatus`, which is not supported yet. Auth collections cannot be exposed at all, read
+included: their documents carry credentials, such as the decrypted Payload API
+key of every user.
 
 ## Tools
 
@@ -240,8 +263,8 @@ camelCase name with a collection. Keys issued before a global was exposed have
 no such group, and an absent checkbox reads as `false`, so they stay closed to
 every global until one is ticked.
 
-Globals always carry `updatedAt` — Payload appends it and there is no
-`timestamps: false` for globals — so `expectedUpdatedAt` behaves as it does for
+Globals always carry `updatedAt`, because Payload appends it and there is no
+`timestamps: false` for globals, so `expectedUpdatedAt` behaves as it does for
 collections. The one exception is a global that has never been saved: it has no
 `updatedAt` to compare against, so the first write must omit
 `expectedUpdatedAt`, and supplying one is refused as a concurrency failure.
@@ -250,59 +273,78 @@ If `tools/list` omits `global` entirely, no global is exposed to that key; the
 argument only appears once one is. A deployment that uses no globals sees the
 tool schemas exactly as they were.
 
+## API keys
+
+Keys are created in the admin panel under MCP > API Keys. The plaintext key is
+generated on create, stored encrypted with an HMAC index for lookup, and shown
+to anyone who may read the key document (own keys only, by default). Each key:
+
+- is bound to the user who created it and acts as that user: every operation
+  runs with `req.user` set to the linked user and `overrideAccess: false`, so
+  your collection access control applies unchanged;
+- carries one checkbox per exposed collection and operation, plus one per
+  custom tool. All checkboxes default to off. A key can never enable an
+  operation the plugin config does not expose, and keys created before a
+  capability existed stay without it. The `publish` checkbox only exists where
+  a versioned entity is configured `write: "live"`, so a key issued before
+  publishing was possible stays closed to it, and it counts only alongside
+  `write`: publishing is an extension of writing, not a capability of its own.
+
+Keys authenticate only the MCP endpoint. They are deliberately not a Payload
+auth strategy, so a key can never authenticate the REST or GraphQL API; the
+reverse also holds: an admin session or JWT is ignored by the MCP endpoint.
+
+Use `apiKeys.overrideCollection` to widen access (for example, admins manage
+all keys) or add fields.
+
+### The "Connect a client" tab
+
+Saved keys carry a **Connect a client** tab in the admin holding the client
+snippets from [Quick start](#quick-start) with their own URL and key filled in,
+each block behind a copy button. The tab only exists once the key does, so the create form stays free of
+it. Turn it off with `apiKeys.setupGuide: false`, which also drops the tabs and
+restores the flat form.
+
+The tab renders an admin component, so it has to be in the import map:
+
+```bash
+payload generate:importmap
+```
+
+Without that entry Payload logs a missing-component error and renders nothing
+else; the rest of the plugin is unaffected. The URL comes from `serverURL` when
+the config sets one and from the browser's origin otherwise.
+
 ## Drafts and publishing
 
-Draft-only writing is enforced on the Payload operation, not in the tool
-handlers: a `beforeOperation` hook forces `draft: true` and strips `_status`
-from every write carrying the MCP request marker, so custom tools and anything
-else writing through the same request are covered too. A `beforeChange` hook
-refuses any write that would still not land as a draft.
+Every MCP write lands as a draft. That is enforced on the Payload operation
+rather than in the tool handlers, so a custom tool writing through the same
+request is covered as well; see [How it is enforced](#how-it-is-enforced) for
+the mechanism.
 
-The two hooks are not equally load-bearing on both sides. `updateGlobal` reads
-`draft` and the publish arguments off its argument bag _before_ it runs
-`beforeOperation`, and re-reads only `data` afterwards, so for a global the
-correction cannot apply and the `beforeChange` refusal is what actually holds
-the line. Both are installed on every collection and global, exposed or not.
-
-`publishDocument` is the one way through, and it opens the door for exactly one
-write: the tool marks that write's own `data` object, and the guard grants the
-publish only to a write carrying the mark. Nothing is scoped to a slug or an id
-because nothing else can reach it — a concurrent call in the same JSON-RPC batch
-has its own `data`, and so does a nested write from a hook during the publish.
-That matters: the endpoint hands one `PayloadRequest` to every tool, and the
-transport dispatches the messages of a batch without awaiting each one, so an
-intent kept on the request would be reachable by a sibling `patchDocument` and
-would publish it. The mark is a string key holding a token minted per process,
-because Payload's copy of the write data keeps string keys and drops symbols,
-and a token cannot be forged by a client writing a field of the same name. It is
-still not a security boundary — a custom tool holds the whole `payload` instance
-— but no ordinary write can widen itself into a publish.
-
-Publishing covers the whole document, as the admin Publish button does, but
-Payload only validates the locale the publish runs in. A required field left
-empty in another locale therefore goes live empty; that is Payload's behaviour,
-not something this plugin adds. `publishDocument` refuses a document that fails
-validation and reports `validationErrors` with JSON Pointers. It is refused
-while a human holds the document open in the admin panel, and republishing an
-unchanged document is accepted but writes another version.
+`publishDocument` is the one way through. Publishing covers the whole document,
+as the admin Publish button does, but Payload only validates the locale the
+publish runs in. A required field left empty in another locale therefore goes
+live empty. That is Payload's behaviour, not something this plugin adds.
+`publishDocument` refuses a document that fails validation and reports
+`validationErrors` with JSON Pointers. It is refused while a human holds the
+document open in the admin panel, and republishing an unchanged document is
+accepted but writes another version.
 
 There is no unpublish tool. Reverting a published document to a draft stays a
 human action.
 
 Publish blockers are advisory. Payload skips validation on draft saves (unless
 `versions.drafts.validate` is set), so after every write the plugin re-runs
-Payload's own field validation over the saved draft and returns the failures
-as `publishBlockers` with paths and labels. The write stands; the client gets a
-checklist of what remains. Three limits: only the written locale is
-validated; field `beforeChange` hooks run again during the check, so they must
-be pure; and the check runs privileged, so blocker paths and messages may name
-fields the key's user cannot read (values are never included).
-Collections with `versions.drafts.validate: true` refuse invalid drafts
-outright; those failures come back as `validationErrors`. Both carry pointers,
-restated from the dotted paths Payload reports internally.
+Payload's own field validation over the saved draft and returns the failures as
+`publishBlockers` with paths and labels. The write stands; the client gets a
+checklist of what remains. Collections with `versions.drafts.validate: true`
+refuse invalid drafts outright, and those failures come back as
+`validationErrors` instead. Both carry pointers, restated from the dotted paths
+Payload reports internally.
 
-`publishBlockersUnavailable` marks a check that could not complete, which is
-not the same answer as a document with nothing wrong with it. `validateDocument`
+`publishBlockersUnavailable` marks a check that could not complete, which is not
+the same answer as a document with nothing wrong with it. `validateDocument`
 runs the same traversal without saving anything, so it is not free of side
 effects: field `beforeValidate` and `beforeChange` hooks run, and it carries no
 `readOnlyHint` for that reason.
@@ -395,52 +437,39 @@ argument is rejected by name rather than stripped before the handler runs.
 `jsonResult` and `errorResult` are exported so a custom tool can return
 results shaped like a builtin's.
 
-## Options
+## How it is enforced
 
-| Option                       | Default                        | Description                                                       |
-| ---------------------------- | ------------------------------ | ----------------------------------------------------------------- |
-| `collections`                | required                       | Allow-list. `true` means `{ read: true }`.                        |
-| `collections.<slug>.read`    | `true`                         | Expose `describeSchema`, `findDocuments`, `getDocument`.          |
-| `collections.<slug>.write`   | `false`                        | `"draft"` or `"live"`. See below.                                 |
-| `globals`                    | `{}`                           | Allow-list of globals. `true` means `{ read: true }`.             |
-| `globals.<slug>.read`        | `true`                         | Expose `describeSchema`, `getDocument`.                           |
-| `globals.<slug>.write`       | `false`                        | `"draft"` or `"live"`. See below.                                 |
-| `userCollection`             | `config.admin.user` or `users` | Auth collection the keys act as.                                  |
-| `apiKeys.slug`               | `mcpx-api-keys`                | Slug of the generated key collection.                             |
-| `apiKeys.setupGuide`         | `true`                         | Add a "Connect a client" tab to saved keys. Needs the import map. |
-| `apiKeys.overrideCollection` | none                           | Final override applied to the generated collection.               |
-| `endpoint.path`              | `/mcpx`                        | Endpoint path below the API route.                                |
-| `limits.maxLimit`            | `25`                           | Upper bound for `findDocuments.limit`.                            |
-| `limits.maxDepth`            | `1`                            | Upper bound for `depth` on reads.                                 |
-| `tools`                      | `[]`                           | Custom tools, defined the same way as the builtins.               |
-| `auth.resolve`               | none                           | Replace or wrap the default key resolution.                       |
-| `serverInfo`                 | package name and version       | Reported to MCP clients.                                          |
+Draft-only writing sits on the Payload operation, not in the tool handlers. A
+`beforeOperation` hook forces `draft: true` and strips `_status` from every
+write carrying the MCP request marker, so custom tools and anything else writing
+through the same request are covered too. A `beforeChange` hook then refuses any
+write that would still not land as a draft.
 
-`write` is one axis: how far MCP writes to this entity reach.
+The two hooks are not equally load-bearing on both sides. `updateGlobal` reads
+`draft` and the publish arguments off its argument bag _before_ it runs
+`beforeOperation`, and re-reads only `data` afterwards, so for a global the
+correction cannot apply and the `beforeChange` refusal is what actually holds
+the line. Both are installed on every collection and global, exposed or not.
 
-| `write`   | With `versions.drafts`                                  | Without                                        |
-| --------- | ------------------------------------------------------- | ---------------------------------------------- |
-| `false`   | no write tool reaches it                                | no write tool reaches it                       |
-| `"draft"` | writes land as drafts, nothing is ever published        | refused at startup: there is no draft to write |
-| `"live"`  | writes land as drafts, and `publishDocument` is exposed | writes land on the live document               |
+`publishDocument` opens the door for exactly one write: the tool marks that
+write's own `data` object, and the guard grants the publish only to a write
+carrying the mark. Nothing is scoped to a slug or an id because nothing else can
+reach it. A concurrent call in the same JSON-RPC batch has its own `data`, and
+so does a nested write from a hook during the publish.
 
-`"live"` is the only way an MCP write reaches live content, whichever of the two
-shapes it takes. Wherever it is set, the server instructions and the
-`patchDocument` and `createDocument` descriptions name those slugs for the key in
-question, so a client is never told its writes are drafts while they are not,
-nor that publishing is out of reach when it is not.
+That distinction matters. The endpoint hands one `PayloadRequest` to every tool,
+and the transport dispatches the messages of a batch without awaiting each one,
+so an intent kept on the request would be reachable by a sibling `patchDocument`
+and would publish it instead. The mark is a string key holding a token minted
+per process, because Payload's copy of the write data keeps string keys and
+drops symbols, and a token cannot be forged by a client writing a field of the
+same name. None of this is a security boundary, since a custom tool holds the
+whole `payload` instance, but no ordinary write can widen itself into a publish.
 
-Migrating from the previous option shape: `write: true` becomes
-`write: "draft"`, and `write: true` with `allowLiveWrites: true` becomes
-`write: "live"`. A versioned entity moved to `write: "live"` gains a `publish`
-checkbox on every key, unticked, so nothing publishes until someone says so.
-
-Misconfiguration (unknown slugs, `write: "draft"` on a collection without
-drafts, upload collections exposed for write, tool name collisions) fails at
-startup with `InvalidConfiguration`. So does `write: "live"` on an entity using
-`versions.drafts.localizeStatus`, which is not supported yet. Auth collections cannot be exposed at all, read
-included: their documents carry credentials, such as the decrypted Payload API
-key of every user.
+The publish-blocker check has three limits worth knowing. Only the written
+locale is validated. Field `beforeChange` hooks run again during the check, so
+they must be pure. And the check runs privileged, so blocker paths and messages
+may name fields the key's user cannot read, though values are never included.
 
 ## Security notes
 
@@ -454,6 +483,9 @@ key of every user.
   fence, not Payload's.
 - Not covered in v1: `delete` (no tool exists and none is generated), uploads.
   Custom tools are trusted code and can do what the linked user may.
+
+How the draft and publish guarantees are enforced, and where they stop, is in
+[How it is enforced](#how-it-is-enforced).
 
 ## Non-goals of v1 / roadmap
 

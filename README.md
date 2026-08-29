@@ -6,13 +6,15 @@ A collection of common packages and plugins for [Payload CMS](https://payloadcms
 
 ## Packages
 
-| Package                                                                    | Description                                                                      |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.             |
-| [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server plugin with a fixed, schema-aware tool surface and draft-only writes. |
+| Package                                                                    | Description                                                                         |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.                |
+| [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server plugin with a fixed, schema-aware tool surface and per-key capabilities. |
 
-See [`packages/`](./packages) for the layout and conventions used when adding one.
-Private example apps live in [`apps/`](./apps).
+A new package follows the layout of an existing one: source under `src/`,
+tsdown for the build, unit tests beside the source and integration tests under
+`test/`. [`packages/mcpx`](./packages/mcpx) is the fuller of the two to copy
+from. Private example apps live in [`apps/`](./apps).
 
 ## Compatibility
 

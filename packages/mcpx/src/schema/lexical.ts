@@ -8,8 +8,6 @@ import type {
 } from "payload";
 
 /**
- * Node types Lexical registers itself.
- *
  * `editorConfig.features.nodes` lists only what a feature contributed, so a
  * field whose editor enables nothing but text formatting reports none at all.
  */
@@ -22,17 +20,15 @@ const LEXICAL_CORE_NODES: readonly string[] = [
 ];
 
 /**
- * Node types whose sub-fields exist but cannot be addressed by a schema path.
- *
- * Asked without a node, `upload` answers with every enabled collection's
- * upload fields concatenated, so the result describes no single position. It
- * would need addressing by `relationTo` to mean anything.
+ * Sub-fields exist but cannot be addressed by a schema path. Asked without a
+ * node, `upload` answers with every enabled collection's upload fields
+ * concatenated, so the result describes no single position.
  */
 const OPAQUE_NODE_TYPES: ReadonlySet<string> = new Set(["upload"]);
 
 /**
- * The part of the sanitized Lexical adapter this module reads. Typed
- * structurally so the plugin does not depend on `@payloadcms/richtext-lexical`.
+ * Typed structurally so the plugin does not depend on
+ * `@payloadcms/richtext-lexical`.
  *
  * `getSubFields` is the hook Payload uses to populate and run hooks on the
  * fields a node carries. Called without a node it returns every sub-field the
@@ -56,10 +52,8 @@ interface LexicalLikeEditor {
 }
 
 /**
- * What sits behind one node type.
- *
  * `blocks` covers nodes that pick a definition by slug, which is how the
- * Lexical block features report themselves; the walkers then treat it exactly
+ * Lexical block features report themselves, so the walkers treat it exactly
  * like a Payload blocks field. `fields` covers everything else, a link node
  * being the common case.
  */
@@ -68,13 +62,9 @@ type LexicalSubSchema =
 	| { fields: FlattenedField[]; kind: "fields" };
 
 /**
- * Sub-schemas per rich text field, keyed by node type. `null` records a node
- * type that was asked and has nothing to describe, so it is asked only once.
- *
- * Worth caching because the describe and validate paths resolve the same field
- * repeatedly, and because the block features build their answer from scratch on
- * every call. Keyed weakly on the sanitized field, which lives as long as the
- * config does.
+ * `null` records a node type that was asked and has nothing to describe, so it
+ * is asked only once. Worth caching because describe and validate resolve the
+ * same field repeatedly and the block features rebuild their answer every call.
  */
 const subSchemaCache = new WeakMap<
 	RichTextField,
@@ -84,10 +74,7 @@ const subSchemaCache = new WeakMap<
 const featuresOf = (field: RichTextField) =>
 	(field.editor as LexicalLikeEditor | undefined)?.editorConfig?.features;
 
-/**
- * Node types a rich text field accepts. Editors other than Lexical report
- * only the core nodes.
- */
+/** Editors other than Lexical report only the core nodes. */
 export const allowedNodeTypes = (field: RichTextField): string[] => {
 	const registered = (featuresOf(field)?.nodes ?? []).flatMap((entry) => {
 		const type = entry.node?.getType?.();
@@ -120,10 +107,6 @@ const resolveSubSchema = (
 		: { fields: flattened, kind: "fields" };
 };
 
-/**
- * The sub-schema behind one node type of a rich text field, or `undefined`
- * when that node carries no addressable fields.
- */
 export const lexicalSubSchema = (
 	field: RichTextField,
 	nodeType: string,
@@ -142,10 +125,7 @@ export const lexicalSubSchema = (
 	return cached.get(nodeType) ?? undefined;
 };
 
-/**
- * Node types of a rich text field that have a sub-schema, in the order their
- * features registered them.
- */
+/** In the order their features registered them. */
 export const subSchemaNodeTypes = (field: RichTextField): string[] =>
 	[...(featuresOf(field)?.getSubFields?.keys() ?? [])].filter(
 		(nodeType) => lexicalSubSchema(field, nodeType) !== undefined,
@@ -173,8 +153,6 @@ interface NodeOptionSource {
 }
 
 /**
- * Node properties worth reporting and enforcing.
- *
  * Only properties a feature narrows and Lexical does not check on its own
  * belong here. Everything else a feature restricts is already visible: a
  * link's targets through its sub-schema, a block node's choices through the

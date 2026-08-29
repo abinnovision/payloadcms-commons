@@ -18,9 +18,6 @@ const relationId = (value: unknown): number | string | undefined => {
 	return undefined;
 };
 
-/**
- * The bearer token of an `Authorization` header, or `null`.
- */
 export const parseBearer = (headers: Headers): null | string => {
 	const header = headers.get("authorization");
 
