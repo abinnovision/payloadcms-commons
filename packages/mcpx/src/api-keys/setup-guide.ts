@@ -1,6 +1,6 @@
-const KEY_PLACEHOLDER = "<your-key>";
+export const KEY_PLACEHOLDER = "<your-key>";
 
-interface SetupGuideInput {
+export interface SetupGuideInput {
 	/** Absolute MCP endpoint URL. */
 	endpointUrl: string;
 	/** Plaintext key, absent on an unsaved document or a failed decrypt. */
@@ -9,7 +9,7 @@ interface SetupGuideInput {
 	label?: null | string | undefined;
 }
 
-interface SetupGuideSection {
+export interface SetupGuideSection {
 	/** Stable key for rendering and for tests. */
 	id: string;
 	title: string;
@@ -22,7 +22,7 @@ interface SetupGuideSection {
  * Server name for the client config. MCP clients key their config by this, so
  * it has to survive labels with spaces or punctuation.
  */
-const toServerName = (label?: null | string): string => {
+export const toServerName = (label?: null | string): string => {
 	const slug = (label ?? "")
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, "-")
@@ -36,7 +36,9 @@ const toServerName = (label?: null | string): string => {
  * blocks. Kept a pure builder so the admin component holds only rendering and
  * the snippets stay unit-testable.
  */
-const buildSetupGuide = (input: SetupGuideInput): SetupGuideSection[] => {
+export const buildSetupGuide = (
+	input: SetupGuideInput,
+): SetupGuideSection[] => {
 	const key = typeof input.apiKey === "string" ? input.apiKey : KEY_PLACEHOLDER;
 	const name = toServerName(input.label);
 	const url = input.endpointUrl;
@@ -89,6 +91,3 @@ const buildSetupGuide = (input: SetupGuideInput): SetupGuideSection[] => {
 		},
 	];
 };
-
-export { buildSetupGuide, KEY_PLACEHOLDER, toServerName };
-export type { SetupGuideInput, SetupGuideSection };

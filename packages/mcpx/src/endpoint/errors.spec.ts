@@ -1,12 +1,7 @@
 import { APIError, Forbidden, ValidationError } from "payload";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-	errorResult,
-	jsonResult,
-	jsonRpcError,
-	toToolError,
-} from "./result.js";
+import { jsonRpcError, toToolError } from "./errors.js";
 
 import type { Payload } from "payload";
 
@@ -15,21 +10,7 @@ const logger = { error: vi.fn() } as unknown as Payload["logger"];
 const parse = (result: { content: { type: string; text?: string }[] }) =>
 	JSON.parse(result.content[0]?.text ?? "null") as Record<string, unknown>;
 
-describe("result helpers", () => {
-	it("serializes a value as JSON text", () => {
-		const result = jsonResult({ a: 1 });
-
-		expect(result.isError).toBeUndefined();
-		expect(parse(result)).toEqual({ a: 1 });
-	});
-
-	it("marks an error result and carries extras", () => {
-		const result = errorResult("nope", { problems: ["x"] });
-
-		expect(result.isError).toBe(true);
-		expect(parse(result)).toEqual({ error: "nope", problems: ["x"] });
-	});
-
+describe("jsonRpcError", () => {
 	it("builds a JSON-RPC error response", async () => {
 		const response = jsonRpcError({
 			status: 401,

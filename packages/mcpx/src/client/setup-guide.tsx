@@ -8,6 +8,10 @@ import {
 } from "@payloadcms/ui";
 import React, { useEffect, useState } from "react";
 
+/*
+ * Deep import on purpose: the `api-keys` barrel pulls server-only Payload
+ * code into this client entry.
+ */
 import { buildSetupGuide } from "../api-keys/setup-guide.js";
 
 interface McpxSetupGuideProps {

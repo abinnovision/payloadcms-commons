@@ -1,6 +1,6 @@
 import { APIError, Forbidden } from "payload";
 
-import type { TargetRef } from "../schema/walk.js";
+import type { TargetRef } from "../schema/index.js";
 import type { McpxToolScope } from "../types.js";
 import type { SanitizedCollectionConfig, SanitizedGlobalConfig } from "payload";
 
@@ -9,11 +9,11 @@ import type { SanitizedCollectionConfig, SanitizedGlobalConfig } from "payload";
  * must hand Payload a real collection or global config can narrow, while
  * callers that only need `flattenedFields` can ignore the discriminant.
  */
-type ResolvedTarget =
+export type ResolvedTarget =
 	| { kind: "collection"; slug: string; config: SanitizedCollectionConfig }
 	| { kind: "global"; slug: string; config: SanitizedGlobalConfig };
 
-const refOf = (target: ResolvedTarget): TargetRef => ({
+export const refOf = (target: ResolvedTarget): TargetRef => ({
 	kind: target.kind,
 	slug: target.slug,
 });
@@ -27,7 +27,7 @@ const refOf = (target: ResolvedTarget): TargetRef => ({
  * enforced here instead, with a message naming the offending arguments so one
  * failed call teaches it.
  */
-const resolveTarget = (
+export const resolveTarget = (
 	scope: McpxToolScope,
 	args: { collection?: string | undefined; global?: string | undefined },
 	operation: "read" | "write",
@@ -79,7 +79,7 @@ const resolveTarget = (
  * global is a singleton and must not carry one. The schema cannot express the
  * dependency, so it is stated here and in every affected tool description.
  */
-const requireIdFor = (
+export const requireIdFor = (
 	target: ResolvedTarget,
 	id: number | string | undefined,
 ): number | string | undefined => {
@@ -99,6 +99,3 @@ const requireIdFor = (
 
 	return target.kind === "collection" ? id : undefined;
 };
-
-export { refOf, requireIdFor, resolveTarget };
-export type { ResolvedTarget };

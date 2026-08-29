@@ -5,10 +5,10 @@ import {
 	forceDraftWriteGlobal,
 	installDraftGuards,
 	installGlobalDraftGuards,
-	isMcpxRequest,
 	refusePublish,
 	refusePublishGlobal,
 } from "./draft-guard.js";
+import { isMcpxRequest } from "../request.js";
 
 import type { CollectionConfig, GlobalConfig, PayloadRequest } from "payload";
 

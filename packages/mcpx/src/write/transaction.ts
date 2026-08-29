@@ -7,7 +7,7 @@ import type { PayloadRequest } from "payload";
  * write cannot interleave with another writer. Adapters without transaction
  * support, or a request that already owns one, run `fn` as is.
  */
-const withTransaction = async <T>(
+export const withTransaction = async <T>(
 	req: PayloadRequest,
 	fn: () => Promise<T>,
 ): Promise<T> => {
@@ -29,5 +29,3 @@ const withTransaction = async <T>(
 		throw error;
 	}
 };
-
-export { withTransaction };

@@ -23,7 +23,7 @@ import type {
  * construct that does not nest in the stored document, so it becomes a pointer
  * into a document by replacing each {@link ARRAY_MARKER} with an index.
  */
-interface FieldDescriptor {
+export interface FieldDescriptor {
 	blocks?: string[];
 	description?: string;
 	hasMany?: true;
@@ -47,7 +47,7 @@ interface FieldDescriptor {
 /**
  * Fields Payload maintains, which a client may neither address nor supply.
  */
-const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
+export const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
 	"_status",
 	"createdAt",
 	"deletedAt",
@@ -60,19 +60,19 @@ const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
  * pointer into a document carries an index. Not a legal Payload field name,
  * and deliberately not `-`, which RFC 6901 already reads as "append here".
  */
-const ARRAY_MARKER = "*";
+export const ARRAY_MARKER = "*";
 
 /**
  * Shape a JSON Pointer must have to be parseable at all.
  */
-const JSON_POINTER_PATTERN = /^(\/([^~/]|~[01])*)*$/;
+export const JSON_POINTER_PATTERN = /^(\/([^~/]|~[01])*)*$/;
 
 /**
  * Joins segments into a JSON Pointer, so the segments `items`, `*`, `title`
  * read as one path to a subfield of every element of `items`. No segments is
  * the root pointer, `""`.
  */
-const joinPath = (parts: readonly string[]): string =>
+export const joinPath = (parts: readonly string[]): string =>
 	parts
 		.map((part) => `/${part.replace(/~/g, "~0").replace(/\//g, "~1")}`)
 		.join("");
@@ -81,7 +81,7 @@ const joinPath = (parts: readonly string[]): string =>
  * Splits a JSON Pointer into its segments, unescaping `~1` and `~0`. The root
  * pointer yields no segments.
  */
-const splitPath = (path: string): string[] =>
+export const splitPath = (path: string): string[] =>
 	path
 		.split("/")
 		.slice(1)
@@ -92,14 +92,14 @@ const splitPath = (path: string): string[] =>
  * a JSON Pointer, so everything this plugin hands back addresses documents the
  * same way. Payload's path already carries real indices, so it maps directly.
  */
-const pointerFromPayloadPath = (path: string): string =>
+export const pointerFromPayloadPath = (path: string): string =>
 	path ? joinPath(path.split(".")) : "";
 
 /**
  * Blocks a blocks field accepts, by slug. On a flattened field, whichever of
  * `blockReferences` and `blocks` was declared carries the definitions.
  */
-const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
+export const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
 	...new Set(
 		(field.blockReferences ?? field.blocks).map((block) =>
 			typeof block === "string" ? block : block.slug,
@@ -115,7 +115,7 @@ const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
  * accept are not, so an inline definition has to be read at its position.
  * The registry (`config.blocks`) is the fallback for slugs referenced by name.
  */
-const blockOf = (
+export const blockOf = (
 	config: SanitizedConfig,
 	field: FlattenedBlocksField,
 	slug: string,
@@ -286,7 +286,7 @@ const isInformative = (descriptor: FieldDescriptor): boolean =>
  * default, so a missing argument costs language selection, never the
  * description itself.
  */
-const describeFields = (
+export const describeFields = (
 	fields: FlattenedField[],
 	translate: Translate = translateAny,
 ): FieldDescriptor[] => {
@@ -340,7 +340,7 @@ const describeFields = (
  * path against a document needs. A container describes a position rather than
  * a value, so only {@link describeNode} reports one.
  */
-const describeAddressableFields = (
+export const describeAddressableFields = (
 	fields: FlattenedField[],
 ): FieldDescriptor[] =>
 	describeFields(fields).filter((descriptor) => !isContainer(descriptor));
@@ -348,7 +348,7 @@ const describeAddressableFields = (
 /**
  * Locates the blocks field that a resolved descriptor path refers to.
  */
-const findBlocksField = (
+export const findBlocksField = (
 	fields: FlattenedField[],
 	path: readonly string[],
 ): FlattenedBlocksField | undefined => {
@@ -377,7 +377,7 @@ const findBlocksField = (
  * Locates the rich text field that a resolved descriptor path refers to, so
  * its editor can be introspected for the fields its nodes carry.
  */
-const findRichTextField = (
+export const findRichTextField = (
 	fields: FlattenedField[],
 	path: readonly string[],
 ): RichTextField | undefined => {
@@ -407,7 +407,7 @@ const findRichTextField = (
  * the schema layer is written against this rather than a bare slug, because a
  * slug alone cannot say which of the two namespaces it belongs to.
  */
-interface TargetRef {
+export interface TargetRef {
 	kind: "collection" | "global";
 	slug: string;
 }
@@ -417,13 +417,16 @@ interface TargetRef {
  * `SanitizedCollectionConfig` and `SanitizedGlobalConfig` satisfy it, so
  * `targetOf` returns without a cast and no caller has to narrow.
  */
-interface SchemaTarget {
+export interface SchemaTarget {
 	fields: Field[];
 	flattenedFields: FlattenedField[];
 	slug: string;
 }
 
-const targetOf = (config: SanitizedConfig, ref: TargetRef): SchemaTarget => {
+export const targetOf = (
+	config: SanitizedConfig,
+	ref: TargetRef,
+): SchemaTarget => {
 	const found =
 		ref.kind === "collection"
 			? config.collections.find((candidate) => candidate.slug === ref.slug)
@@ -436,7 +439,7 @@ const targetOf = (config: SanitizedConfig, ref: TargetRef): SchemaTarget => {
 	return found;
 };
 
-const collectionOf = (
+export const collectionOf = (
 	config: SanitizedConfig,
 	collection: string,
 ): SanitizedCollectionConfig => {
@@ -450,21 +453,3 @@ const collectionOf = (
 
 	return found;
 };
-
-export {
-	ARRAY_MARKER,
-	JSON_POINTER_PATTERN,
-	RESERVED_FIELD_NAMES,
-	blockOf,
-	blockSlugsOf,
-	collectionOf,
-	describeAddressableFields,
-	describeFields,
-	findBlocksField,
-	findRichTextField,
-	joinPath,
-	pointerFromPayloadPath,
-	splitPath,
-	targetOf,
-};
-export type { FieldDescriptor, SchemaTarget, TargetRef };

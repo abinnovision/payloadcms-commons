@@ -274,7 +274,7 @@ const branchesOf = (
  * Curried on the translator that resolves each `admin.description`, so a
  * request binds its language once and the walk itself stays request-free.
  */
-const nodeDescriber =
+export const nodeDescriber =
 	(translate: Translate = translateAny) =>
 	(
 		config: SanitizedConfig,
@@ -308,14 +308,14 @@ const nodeDescriber =
  * bounds each individual path, so mutually referencing blocks can otherwise
  * explode into permutations. Far beyond any real content model.
  */
-const REACHABLE_PATHS_LIMIT = 400;
+export const REACHABLE_PATHS_LIMIT = 400;
 
 /**
  * Every schema path reachable from an entity root, capped at
  * {@link REACHABLE_PATHS_LIMIT}. `truncated` tells the caller the cap was hit
  * and explicit paths are the way to go deeper.
  */
-const reachableSchemaPaths = (
+export const reachableSchemaPaths = (
 	config: SanitizedConfig,
 	ref: TargetRef,
 ): { paths: string[]; truncated: boolean } => {
@@ -354,11 +354,4 @@ const reachableSchemaPaths = (
 };
 
 /** Describes a node without a request in hand, in whichever language comes first. */
-const describeNode = nodeDescriber();
-
-export {
-	describeNode,
-	nodeDescriber,
-	reachableSchemaPaths,
-	REACHABLE_PATHS_LIMIT,
-};
+export const describeNode = nodeDescriber();

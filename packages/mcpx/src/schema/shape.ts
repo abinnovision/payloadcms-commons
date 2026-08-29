@@ -317,7 +317,7 @@ const checkValue = (scope: CheckScope, value: unknown): void => {
 /**
  * Shape problems with a value about to be written at a resolved pointer.
  */
-const validateWriteValue = (
+export const validateWriteValue = (
 	config: SanitizedConfig,
 	target: { pointer: string; resolution: PointerResolution },
 	value: unknown,
@@ -342,5 +342,3 @@ const validateWriteValue = (
 
 	return problems;
 };
-
-export { validateWriteValue };

@@ -1,15 +1,15 @@
 import { hasDraftValidationEnabled } from "payload/shared";
 
 import { translateLabel } from "./shared.js";
-import { jsonResult } from "../endpoint/result.js";
 import { translatorFor } from "../i18n.js";
+import { jsonResult } from "../result.js";
 import { defineMcpxTool } from "../types.js";
 
 const DESCRIPTION = `Lists what this key may do: the collections and globals it can read or write, their draft behaviour and id type, the configured locales, the limits in force and the custom tools available. Call it first to orient; nothing here changes with the content model.
 
 A global is a singleton: it has no id, is not listed by findDocuments and cannot be created. Address one with the "global" argument where a collection document would take "collection" and "id".`;
 
-const listCapabilities = defineMcpxTool({
+export const listCapabilities = defineMcpxTool({
 	name: "listCapabilities",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
@@ -94,5 +94,3 @@ const listCapabilities = defineMcpxTool({
 		);
 	},
 });
-
-export { listCapabilities };

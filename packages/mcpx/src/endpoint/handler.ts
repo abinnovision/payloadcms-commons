@@ -1,6 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
-import { resolveApiKeyAuth } from "../auth/resolve.js";
+import { resolveApiKeyAuth } from "../auth/index.js";
 import {
 	readableGlobalSlugs,
 	readableSlugs,
@@ -8,7 +8,7 @@ import {
 	writableGlobalSlugs,
 	writableSlugs,
 } from "../capabilities.js";
-import { jsonRpcError } from "./result.js";
+import { jsonRpcError } from "./errors.js";
 import { createMcpServer } from "./server.js";
 
 import type { NormalizedOptions } from "../options.js";

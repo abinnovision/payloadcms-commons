@@ -6,15 +6,15 @@ import {
 	targetShape,
 } from "./shared.js";
 import { requireIdFor, resolveTarget } from "./target.js";
-import { jsonResult } from "../endpoint/result.js";
+import { jsonResult } from "../result.js";
 import { defineMcpxTool } from "../types.js";
-import { collectPublishBlockers } from "../write/publish-blockers.js";
+import { collectPublishBlockers } from "../write/index.js";
 
 const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
 
 Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
-const validateDocument = defineMcpxTool({
+export const validateDocument = defineMcpxTool({
 	name: "validateDocument",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
@@ -61,5 +61,3 @@ const validateDocument = defineMcpxTool({
 		});
 	},
 });
-
-export { validateDocument };

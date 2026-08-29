@@ -5,7 +5,7 @@ import type { PayloadRequest } from "payload";
  * already folded `config.i18n.fallbackLanguage` into the request, so no
  * config lookup is needed.
  */
-type RequestLanguage = Pick<
+export type RequestLanguage = Pick<
 	PayloadRequest["i18n"],
 	"fallbackLanguage" | "language"
 >;
@@ -13,7 +13,7 @@ type RequestLanguage = Pick<
 /**
  * Resolves a serializable label or description to one string, or drops it.
  */
-type Translate = (value: unknown) => string | undefined;
+export type Translate = (value: unknown) => string | undefined;
 
 /**
  * A locale-keyed record, once it is known to hold nothing but strings.
@@ -54,7 +54,7 @@ const pick = (
  * description written as a function or a React component is an admin-UI
  * construct that may reach client-only i18n, so it is never invoked here.
  */
-const translateStatic = (
+export const translateStatic = (
 	value: unknown,
 	language: RequestLanguage,
 ): string | undefined => {
@@ -79,7 +79,7 @@ const translateStatic = (
  * Binds {@link translateStatic} to a request's language, so a walk that
  * resolves many descriptions carries no request of its own.
  */
-const translatorFor =
+export const translatorFor =
 	(i18n: RequestLanguage): Translate =>
 	(value) =>
 		translateStatic(value, i18n);
@@ -88,10 +88,7 @@ const translatorFor =
  * Translator for callers with no request in hand. Both language keys miss, so
  * the chain degrades to the record's first entry.
  */
-const translateAny: Translate = translatorFor({
+export const translateAny: Translate = translatorFor({
 	fallbackLanguage: "",
 	language: "",
 });
-
-export { translateAny, translateStatic, translatorFor };
-export type { RequestLanguage, Translate };

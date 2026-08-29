@@ -267,3 +267,14 @@ export interface McpxRequestContext {
 	apiKeyId: number | string;
 	capabilities: McpxResolvedCapabilities;
 }
+
+/**
+ * One reason a human could not publish the draft as it stands.
+ */
+export interface PublishBlocker {
+	/** Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title". */
+	field?: string;
+	message: string;
+	/** JSON Pointer to the offending value, e.g. "/layout/2/title". */
+	path: string;
+}

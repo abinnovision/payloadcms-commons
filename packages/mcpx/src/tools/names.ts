@@ -1,7 +1,7 @@
 /**
  * Names of the builtin tools. Custom tools must not reuse them.
  */
-const BUILTIN_TOOL_NAMES = [
+export const BUILTIN_TOOL_NAMES = [
 	"listCapabilities",
 	"describeSchema",
 	"findDocuments",
@@ -10,5 +10,3 @@ const BUILTIN_TOOL_NAMES = [
 	"createDocument",
 	"validateDocument",
 ] as const;
-
-export { BUILTIN_TOOL_NAMES };
