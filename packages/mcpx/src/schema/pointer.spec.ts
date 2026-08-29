@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { resolveDataPointer } from "./pointer.js";
+import { ARRAY_MARKER } from "./walk.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type { SanitizedConfig } from "payload";
@@ -87,7 +88,7 @@ describe("resolveDataPointer", () => {
 		expect(at("/items").descriptor).toBeUndefined();
 		expect(at("/items").prefix).toEqual(["items"]);
 		expect(at("/items/0").descriptor).toBeUndefined();
-		expect(at("/items/0").prefix).toEqual(["items", "0"]);
+		expect(at("/items/0").prefix).toEqual(["items", ARRAY_MARKER]);
 		expect(at("/items/0/heading").descriptor).toMatchObject({ type: "text" });
 		expect(resolve("/meta").descriptor).toBeUndefined();
 		expect(resolve("/meta/title").descriptor).toMatchObject({ type: "text" });

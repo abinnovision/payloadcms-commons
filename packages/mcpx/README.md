@@ -13,8 +13,9 @@ resolved server-side against the real config and the real document, so unknown
 fields, misplaced blocks and unusable rich text nodes or node fields are refused with the
 valid alternatives listed, never silently dropped.
 
-Writes are RFC 6902 patches that always land as drafts; publishing stays a
-human action in the admin panel. Every write returns the publish
+Writes are RFC 6902 patches that land as drafts, with `allowLiveWrites` as the
+one documented exception; publishing stays a human action in the admin panel.
+Every write returns the publish
 blockers: the validation failures that still prevent a human from publishing
 the draft. Capabilities are declared twice: the plugin config decides what
 can exist, a checkbox on each API key decides what does, and a missing checkbox
@@ -153,7 +154,7 @@ only the slugs the key may touch.
 | `getDocument`      | Read one document or a subtree of it.                       | `collection` + `id` \| `global`, `path?` (JSON pointer), `depth?`, `locale?`, `draft?`       |
 | `patchDocument`    | Apply RFC 6902 operations to the current draft.             | `collection` + `id` \| `global`, `locale`, `patches`, `expectedUpdatedAt?`                   |
 | `createDocument`   | Create a draft from a minimal seed.                         | `collection`, `locale`, `data`                                                               |
-| `validateDocument` | Publish blockers without writing.                           | `collection` + `id` \| `global`, `locale`                                                    |
+| `validateDocument` | Publish blockers without saving anything.                   | `collection` + `id` \| `global`, `locale`                                                    |
 
 Rules the tools enforce and explain in their own descriptions:
 
@@ -266,6 +267,12 @@ Collections with `versions.drafts.validate: true` refuse invalid drafts
 outright; those failures come back as `validationErrors`. Both carry pointers,
 restated from the dotted paths Payload reports internally.
 
+`publishBlockersUnavailable` marks a check that could not complete, which is
+not the same answer as a document with nothing wrong with it. `validateDocument`
+runs the same traversal without saving anything, so it is not free of side
+effects: field `beforeValidate` and `beforeChange` hooks run, and it carries no
+`readOnlyHint` for that reason.
+
 Writes also report `notApplied`: pointers whose value Payload kept unchanged,
 which happens when field-level access denies the update.
 
@@ -376,6 +383,11 @@ results shaped like a builtin's.
 | `tools`                              | `[]`                           | Custom tools, defined the same way as the builtins.                                                                |
 | `auth.resolve`                       | none                           | Replace or wrap the default key resolution.                                                                        |
 | `serverInfo`                         | package name and version       | Reported to MCP clients.                                                                                           |
+
+`allowLiveWrites` is the only way an MCP write reaches live content. Where it is
+set, the server instructions and the `patchDocument` and `createDocument`
+descriptions name those slugs for the key in question, so a client is never told
+its writes are drafts while they are not.
 
 Misconfiguration (unknown slugs, write on a collection without drafts, upload
 collections exposed for write, tool name collisions) fails at startup with

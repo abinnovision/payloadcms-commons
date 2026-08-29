@@ -1,10 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-	describeNode,
-	nodeDescriber,
-	reachableSchemaPaths,
-} from "./describe.js";
+import { nodeDescriber, reachableSchemaPaths } from "./describe.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { translatorFor } from "../i18n.js";
 
@@ -16,6 +12,8 @@ const HERO = `${SECTION_WRAPPER}/modules/hero`;
 const PAGES_REF = { kind: "collection", slug: "pages" } as const;
 const POSTS_REF = { kind: "collection", slug: "posts" } as const;
 const SETTINGS_REF = { kind: "global", slug: "site-settings" } as const;
+
+const describeNode = nodeDescriber();
 
 let config: SanitizedConfig;
 
@@ -215,6 +213,8 @@ describe("describeNode into Lexical nodes", () => {
 			`${CONTENT}/link`,
 			`${CONTENT}/block/callout`,
 			`${CONTENT}/inlineBlock/badge`,
+			"/locked/sections/cta",
+			"/locked/body/link",
 			"/items/*/actions/cta",
 		]);
 	});
@@ -267,6 +267,8 @@ describe("describeNode into Lexical nodes", () => {
 			`${CONTENT}/link`,
 			`${CONTENT}/block/callout`,
 			`${CONTENT}/inlineBlock/badge`,
+			"/locked/sections/cta",
+			"/locked/body/link",
 			"/items/*/actions/cta",
 		]);
 	});

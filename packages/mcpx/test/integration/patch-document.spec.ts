@@ -1,7 +1,7 @@
 import { createLocalReq } from "payload";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
+import { callTool, toolsList } from "./helpers/mcp.js";
 import { bootPayload, hero, section, seedKeys } from "./helpers/payload.js";
 
 import type { Booted, Seeded } from "./helpers/payload.js";
@@ -48,6 +48,13 @@ describe("patchDocument", () => {
 			locale,
 			fallbackLocale: false,
 		}) as Promise<PageDoc>;
+
+	it("announces itself as destructive, because it removes and replaces", async () => {
+		const tools = await toolsList(booted.config, seeded.keys.full);
+		const tool = tools.find((candidate) => candidate.name === "patchDocument");
+
+		expect(tool?.annotations).toMatchObject({ destructiveHint: true });
+	});
 
 	it("writes a draft and reports what still blocks publishing", async () => {
 		const page = await createDraft({ title: "Draft", slug: "draft" });

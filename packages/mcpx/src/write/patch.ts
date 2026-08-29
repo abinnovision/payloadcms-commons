@@ -8,27 +8,41 @@ import {
 	blockOf,
 	describeAddressableFields,
 	findBlocksField,
+	joinPath,
 	JSON_POINTER_PATTERN,
 	RESERVED_FIELD_NAMES,
 	splitPath,
 } from "../schema/index.js";
 
-import type { TargetRef } from "../schema/index.js";
+import type { PointerResolution, TargetRef } from "../schema/index.js";
 import type { FlattenedField, JsonObject, SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
 
 export type PatchOperation = Operation;
 
+const POINTER = z.string().regex(JSON_POINTER_PATTERN);
+
 /**
- * One RFC 6902 operation as accepted by `patchDocument`.
+ * One RFC 6902 operation as accepted by `patchDocument`. Discriminated on `op`
+ * so an operation carries only the members RFC 6902 defines for it.
  */
 export const PATCH_OPERATION_SCHEMA = z
-	.object({
-		from: z.string().regex(JSON_POINTER_PATTERN).optional(),
-		op: z.enum(["add", "copy", "move", "remove", "replace", "test"]),
-		path: z.string().regex(JSON_POINTER_PATTERN),
-		value: z.unknown().optional(),
-	})
+	.discriminatedUnion("op", [
+		z.strictObject({ op: z.literal("add"), path: POINTER, value: z.unknown() }),
+		z.strictObject({ op: z.literal("remove"), path: POINTER }),
+		z.strictObject({
+			op: z.literal("replace"),
+			path: POINTER,
+			value: z.unknown(),
+		}),
+		z.strictObject({ from: POINTER, op: z.literal("move"), path: POINTER }),
+		z.strictObject({ from: POINTER, op: z.literal("copy"), path: POINTER }),
+		z.strictObject({
+			op: z.literal("test"),
+			path: POINTER,
+			value: z.unknown(),
+		}),
+	])
 	.describe("An RFC 6902 operation.");
 
 /**
@@ -153,120 +167,196 @@ export const stripRowIds = (value: unknown): unknown => {
 };
 
 /**
- * Applies a patch to a deep copy of the document, so a failing operation
- * leaves the original untouched and nothing partial is ever written.
+ * The operation as it is applied: values are cloned so the written document
+ * never shares references with the caller's operations, and a `replace` of a
+ * field the target locale has no value for becomes an `add`, which is what
+ * RFC 6902 requires when nothing is there to replace.
  */
-export const applyPatchToCopy = (
-	doc: JsonObject,
-	patches: Operation[],
-): { next: JsonObject } | { problems: string[] } => {
-	const next = structuredClone(doc);
-	const prepared = patches.map((operation) => {
-		/*
-		 * Values are cloned so the written document never shares references
-		 * with the caller's operations.
-		 */
-		const cloned =
-			"value" in operation
-				? { ...operation, value: structuredClone<unknown>(operation.value) }
-				: operation;
+const prepare = (operation: Operation, doc: JsonObject): Operation => {
+	const cloned =
+		"value" in operation
+			? { ...operation, value: structuredClone<unknown>(operation.value) }
+			: operation;
 
-		/*
-		 * A localized field may have no value at all in the target locale.
-		 * `replace` requires an existing value, so an absent field is set with
-		 * `add` instead; element pointers keep replace semantics.
-		 */
-		if (
-			cloned.op === "replace" &&
-			!isElementPointer(cloned.path) &&
-			(Pointer.fromJSON(cloned.path).get(next) as unknown) === undefined
-		) {
-			return { ...cloned, op: "add" as const };
-		}
-
-		return cloned;
-	}) as Operation[];
-
-	const problems = applyPatch(next, prepared).flatMap((error, index) =>
-		error ? [`patches[${String(index)}]: ${error.message}`] : [],
-	);
-
-	if (problems.length > 0) {
-		return { problems };
-	}
-
-	reconcileRowIds(next, doc);
-
-	return { next };
+	return cloned.op === "replace" &&
+		!isElementPointer(cloned.path) &&
+		(Pointer.fromJSON(cloned.path).get(doc) as unknown) === undefined
+		? { ...cloned, op: "add" as const }
+		: cloned;
 };
 
 /**
- * Checks every operation against the schema before any is applied.
- *
- * A partially applied batch is worse than a refused one, so this returns all
- * problems and the caller applies nothing unless the list is empty.
+ * The value an operation writes at its path: the one it carries, or the one it
+ * takes from `from`. A `remove` writes nothing.
  */
-export const findPatchProblems = (
+const effectiveValue = (operation: Operation, doc: JsonObject): unknown => {
+	if ("value" in operation) {
+		return operation.value;
+	}
+
+	return "from" in operation
+		? (Pointer.fromJSON(operation.from).get(doc) as unknown)
+		: undefined;
+};
+
+/**
+ * Whether a resolved pointer lands in a read-only field. A pointer that stops
+ * short of one addresses a subtree, and the fields beneath it decide.
+ */
+const resolvesReadOnly = (resolution: PointerResolution): boolean => {
+	if (resolution.descriptor) {
+		return resolution.descriptor.readOnly === true;
+	}
+
+	const below = describeAddressableFields(resolution.fields).filter(
+		(descriptor) =>
+			resolution.prefix.every(
+				(part, offset) => part === splitPath(descriptor.path)[offset],
+			),
+	);
+
+	return below.length > 0 && below.every((descriptor) => descriptor.readOnly);
+};
+
+/**
+ * Whether the pointer addresses something read-only. An element carries no
+ * descriptor of its own, so the field it belongs to is read one segment up.
+ */
+const isReadOnlyPointer = (
 	config: SanitizedConfig,
-	target: { doc: unknown; patches: Operation[]; ref: TargetRef },
-): string[] =>
-	target.patches.flatMap((operation, index) => {
-		const at = `patches[${String(index)}]`;
-		const pointers = [
-			operation.path,
-			...("from" in operation && operation.from ? [operation.from] : []),
+	target: { doc: JsonObject; pointer: string; ref: TargetRef },
+): boolean =>
+	resolvesReadOnly(
+		resolveDataPointer(config, {
+			doc: target.doc,
+			pointer: isElementPointer(target.pointer)
+				? joinPath(splitPath(target.pointer).slice(0, -1))
+				: target.pointer,
+			ref: target.ref,
+		}),
+	);
+
+/**
+ * Checks one operation against the schema, in the state the document is in
+ * when that operation runs. Both pointers must resolve, whatever the operation
+ * writes at its path must pass write validation, and what it drops must not sit
+ * in a read-only field.
+ */
+const findOperationProblems = (
+	config: SanitizedConfig,
+	target: { doc: JsonObject; operation: Operation; ref: TargetRef },
+): string[] => {
+	const { doc, operation, ref } = target;
+	const pointers = [
+		operation.path,
+		...("from" in operation ? [operation.from] : []),
+	];
+
+	if (pointers.includes("")) {
+		return [
+			"an empty pointer addresses the whole document. Address a field instead.",
 		];
+	}
 
-		if (pointers.includes("")) {
-			return [
-				`${at}: an empty pointer addresses the whole document. Address a field instead.`,
-			];
+	const reserved = pointers.find(isReservedPointer);
+
+	if (reserved !== undefined) {
+		return [
+			`"${reserved}" addresses a field Payload maintains. Drafts are the only thing this tool writes, and id, _status, createdAt and updatedAt are not writable.`,
+		];
+	}
+
+	const dropped = droppedPointer(operation);
+
+	if (dropped !== undefined && !isElementPointer(dropped)) {
+		return [
+			`"${dropped}" is a field, not a list element, and removing it would do nothing. The patched document is written whole, and Payload keeps any field absent from a write rather than clearing it. Use "replace" with null to clear a field, or with [] to empty a list.`,
+		];
+	}
+
+	try {
+		const value = effectiveValue(operation, doc);
+
+		if (
+			value !== undefined &&
+			operation.op !== "test" &&
+			isReadOnlyPointer(config, { doc, pointer: operation.path, ref })
+		) {
+			return [`"${operation.path}" is read-only and cannot be written.`];
 		}
 
-		const reserved = pointers.find(isReservedPointer);
-
-		if (reserved !== undefined) {
-			return [
-				`${at}: "${reserved}" addresses a field Payload maintains. Drafts are the only thing this tool writes, and id, _status, createdAt and updatedAt are not writable.`,
-			];
+		if (
+			dropped !== undefined &&
+			isReadOnlyPointer(config, { doc, pointer: dropped, ref })
+		) {
+			return [`"${dropped}" sits in a read-only field and cannot be removed.`];
 		}
 
-		const dropped = droppedPointer(operation);
+		for (const pointer of pointers) {
+			const resolution = resolveDataPointer(config, {
+				addedValue: value,
+				doc,
+				pointer,
+				ref,
+			});
 
-		if (dropped !== undefined && !isElementPointer(dropped)) {
-			return [
-				`${at}: "${dropped}" is a field, not a list element, and removing it would do nothing. The patched document is written whole, and Payload keeps any field absent from a write rather than clearing it. Use "replace" with null to clear a field, or with [] to empty a list.`,
-			];
-		}
+			if (pointer === operation.path && value !== undefined) {
+				const problems = validateWriteValue(
+					config,
+					{ pointer, resolution },
+					value,
+				);
 
-		const value: unknown = "value" in operation ? operation.value : undefined;
-
-		try {
-			const moved =
-				"from" in operation && operation.from
-					? (Pointer.fromJSON(operation.from).get(target.doc) as unknown)
-					: undefined;
-
-			for (const pointer of pointers) {
-				const resolution = resolveDataPointer(config, {
-					addedValue: value ?? moved,
-					doc: target.doc,
-					pointer,
-					ref: target.ref,
-				});
-
-				if (pointer === operation.path && value !== undefined) {
-					return validateWriteValue(config, { pointer, resolution }, value).map(
-						(problem) => `${at}: ${problem}`,
-					);
+				if (problems.length > 0) {
+					return problems;
 				}
 			}
-
-			return [];
-		} catch (error) {
-			return [`${at}: ${error instanceof Error ? error.message : "invalid"}`];
 		}
-	});
+
+		return [];
+	} catch (error) {
+		return [error instanceof Error ? error.message : "invalid"];
+	}
+};
+
+/**
+ * Validates and applies every operation against one evolving copy of the
+ * document, so an operation that depends on an earlier one resolves against
+ * the shape it actually modifies.
+ *
+ * The copy means a failing operation leaves the original untouched, and the
+ * caller writes nothing unless the whole batch came back applied, so a
+ * partially applied batch is never persisted.
+ */
+export const applyPatchOperations = (
+	config: SanitizedConfig,
+	target: { doc: JsonObject; patches: Operation[]; ref: TargetRef },
+): { next: JsonObject } | { problems: string[] } => {
+	const next = structuredClone(target.doc);
+
+	for (const [index, operation] of target.patches.entries()) {
+		const at = `patches[${String(index)}]`;
+		const problems = findOperationProblems(config, {
+			doc: next,
+			operation,
+			ref: target.ref,
+		});
+
+		if (problems.length > 0) {
+			return { problems: problems.map((problem) => `${at}: ${problem}`) };
+		}
+
+		const [error] = applyPatch(next, [prepare(operation, next)]);
+
+		if (error) {
+			return { problems: [`${at}: ${error.message}`] };
+		}
+	}
+
+	reconcileRowIds(next, target.doc);
+
+	return { next };
+};
 
 /**
  * Keys Payload manages on a row that travel back into the write unchanged.

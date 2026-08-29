@@ -179,8 +179,15 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 		],
 	}));
 
+	/*
+	 * A description built per request has no scope here, at config time, so the
+	 * checkbox falls back to the tool's name.
+	 */
 	const toolCheckboxes: CheckboxField[] = options.tools.map((tool) =>
-		checkbox(tool.name, tool.description),
+		checkbox(
+			tool.name,
+			typeof tool.description === "string" ? tool.description : tool.name,
+		),
 	);
 
 	const groups: GroupField[] = [

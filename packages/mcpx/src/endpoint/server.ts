@@ -2,7 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { toToolError } from "./errors.js";
-import { BUILTIN_TOOLS } from "../tools/index.js";
+import { BUILTIN_TOOLS } from "../tools/builtin.js";
+import { draftSentence } from "../tools/shared.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAnyTool, McpxToolScope } from "../types.js";
@@ -23,6 +24,18 @@ export const toolInputSchema = (
 			? tool.inputSchema(scope)
 			: (tool.inputSchema ?? {}),
 	);
+
+/**
+ * A tool's description, which may be built from the scope so it can name the
+ * targets this key writes live.
+ */
+export const toolDescription = (
+	tool: McpxAnyTool,
+	scope: McpxToolScope,
+): string =>
+	typeof tool.description === "function"
+		? tool.description(scope)
+		: tool.description;
 
 /**
  * Whether the key may call the tool. A tool that does not decide for itself is
@@ -54,8 +67,7 @@ export const createMcpServer = (
 	const server = new McpServer(
 		{ name: options.serverInfo.name, version: options.serverInfo.version },
 		{
-			instructions:
-				"Start with listCapabilities, then describeSchema for the collection or global you work on. Writes always land as drafts; a human publishes.",
+			instructions: `Start with listCapabilities, then describeSchema for the collection or global you work on. ${draftSentence(scope)}`,
 		},
 	);
 
@@ -77,7 +89,7 @@ export const createMcpServer = (
 		server.registerTool(
 			tool.name,
 			{
-				description: tool.description,
+				description: toolDescription(tool, scope),
 				inputSchema: toolInputSchema(tool, scope),
 				...(tool.annotations ? { annotations: tool.annotations } : {}),
 			},

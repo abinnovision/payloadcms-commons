@@ -49,7 +49,8 @@ interface RpcResponse {
 	status: number;
 	body: {
 		result?: {
-			tools?: { name: string; inputSchema: Record<string, unknown> }[];
+			instructions?: string;
+			tools?: ListedTool[];
 			content?: { type: string; text: string }[];
 			structuredContent?: unknown;
 			isError?: boolean;
@@ -79,6 +80,8 @@ export const rpc = async (
 
 export interface ListedTool {
 	name: string;
+	description?: string;
+	annotations?: Record<string, unknown>;
 	inputSchema: Record<string, unknown>;
 }
 
@@ -90,6 +93,27 @@ export const toolsList = async (
 	const { body } = await rpc(config, key, "tools/list", undefined, cacheKey);
 
 	return body.result?.tools ?? [];
+};
+
+/** The `instructions` the server reports for this key. */
+export const instructionsFor = async (
+	config: Promise<SanitizedConfig>,
+	key: string,
+	cacheKey?: string,
+): Promise<string> => {
+	const { body } = await rpc(
+		config,
+		key,
+		"initialize",
+		{
+			protocolVersion: "2025-06-18",
+			capabilities: {},
+			clientInfo: { name: "test", version: "0" },
+		},
+		cacheKey,
+	);
+
+	return body.result?.instructions ?? "";
 };
 
 export const toolNames = async (

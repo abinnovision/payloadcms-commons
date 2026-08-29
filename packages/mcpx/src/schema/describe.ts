@@ -352,6 +352,3 @@ export const reachableSchemaPaths = (
 
 	return { paths: seen, truncated };
 };
-
-/** Describes a node without a request in hand, in whichever language comes first. */
-export const describeNode = nodeDescriber();

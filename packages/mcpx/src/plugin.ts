@@ -3,7 +3,10 @@ import { definePlugin } from "payload";
 import { createApiKeysCollection } from "./api-keys/index.js";
 import { createMcpxHandler, methodNotAllowed } from "./endpoint/index.js";
 import { normalizeOptions } from "./options.js";
-import { installDraftGuards, installGlobalDraftGuards } from "./write/index.js";
+import {
+	installDraftGuards,
+	installGlobalDraftGuards,
+} from "./write/draft-guard.js";
 
 import type { McpxPluginOptions } from "./types.js";
 

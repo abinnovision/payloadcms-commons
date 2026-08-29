@@ -127,6 +127,26 @@ export const posts: CollectionConfig = {
 			relationTo: "tags",
 			hasMany: true,
 		},
+		/*
+		 * Read-only container: every field beneath it inherits the flag, which
+		 * gives each patch operation a scalar, a list element, a block and a
+		 * rich text field it must refuse.
+		 */
+		{
+			name: "locked",
+			type: "group",
+			admin: { readOnly: true },
+			fields: [
+				{ name: "note", type: "text" },
+				{
+					name: "entries",
+					type: "array",
+					fields: [{ name: "label", type: "text" }],
+				},
+				{ name: "sections", type: "blocks", blocks: [ctaBlock] },
+				{ name: "body", type: "richText" },
+			],
+		},
 		{
 			name: "items",
 			type: "array",

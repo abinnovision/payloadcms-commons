@@ -2,7 +2,7 @@ import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { describe, expect, it } from "vitest";
 
 import { normalizeOptions, toCamelCase } from "./options.js";
-import { BUILTIN_TOOLS } from "./tools/index.js";
+import { BUILTIN_TOOLS } from "./tools/builtin.js";
 import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
 import { pages, posts, tags, users } from "../test/fixtures/collections.js";
 import { banner, siteSettings } from "../test/fixtures/globals.js";

@@ -127,7 +127,13 @@ export const resolveDataPointer = (
 				return {
 					...(blockType === undefined ? {} : { blockType }),
 					fields,
-					prefix: segments,
+					/*
+					 * Descriptor paths carry `*` where a document carries an index,
+					 * so the prefix is stated the way its consumers match it.
+					 */
+					prefix: segments.map((segment) =>
+						isIndexSegment(segment) ? ARRAY_MARKER : segment,
+					),
 				};
 			}
 

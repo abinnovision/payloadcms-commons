@@ -35,6 +35,23 @@ describe("createDocument and validateDocument", () => {
 		expect(problems).toContain("title");
 	});
 
+	it("refuses a seed carrying a top-level id and creates nothing", async () => {
+		const before = await booted.payload.count({ collection: "pages" });
+
+		const result = await call("createDocument", {
+			collection: "pages",
+			locale: "en",
+			data: { id: 999, title: "Numbered" },
+		});
+
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result.data["problems"])).toContain("/id");
+
+		const after = await booted.payload.count({ collection: "pages" });
+
+		expect(after.totalDocs).toBe(before.totalDocs);
+	});
+
 	it("creates a draft from a minimal seed and reports the blockers", async () => {
 		const result = await call("createDocument", {
 			collection: "pages",
