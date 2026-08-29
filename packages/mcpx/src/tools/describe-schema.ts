@@ -2,13 +2,13 @@ import { z } from "zod";
 
 import { targetShape } from "./shared.js";
 import { refOf, resolveTarget } from "./target.js";
-import { jsonResult } from "../endpoint/result.js";
 import { translatorFor } from "../i18n.js";
+import { jsonResult } from "../result.js";
 import {
 	nodeDescriber,
 	REACHABLE_PATHS_LIMIT,
 	reachableSchemaPaths,
-} from "../schema/describe.js";
+} from "../schema/index.js";
 import { defineMcpxTool } from "../types.js";
 
 const DESCRIPTION = `Describes the writable shape of a document, one node at a time.
@@ -23,7 +23,7 @@ Paths here use the same JSON Pointer syntax as getDocument and patchDocument, an
 
 Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;
 
-const describeSchema = defineMcpxTool({
+export const describeSchema = defineMcpxTool({
 	name: "describeSchema",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
@@ -80,5 +80,3 @@ const describeSchema = defineMcpxTool({
 		return Promise.resolve(jsonResult(nodes));
 	},
 });
-
-export { describeSchema };

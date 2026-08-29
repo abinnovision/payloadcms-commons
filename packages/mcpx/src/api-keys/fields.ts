@@ -37,14 +37,14 @@ const checkbox = (name: string, description: string): CheckboxField => ({
 	admin: { description },
 });
 
-const SETUP_GUIDE_FIELD = "setupGuide";
+export const SETUP_GUIDE_FIELD = "setupGuide";
 
 /**
  * Fields every key carries. Key generation and the HMAC index live in the
  * collection-level `beforeChange` hook (see `collection.ts`), because sibling
  * field hooks run in parallel and cannot depend on each other's values.
  */
-const createKeyFields = (): Field[] => [
+export const createKeyFields = (): Field[] => [
 	{
 		name: "label",
 		type: "text",
@@ -97,7 +97,7 @@ const createKeyFields = (): Field[] => [
  * The guide tab is conditioned on the update operation. On create there is no
  * key to hand out, and a tab leading to an empty panel is worse than no tab.
  */
-const withSetupGuideTab = (
+export const withSetupGuideTab = (
 	keyFields: Field[],
 	options: NormalizedOptions,
 ): Field[] => {
@@ -148,7 +148,7 @@ const withSetupGuideTab = (
  * a key can never enable more than the config allows. Everything defaults to
  * off, which is why a key issued before a capability existed stays closed to it.
  */
-const createCapabilityFields = (options: NormalizedOptions): Field[] => {
+export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 	const collectionGroups: GroupField[] = options.collections.map(
 		(collection) => ({
 			name: collection.fieldName,
@@ -222,11 +222,4 @@ const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 			fields: groups,
 		},
 	];
-};
-
-export {
-	createCapabilityFields,
-	createKeyFields,
-	SETUP_GUIDE_FIELD,
-	withSetupGuideTab,
 };

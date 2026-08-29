@@ -3,21 +3,15 @@ import {
 	beforeValidateTraverseFields,
 } from "payload";
 
-import { pointerFromPayloadPath } from "../schema/walk.js";
+import { pointerFromPayloadPath } from "../schema/index.js";
 
-import type { ResolvedTarget } from "../tools/target.js";
-import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
-
-/**
- * One reason a human could not publish the draft as it stands.
+/*
+ * Type-only on purpose: a value import here would close a `tools` <-> `write`
+ * cycle between the two barrels.
  */
-interface PublishBlocker {
-	/** Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title". */
-	field?: string;
-	message: string;
-	/** JSON Pointer to the offending value, e.g. "/layout/2/title". */
-	path: string;
-}
+import type { ResolvedTarget } from "../tools/index.js";
+import type { PublishBlocker } from "../types.js";
+import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
 
 /**
  * Runs Payload's own field validation over a draft without saving anything.
@@ -37,7 +31,7 @@ interface PublishBlocker {
  * Limits: only the locale the doc was read in is checked, and field-level
  * `beforeChange` hooks run again, which is safe only for pure ones.
  */
-const collectPublishBlockers = async (
+export const collectPublishBlockers = async (
 	req: PayloadRequest,
 	target: { doc: JsonObject; entity: ResolvedTarget },
 ): Promise<PublishBlocker[]> => {
@@ -104,6 +98,3 @@ const collectPublishBlockers = async (
 		...(typeof error.label === "string" ? { field: error.label } : {}),
 	}));
 };
-
-export type { PublishBlocker };
-export { collectPublishBlockers };

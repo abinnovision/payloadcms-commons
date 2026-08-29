@@ -1,6 +1,8 @@
 import { APIError } from "payload";
 import { hasDraftsEnabled } from "payload/shared";
 
+import { isMcpxRequest } from "../request.js";
+
 import type {
 	CollectionBeforeChangeHook,
 	CollectionBeforeOperationHook,
@@ -24,14 +26,6 @@ const STRIPPED_ARGS = new Set([
 	"selectedLocales",
 	"overwriteExistingFiles",
 ]);
-
-/**
- * Whether a request originated from the MCP endpoint. The endpoint stamps
- * `req.context.mcpx`, which travels into every local API call made with the
- * same `req`, including those made by custom tools.
- */
-const isMcpxRequest = (req: PayloadRequest): boolean =>
-	req.context.mcpx !== undefined;
 
 /**
  * Forces every MCP write into a draft save.
@@ -68,7 +62,7 @@ const scrubWriteArgs = (
 	return next;
 };
 
-const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
+export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 	/*
 	 * The argument union carries a deprecated `read` member, which is what the
 	 * deprecation rule reacts to; the operation name itself is current API.
@@ -99,7 +93,7 @@ const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
  * that signature and filtering it is a harmless no-op. `slug` survives the
  * filter, so the operation still knows what it is updating.
  */
-const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
+export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 	const { operation, req } = hookArgs;
 	const args = hookArgs.args as Record<string, unknown>;
 
@@ -141,7 +135,7 @@ const refuseUnlessDraft = (
 	);
 };
 
-const refusePublish: CollectionBeforeChangeHook = ({
+export const refusePublish: CollectionBeforeChangeHook = ({
 	collection,
 	data,
 	req,
@@ -152,7 +146,11 @@ const refusePublish: CollectionBeforeChangeHook = ({
 };
 
 /** The global counterpart of {@link refusePublish}. */
-const refusePublishGlobal: GlobalBeforeChangeHook = ({ data, global, req }) => {
+export const refusePublishGlobal: GlobalBeforeChangeHook = ({
+	data,
+	global,
+	req,
+}) => {
 	const next = data as Record<string, unknown>;
 
 	refuseUnlessDraft(req, global.slug, next);
@@ -166,7 +164,7 @@ const refusePublishGlobal: GlobalBeforeChangeHook = ({ data, global, req }) => {
  * exist. Applied to the built collection list so nothing can join later
  * without being covered.
  */
-const installDraftGuards = (
+export const installDraftGuards = (
 	collections: CollectionConfig[],
 ): CollectionConfig[] =>
 	collections.map((collection) => ({
@@ -194,7 +192,9 @@ const installDraftGuards = (
  * request must not be able to publish through a global the plugin config never
  * mentioned.
  */
-const installGlobalDraftGuards = (globals: GlobalConfig[]): GlobalConfig[] =>
+export const installGlobalDraftGuards = (
+	globals: GlobalConfig[],
+): GlobalConfig[] =>
 	globals.map((global) => ({
 		...global,
 		hooks: {
@@ -213,13 +213,3 @@ const installGlobalDraftGuards = (globals: GlobalConfig[]): GlobalConfig[] =>
 				: {}),
 		},
 	}));
-
-export {
-	forceDraftWrite,
-	forceDraftWriteGlobal,
-	installDraftGuards,
-	installGlobalDraftGuards,
-	isMcpxRequest,
-	refusePublish,
-	refusePublishGlobal,
-};

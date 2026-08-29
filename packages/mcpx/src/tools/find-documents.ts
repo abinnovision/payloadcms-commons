@@ -2,14 +2,14 @@ import { z } from "zod";
 
 import { slugEnum, depthShape, localeOf, localeShape } from "./shared.js";
 import { resolveTarget } from "./target.js";
-import { jsonResult } from "../endpoint/result.js";
+import { jsonResult } from "../result.js";
 import { defineMcpxTool } from "../types.js";
 
 import type { SelectType, Where } from "payload";
 
 const DESCRIPTION = `Finds documents in a collection. "where" is a Payload query object, e.g. {"title":{"contains":"home"}} or {"and":[...]}; "select" picks fields, e.g. {"title":true}. Drafts are included by default so unpublished work is visible. Keep depth at 0 unless populated relationships are needed; ids are enough for writes.`;
 
-const findDocuments = defineMcpxTool({
+export const findDocuments = defineMcpxTool({
 	name: "findDocuments",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
@@ -78,5 +78,3 @@ const findDocuments = defineMcpxTool({
 		});
 	},
 });
-
-export { findDocuments };

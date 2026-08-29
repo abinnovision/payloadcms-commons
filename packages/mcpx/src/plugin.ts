@@ -1,12 +1,9 @@
 import { definePlugin } from "payload";
 
-import { createApiKeysCollection } from "./api-keys/collection.js";
-import { createMcpxHandler, methodNotAllowed } from "./endpoint/handler.js";
+import { createApiKeysCollection } from "./api-keys/index.js";
+import { createMcpxHandler, methodNotAllowed } from "./endpoint/index.js";
 import { normalizeOptions } from "./options.js";
-import {
-	installDraftGuards,
-	installGlobalDraftGuards,
-} from "./write/draft-guard.js";
+import { installDraftGuards, installGlobalDraftGuards } from "./write/index.js";
 
 import type { McpxPluginOptions } from "./types.js";
 
@@ -14,7 +11,7 @@ import type { McpxPluginOptions } from "./types.js";
  * Mounts the MCP endpoint, adds the API key collection and installs the
  * draft guard on every collection and global.
  */
-const mcpxPlugin = definePlugin<McpxPluginOptions>({
+export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 	slug: "@abinnovision/payloadcms-mcpx",
 	order: 100,
 	plugin: ({ config, plugins: _plugins, ...options }) => {
@@ -52,5 +49,3 @@ const mcpxPlugin = definePlugin<McpxPluginOptions>({
 		};
 	},
 });
-
-export { mcpxPlugin };

@@ -1,9 +1,9 @@
 import { applyPatch, Pointer } from "rfc6902";
 import { z } from "zod";
 
-import { resolveDataPointer } from "../schema/pointer.js";
-import { validateWriteValue } from "../schema/shape.js";
 import {
+	resolveDataPointer,
+	validateWriteValue,
 	ARRAY_MARKER,
 	blockOf,
 	describeAddressableFields,
@@ -11,18 +11,18 @@ import {
 	JSON_POINTER_PATTERN,
 	RESERVED_FIELD_NAMES,
 	splitPath,
-} from "../schema/walk.js";
+} from "../schema/index.js";
 
-import type { TargetRef } from "../schema/walk.js";
+import type { TargetRef } from "../schema/index.js";
 import type { FlattenedField, JsonObject, SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
 
-type PatchOperation = Operation;
+export type PatchOperation = Operation;
 
 /**
  * One RFC 6902 operation as accepted by `patchDocument`.
  */
-const PATCH_OPERATION_SCHEMA = z
+export const PATCH_OPERATION_SCHEMA = z
 	.object({
 		from: z.string().regex(JSON_POINTER_PATTERN).optional(),
 		op: z.enum(["add", "copy", "move", "remove", "replace", "test"]),
@@ -34,7 +34,7 @@ const PATCH_OPERATION_SCHEMA = z
 /**
  * Whether a pointer touches a field Payload maintains.
  */
-const isReservedPointer = (pointer: string): boolean =>
+export const isReservedPointer = (pointer: string): boolean =>
 	pointer
 		.split("/")
 		.slice(1)
@@ -43,7 +43,7 @@ const isReservedPointer = (pointer: string): boolean =>
 /**
  * The pointer an operation removes a value from, if it removes one at all.
  */
-const droppedPointer = (operation: Operation): string | undefined => {
+export const droppedPointer = (operation: Operation): string | undefined => {
 	if (operation.op === "remove") {
 		return operation.path;
 	}
@@ -54,7 +54,7 @@ const droppedPointer = (operation: Operation): string | undefined => {
 /**
  * Whether a pointer addresses a list element rather than a field.
  */
-const isElementPointer = (pointer: string): boolean => {
+export const isElementPointer = (pointer: string): boolean => {
 	const last = pointer.split("/").pop() ?? "";
 
 	return last === "-" || /^\d+$/.test(last);
@@ -142,7 +142,7 @@ const reconcileRowIds = (next: JsonObject, stored: JsonObject): void => {
  * Drops every row id from a copy of `value`. Used on create, where no stored
  * row exists and any incoming id is client-invented.
  */
-const stripRowIds = (value: unknown): unknown => {
+export const stripRowIds = (value: unknown): unknown => {
 	const next = structuredClone(value);
 
 	walkRows(next, (row) => {
@@ -156,7 +156,7 @@ const stripRowIds = (value: unknown): unknown => {
  * Applies a patch to a deep copy of the document, so a failing operation
  * leaves the original untouched and nothing partial is ever written.
  */
-const applyPatchToCopy = (
+export const applyPatchToCopy = (
 	doc: JsonObject,
 	patches: Operation[],
 ): { next: JsonObject } | { problems: string[] } => {
@@ -206,7 +206,7 @@ const applyPatchToCopy = (
  * A partially applied batch is worse than a refused one, so this returns all
  * problems and the caller applies nothing unless the list is empty.
  */
-const findPatchProblems = (
+export const findPatchProblems = (
 	config: SanitizedConfig,
 	target: { doc: unknown; patches: Operation[]; ref: TargetRef },
 ): string[] =>
@@ -371,7 +371,7 @@ const pickDescribed = (
  * The data handed to `payload.update` after a patch: the patched document
  * reduced to the fields the client may write, plus row identity keys.
  */
-const buildWriteData = (
+export const buildWriteData = (
 	config: SanitizedConfig,
 	/*
 	 * Widened to the structural minimum this reads, so a sanitized collection
@@ -385,16 +385,4 @@ const buildWriteData = (
 		prefix: [],
 		isRow: false,
 	});
-};
-
-export type { PatchOperation };
-export {
-	applyPatchToCopy,
-	buildWriteData,
-	droppedPointer,
-	findPatchProblems,
-	isElementPointer,
-	isReservedPointer,
-	PATCH_OPERATION_SCHEMA,
-	stripRowIds,
 };

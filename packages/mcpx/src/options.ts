@@ -1,7 +1,7 @@
 import { InvalidConfiguration } from "payload";
 import { hasDraftsEnabled } from "payload/shared";
 
-import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
+import { BUILTIN_TOOL_NAMES } from "./tools/index.js";
 import { MCPX_VERSION } from "./version.js";
 
 import type {
@@ -24,7 +24,7 @@ const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9]*$/;
 type NormalizedCollection = McpxExposedEntity;
 type NormalizedGlobal = McpxExposedEntity;
 
-interface NormalizedOptions {
+export interface NormalizedOptions {
 	collections: NormalizedCollection[];
 	globals: NormalizedGlobal[];
 	userCollection: string;
@@ -46,7 +46,7 @@ const fail = (message: string): never => {
  * Lower camel case of a slug, the same transform the stock MCP plugin applies
  * to derive field names from collection slugs.
  */
-const toCamelCase = (value: string): string =>
+export const toCamelCase = (value: string): string =>
 	value
 		.replace(/[-_\s]+(.)?/g, (_, char: string | undefined) =>
 			char ? char.toUpperCase() : "",
@@ -286,7 +286,7 @@ const normalizeLimits = (
  * defaults. Every problem is an `InvalidConfiguration` so misconfiguration
  * fails at startup instead of at request time.
  */
-const normalizeOptions = (
+export const normalizeOptions = (
 	config: Config,
 	options: McpxPluginOptions,
 ): NormalizedOptions => {
@@ -320,6 +320,3 @@ const normalizeOptions = (
 		},
 	};
 };
-
-export { normalizeOptions, toCamelCase };
-export type { NormalizedOptions };

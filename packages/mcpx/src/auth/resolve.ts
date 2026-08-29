@@ -1,4 +1,4 @@
-import { hashApiKey } from "../api-keys/key.js";
+import { hashApiKey } from "../api-keys/index.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAuthResult } from "../types.js";

@@ -5,7 +5,7 @@ import type {
 } from "./types.js";
 
 /** Name of the capability group on the key document. */
-const CAPABILITIES_FIELD = "capabilities";
+export const CAPABILITIES_FIELD = "capabilities";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -18,7 +18,7 @@ const flag = (group: unknown, name: string): boolean =>
  * the key's checkboxes decide what does. A missing checkbox is `false`, so keys
  * issued before a capability existed stay closed.
  */
-const resolveCapabilities = (
+export const resolveCapabilities = (
 	options: NormalizedOptions,
 	keyCapabilities: unknown,
 ): McpxResolvedCapabilities => {
@@ -75,25 +75,18 @@ const pick = (
 		.filter(([, value]) => value[operation])
 		.map(([slug]) => slug);
 
-const readableSlugs = (capabilities: McpxResolvedCapabilities): string[] =>
-	pick(capabilities.collections, "read");
+export const readableSlugs = (
+	capabilities: McpxResolvedCapabilities,
+): string[] => pick(capabilities.collections, "read");
 
-const writableSlugs = (capabilities: McpxResolvedCapabilities): string[] =>
-	pick(capabilities.collections, "write");
+export const writableSlugs = (
+	capabilities: McpxResolvedCapabilities,
+): string[] => pick(capabilities.collections, "write");
 
-const readableGlobalSlugs = (
+export const readableGlobalSlugs = (
 	capabilities: McpxResolvedCapabilities,
 ): string[] => pick(capabilities.globals, "read");
 
-const writableGlobalSlugs = (
+export const writableGlobalSlugs = (
 	capabilities: McpxResolvedCapabilities,
 ): string[] => pick(capabilities.globals, "write");
-
-export {
-	CAPABILITIES_FIELD,
-	readableGlobalSlugs,
-	readableSlugs,
-	resolveCapabilities,
-	writableGlobalSlugs,
-	writableSlugs,
-};

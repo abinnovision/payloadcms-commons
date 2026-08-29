@@ -7,10 +7,12 @@ import type { ResolvedTarget } from "./target.js";
 import type { McpxToolScope } from "../types.js";
 import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
 
-const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
+export const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
 	z.enum(slugs as [string, ...string[]]);
 
-const idSchema = z.union([z.string(), z.number()]).describe("Document id.");
+export const idSchema = z
+	.union([z.string(), z.number()])
+	.describe("Document id.");
 
 type SlugEnum = z.ZodEnum<Record<string, string>>;
 
@@ -73,7 +75,7 @@ const slugsFor = (
  * sees exactly the schema it saw before. Only the mixed case makes either
  * argument optional, and the handler enforces the exclusivity there.
  */
-const targetShape = (
+export const targetShape = (
 	scope: McpxToolScope,
 	operation: "read" | "write",
 	descriptions: { collection: string; global: string },
@@ -105,7 +107,7 @@ const targetShape = (
  * can reach no collection, required when it can reach no global, and optional
  * in between, where `requireIdFor` enforces the dependency.
  */
-const idShape = (
+export const idShape = (
 	scope: McpxToolScope,
 	operation: "read" | "write",
 ): IdShape => {
@@ -131,7 +133,7 @@ const idShape = (
 /**
  * The `locale` argument, present only when localization is configured.
  */
-const localeShape = (
+export const localeShape = (
 	scope: McpxToolScope,
 	options: { required: boolean; description: string },
 ): LocaleShape => {
@@ -148,7 +150,7 @@ const localeShape = (
 	});
 };
 
-const depthShape = (scope: McpxToolScope): DepthShape => ({
+export const depthShape = (scope: McpxToolScope): DepthShape => ({
 	depth: z
 		.number()
 		.int()
@@ -164,7 +166,7 @@ const depthShape = (scope: McpxToolScope): DepthShape => ({
  * The locale to operate on: the explicit argument, else the request's, else
  * the default. `undefined` when localization is off.
  */
-const localeOf = (
+export const localeOf = (
 	scope: McpxToolScope,
 	locale: string | undefined,
 ): TypedLocale | undefined => {
@@ -185,7 +187,7 @@ const localeOf = (
  * Reads the current draft in a fixed locale with no fallback, which is the
  * shape that may be written back or validated without mixing locales.
  */
-const readTarget = async (
+export const readTarget = async (
 	scope: McpxToolScope,
 	args: {
 		target: ResolvedTarget;
@@ -238,7 +240,7 @@ const readTarget = async (
 /**
  * Resolves a collection label for the request's language.
  */
-const translateLabel = (
+export const translateLabel = (
 	scope: McpxToolScope,
 	label: LabelFunction | StaticLabel | undefined,
 	fallback: string,
@@ -247,16 +249,4 @@ const translateLabel = (
 	const resolved = typeof label === "function" ? label({ i18n, t }) : label;
 
 	return translateStatic(resolved, i18n) ?? fallback;
-};
-
-export {
-	slugEnum,
-	depthShape,
-	idSchema,
-	idShape,
-	localeOf,
-	localeShape,
-	readTarget,
-	targetShape,
-	translateLabel,
 };

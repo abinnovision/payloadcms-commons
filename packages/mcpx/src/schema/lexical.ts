@@ -88,7 +88,7 @@ const featuresOf = (field: RichTextField) =>
  * Node types a rich text field accepts. Editors other than Lexical report
  * only the core nodes.
  */
-const allowedNodeTypes = (field: RichTextField): string[] => {
+export const allowedNodeTypes = (field: RichTextField): string[] => {
 	const registered = (featuresOf(field)?.nodes ?? []).flatMap((entry) => {
 		const type = entry.node?.getType?.();
 
@@ -124,7 +124,7 @@ const resolveSubSchema = (
  * The sub-schema behind one node type of a rich text field, or `undefined`
  * when that node carries no addressable fields.
  */
-const lexicalSubSchema = (
+export const lexicalSubSchema = (
 	field: RichTextField,
 	nodeType: string,
 ): LexicalSubSchema | undefined => {
@@ -146,7 +146,7 @@ const lexicalSubSchema = (
  * Node types of a rich text field that have a sub-schema, in the order their
  * features registered them.
  */
-const subSchemaNodeTypes = (field: RichTextField): string[] =>
+export const subSchemaNodeTypes = (field: RichTextField): string[] =>
 	[...(featuresOf(field)?.getSubFields?.keys() ?? [])].filter(
 		(nodeType) => lexicalSubSchema(field, nodeType) !== undefined,
 	);
@@ -155,7 +155,7 @@ const subSchemaNodeTypes = (field: RichTextField): string[] =>
  * Values a feature restricts a node property to, keyed by node type and then by
  * the property on the node that carries the value.
  */
-type NodeOptions = Record<string, Record<string, string[]>>;
+export type NodeOptions = Record<string, Record<string, string[]>>;
 
 /**
  * One node property a feature narrows, and where its setting is configured.
@@ -223,7 +223,7 @@ const stringList = (value: unknown): string[] | undefined =>
  * The narrowed node properties of a rich text field, for the node types it
  * actually accepts.
  */
-const nodeOptions = (
+export const nodeOptions = (
 	field: RichTextField,
 	allowed: readonly string[],
 ): NodeOptions | undefined => {
@@ -241,6 +241,3 @@ const nodeOptions = (
 
 	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 };
-
-export { allowedNodeTypes, lexicalSubSchema, nodeOptions, subSchemaNodeTypes };
-export type { NodeOptions };

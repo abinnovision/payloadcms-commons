@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { toToolError } from "./result.js";
+import { toToolError } from "./errors.js";
 import { BUILTIN_TOOLS } from "../tools/index.js";
 
 import type { NormalizedOptions } from "../options.js";

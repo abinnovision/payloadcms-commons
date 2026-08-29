@@ -9,7 +9,7 @@ import {
 	targetShape,
 } from "./shared.js";
 import { refOf, requireIdFor, resolveTarget } from "./target.js";
-import { errorResult, jsonResult } from "../endpoint/result.js";
+import { errorResult, jsonResult } from "../result.js";
 import { defineMcpxTool } from "../types.js";
 import {
 	applyPatchToCopy,
@@ -17,11 +17,11 @@ import {
 	findPatchProblems,
 	isElementPointer,
 	PATCH_OPERATION_SCHEMA,
-} from "../write/patch.js";
-import { collectPublishBlockers } from "../write/publish-blockers.js";
-import { withTransaction } from "../write/transaction.js";
+	collectPublishBlockers,
+	withTransaction,
+} from "../write/index.js";
 
-import type { PatchOperation } from "../write/patch.js";
+import type { PatchOperation } from "../write/index.js";
 
 const DESCRIPTION = `Applies RFC 6902 JSON Patch operations to one document.
 
@@ -100,7 +100,7 @@ const notAppliedPointers = (
 		return survives(expected, actual) ? [] : [operation.path];
 	});
 
-const patchDocument = defineMcpxTool({
+export const patchDocument = defineMcpxTool({
 	name: "patchDocument",
 	description: DESCRIPTION,
 	annotations: {
@@ -221,5 +221,3 @@ const patchDocument = defineMcpxTool({
 		});
 	},
 });
-
-export { patchDocument };

@@ -21,7 +21,7 @@ import type { FlattenedField, SanitizedConfig } from "payload";
  * is held as segments, since it is a position inside `fields` rather than an
  * address a client could use.
  */
-interface PointerResolution {
+export interface PointerResolution {
 	blockType?: string;
 	descriptor?: FieldDescriptor;
 	fields: FlattenedField[];
@@ -109,7 +109,7 @@ const valueAtSegments = (data: unknown, segments: readonly string[]): unknown =>
  * can only be resolved by reading `blockType` off `sections[3]`, since a blocks
  * field admits many shapes at the same index.
  */
-const resolveDataPointer = (
+export const resolveDataPointer = (
 	config: SanitizedConfig,
 	target: PointerTarget,
 ): PointerResolution => {
@@ -202,6 +202,3 @@ const resolveDataPointer = (
 		prefix: [],
 	};
 };
-
-export { resolveDataPointer };
-export type { PointerResolution };
