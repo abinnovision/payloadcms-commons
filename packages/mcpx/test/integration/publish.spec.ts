@@ -367,33 +367,40 @@ describe("publishDocument", () => {
 	 * concurrently. A publish intent kept on that request would be visible to
 	 * the patch and would publish it.
 	 */
+	/*
+	 * Both calls share one PayloadRequest, and the transport dispatches the
+	 * messages of a batch without awaiting each one, so they overlap. They also
+	 * name the same document, which is what makes this discriminating: an intent
+	 * held anywhere but on the write itself is reachable by the patch, and the
+	 * patch is then the write that goes live while the publish is refused.
+	 */
 	it("does not leak the publish intent to a sibling call in the same batch", async () => {
-		const target = await createPage(completePage("Batched"));
-		const bystander = await createPage(completePage("Bystander"));
+		const id = await createPage(completePage("Batched"));
 
-		await callToolBatch(
+		const results = await callToolBatch(
 			booted.config,
 			publisher,
 			[
 				{
-					name: "publishDocument",
-					args: { collection: "pages", id: target },
-				},
-				{
 					name: "patchDocument",
 					args: {
 						collection: "pages",
-						id: bystander,
+						id,
 						locale: "en",
 						patches: [
 							{ op: "replace", path: "/title", value: "Still a draft" },
 						],
 					},
 				},
+				{ name: "publishDocument", args: { collection: "pages", id } },
 			],
 			CACHE_KEY,
 		);
 
-		expect((await readPage(bystander, true))["_status"]).toBe("draft");
+		expect(results.map((result) => result.isError)).toEqual([false, false]);
+		expect(await readPage(id, false)).toMatchObject({
+			title: "Batched",
+			_status: "published",
+		});
 	});
 });

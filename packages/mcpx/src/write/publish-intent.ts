@@ -1,85 +1,60 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-
-/** The one write the draft guard is allowed to let through as a publish. */
-export interface PublishIntent {
-	kind: "collection" | "global";
-	slug: string;
-	/** Absent for a global, which is a singleton. */
-	id?: number | string | undefined;
-}
-
-interface ActiveIntent extends PublishIntent {
-	/** Set once one operation has claimed the intent. */
-	claimed: boolean;
-}
+import { randomUUID } from "node:crypto";
 
 /*
- * `AsyncLocalStorage` rather than `req.context` or a WeakMap keyed on `req`.
- * The endpoint builds one PayloadRequest per HTTP request and hands the same
- * object to every tool, and the MCP transport dispatches the messages of a
- * JSON-RPC batch concurrently. A flag on the request would therefore be visible
- * to a sibling patchDocument call on the same document, which is exactly the
- * write it must not turn into a publish. Every hook Payload runs during the
- * update, fan-out included, is inside the promise chain this store opens, while
- * a sibling call is in another async context and sees nothing.
+ * The marker `publishDocument` puts on the one write the draft guard is allowed
+ * to let through as a publish.
  *
- * Not a security boundary: a custom tool holds the whole payload instance and
- * needs no help from here. It keeps the guard from being widened by accident.
+ * It travels on the write's own `data` object rather than on the request or in
+ * ambient state, which is what makes it exact: `data` belongs to one operation,
+ * so the marker can only ever authorise the write it is attached to. A
+ * concurrent tool call in the same JSON-RPC batch has its own `data` and is
+ * unaffected, and a nested write from a hook during the publish has one too, so
+ * it meets the unmodified guard. Nothing has to be scoped to a slug or an id,
+ * because nothing else can reach it.
+ *
+ * Payload carries it as far as it needs to go: `updateByID` deep-copies `data`
+ * before the operation, and `beforeValidate` mutates and returns that same
+ * object rather than rebuilding it, so the marker reaches the `beforeChange`
+ * alarm. The alarm takes it off again, and the field traversal that builds the
+ * saved document reads only schema fields, so it cannot reach the database
+ * either way.
+ *
+ * A string key, not a symbol: Payload's copy is `for (const k in value)`, which
+ * drops symbols. The value is a token minted per process instead, so a client
+ * cannot forge the marker by writing a field that happens to share the key.
  */
-const store = new AsyncLocalStorage<ActiveIntent>();
+const PUBLISH_INTENT = "__mcpxPublishIntent";
+const TOKEN = randomUUID();
 
-/** Runs `fn` with `intent` in force. */
-export const withPublishIntent = async <T>(
-	intent: PublishIntent,
-	fn: () => Promise<T>,
-): Promise<T> => await store.run({ ...intent, claimed: false }, fn);
+/** Marks `data` as the publish that was asked for. */
+export const withPublishIntent = <T extends object>(data: T): T => ({
+	...data,
+	[PUBLISH_INTENT]: TOKEN,
+});
 
-const activeFor = (target: PublishIntent): ActiveIntent | undefined => {
-	const active = store.getStore();
+const carries = (data: unknown): data is Record<string, unknown> =>
+	typeof data === "object" &&
+	data !== null &&
+	(data as Record<string, unknown>)[PUBLISH_INTENT] === TOKEN;
 
-	return active &&
-		active.kind === target.kind &&
-		active.slug === target.slug &&
-		active.id === target.id
-		? active
-		: undefined;
-};
+/** Whether this write is that publish. Leaves the marker in place. */
+export const hasPublishIntent = (data: unknown): boolean => carries(data);
 
 /**
- * Claims the intent for one operation, which `beforeOperation` does so that a
- * re-entrant write to the same document — an `afterChange` hook calling
- * `payload.update`, say — cannot ride along on it. Only the first operation to
- * ask gets it.
+ * The same question, asked by the last hook that needs the answer, which takes
+ * the marker off so nothing downstream sees it.
  */
-export const claimPublishIntent = (target: PublishIntent): boolean => {
-	const active = activeFor(target);
-
-	if (!active || active.claimed) {
+export const takePublishIntent = (data: unknown): boolean => {
+	if (!carries(data)) {
 		return false;
 	}
 
-	active.claimed = true;
+	/*
+	 * The key is a module constant, not caller input; the rule guards against
+	 * deleting an attacker-chosen key.
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+	delete data[PUBLISH_INTENT];
 
 	return true;
-};
-
-/**
- * Whether this change belongs to the operation that claimed the intent, which
- * is what lets the `beforeChange` alarm accept a published status.
- *
- * The id is deliberately not compared here. A `beforeChange` hook reads it from
- * the loaded document, where Payload has already coerced it to the collection's
- * id type, while the claim above saw the raw tool argument; comparing the two
- * would refuse a legitimate publish over `1` versus `"1"`. Nothing is lost: a
- * nested write to another document of the same collection during the publish
- * cannot claim the intent, so `forceDraftWrite` has already stripped its
- * `_status` and it fails the alarm on that.
- */
-export const isClaimedPublish = (
-	kind: PublishIntent["kind"],
-	slug: string,
-): boolean => {
-	const active = store.getStore();
-
-	return active?.kind === kind && active.slug === slug && active.claimed;
 };

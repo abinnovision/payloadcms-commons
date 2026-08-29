@@ -65,12 +65,13 @@ export const publishDocument = defineMcpxTool({
 			}
 
 			/*
-			 * `_status` is written by the draft guard, which is the only thing that
-			 * may grant a publish. It never goes through `buildWriteData`, which
-			 * strips reserved fields and would leave nothing behind.
+			 * The marker is the whole request to publish; `_status` is written by
+			 * the draft guard, which is the only thing that may grant it. Neither
+			 * goes through `buildWriteData`, which strips reserved fields and would
+			 * leave nothing behind.
 			 */
 			const write = {
-				data: {},
+				data: withPublishIntent({}),
 				depth: 0,
 				draft: false,
 				fallbackLocale: false as const,
@@ -79,20 +80,15 @@ export const publishDocument = defineMcpxTool({
 				...(locale === undefined ? {} : { locale }),
 			};
 
-			await withPublishIntent(
-				{ kind: target.kind, slug: target.slug, id },
-				async () => {
-					if (target.kind === "collection") {
-						await payload.update({
-							...write,
-							collection: target.slug,
-							id: id as number | string,
-						});
-					} else {
-						await payload.updateGlobal({ ...write, slug: target.slug });
-					}
-				},
-			);
+			if (target.kind === "collection") {
+				await payload.update({
+					...write,
+					collection: target.slug,
+					id: id as number | string,
+				});
+			} else {
+				await payload.updateGlobal({ ...write, slug: target.slug });
+			}
 
 			const saved = await readTarget(scope, {
 				target,

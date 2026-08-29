@@ -1,10 +1,9 @@
 import { APIError } from "payload";
 import { hasDraftsEnabled } from "payload/shared";
 
-import { claimPublishIntent, isClaimedPublish } from "./publish-intent.js";
+import { hasPublishIntent, takePublishIntent } from "./publish-intent.js";
 import { isMcpxRequest } from "../request.js";
 
-import type { PublishIntent } from "./publish-intent.js";
 import type {
 	CollectionBeforeChangeHook,
 	CollectionBeforeOperationHook,
@@ -43,7 +42,7 @@ const STRIPPED_ARGS = new Set([
  * because it runs the collection's `beforeChange` hooks, and anything going
  * straight to `payload.db` bypasses all of this.
  *
- * On a claimed publish the argument scrubbing is unchanged — the whole
+ * On a write carrying the publish marker the scrubbing is unchanged — the whole
  * `STRIPPED_ARGS` list still goes, `deletedAt` still goes, autosave, locks and
  * trash are still forced off. Only `draft` and `_status` differ. Writing
  * `_status` here rather than in the tool keeps the tool honest: it asks to
@@ -81,7 +80,7 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 	 * deprecation rule reacts to; the operation name itself is current API.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-deprecated
-	const { args, collection, operation, req } = hookArgs;
+	const { args, operation, req } = hookArgs;
 
 	if (
 		!isMcpxRequest(req) ||
@@ -90,13 +89,7 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 		return args;
 	}
 
-	const publishing =
-		operation === "update" &&
-		claimPublishIntent({
-			kind: "collection",
-			slug: collection.slug,
-			id: (args as { id?: number | string }).id,
-		});
+	const publishing = operation === "update" && hasPublishIntent(args.data);
 
 	return scrubWriteArgs(args, publishing) as typeof args;
 };
@@ -120,38 +113,39 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
  * exists, so only `update` is intercepted.
  */
 export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
-	const { global, operation, req } = hookArgs;
+	const { operation, req } = hookArgs;
 	const args = hookArgs.args as Record<string, unknown>;
 
 	if (!isMcpxRequest(req) || operation !== "update") {
 		return args;
 	}
 
-	const publishing = claimPublishIntent({ kind: "global", slug: global.slug });
-
-	return scrubWriteArgs(args, publishing);
+	return scrubWriteArgs(args, hasPublishIntent(args["data"]));
 };
 
 /**
- * Refuses an MCP write that would still not land as a draft, and — on the one
- * operation that claimed a publish intent — refuses anything that would not
- * land as a publish. An alarm rather than the guarantee for collections, where
+ * Refuses an MCP write that would still not land as a draft, and — on the write
+ * carrying the publish marker — refuses anything that would not land as a
+ * publish. An alarm rather than the guarantee for collections, where
  * `forceDraftWrite` should make it unreachable; the guarantee itself for
  * globals, per {@link forceDraftWriteGlobal}. It throws instead of correcting
  * `_status` because Payload has already chosen the write branch by the time a
  * `beforeChange` hook runs.
+ *
+ * This is the last hook that needs the marker, so it takes it off here.
  */
 const refuseUnlessExpected = (
 	req: PayloadRequest,
-	target: { kind: PublishIntent["kind"]; slug: string },
+	slug: string,
 	data: unknown,
 ): void => {
+	const publishing = takePublishIntent(data);
+
 	if (!isMcpxRequest(req)) {
 		return;
 	}
 
 	const status = (data as { _status?: unknown })._status;
-	const publishing = isClaimedPublish(target.kind, target.slug);
 	const expected = publishing ? "published" : "draft";
 
 	if (status === expected) {
@@ -159,7 +153,7 @@ const refuseUnlessExpected = (
 	}
 
 	req.payload.logger.warn(
-		`[payloadcms-mcpx] Refused a write to ${target.slug} that would not have been a ${expected} (_status: ${String(status)}).`,
+		`[payloadcms-mcpx] Refused a write to ${slug} that would not have been a ${expected} (_status: ${String(status)}).`,
 	);
 
 	throw new APIError(
@@ -175,11 +169,7 @@ export const refusePublish: CollectionBeforeChangeHook = ({
 	data,
 	req,
 }) => {
-	refuseUnlessExpected(
-		req,
-		{ kind: "collection", slug: collection.slug },
-		data,
-	);
+	refuseUnlessExpected(req, collection.slug, data);
 
 	return data;
 };
@@ -192,7 +182,7 @@ export const refusePublishGlobal: GlobalBeforeChangeHook = ({
 }) => {
 	const next = data as Record<string, unknown>;
 
-	refuseUnlessExpected(req, { kind: "global", slug: global.slug }, next);
+	refuseUnlessExpected(req, global.slug, next);
 
 	return next;
 };

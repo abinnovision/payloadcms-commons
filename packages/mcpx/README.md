@@ -265,14 +265,18 @@ correction cannot apply and the `beforeChange` refusal is what actually holds
 the line. Both are installed on every collection and global, exposed or not.
 
 `publishDocument` is the one way through, and it opens the door for exactly one
-operation: the tool records an intent naming the entity and id it is about to
-publish, in `AsyncLocalStorage` rather than on the request, and the guard
-consults it. A concurrent call in the same JSON-RPC batch runs in another async
-context and sees nothing, a nested write to a different document meets the
-unguarded rules, and the intent is claimed once so a re-entrant write to the
-same document cannot ride along. It is not a security boundary — a custom tool
-holds the whole `payload` instance — but no ordinary write can widen itself into
-a publish by accident.
+write: the tool marks that write's own `data` object, and the guard grants the
+publish only to a write carrying the mark. Nothing is scoped to a slug or an id
+because nothing else can reach it — a concurrent call in the same JSON-RPC batch
+has its own `data`, and so does a nested write from a hook during the publish.
+That matters: the endpoint hands one `PayloadRequest` to every tool, and the
+transport dispatches the messages of a batch without awaiting each one, so an
+intent kept on the request would be reachable by a sibling `patchDocument` and
+would publish it. The mark is a string key holding a token minted per process,
+because Payload's copy of the write data keeps string keys and drops symbols,
+and a token cannot be forged by a client writing a field of the same name. It is
+still not a security boundary — a custom tool holds the whole `payload` instance
+— but no ordinary write can widen itself into a publish.
 
 Publishing covers the whole document, as the admin Publish button does, but
 Payload only validates the locale the publish runs in. A required field left
