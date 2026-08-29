@@ -124,10 +124,6 @@ const assertWritable = (
 ): void => {
 	const { slug } = collection;
 
-	if (collection.upload) {
-		fail(`Upload collection "${slug}" cannot be exposed for write.`);
-	}
-
 	if (collection.timestamps === false) {
 		fail(
 			`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
@@ -203,6 +199,7 @@ const normalizeCollections = (
 				read: settings.read ?? true,
 				write: normalizeWriteMode("Collection", slug, settings.write),
 				hasDrafts,
+				isUpload: Boolean(collection.upload),
 				fieldName: toCamelCase(slug),
 			};
 
@@ -255,6 +252,7 @@ const normalizeGlobals = (
 				read: settings.read ?? true,
 				write: normalizeWriteMode("Global", slug, settings.write),
 				hasDrafts,
+				isUpload: false,
 				fieldName: toCamelCase(slug),
 			};
 

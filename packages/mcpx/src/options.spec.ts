@@ -56,6 +56,7 @@ describe("normalizeOptions", () => {
 				read: true,
 				write: false,
 				hasDrafts: true,
+				isUpload: false,
 				fieldName: "pages",
 			},
 		]);
@@ -109,14 +110,8 @@ describe("normalizeOptions", () => {
 		).toThrow(/localizeStatus/);
 	});
 
-	it("refuses write on auth, upload and internal collections", () => {
-		const media: CollectionConfig = {
-			slug: "media",
-			upload: true,
-			versions: { drafts: true },
-			fields: [],
-		};
-		const config = rawConfig([users, media, pages]);
+	it("refuses write on auth and internal collections", () => {
+		const config = rawConfig([users, pages]);
 
 		expect(() =>
 			normalize({ collections: { users: { write: "draft" } } }, config),
@@ -126,9 +121,6 @@ describe("normalizeOptions", () => {
 			/Auth collection/,
 		);
 		expect(() =>
-			normalize({ collections: { media: { write: "draft" } } }, config),
-		).toThrow(/Upload collection/);
-		expect(() =>
 			normalize(
 				{
 					collections: { pages: { write: "draft" } },
@@ -137,6 +129,37 @@ describe("normalizeOptions", () => {
 				config,
 			),
 		).toThrow(/already taken/);
+	});
+
+	it("exposes an upload collection for write, drafts permitting", () => {
+		const fields: CollectionConfig["fields"] = [{ name: "alt", type: "text" }];
+		const media: CollectionConfig = {
+			slug: "media",
+			upload: true,
+			versions: { drafts: true },
+			fields,
+		};
+		const config = rawConfig([users, media]);
+
+		expect(
+			normalize({ collections: { media: { write: "draft" } } }, config)
+				.collections,
+		).toEqual([
+			{
+				slug: "media",
+				read: true,
+				write: "draft",
+				hasDrafts: true,
+				isUpload: true,
+				fieldName: "media",
+			},
+		]);
+		expect(() =>
+			normalize(
+				{ collections: { media: { write: "draft" } } },
+				rawConfig([users, { slug: "media", upload: true, fields }]),
+			),
+		).toThrow(/has no drafts/);
 	});
 
 	it("refuses write on a collection without timestamps", () => {
@@ -161,6 +184,7 @@ describe("normalizeOptions", () => {
 				read: true,
 				write: false,
 				hasDrafts: true,
+				isUpload: false,
 				fieldName: "siteSettings",
 			},
 		]);

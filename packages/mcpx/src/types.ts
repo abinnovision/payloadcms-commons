@@ -41,8 +41,9 @@ export interface McpxCollectionOptions {
 	/** Expose `describeSchema`, `findDocuments`, `getDocument`. Default `true`. */
 	read?: boolean;
 	/**
-	 * Expose `patchDocument`, `createDocument`, `validateDocument`, and how far
-	 * those writes reach. Default `false`.
+	 * Expose `patchDocument`, `validateDocument` and, unless this is an upload
+	 * collection, `createDocument`, and how far those writes reach. Default
+	 * `false`.
 	 */
 	write?: McpxWriteMode;
 }
@@ -69,6 +70,8 @@ export interface McpxExposedEntity {
 	read: boolean;
 	write: McpxWriteMode;
 	hasDrafts: boolean;
+	/** An upload document is a file, and no tool here can supply one. */
+	isUpload: boolean;
 	/** Name of the capability group on the key document. */
 	fieldName: string;
 }

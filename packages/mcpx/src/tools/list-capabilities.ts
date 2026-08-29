@@ -1,11 +1,12 @@
 import { hasDraftValidationEnabled } from "payload/shared";
 
 import { translateLabel } from "./shared.js";
+import { canCreate } from "../capabilities.js";
 import { translatorFor } from "../i18n.js";
 import { jsonResult } from "../result.js";
 import { defineMcpxTool } from "../types.js";
 
-const DESCRIPTION = `Lists what this key may do: the collections and globals it can read or write, their draft behaviour and id type, the configured locales, the limits in force and the custom tools available. Call it first to orient; nothing here changes with the content model.
+const DESCRIPTION = `Lists what this key may do: the collections and globals it can read or write, whether a collection can also be created in, their draft behaviour and id type, the configured locales, the limits in force and the custom tools available. Call it first to orient; nothing here changes with the content model.
 
 A global is a singleton: it has no id, is not listed by findDocuments and cannot be created. Address one with the "global" argument where a collection document would take "collection" and "id".`;
 
@@ -51,6 +52,13 @@ export const listCapabilities = defineMcpxTool({
 					...(description === undefined ? {} : { description }),
 					read: capability.read,
 					write: capability.write,
+					/*
+					 * Stated separately because it is the one narrowing of `write`
+					 * a client cannot infer: `createDocument` drops the collection
+					 * from its enum, and where it is the only writable one the tool
+					 * is not registered at all, leaving nothing else to read it off.
+					 */
+					create: capability.write && canCreate(entry),
 					publish: capability.publish,
 					drafts: entry.hasDrafts,
 					draftValidation: hasDraftValidationEnabled(config),

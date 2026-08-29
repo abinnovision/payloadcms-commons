@@ -82,12 +82,18 @@ describe("capabilities", () => {
 				description: "Marketing pages rendered on the public site.",
 				read: true,
 				write: true,
+				create: true,
 				drafts: true,
 				draftValidation: false,
 				idType: "number",
 			}),
 			expect.objectContaining({ slug: "posts", read: true, write: true }),
-			expect.objectContaining({ slug: "tags", read: true, write: false }),
+			expect.objectContaining({
+				slug: "tags",
+				read: true,
+				write: false,
+				create: false,
+			}),
 		]);
 		expect(full.data["locales"]).toEqual({
 			codes: ["en", "de"],

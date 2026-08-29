@@ -5,6 +5,7 @@ import { allowedNodeTypes } from "./lexical.js";
 import {
 	blockOf,
 	blockSlugsOf,
+	describeAddressableFields,
 	describeFields,
 	findBlocksField,
 	joinPath,
@@ -118,6 +119,7 @@ describe("describeFields", () => {
 			{ name: "deletedAt", type: "date" },
 			{ name: "secret", type: "text", hidden: true },
 			{ name: "disabled", type: "text", admin: { disabled: true } },
+			{ name: "adminHidden", type: "text", admin: { hidden: true } },
 			{ name: "computed", type: "text", virtual: true },
 			{ name: "visible", type: "text" },
 		];
@@ -132,6 +134,18 @@ describe("describeFields", () => {
 
 		expect(fromConfig).not.toContain("/_status");
 		expect(fromConfig).not.toContain("/id");
+	});
+
+	it("never describes the base fields of an upload collection", () => {
+		const media = config.collections.find(
+			(collection) => collection.slug === "media",
+		);
+
+		expect(
+			describeAddressableFields(media?.flattenedFields ?? []).map(
+				(field) => field.path,
+			),
+		).toEqual(["/alt", "/credit"]);
 	});
 
 	it("stops at a blocks field and names the slugs", () => {

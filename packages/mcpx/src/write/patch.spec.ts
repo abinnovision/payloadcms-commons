@@ -453,4 +453,27 @@ describe("buildWriteData", () => {
 			title: "Home",
 		});
 	});
+
+	it("drops the base fields of an upload document", () => {
+		const data = buildWriteData(
+			config,
+			targetOf(config, { kind: "collection", slug: "media" }),
+			{
+				id: "m1",
+				alt: "A cat",
+				credit: "Nobody",
+				filename: "cat.png",
+				mimeType: "image/png",
+				filesize: 1234,
+				width: 800,
+				height: 600,
+				url: "/media/cat.png",
+				thumbnailURL: "https://example.test/media/cat.png",
+				focalX: 50,
+				focalY: 50,
+			},
+		);
+
+		expect(data).toEqual({ alt: "A cat", credit: "Nobody" });
+	});
 });

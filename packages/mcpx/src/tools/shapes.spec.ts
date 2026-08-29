@@ -2,7 +2,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { BUILTIN_TOOLS } from "./builtin.js";
-import { pages, posts, tags, users } from "../../test/fixtures/collections.js";
+import {
+	media,
+	pages,
+	posts,
+	tags,
+	users,
+} from "../../test/fixtures/collections.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { banner, siteSettings } from "../../test/fixtures/globals.js";
 import {
@@ -38,6 +44,8 @@ let config: SanitizedConfig;
 let options: NormalizedOptions;
 /** Same config, but with globals exposed too. */
 let withGlobals: NormalizedOptions;
+/** Same config, but with the upload collection exposed for write too. */
+let withUpload: NormalizedOptions;
 
 const scopeFor = (
 	keyCapabilities: unknown,
@@ -90,7 +98,7 @@ beforeAll(async () => {
 	const raw: Config = {
 		secret: "",
 		db: config.db,
-		collections: [users, pages, posts, tags],
+		collections: [users, pages, posts, tags, media],
 	};
 
 	const collections = {
@@ -103,6 +111,10 @@ beforeAll(async () => {
 	];
 
 	options = normalizeOptions(raw, { collections, tools });
+	withUpload = normalizeOptions(raw, {
+		collections: { ...collections, media: { read: true, write: "draft" } },
+		tools,
+	});
 	withGlobals = normalizeOptions(
 		{ ...raw, globals: [siteSettings, banner] },
 		{
@@ -129,6 +141,40 @@ describe("builtin tool shapes", () => {
 		expect(
 			schemaOf(readOnly, "describeSchema").properties["collection"],
 		).toMatchObject({ enum: ["pages", "tags"] });
+	});
+
+	it("keeps an upload collection out of createDocument but not patchDocument", () => {
+		const scope = scopeFor(
+			{
+				collections: {
+					pages: { read: true, write: true },
+					media: { read: true, write: true },
+				},
+			},
+			"on",
+			() => withUpload,
+		);
+
+		expect(
+			schemaOf(scope, "patchDocument").properties["collection"],
+		).toMatchObject({ enum: ["pages", "media"] });
+		expect(
+			schemaOf(scope, "createDocument").properties["collection"],
+		).toMatchObject({ enum: ["pages"] });
+	});
+
+	it("disables createDocument for a key whose only write is an upload collection", () => {
+		const scope = scopeFor(
+			{ collections: { media: { read: true, write: true } } },
+			"on",
+			() => withUpload,
+		);
+		const names = BUILTIN_TOOLS.filter((tool) =>
+			isToolEnabled(tool, scope),
+		).map((tool) => tool.name);
+
+		expect(names).toContain("patchDocument");
+		expect(names).not.toContain("createDocument");
 	});
 
 	it("enables write tools only for keys that may write", () => {
