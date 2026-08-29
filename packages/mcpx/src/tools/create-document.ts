@@ -1,13 +1,25 @@
 import { z } from "zod";
 
-import { slugEnum, localeOf, localeShape, readTarget } from "./shared.js";
+import {
+	draftSentence,
+	localeOf,
+	localeShape,
+	readTarget,
+	slugEnum,
+} from "./shared.js";
 import { resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../result.js";
 import { validateWriteValue } from "../schema/index.js";
 import { defineMcpxTool } from "../types.js";
-import { stripRowIds, collectPublishBlockers } from "../write/index.js";
+import { stripRowIds } from "../write/patch.js";
+import { collectPublishBlockers } from "../write/publish-blockers.js";
 
-const DESCRIPTION = `Creates a new document as a draft from a minimal seed. Only the fields describeSchema lists may appear in "data"; unknown keys are refused with the valid siblings. The draft may be incomplete: the response lists "publishBlockers", which patchDocument can then work through. Use this when no document exists yet; prefer patching an existing draft otherwise.`;
+import type { McpxToolScope } from "../types.js";
+
+const DESCRIPTION = (scope: McpxToolScope): string =>
+	`Creates a new document from a minimal seed. Only the fields describeSchema lists may appear in "data"; unknown keys are refused with the valid siblings, and "id" is Payload's to assign. The document may be incomplete: the response lists "publishBlockers", which patchDocument can then work through, and "publishBlockersUnavailable" when that check itself failed. Use this when no document exists yet; prefer patching an existing draft otherwise.
+
+${draftSentence(scope)}`;
 
 export const createDocument = defineMcpxTool({
 	name: "createDocument",
@@ -40,8 +52,16 @@ export const createDocument = defineMcpxTool({
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
 
-		// A top-level id is Payload's to assign, never the client's.
-		const { id: _ignored, ...seed } = args.data;
+		/*
+		 * A top-level id is Payload's to assign. The shape walker tolerates `id`
+		 * at every level, for the row ids a client echoes back, so a supplied one
+		 * is refused here rather than dropped in silence.
+		 */
+		if ("id" in args.data) {
+			return errorResult("Nothing was created.", {
+				problems: ["/id: Payload assigns the id; it cannot be supplied."],
+			});
+		}
 
 		const problems = validateWriteValue(
 			payload.config,
@@ -49,7 +69,7 @@ export const createDocument = defineMcpxTool({
 				pointer: "",
 				resolution: { fields: target.config.flattenedFields, prefix: [] },
 			},
-			seed,
+			args.data,
 		);
 
 		if (problems.length > 0) {
@@ -58,7 +78,7 @@ export const createDocument = defineMcpxTool({
 
 		const created = (await payload.create({
 			collection: args.collection,
-			data: stripRowIds(seed) as Record<string, unknown>,
+			data: stripRowIds(args.data) as Record<string, unknown>,
 			depth: 0,
 			draft: true,
 			overrideAccess: false,
@@ -73,7 +93,7 @@ export const createDocument = defineMcpxTool({
 			privileged: true,
 		});
 
-		const publishBlockers = await collectPublishBlockers(scope.req, {
+		const validation = await collectPublishBlockers(scope.req, {
 			doc: saved,
 			entity: target,
 		});
@@ -82,7 +102,10 @@ export const createDocument = defineMcpxTool({
 			id: saved["id"],
 			status: saved["_status"],
 			updatedAt: saved["updatedAt"],
-			...(publishBlockers.length > 0 ? { publishBlockers } : {}),
+			...(validation.blockers.length > 0
+				? { publishBlockers: validation.blockers }
+				: {}),
+			...(validation.unavailable ? { publishBlockersUnavailable: true } : {}),
 		});
 	},
 });

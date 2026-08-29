@@ -2,6 +2,7 @@ import { Pointer } from "rfc6902";
 import { z } from "zod";
 
 import {
+	draftSentence,
 	idShape,
 	localeOf,
 	localeShape,
@@ -12,28 +13,30 @@ import { refOf, requireIdFor, resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../result.js";
 import { defineMcpxTool } from "../types.js";
 import {
-	applyPatchToCopy,
+	applyPatchOperations,
 	buildWriteData,
-	findPatchProblems,
 	isElementPointer,
 	PATCH_OPERATION_SCHEMA,
-	collectPublishBlockers,
-	withTransaction,
-} from "../write/index.js";
+} from "../write/patch.js";
+import { collectPublishBlockers } from "../write/publish-blockers.js";
+import { withTransaction } from "../write/transaction.js";
 
-import type { PatchOperation } from "../write/index.js";
+import type { McpxToolScope } from "../types.js";
+import type { PatchOperation } from "../write/patch.js";
 
-const DESCRIPTION = `Applies RFC 6902 JSON Patch operations to one document.
+const DESCRIPTION = (
+	scope: McpxToolScope,
+): string => `Applies RFC 6902 JSON Patch operations to one document.
 
 Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
 
-The write always lands as a draft and is never published, whatever it contains; publishing stays a human action in the admin panel.
+${draftSentence(scope)}
 
 Only the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. describeSchema reports field paths in this same pointer syntax; a path becomes a pointer into a document by replacing each "*" and each block slug with its 0-based index.
 
 Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so a concurrent edit is refused rather than overwritten.
 
-A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but a human cannot publish the document until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update.`;
+A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but a human cannot publish the document until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing about whether the document is publishable.`;
 
 const sameInstant = (left: unknown, right: string): boolean =>
 	typeof left === "string" &&
@@ -105,7 +108,7 @@ export const patchDocument = defineMcpxTool({
 	description: DESCRIPTION,
 	annotations: {
 		readOnlyHint: false,
-		destructiveHint: false,
+		destructiveHint: true,
 		idempotentHint: false,
 		openWorldHint: false,
 	},
@@ -139,10 +142,9 @@ export const patchDocument = defineMcpxTool({
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
 		/*
-		 * `PATCH_OPERATION_SCHEMA` is one flat object, so it accepts every op
-		 * with an optional `value`, while rfc6902's own union is stricter: a
-		 * `test` requires one. Narrowing here states that gap once instead of
-		 * at each use.
+		 * `z.unknown()` cannot say "present, any value", so the schema leaves
+		 * `value` optional where rfc6902's own union requires it. Narrowing
+		 * states that gap once instead of at each use.
 		 */
 		const patches = args.patches as PatchOperation[];
 
@@ -159,17 +161,11 @@ export const patchDocument = defineMcpxTool({
 				);
 			}
 
-			const problems = findPatchProblems(payload.config, {
+			const applied = applyPatchOperations(payload.config, {
 				doc,
 				patches,
 				ref: refOf(target),
 			});
-
-			if (problems.length > 0) {
-				return errorResult("No operation was applied.", { problems });
-			}
-
-			const applied = applyPatchToCopy(doc, patches);
 
 			if ("problems" in applied) {
 				return errorResult("No operation was applied.", {
@@ -204,7 +200,7 @@ export const patchDocument = defineMcpxTool({
 			});
 
 			const notApplied = notAppliedPointers(patches, applied.next, saved);
-			const publishBlockers = await collectPublishBlockers(scope.req, {
+			const validation = await collectPublishBlockers(scope.req, {
 				doc: saved,
 				entity: target,
 			});
@@ -215,7 +211,10 @@ export const patchDocument = defineMcpxTool({
 					: { global: target.slug }),
 				status: saved["_status"],
 				updatedAt: saved["updatedAt"],
-				...(publishBlockers.length > 0 ? { publishBlockers } : {}),
+				...(validation.blockers.length > 0
+					? { publishBlockers: validation.blockers }
+					: {}),
+				...(validation.unavailable ? { publishBlockersUnavailable: true } : {}),
 				...(notApplied.length > 0 ? { notApplied } : {}),
 			});
 		});

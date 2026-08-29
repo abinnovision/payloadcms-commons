@@ -14,7 +14,7 @@ export default defineConfig({
 	unbundle: true,
 	format: ["esm"],
 	clean: true,
-	deps: { skipNodeModulesBundle: true },
+	deps: { neverBundle: true },
 	define: { __MCPX_VERSION__: JSON.stringify(version) },
 	plugins: [swc.rolldown()],
 });

@@ -126,7 +126,11 @@ export interface McpxTool<
 > {
 	/** camelCase, unique, not one of the builtin tool names. */
 	name: string;
-	description: string;
+	/**
+	 * Fixed text, or text built per request so it can state what this key's
+	 * writes actually do.
+	 */
+	description: string | ((scope: McpxToolScope) => string);
 	annotations?: ToolAnnotations;
 	/**
 	 * Whether this key may call the tool; a tool that is not enabled never

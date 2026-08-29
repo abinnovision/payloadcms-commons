@@ -4,7 +4,7 @@ import { z } from "zod";
 import { translateStatic } from "../i18n.js";
 
 import type { ResolvedTarget } from "./target.js";
-import type { McpxToolScope } from "../types.js";
+import type { McpxExposedEntity, McpxToolScope } from "../types.js";
 import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
 
 export const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
@@ -15,6 +15,40 @@ export const idSchema = z
 	.describe("Document id.");
 
 type SlugEnum = z.ZodEnum<Record<string, string>>;
+
+/**
+ * Slugs this key may write whose writes land live rather than as a draft,
+ * which is what `allowLiveWrites` permits for an entity without versions.
+ * Empty for every key that can only write drafts.
+ */
+export const liveWriteSlugs = (scope: McpxToolScope): string[] => {
+	const live = (entities: McpxExposedEntity[], writable: string[]): string[] =>
+		entities
+			.filter(
+				(entity) =>
+					writable.includes(entity.slug) &&
+					entity.allowLiveWrites &&
+					!entity.hasDrafts,
+			)
+			.map((entity) => entity.slug);
+
+	return [
+		...live(scope.exposure.collections, scope.writable),
+		...live(scope.exposure.globals, scope.writableGlobals),
+	];
+};
+
+/**
+ * The sentence the write tools and the server instructions end on: what a
+ * write actually does for this key.
+ */
+export const draftSentence = (scope: McpxToolScope): string => {
+	const live = liveWriteSlugs(scope);
+
+	return live.length === 0
+		? "Every write lands as a draft and is never published; publishing stays a human action in the admin panel."
+		: `Writes land as drafts and are never published, except for ${live.join(", ")}, which have no drafts: a write there changes the live document immediately. Publishing anything else stays a human action in the admin panel.`;
+};
 
 /*
  * The supersets the shape helpers below produce. Which keys a helper actually

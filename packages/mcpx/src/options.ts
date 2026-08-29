@@ -1,7 +1,7 @@
 import { InvalidConfiguration } from "payload";
 import { hasDraftsEnabled } from "payload/shared";
 
-import { BUILTIN_TOOL_NAMES } from "./tools/index.js";
+import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
 import { MCPX_VERSION } from "./version.js";
 
 import type {

@@ -1,19 +1,30 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
-	applyPatchToCopy,
+	applyPatchOperations,
 	buildWriteData,
 	droppedPointer,
-	findPatchProblems,
 	isElementPointer,
 	isReservedPointer,
 	PATCH_OPERATION_SCHEMA,
 } from "./patch.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
-import { collectionOf } from "../schema/walk.js";
+import { targetOf } from "../schema/walk.js";
 
 import type { SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
+
+/** The smallest state the rich text shape check accepts. */
+const EMPTY_RICH_TEXT = {
+	root: {
+		children: [],
+		direction: null,
+		format: "",
+		indent: 0,
+		type: "root",
+		version: 1,
+	},
+};
 
 const DOC = {
 	id: "p1",
@@ -33,16 +44,45 @@ const DOC = {
 
 describe("pATCH_OPERATION_SCHEMA", () => {
 	it("accepts the six RFC 6902 operations", () => {
-		for (const op of ["add", "copy", "move", "remove", "replace", "test"]) {
-			expect(PATCH_OPERATION_SCHEMA.safeParse({ op, path: "/a" }).success).toBe(
-				true,
-			);
+		const operations = [
+			{ op: "add", path: "/a", value: 1 },
+			{ from: "/b", op: "copy", path: "/a" },
+			{ from: "/b", op: "move", path: "/a" },
+			{ op: "remove", path: "/a" },
+			{ op: "replace", path: "/a", value: 1 },
+			{ op: "test", path: "/a", value: 1 },
+		];
+
+		for (const operation of operations) {
+			expect(PATCH_OPERATION_SCHEMA.safeParse(operation).success).toBe(true);
 		}
 	});
 
 	it("rejects an unknown operation", () => {
 		expect(
 			PATCH_OPERATION_SCHEMA.safeParse({ op: "set", path: "/a" }).success,
+		).toBe(false);
+	});
+
+	it("rejects members the operation does not take", () => {
+		expect(
+			PATCH_OPERATION_SCHEMA.safeParse({
+				from: "/b",
+				op: "copy",
+				path: "/a",
+				value: 1,
+			}).success,
+		).toBe(false);
+
+		expect(
+			PATCH_OPERATION_SCHEMA.safeParse({ from: "/b", op: "add", path: "/a" })
+				.success,
+		).toBe(false);
+	});
+
+	it("requires a source pointer on copy and move", () => {
+		expect(
+			PATCH_OPERATION_SCHEMA.safeParse({ op: "copy", path: "/a" }).success,
 		).toBe(false);
 	});
 });
@@ -69,17 +109,54 @@ describe("pointer helpers", () => {
 	});
 });
 
-describe("applyPatchToCopy", () => {
+const POSTS_DOC = {
+	id: "s1",
+	items: [{ id: "item-1", heading: "First" }],
+	locked: {
+		body: EMPTY_RICH_TEXT,
+		entries: [{ id: "entry-1", label: "one" }],
+		note: "kept",
+		sections: [{ id: "block-1", blockType: "cta", label: "Go" }],
+	},
+	title: "Post",
+};
+
+describe("applyPatchOperations", () => {
+	let config: SanitizedConfig;
+
+	beforeAll(async () => {
+		config = await buildFixtureConfig();
+	});
+
+	const apply = (
+		doc: Record<string, unknown>,
+		patches: Operation[],
+		slug = "pages",
+	): { next: Record<string, unknown> } | { problems: string[] } =>
+		applyPatchOperations(config, {
+			doc,
+			patches,
+			ref: { kind: "collection", slug },
+		});
+
+	const problemsFor = (patches: Operation[]): string[] => {
+		const result = apply(DOC, patches);
+
+		return "problems" in result ? result.problems : [];
+	};
+
 	it("sets an absent field when replace addresses it", () => {
-		const result = applyPatchToCopy({ slug: "home" }, [
+		const result = apply({ id: "p1", slug: "home" }, [
 			{ op: "replace", path: "/title", value: "Startseite" },
 		]);
 
-		expect(result).toEqual({ next: { slug: "home", title: "Startseite" } });
+		expect(result).toEqual({
+			next: { id: "p1", slug: "home", title: "Startseite" },
+		});
 	});
 
 	it("applies on a copy and leaves the original untouched", () => {
-		const result = applyPatchToCopy(DOC, [
+		const result = apply(DOC, [
 			{ op: "replace", path: "/title", value: "New" },
 		]);
 
@@ -90,7 +167,7 @@ describe("applyPatchToCopy", () => {
 	});
 
 	it("applies nothing when one operation fails", () => {
-		const result = applyPatchToCopy(DOC, [
+		const result = apply(DOC, [
 			{ op: "replace", path: "/title", value: "New" },
 			{ op: "test", path: "/layout/color", value: "dark" },
 		]);
@@ -100,12 +177,33 @@ describe("applyPatchToCopy", () => {
 		});
 	});
 
-	it("strips row ids from added and copied rows", () => {
-		const result = applyPatchToCopy(DOC, [
+	it("resolves an operation against what the ones before it produced", () => {
+		const result = apply(DOC, [
 			{
 				op: "add",
 				path: "/layout/sections/-",
-				value: { id: "row-1", blockType: "richText", content: null },
+				value: { blockType: "richText", content: EMPTY_RICH_TEXT },
+			},
+			{
+				op: "replace",
+				path: "/layout/sections/1/content",
+				value: EMPTY_RICH_TEXT,
+			},
+		]);
+
+		expect(result).toHaveProperty("next");
+	});
+
+	it("strips row ids from added and copied rows", () => {
+		const result = apply(DOC, [
+			{
+				op: "add",
+				path: "/layout/sections/-",
+				value: {
+					id: "row-1",
+					blockType: "richText",
+					content: EMPTY_RICH_TEXT,
+				},
 			},
 			{ op: "copy", from: "/layout/sections/0", path: "/layout/sections/-" },
 		]);
@@ -126,7 +224,7 @@ describe("applyPatchToCopy", () => {
 	});
 
 	it("keeps stored row ids on a whole-field replace, so rows update in place", () => {
-		const result = applyPatchToCopy(DOC, [
+		const result = apply(DOC, [
 			{
 				op: "replace",
 				path: "/layout/sections",
@@ -154,27 +252,16 @@ describe("applyPatchToCopy", () => {
 	});
 
 	it("strips a client id from a row appended to a plain array", () => {
-		const result = applyPatchToCopy({ items: [] }, [
-			{ op: "add", path: "/items/-", value: { id: "foreign", title: "x" } },
-		]);
+		const result = apply(
+			{ id: "s1", items: [] },
+			[{ op: "add", path: "/items/-", value: { id: "foreign", heading: "x" } }],
+			"posts",
+		);
 
-		expect(result).toEqual({ next: { items: [{ title: "x" }] } });
-	});
-});
-
-describe("findPatchProblems", () => {
-	let config: SanitizedConfig;
-
-	beforeAll(async () => {
-		config = await buildFixtureConfig();
-	});
-
-	const problemsFor = (patches: Operation[]): string[] =>
-		findPatchProblems(config, {
-			doc: DOC,
-			patches,
-			ref: { kind: "collection", slug: "pages" },
+		expect(result).toEqual({
+			next: { id: "s1", items: [{ heading: "x" }] },
 		});
+	});
 
 	it("accepts a well-formed replace", () => {
 		expect(
@@ -238,13 +325,94 @@ describe("findPatchProblems", () => {
 		).toEqual([expect.stringContaining("is not allowed")]);
 	});
 
-	it("reports every bad operation rather than only the first", () => {
+	it("stops at the first operation that fails", () => {
 		expect(
 			problemsFor([
 				{ op: "replace", path: "/titel", value: "x" },
 				{ op: "replace", path: "/_status", value: "published" },
 			]),
-		).toHaveLength(2);
+		).toEqual([expect.stringContaining("patches[0]")]);
+	});
+});
+
+describe("applyPatchOperations against read-only fields", () => {
+	let config: SanitizedConfig;
+
+	beforeAll(async () => {
+		config = await buildFixtureConfig();
+	});
+
+	const problemsFor = (patches: Operation[]): string[] => {
+		const result = applyPatchOperations(config, {
+			doc: POSTS_DOC,
+			patches,
+			ref: { kind: "collection", slug: "posts" },
+		});
+
+		return "problems" in result ? result.problems : [];
+	};
+
+	const CASES: { name: string; patches: Operation[] }[] = [
+		{
+			name: "replace of a scalar",
+			patches: [{ op: "replace", path: "/locked/note", value: "changed" }],
+		},
+		{
+			name: "add to a list",
+			patches: [
+				{ op: "add", path: "/locked/entries/-", value: { label: "two" } },
+			],
+		},
+		{
+			name: "replace of a blocks field",
+			patches: [{ op: "replace", path: "/locked/sections", value: [] }],
+		},
+		{
+			name: "replace of a rich text field",
+			patches: [
+				{ op: "replace", path: "/locked/body", value: EMPTY_RICH_TEXT },
+			],
+		},
+		{
+			name: "copy into a scalar",
+			patches: [{ from: "/title", op: "copy", path: "/locked/note" }],
+		},
+		{
+			name: "copy into a block list",
+			patches: [
+				{ from: "/locked/sections/0", op: "copy", path: "/locked/sections/-" },
+			],
+		},
+		{
+			name: "move into a list",
+			patches: [{ from: "/items/0", op: "move", path: "/locked/entries/-" }],
+		},
+		{
+			name: "remove of a list element",
+			patches: [{ op: "remove", path: "/locked/entries/0" }],
+		},
+		{
+			name: "remove of a block element",
+			patches: [{ op: "remove", path: "/locked/sections/0" }],
+		},
+		{
+			name: "move of a list element out",
+			patches: [{ from: "/locked/entries/0", op: "move", path: "/items/-" }],
+		},
+	];
+
+	for (const { name, patches } of CASES) {
+		it(`refuses a ${name}`, () => {
+			expect(problemsFor(patches)).toEqual([
+				expect.stringContaining("read-only"),
+			]);
+		});
+	}
+
+	it("still accepts a write outside the read-only group", () => {
+		expect(
+			problemsFor([{ op: "replace", path: "/title", value: "Renamed" }]),
+		).toEqual([]);
 	});
 });
 
@@ -256,14 +424,18 @@ describe("buildWriteData", () => {
 	});
 
 	it("keeps describable fields and row identity, drops what Payload owns", () => {
-		const data = buildWriteData(config, collectionOf(config, "pages"), {
-			...DOC,
-			_status: "draft",
-			createdAt: "2026-01-01T00:00:00.000Z",
-			updatedAt: "2026-01-01T00:00:00.000Z",
-			unknown: "x",
-			meta: { title: "Meta", stray: true },
-		});
+		const data = buildWriteData(
+			config,
+			targetOf(config, { kind: "collection", slug: "pages" }),
+			{
+				...DOC,
+				_status: "draft",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				unknown: "x",
+				meta: { title: "Meta", stray: true },
+			},
+		);
 
 		expect(data).toEqual({
 			layout: {

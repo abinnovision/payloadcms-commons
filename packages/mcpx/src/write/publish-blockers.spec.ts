@@ -88,7 +88,7 @@ beforeAll(async () => {
 
 describe("collectPublishBlockers", () => {
 	it("reports the required fields a draft is still missing", async () => {
-		const blockers = await collectPublishBlockers(req, {
+		const { blockers } = await collectPublishBlockers(req, {
 			entity: { kind: "collection", slug: pages.slug, config: pages },
 			doc: { id: "p1", layout: { color: "light" } },
 		});
@@ -105,7 +105,7 @@ describe("collectPublishBlockers", () => {
 	});
 
 	it("reports a required field inside a block with its label path", async () => {
-		const blockers = await collectPublishBlockers(req, {
+		const { blockers } = await collectPublishBlockers(req, {
 			entity: { kind: "collection", slug: pages.slug, config: pages },
 			doc: {
 				id: "p1",
@@ -131,7 +131,7 @@ describe("collectPublishBlockers", () => {
 	});
 
 	it("reports nothing for a draft that could be published", async () => {
-		const blockers = await collectPublishBlockers(req, {
+		const { blockers } = await collectPublishBlockers(req, {
 			entity: { kind: "collection", slug: pages.slug, config: pages },
 			doc: {
 				id: "p1",
@@ -157,7 +157,7 @@ describe("collectPublishBlockers", () => {
 		expect(blockers).toEqual([]);
 	});
 
-	it("returns nothing and warns when the traversal itself fails", async () => {
+	it("reports the check as unavailable and warns when the traversal fails", async () => {
 		const fields: Field[] = [
 			{
 				name: "boom",
@@ -173,12 +173,12 @@ describe("collectPublishBlockers", () => {
 		];
 		const broken: SanitizedCollectionConfig = { ...pages, fields };
 
-		const blockers = await collectPublishBlockers(req, {
+		const result = await collectPublishBlockers(req, {
 			entity: { kind: "collection", slug: broken.slug, config: broken },
 			doc: { id: "p1", boom: "x" },
 		});
 
-		expect(blockers).toEqual([]);
+		expect(result).toEqual({ blockers: [], unavailable: true });
 		expect(warn).toHaveBeenCalledWith(
 			expect.stringContaining("Could not validate the pages draft"),
 		);
@@ -187,7 +187,7 @@ describe("collectPublishBlockers", () => {
 
 describe("collectPublishBlockers for a global", () => {
 	it("reports the required fields a global draft is still missing", async () => {
-		const blockers = await collectPublishBlockers(req, {
+		const { blockers } = await collectPublishBlockers(req, {
 			entity: {
 				kind: "global",
 				slug: siteSettingsGlobal.slug,

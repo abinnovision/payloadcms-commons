@@ -8,16 +8,18 @@ import {
 import { requireIdFor, resolveTarget } from "./target.js";
 import { jsonResult } from "../result.js";
 import { defineMcpxTool } from "../types.js";
-import { collectPublishBlockers } from "../write/index.js";
+import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
 
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
+Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
+
+Nothing is written, but the check runs the same field-level beforeValidate and beforeChange hooks a save would, so a hook with side effects fires. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing.`;
 
 export const validateDocument = defineMcpxTool({
 	name: "validateDocument",
 	description: DESCRIPTION,
-	annotations: { readOnlyHint: true, openWorldHint: false },
+	annotations: { openWorldHint: false },
 	isEnabled: (scope) =>
 		scope.writable.length + scope.writableGlobals.length > 0,
 	inputSchema: (scope) => ({
@@ -46,7 +48,7 @@ export const validateDocument = defineMcpxTool({
 			privileged: true,
 		});
 
-		const publishBlockers = await collectPublishBlockers(scope.req, {
+		const validation = await collectPublishBlockers(scope.req, {
 			doc,
 			entity: target,
 		});
@@ -57,7 +59,8 @@ export const validateDocument = defineMcpxTool({
 				: { global: target.slug }),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
-			publishBlockers,
+			publishBlockers: validation.blockers,
+			...(validation.unavailable ? { publishBlockersUnavailable: true } : {}),
 		});
 	},
 });

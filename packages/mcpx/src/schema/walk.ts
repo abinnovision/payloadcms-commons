@@ -11,7 +11,6 @@ import type {
 	FlattenedBlocksField,
 	FlattenedField,
 	RichTextField,
-	SanitizedCollectionConfig,
 	SanitizedConfig,
 	TabAsField,
 } from "payload";
@@ -251,7 +250,7 @@ const withRows = (
  * Whether a descriptor stands for a construct that only holds other fields.
  *
  * These describe a position rather than a value, so everything that resolves a
- * path to something writable skips them; only {@link describeNode} reports
+ * path to something writable skips them; only {@link nodeDescriber} reports
  * them, to carry what the container itself declares.
  */
 const isContainer = (descriptor: FieldDescriptor): boolean =>
@@ -338,12 +337,47 @@ export const describeFields = (
 /**
  * The descriptors that address a value, which is what every walk resolving a
  * path against a document needs. A container describes a position rather than
- * a value, so only {@link describeNode} reports one.
+ * a value, so only {@link nodeDescriber} reports one.
  */
 export const describeAddressableFields = (
 	fields: FlattenedField[],
 ): FieldDescriptor[] =>
 	describeFields(fields).filter((descriptor) => !isContainer(descriptor));
+
+/** The field each terminal type resolves to. */
+interface FieldOfType {
+	blocks: FlattenedBlocksField;
+	richText: RichTextField;
+}
+
+/**
+ * Locates the field of `type` that a resolved descriptor path refers to.
+ */
+const findFieldAt = <T extends keyof FieldOfType>(
+	fields: FlattenedField[],
+	path: readonly string[],
+	type: T,
+): FieldOfType[T] | undefined => {
+	for (const field of fields) {
+		if (!("name" in field) || field.name !== path[0]) {
+			continue;
+		}
+
+		if (field.type === type && path.length === 1) {
+			return field as FieldOfType[T];
+		}
+
+		if (field.type === "tab" || field.type === "group") {
+			return findFieldAt(field.flattenedFields, path.slice(1), type);
+		}
+
+		if (field.type === "array" && path[1] === ARRAY_MARKER) {
+			return findFieldAt(field.flattenedFields, path.slice(2), type);
+		}
+	}
+
+	return undefined;
+};
 
 /**
  * Locates the blocks field that a resolved descriptor path refers to.
@@ -351,27 +385,7 @@ export const describeAddressableFields = (
 export const findBlocksField = (
 	fields: FlattenedField[],
 	path: readonly string[],
-): FlattenedBlocksField | undefined => {
-	for (const field of fields) {
-		if (!("name" in field) || field.name !== path[0]) {
-			continue;
-		}
-
-		if (field.type === "blocks" && path.length === 1) {
-			return field;
-		}
-
-		if (field.type === "tab" || field.type === "group") {
-			return findBlocksField(field.flattenedFields, path.slice(1));
-		}
-
-		if (field.type === "array" && path[1] === ARRAY_MARKER) {
-			return findBlocksField(field.flattenedFields, path.slice(2));
-		}
-	}
-
-	return undefined;
-};
+): FlattenedBlocksField | undefined => findFieldAt(fields, path, "blocks");
 
 /**
  * Locates the rich text field that a resolved descriptor path refers to, so
@@ -380,27 +394,7 @@ export const findBlocksField = (
 export const findRichTextField = (
 	fields: FlattenedField[],
 	path: readonly string[],
-): RichTextField | undefined => {
-	for (const field of fields) {
-		if (!("name" in field) || field.name !== path[0]) {
-			continue;
-		}
-
-		if (field.type === "richText" && path.length === 1) {
-			return field;
-		}
-
-		if (field.type === "tab" || field.type === "group") {
-			return findRichTextField(field.flattenedFields, path.slice(1));
-		}
-
-		if (field.type === "array" && path[1] === ARRAY_MARKER) {
-			return findRichTextField(field.flattenedFields, path.slice(2));
-		}
-	}
-
-	return undefined;
-};
+): RichTextField | undefined => findFieldAt(fields, path, "richText");
 
 /**
  * Names a collection or a global before its config is looked up. Everything in
@@ -434,21 +428,6 @@ export const targetOf = (
 
 	if (!found) {
 		throw new Error(`Unknown ${ref.kind} "${ref.slug}".`);
-	}
-
-	return found;
-};
-
-export const collectionOf = (
-	config: SanitizedConfig,
-	collection: string,
-): SanitizedCollectionConfig => {
-	const found = config.collections.find(
-		(candidate) => candidate.slug === collection,
-	);
-
-	if (!found) {
-		throw new Error(`Unknown collection "${collection}".`);
 	}
 
 	return found;

@@ -5,11 +5,7 @@ import {
 
 import { pointerFromPayloadPath } from "../schema/index.js";
 
-/*
- * Type-only on purpose: a value import here would close a `tools` <-> `write`
- * cycle between the two barrels.
- */
-import type { ResolvedTarget } from "../tools/index.js";
+import type { ResolvedTarget } from "../tools/target.js";
 import type { PublishBlocker } from "../types.js";
 import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
 
@@ -30,11 +26,14 @@ import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
  *
  * Limits: only the locale the doc was read in is checked, and field-level
  * `beforeChange` hooks run again, which is safe only for pure ones.
+ *
+ * `unavailable` marks a traversal that threw, which is not the same answer as
+ * a document with nothing wrong with it.
  */
 export const collectPublishBlockers = async (
 	req: PayloadRequest,
 	target: { doc: JsonObject; entity: ResolvedTarget },
-): Promise<PublishBlocker[]> => {
+): Promise<{ blockers: PublishBlocker[]; unavailable?: true }> => {
 	const { doc, entity } = target;
 	/*
 	 * A global doc has no id, so the guard below simply omits it, which is
@@ -89,12 +88,14 @@ export const collectPublishBlockers = async (
 			`[payloadcms-mcpx] Could not validate the ${entity.slug} draft: ${error instanceof Error ? error.message : "unknown error"}`,
 		);
 
-		return [];
+		return { blockers: [], unavailable: true };
 	}
 
-	return errors.map((error) => ({
-		message: error.message,
-		path: pointerFromPayloadPath(error.path),
-		...(typeof error.label === "string" ? { field: error.label } : {}),
-	}));
+	return {
+		blockers: errors.map((error) => ({
+			message: error.message,
+			path: pointerFromPayloadPath(error.path),
+			...(typeof error.label === "string" ? { field: error.label } : {}),
+		})),
+	};
 };

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { BUILTIN_TOOLS } from "./index.js";
+import { BUILTIN_TOOLS } from "./builtin.js";
 import { pages, posts, tags, users } from "../../test/fixtures/collections.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { banner, siteSettings } from "../../test/fixtures/globals.js";
