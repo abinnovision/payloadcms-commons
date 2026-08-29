@@ -43,9 +43,6 @@ export interface FieldDescriptor {
 	type: string;
 }
 
-/**
- * Fields Payload maintains, which a client may neither address nor supply.
- */
 export const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
 	"_status",
 	"createdAt",
@@ -61,25 +58,15 @@ export const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
  */
 export const ARRAY_MARKER = "*";
 
-/**
- * Shape a JSON Pointer must have to be parseable at all.
- */
 export const JSON_POINTER_PATTERN = /^(\/([^~/]|~[01])*)*$/;
 
-/**
- * Joins segments into a JSON Pointer, so the segments `items`, `*`, `title`
- * read as one path to a subfield of every element of `items`. No segments is
- * the root pointer, `""`.
- */
+/** No segments is the root pointer, `""`. */
 export const joinPath = (parts: readonly string[]): string =>
 	parts
 		.map((part) => `/${part.replace(/~/g, "~0").replace(/\//g, "~1")}`)
 		.join("");
 
-/**
- * Splits a JSON Pointer into its segments, unescaping `~1` and `~0`. The root
- * pointer yields no segments.
- */
+/** Unescapes `~1` and `~0`. The root pointer yields no segments. */
 export const splitPath = (path: string): string[] =>
 	path
 		.split("/")
@@ -87,17 +74,14 @@ export const splitPath = (path: string): string[] =>
 		.map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
 
 /**
- * Restates a path Payload reports on a validation error (`layout.0.title`) as
- * a JSON Pointer, so everything this plugin hands back addresses documents the
- * same way. Payload's path already carries real indices, so it maps directly.
+ * A path Payload reports on a validation error (`layout.0.title`) as a JSON
+ * Pointer, so everything handed back addresses documents the same way. The
+ * path already carries real indices, so it maps directly.
  */
 export const pointerFromPayloadPath = (path: string): string =>
 	path ? joinPath(path.split(".")) : "";
 
-/**
- * Blocks a blocks field accepts, by slug. On a flattened field, whichever of
- * `blockReferences` and `blocks` was declared carries the definitions.
- */
+/** On a flattened field, whichever of `blockReferences` and `blocks` was declared. */
 export const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
 	...new Set(
 		(field.blockReferences ?? field.blocks).map((block) =>
@@ -107,12 +91,9 @@ export const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
 ];
 
 /**
- * Resolves one of a blocks field's slugs to its definition.
- *
- * A definition inlined on the field wins over the shared registry. A block's
- * own fields are identical wherever it appears, but the blocks its children
- * accept are not, so an inline definition has to be read at its position.
- * The registry (`config.blocks`) is the fallback for slugs referenced by name.
+ * An inlined definition wins over the registry (`config.blocks`). A block's own
+ * fields are identical wherever it appears, but the blocks its children accept
+ * are not, so an inline definition has to be read at its position.
  */
 export const blockOf = (
 	config: SanitizedConfig,
@@ -247,11 +228,9 @@ const withRows = (
 });
 
 /**
- * Whether a descriptor stands for a construct that only holds other fields.
- *
- * These describe a position rather than a value, so everything that resolves a
- * path to something writable skips them; only {@link nodeDescriber} reports
- * them, to carry what the container itself declares.
+ * A container describes a position rather than a value, so everything resolving
+ * a path to something writable skips it. Only {@link nodeDescriber} reports one,
+ * to carry what the container itself declares.
  */
 const isContainer = (descriptor: FieldDescriptor): boolean =>
 	descriptor.type === "array" ||
@@ -270,20 +249,16 @@ const isInformative = (descriptor: FieldDescriptor): boolean =>
 /**
  * Flattens a field list into descriptors addressed relative to the node.
  *
- * The input is Payload's own flattened shape, which has already merged every
- * construct that exists only in the admin UI (unnamed tabs, unnamed groups,
- * `row`, `collapsible`) and dropped `ui` fields. Named tabs, groups and
- * arrays contribute a path segment, and are described in their own right when
- * they declare something of their own: an array always, since its row counts
- * live nowhere else, a group or tab only when it carries a description or a
- * constraint. The walk stops at every blocks field and names the slugs instead
- * of descending, which keeps a node proportional to the number of blocks it
- * allows rather than to the size of their definitions.
+ * The input is Payload's own flattened shape, so the admin-only constructs
+ * (unnamed tabs and groups, `row`, `collapsible`, `ui`) are already gone. Named
+ * tabs, groups and arrays contribute a path segment, and are described in their
+ * own right when they declare something of their own: an array always, since
+ * its row counts live nowhere else, a group or tab only when it carries a
+ * description or a constraint. The walk stops at every blocks field and names
+ * the slugs, which keeps a node proportional to the number of blocks it allows
+ * rather than to the size of their definitions.
  *
- * `translate` resolves each `admin.description` to the request's language.
- * Callers that walk for paths alone leave it out and get the language-agnostic
- * default, so a missing argument costs language selection, never the
- * description itself.
+ * Omitting `translate` costs language selection, never the description itself.
  */
 export const describeFields = (
 	fields: FlattenedField[],
@@ -344,15 +319,11 @@ export const describeAddressableFields = (
 ): FieldDescriptor[] =>
 	describeFields(fields).filter((descriptor) => !isContainer(descriptor));
 
-/** The field each terminal type resolves to. */
 interface FieldOfType {
 	blocks: FlattenedBlocksField;
 	richText: RichTextField;
 }
 
-/**
- * Locates the field of `type` that a resolved descriptor path refers to.
- */
 const findFieldAt = <T extends keyof FieldOfType>(
 	fields: FlattenedField[],
 	path: readonly string[],
@@ -379,9 +350,6 @@ const findFieldAt = <T extends keyof FieldOfType>(
 	return undefined;
 };
 
-/**
- * Locates the blocks field that a resolved descriptor path refers to.
- */
 export const findBlocksField = (
 	fields: FlattenedField[],
 	path: readonly string[],
@@ -417,6 +385,12 @@ export interface SchemaTarget {
 	slug: string;
 }
 
+/**
+ * Looks up the sanitized config for a collection or global, as a
+ * {@link SchemaTarget}. Throws on an unknown slug rather than returning
+ * undefined, because a reference reaching here has already been checked against
+ * the key's capabilities and a miss means the config changed underneath it.
+ */
 export const targetOf = (
 	config: SanitizedConfig,
 	ref: TargetRef,

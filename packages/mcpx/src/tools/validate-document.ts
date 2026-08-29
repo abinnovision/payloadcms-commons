@@ -16,6 +16,15 @@ Pass exactly one of "collection" and "global". "id" is required with "collection
 
 Nothing is written, but the check runs the same field-level beforeValidate and beforeChange hooks a save would, so a hook with side effects fires. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing.`;
 
+/**
+ * Gated on write rather than read, because publish blockers only mean
+ * something to a caller who can act on them.
+ *
+ * It reads the document twice on purpose: once under the key's own access to
+ * refuse a caller who may not see it, then privileged, so the check runs over
+ * every field rather than the subset the user can read. It carries no
+ * `readOnlyHint`, because the traversal fires field hooks.
+ */
 export const validateDocument = defineMcpxTool({
 	name: "validateDocument",
 	description: DESCRIPTION,

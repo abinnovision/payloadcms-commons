@@ -348,8 +348,8 @@ describe("publishDocument", () => {
 		expect((await readPage(id, false))["_status"]).toBe("draft");
 
 		/*
-		 * A global cannot be corrected — updateGlobal reads `draft` before the
-		 * hook runs — so the alarm is what stops it, and it throws.
+		 * A global cannot be corrected, because updateGlobal reads `draft` before
+		 * the hook runs, so the alarm is what stops it and it throws.
 		 */
 		const guarded = await callTool(
 			booted.config,

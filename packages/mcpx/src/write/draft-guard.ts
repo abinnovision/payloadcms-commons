@@ -14,10 +14,7 @@ import type {
 	PayloadRequest,
 } from "payload";
 
-/**
- * Operation arguments that widen or redirect a write. Cleared on every MCP
- * create and update, publishes included, so a tool cannot smuggle them in.
- */
+/** Cleared on every MCP write, publishes included, so none can be smuggled in. */
 const STRIPPED_ARGS = new Set([
 	"where",
 	"publishAllLocales",
@@ -34,19 +31,12 @@ const STRIPPED_ARGS = new Set([
  *
  * `draft` alone is not enough: Payload's update path only saves a draft when
  * `data._status !== "published"`, so `_status` is dropped and left to Payload.
- * This runs as `beforeOperation`, before Payload reads any of these arguments,
- * so it holds for every create and update on an MCP request, not only the
- * builtin tools. Deletes are not guarded in v1; custom tools that delete are
- * the integrator's responsibility. `restoreVersion` and `duplicate` are outside
- * the operation filter too — `restoreVersion` is caught by `refusePublish`
- * because it runs the collection's `beforeChange` hooks, and anything going
- * straight to `payload.db` bypasses all of this.
+ * Writing it here rather than in the tool keeps the tool honest, since this is
+ * the only thing that can grant a publish.
  *
- * On a write carrying the publish marker the scrubbing is unchanged — the whole
- * `STRIPPED_ARGS` list still goes, `deletedAt` still goes, autosave, locks and
- * trash are still forced off. Only `draft` and `_status` differ. Writing
- * `_status` here rather than in the tool keeps the tool honest: it asks to
- * publish, and this is the only thing that can grant it.
+ * Not covered: deletes, `duplicate`, and anything going straight to
+ * `payload.db`. `restoreVersion` is caught by {@link refusePublish} instead,
+ * because it runs the collection's `beforeChange` hooks.
  */
 const scrubWriteArgs = (
 	args: Record<string, unknown>,
@@ -95,22 +85,13 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 };
 
 /**
- * The global counterpart of {@link forceDraftWrite}, with one important
- * difference: Payload's `updateGlobal` destructures `draft`,
- * `publishAllLocales`, `publishSpecificLocale`, `unpublishAllLocales` and
- * `overrideLock` *before* it runs `beforeOperation`, and re-reads only `data`
- * afterwards. Setting those here is a no-op. What still lands is `data`, and
- * that is what the global draft guarantee actually rests on: `_status` is
- * stripped, so a rogue `updateGlobal({ draft: false })` reaches
- * {@link refusePublishGlobal} with no status and is refused there. The alarm,
- * not the correction, is load-bearing for globals.
- *
- * The publish branch matters for the same reason. `publishDocument` passes
- * `draft: false` at the call site because the hook cannot, and this hook must
- * put `_status` back rather than strip it.
- *
- * The global operation union has no `create` member because a global always
- * exists, so only `update` is intercepted.
+ * The global counterpart of {@link forceDraftWrite}, with one difference that
+ * decides where the guarantee lives: `updateGlobal` destructures `draft` and
+ * the publish arguments *before* it runs `beforeOperation` and re-reads only
+ * `data` afterwards, so setting them here is a no-op. What lands is `data` with
+ * `_status` stripped, which makes {@link refusePublishGlobal} the alarm that
+ * actually holds the line. `publishDocument` therefore passes `draft: false` at
+ * the call site, and this hook puts `_status` back rather than stripping it.
  */
 export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 	const { operation, req } = hookArgs;
@@ -124,15 +105,10 @@ export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 };
 
 /**
- * Refuses an MCP write that would still not land as a draft, and — on the write
- * carrying the publish marker — refuses anything that would not land as a
- * publish. An alarm rather than the guarantee for collections, where
- * `forceDraftWrite` should make it unreachable; the guarantee itself for
- * globals, per {@link forceDraftWriteGlobal}. It throws instead of correcting
- * `_status` because Payload has already chosen the write branch by the time a
- * `beforeChange` hook runs.
- *
- * This is the last hook that needs the marker, so it takes it off here.
+ * Throws instead of correcting `_status`, because Payload has already chosen
+ * the write branch by the time a `beforeChange` hook runs. Unreachable for a
+ * collection if {@link forceDraftWrite} did its job; the guarantee itself for a
+ * global. Last hook that needs the marker, so it takes it off.
  */
 const refuseUnlessExpected = (
 	req: PayloadRequest,
@@ -164,6 +140,10 @@ const refuseUnlessExpected = (
 	);
 };
 
+/**
+ * Installs {@link refuseUnlessExpected} on every collection write. Returns
+ * `data` unchanged when the write is allowed; the hook exists for its throw.
+ */
 export const refusePublish: CollectionBeforeChangeHook = ({
 	collection,
 	data,
@@ -174,7 +154,6 @@ export const refusePublish: CollectionBeforeChangeHook = ({
 	return data;
 };
 
-/** The global counterpart of {@link refusePublish}. */
 export const refusePublishGlobal: GlobalBeforeChangeHook = ({
 	data,
 	global,

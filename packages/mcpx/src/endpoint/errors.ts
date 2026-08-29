@@ -33,8 +33,6 @@ export const jsonRpcError = (args: {
 };
 
 /**
- * Maps an exception thrown by a tool to a result the client can read.
- *
  * Payload's public errors keep their message and status; a `ValidationError`
  * also surfaces its per-field detail, with each field's path restated as a
  * JSON Pointer so it reads like every other path this plugin reports. Anything

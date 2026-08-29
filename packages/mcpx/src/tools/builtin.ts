@@ -10,12 +10,10 @@ import { validateDocument } from "./validate-document.js";
 import type { McpxAnyTool } from "../types.js";
 
 /**
- * The builtin tools in registration order. They are ordinary {@link McpxTool}s
- * that ship with the plugin and register through the same loop as the tools
- * from `options.tools`; only their `isEnabled` differs, deriving from the
- * key's collection and global capabilities rather than a checkbox of their
- * own. The surface is fixed: adding a collection, block or field never
- * changes it.
+ * The builtin tools, in registration order. Fixed: adding a collection, block
+ * or field never changes the surface. They differ from a custom tool only in
+ * `isEnabled`, which derives from the key's capabilities rather than a
+ * checkbox of their own.
  */
 export const BUILTIN_TOOLS: McpxAnyTool[] = [
 	listCapabilities,

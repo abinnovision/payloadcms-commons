@@ -8,9 +8,8 @@ import type { McpxToolScope } from "../types.js";
 import type { SanitizedCollectionConfig, SanitizedGlobalConfig } from "payload";
 
 /**
- * An entity with its sanitized config attached. Discriminated so callers that
- * must hand Payload a real collection or global config can narrow, while
- * callers that only need `flattenedFields` can ignore the discriminant.
+ * Discriminated so a caller that must hand Payload a real config can narrow,
+ * while one that only needs `flattenedFields` can ignore the discriminant.
  */
 export type ResolvedTarget =
 	| { kind: "collection"; slug: string; config: SanitizedCollectionConfig }
@@ -22,13 +21,9 @@ export const refOf = (target: ResolvedTarget): TargetRef => ({
 });
 
 /**
- * Resolves the `collection`/`global` arguments to one entity and checks the key
- * may perform `operation` on it.
- *
- * A tool's `inputSchema` returns a raw shape, which leaves no top-level
- * `.refine` to express "exactly one of collection and global". The rule is
- * enforced here instead, with a message naming the offending arguments so one
- * failed call teaches it.
+ * A raw input shape leaves no top-level `.refine` to express "exactly one of
+ * collection and global", so the rule is enforced here, with a message naming
+ * the offending arguments.
  */
 export const resolveTarget = (
 	scope: McpxToolScope,

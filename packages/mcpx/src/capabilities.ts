@@ -5,23 +5,19 @@ import type {
 	McpxResolvedCapabilities,
 } from "./types.js";
 
-/** Name of the capability group on the key document. */
+/** Group field holding the capability checkboxes on an API key document. */
 export const CAPABILITIES_FIELD = "capabilities";
 
-/** Whether any write tool reaches this entity. */
+/** Whatever the write lands on; {@link isLiveWrite} tells the two apart. */
 export const canWrite = (entity: McpxExposedEntity): boolean =>
 	entity.write !== false;
 
-/**
- * Whether `publishDocument` reaches this entity: the config lets MCP change
- * live content and there is a draft to promote.
- */
+/** The config lets MCP change live content and there is a draft to promote. */
 export const canPublish = (entity: McpxExposedEntity): boolean =>
 	entity.write === "live" && entity.hasDrafts;
 
 /**
- * Whether an ordinary write to this entity changes the live document. With no
- * versions there is no draft to land on, so `write: "live"` is what permits the
+ * With no versions there is no draft to land on, so `write: "live"` permits the
  * write at all and every write is live.
  */
 export const isLiveWrite = (entity: McpxExposedEntity): boolean =>
@@ -105,6 +101,11 @@ const pick = (
 		.filter(([, value]) => value[operation])
 		.map(([slug]) => slug);
 
+/*
+ * The lists tools read to narrow their enums. Derived from
+ * {@link resolveCapabilities}, so config and checkbox have both been applied
+ * by the time a slug appears in one.
+ */
 export const readableSlugs = (
 	capabilities: McpxResolvedCapabilities,
 ): string[] => pick(capabilities.collections, "read");

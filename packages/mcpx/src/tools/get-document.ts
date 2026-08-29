@@ -17,6 +17,11 @@ const DESCRIPTION = `Reads one document, or one subtree of it when "path" is giv
 
 Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
+/**
+ * With `path` the handler returns the subtree plus the `id`, `_status` and
+ * `updatedAt` a client needs to write back, so a caller reading one branch
+ * still gets the timestamp `expectedUpdatedAt` wants without a second call.
+ */
 export const getDocument = defineMcpxTool({
 	name: "getDocument",
 	description: DESCRIPTION,

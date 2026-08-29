@@ -9,6 +9,13 @@ const DESCRIPTION = `Lists what this key may do: the collections and globals it 
 
 A global is a singleton: it has no id, is not listed by findDocuments and cannot be created. Address one with the "global" argument where a collection document would take "collection" and "id".`;
 
+/**
+ * Registered for every key, including one with no capabilities ticked, so a
+ * client always has something to call and gets an empty surface described
+ * rather than an empty tool list. The response is assembled from the request
+ * scope and the sanitized config, never from the content model, so it stays the
+ * same size as a deployment grows.
+ */
 export const listCapabilities = defineMcpxTool({
 	name: "listCapabilities",
 	description: DESCRIPTION,

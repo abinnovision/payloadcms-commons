@@ -25,6 +25,12 @@ const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9]*$/;
 type NormalizedCollection = McpxExposedEntity;
 type NormalizedGlobal = McpxExposedEntity;
 
+/**
+ * The plugin options after validation and defaulting, which is the only shape
+ * the rest of the plugin reads. Every shorthand in {@link McpxPluginOptions}
+ * has been expanded here and every slug checked against the config, so nothing
+ * downstream has to handle a missing collection or an implicit default.
+ */
 export interface NormalizedOptions {
 	collections: NormalizedCollection[];
 	globals: NormalizedGlobal[];
@@ -43,10 +49,7 @@ const fail = (message: string): never => {
 	throw new InvalidConfiguration(`[payloadcms-mcpx] ${message}`);
 };
 
-/**
- * Lower camel case of a slug, the same transform the stock MCP plugin applies
- * to derive field names from collection slugs.
- */
+/** The same transform the stock MCP plugin uses to derive field names. */
 export const toCamelCase = (value: string): string =>
 	value
 		.replace(/[-_\s]+(.)?/g, (_, char: string | undefined) =>
@@ -55,9 +58,8 @@ export const toCamelCase = (value: string): string =>
 		.replace(/^(.)/, (_, char: string) => char.toLowerCase());
 
 /**
- * Refuses collections that must never be reachable through MCP, read included.
  * Auth collections carry credentials: `useAPIKey` stores a key that decrypts on
- * read, and email or lockout state is PII either way.
+ * read, and email or lockout state is PII either way. Refused for read too.
  */
 const assertExposable = (
 	collection: CollectionConfig,
@@ -76,10 +78,7 @@ const assertExposable = (
 	}
 };
 
-/**
- * The write mode, checked at runtime as well as in the type. JS callers get no
- * type checking, and a typo reading as "no write" would be a silent downgrade.
- */
+/** Checked at runtime too: for a JS caller a typo would silently mean "no write". */
 const normalizeWriteMode = (
 	kind: string,
 	slug: string,
@@ -146,10 +145,7 @@ const assertWritable = (
 	}
 };
 
-/**
- * Refuses globals that must never be reachable. Globals cannot be auth or
- * upload entities, so only Payload's own reserved namespace is left to guard.
- */
+/** Globals cannot be auth or upload, so only the reserved namespace is left. */
 const assertGlobalExposable = (global: GlobalConfig): void => {
 	if (global.slug.startsWith("payload-")) {
 		fail(`Global "${global.slug}" cannot be exposed.`);
@@ -328,11 +324,7 @@ const normalizeLimits = (
 	return { maxLimit, maxDepth };
 };
 
-/**
- * Validates the plugin options against the incoming config and fills in
- * defaults. Every problem is an `InvalidConfiguration` so misconfiguration
- * fails at startup instead of at request time.
- */
+/** Every problem is an `InvalidConfiguration`, so it fails at startup. */
 export const normalizeOptions = (
 	config: Config,
 	options: McpxPluginOptions,

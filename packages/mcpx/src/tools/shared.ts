@@ -8,12 +8,16 @@ import type { ResolvedTarget } from "./target.js";
 import type { McpxExposedEntity, McpxToolScope } from "../types.js";
 import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
 
-/** The operations a tool can address an entity for. */
 export type McpxOperation = "publish" | "read" | "write";
 
+/**
+ * An out-of-scope slug fails schema validation before a handler runs, so a
+ * client only ever sees what its key may touch.
+ */
 export const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
 	z.enum(slugs as [string, ...string[]]);
 
+/** Payload's id type follows the adapter, so both forms are handed on as read. */
 export const idSchema = z
 	.union([z.string(), z.number()])
 	.describe("Document id.");
@@ -55,11 +59,10 @@ const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
 	});
 
 /**
- * The sentence the write tools and the server instructions end on: what a write
- * actually does for this key, and what it takes to make it public. The three
- * groups are distinct — a live-write slug has no draft and no publish step, a
- * publishable one has both — so a client is never told its writes are drafts
- * while they are not, nor that publishing is out of reach when it is not.
+ * What a write actually does for this key, and what it takes to make it public.
+ * A live-write slug has no draft and no publish step; a publishable one has
+ * both. Stated per key so a client is never told its writes are drafts while
+ * they are not, nor that publishing is out of reach when it is not.
  */
 export const draftSentence = (scope: McpxToolScope): string => {
 	const live = liveWriteSlugs(scope);
@@ -78,19 +81,15 @@ export const draftSentence = (scope: McpxToolScope): string => {
 	return `${base} ${publishing}`;
 };
 
-/**
- * Whether two timestamps name the same instant, which is how
- * `expectedUpdatedAt` is compared: the value a client read back is a string,
- * and what it is compared against may be a Date.
- */
+/** The value a client read back is a string; what it meets may be a Date. */
 export const sameInstant = (left: unknown, right: string): boolean =>
 	typeof left === "string" &&
 	new Date(left).getTime() === new Date(right).getTime();
 
 /*
  * The supersets the shape helpers below produce. Which keys a helper actually
- * emits depends on the scope — `global` is left out when the key can reach no
- * global, `locale` when localization is off — so no single branch describes
+ * emits depends on the scope. `global` is left out when the key can reach no
+ * global, `locale` when localization is off, so no single branch describes
  * what a handler must cope with. These types do, and a tool's arguments are
  * inferred from them, which is what keeps the two from drifting apart. The
  * cross-field rules they cannot state ("exactly one of collection and global",
@@ -121,14 +120,11 @@ type Branch<Full extends z.ZodRawShape> = {
 		: Full[K];
 };
 
-/**
- * Widens one branch to the superset a handler sees. The widening itself is
- * unchecked — the runtime shape really does vary — so `Branch` checks what it
- * can around it.
- */
+/** Unchecked, because the runtime shape really does vary; `Branch` guards it. */
 const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
 	branch as unknown as Full;
 
+/** The one list the shape helpers and {@link resolveTarget} both read. */
 export const slugsFor = (
 	scope: McpxToolScope,
 	operation: McpxOperation,
@@ -147,13 +143,9 @@ export const slugsFor = (
 };
 
 /**
- * The `collection` and `global` arguments.
- *
- * When the key can reach no global, `global` is left out of the shape entirely
- * and `collection` stays required, mirroring how {@link localeShape} omits
- * `locale` when localization is off. A deployment without globals therefore
- * sees exactly the schema it saw before. Only the mixed case makes either
- * argument optional, and the handler enforces the exclusivity there.
+ * With no reachable global, `global` is left out and `collection` stays
+ * required, so a deployment without globals sees an unchanged schema. Only the
+ * mixed case makes either optional, and the handler enforces exclusivity there.
  */
 export const targetShape = (
 	scope: McpxToolScope,
@@ -183,9 +175,8 @@ export const targetShape = (
 };
 
 /**
- * The `id` argument, which only a collection document has. Omitted when the key
- * can reach no collection, required when it can reach no global, and optional
- * in between, where `requireIdFor` enforces the dependency.
+ * Only a collection document has one. Optional in the mixed case, where
+ * `requireIdFor` enforces the dependency.
  */
 export const idShape = (
 	scope: McpxToolScope,
@@ -210,9 +201,6 @@ export const idShape = (
 	});
 };
 
-/**
- * The `locale` argument, present only when localization is configured.
- */
 export const localeShape = (
 	scope: McpxToolScope,
 	options: { required: boolean; description: string },
@@ -230,6 +218,10 @@ export const localeShape = (
 	});
 };
 
+/**
+ * Defaults to 0 rather than Payload's own default: a client usually wants ids
+ * it can write back, and populating a relation costs a query.
+ */
 export const depthShape = (scope: McpxToolScope): DepthShape => ({
 	depth: z
 		.number()
@@ -308,8 +300,9 @@ export const readTarget = async (
 	 * `disableErrors` stays off for a global so Payload distinguishes the two
 	 * cases itself: denied access throws `NotFound`, while a global that has
 	 * simply never been saved comes back as an empty document. That empty
-	 * document is a valid starting point — a global always exists conceptually,
-	 * so refusing it would make the first write to one impossible.
+	 * document is a valid starting point, because a global always exists
+	 * conceptually and refusing it would make the first write to one
+	 * impossible.
 	 */
 	return await payload.findGlobal({
 		...shared,
@@ -317,9 +310,6 @@ export const readTarget = async (
 	});
 };
 
-/**
- * Resolves a collection label for the request's language.
- */
 export const translateLabel = (
 	scope: McpxToolScope,
 	label: LabelFunction | StaticLabel | undefined,

@@ -23,6 +23,13 @@ Paths here use the same JSON Pointer syntax as getDocument and patchDocument, an
 
 Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;
 
+/**
+ * Describes each requested path independently and returns a per
+ * path error object instead of failing the call, so a client exploring several
+ * branches at once keeps the nodes that did resolve. `expand` swaps the
+ * requested paths for every node reachable from the root and appends a
+ * truncation notice past {@link REACHABLE_PATHS_LIMIT}.
+ */
 export const describeSchema = defineMcpxTool({
 	name: "describeSchema",
 	description: DESCRIPTION,

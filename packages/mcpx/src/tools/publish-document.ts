@@ -21,6 +21,11 @@ The whole document is published, but Payload only validates the locale the publi
 
 There is no unpublish: reverting to a draft stays a human action in the admin panel.`;
 
+/**
+ * The only tool that changes live content, available where the config sets
+ * `write: "live"` on a versioned entity and the key has both the `write` and
+ * `publish` checkboxes.
+ */
 export const publishDocument = defineMcpxTool({
 	name: "publishDocument",
 	description: DESCRIPTION,

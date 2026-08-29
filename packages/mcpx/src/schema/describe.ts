@@ -41,10 +41,7 @@ interface Branch {
 	token: string;
 }
 
-/**
- * The longest descriptor path that is a prefix of `remaining`. Blocks and rich
- * text fields are both leaves of the walk, so at most one can match.
- */
+/** Blocks and rich text are both leaves of the walk, so at most one matches. */
 const longestMatch = (
 	descriptors: FieldDescriptor[],
 	remaining: readonly string[],
@@ -67,16 +64,12 @@ interface StepAt {
 	remaining: readonly string[];
 }
 
-/** Where one step of a schema path lands. */
 interface Step {
 	blockType?: string;
 	fields: FlattenedField[];
 	rest: string[];
 }
 
-/**
- * Walks one step of a schema path through a blocks field.
- */
 const stepThroughBlocks = ({
 	config,
 	fields,
@@ -113,8 +106,6 @@ const stepThroughBlocks = ({
 };
 
 /**
- * Walks one step of a schema path into a Lexical node's own fields.
- *
  * A node that picks a block by slug takes one segment more, so `/content/block`
  * addresses the choice and `/content/block/callout` the definition. Everything
  * else, a link node being the usual case, resolves in a single segment.
@@ -176,8 +167,6 @@ const stepThroughLexical = ({
 };
 
 /**
- * Walks a schema path to the field list it addresses.
- *
  * A schema path alternates a blocks field's own path with the slug of one of
  * the blocks it accepts, so `/layout/sections/sectionWrapper/modules/hero`
  * reaches `hero` as it exists under `pages` specifically. The slug sits where
@@ -268,11 +257,8 @@ const branchesOf = (
 };
 
 /**
- * Describes a collection or global root, one block reached through a schema
- * path, or the fields a Lexical node carries.
- *
  * Curried on the translator that resolves each `admin.description`, so a
- * request binds its language once and the walk itself stays request-free.
+ * request binds its language once and the walk stays request-free.
  */
 export const nodeDescriber =
 	(translate: Translate = translateAny) =>
