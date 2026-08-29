@@ -32,9 +32,15 @@ export const bootPayload = async (
 	return { config, payload };
 };
 
+interface EntityCapabilities {
+	read?: boolean;
+	write?: boolean;
+	publish?: boolean;
+}
+
 export interface KeyCapabilities {
-	collections?: Record<string, { read?: boolean; write?: boolean }>;
-	globals?: Record<string, { read?: boolean; write?: boolean }>;
+	collections?: Record<string, EntityCapabilities>;
+	globals?: Record<string, EntityCapabilities>;
 	tools?: Record<string, boolean>;
 }
 

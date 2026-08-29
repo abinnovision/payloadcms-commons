@@ -7,6 +7,7 @@ import {
 	localeOf,
 	localeShape,
 	readTarget,
+	sameInstant,
 	targetShape,
 } from "./shared.js";
 import { refOf, requireIdFor, resolveTarget } from "./target.js";
@@ -34,13 +35,9 @@ ${draftSentence(scope)}
 
 Only the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. describeSchema reports field paths in this same pointer syntax; a path becomes a pointer into a document by replacing each "*" and each block slug with its 0-based index.
 
-Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so a concurrent edit is refused rather than overwritten.
+Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so an edit made since that read is refused rather than overwritten.
 
-A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but a human cannot publish the document until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing about whether the document is publishable.`;
-
-const sameInstant = (left: unknown, right: string): boolean =>
-	typeof left === "string" &&
-	new Date(left).getTime() === new Date(right).getTime();
+A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but the document cannot be published until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing about whether the document is publishable.`;
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -133,7 +130,7 @@ export const patchDocument = defineMcpxTool({
 			.string()
 			.optional()
 			.describe(
-				"The updatedAt read before patching. The write is refused if the document has changed since.",
+				"The updatedAt read before patching. Best effort: the write is refused if the document changed before the check, but not if it changes between the check and the write.",
 			),
 	}),
 	handler: async ({ args, scope }) => {
@@ -189,7 +186,17 @@ export const patchDocument = defineMcpxTool({
 					id: id as number | string,
 				});
 			} else {
-				await payload.updateGlobal({ ...write, slug: target.slug });
+				/*
+				 * `updateGlobal` passes `fallbackLocale` straight through to the read
+				 * it merges the write onto, and Payload defaults that to the default
+				 * locale. Without this, a value missing in the written locale would be
+				 * backfilled from another one and persisted here.
+				 */
+				await payload.updateGlobal({
+					...write,
+					fallbackLocale: false,
+					slug: target.slug,
+				});
 			}
 
 			const saved = await readTarget(scope, {

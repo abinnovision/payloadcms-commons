@@ -25,6 +25,18 @@ declare module "payload" {
 }
 
 /**
+ * How far an exposed entity lets MCP writes reach.
+ *
+ * - `false`: no write tool touches it.
+ * - `"draft"`: writes land as drafts and nothing MCP does changes what the
+ *   public sees. Requires `versions.drafts`.
+ * - `"live"`: MCP may change live content. On an entity with drafts that means
+ *   `publishDocument` is exposed; on one without, where there is no draft to
+ *   land on, it means the write itself is permitted and lands live.
+ */
+export type McpxWriteMode = "draft" | "live" | false;
+
+/**
  * What an exposed collection offers to MCP clients. A key can only enable
  * what the config exposes here.
  */
@@ -35,16 +47,10 @@ export interface McpxCollectionOptions {
 	read?: boolean;
 
 	/**
-	 * Expose `patchDocument`, `createDocument` and `validateDocument`. Default
-	 * `false`. Requires `versions.drafts` unless `allowLiveWrites` is set.
+	 * Expose `patchDocument`, `createDocument` and `validateDocument`, and how
+	 * far those writes reach. Default `false`.
 	 */
-	write?: boolean;
-
-	/**
-	 * Permit writes to a collection without drafts. Such writes land on the live
-	 * document because there is no draft to land on. Default `false`.
-	 */
-	allowLiveWrites?: boolean;
+	write?: McpxWriteMode;
 }
 
 /**
@@ -57,15 +63,10 @@ export interface McpxGlobalOptions {
 	/** Expose `describeSchema` and `getDocument`. Default `true`. */
 	read?: boolean;
 	/**
-	 * Expose `patchDocument` and `validateDocument`. Default `false`. Requires
-	 * `versions.drafts` unless `allowLiveWrites` is set.
+	 * Expose `patchDocument` and `validateDocument`, and how far those writes
+	 * reach. Default `false`.
 	 */
-	write?: boolean;
-	/**
-	 * Permit writes to a global without drafts. Such writes land on the live
-	 * document because there is no draft to land on. Default `false`.
-	 */
-	allowLiveWrites?: boolean;
+	write?: McpxWriteMode;
 }
 
 export type McpxToolExtra = RequestHandlerExtra<
@@ -80,8 +81,7 @@ export type McpxToolExtra = RequestHandlerExtra<
 export interface McpxExposedEntity {
 	slug: string;
 	read: boolean;
-	write: boolean;
-	allowLiveWrites: boolean;
+	write: McpxWriteMode;
 	hasDrafts: boolean;
 	/** Name of the capability group on the key document. */
 	fieldName: string;
@@ -94,12 +94,14 @@ export interface McpxExposedEntity {
 export interface McpxToolScope {
 	req: PayloadRequest;
 	capabilities: McpxResolvedCapabilities;
-	/** Collection slugs the key may read / write. */
+	/** Collection slugs the key may read / write / publish. */
 	readable: string[];
 	writable: string[];
-	/** Global slugs the key may read / write. */
+	publishable: string[];
+	/** Global slugs the key may read / write / publish. */
 	readableGlobals: string[];
 	writableGlobals: string[];
+	publishableGlobals: string[];
 	/** Configured locale codes, or `null` when localization is off. */
 	locales: null | string[];
 	defaultLocale: null | string;
@@ -256,6 +258,11 @@ export type McpxPluginOptions = {
 export interface McpxCollectionCapabilities {
 	read: boolean;
 	write: boolean;
+	/**
+	 * Whether the key may publish this entity's draft. Only ever true where the
+	 * config sets `write: "live"` and the entity has drafts.
+	 */
+	publish: boolean;
 }
 
 /**

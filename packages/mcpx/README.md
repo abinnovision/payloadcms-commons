@@ -13,13 +13,14 @@ resolved server-side against the real config and the real document, so unknown
 fields, misplaced blocks and unusable rich text nodes or node fields are refused with the
 valid alternatives listed, never silently dropped.
 
-Writes are RFC 6902 patches that land as drafts, with `allowLiveWrites` as the
-one documented exception; publishing stays a human action in the admin panel.
-Every write returns the publish
-blockers: the validation failures that still prevent a human from publishing
-the draft. Capabilities are declared twice: the plugin config decides what
-can exist, a checkbox on each API key decides what does, and a missing checkbox
-means no (fail-closed).
+Writes are RFC 6902 patches that land as drafts. One config axis decides how far
+they reach: `write: "draft"` never changes live content, `write: "live"` does —
+by exposing `publishDocument` where versions exist, and by permitting the write
+at all where they do not. Every write returns the publish blockers: the
+validation failures that still prevent the draft from being published.
+Capabilities are declared twice: the plugin config decides what can exist, a
+checkbox on each API key decides what does, and a missing checkbox means no
+(fail-closed).
 
 ## Install
 
@@ -44,12 +45,12 @@ export default buildConfig({
   plugins: [
     mcpxPlugin({
       collections: {
-        pages: { read: true, write: true },
-        posts: { read: true, write: true },
+        pages: { read: true, write: "live" }, // may be published through MCP
+        posts: { read: true, write: "draft" }, // drafts only
         tags: true, // shorthand for { read: true }
       },
       globals: {
-        "site-settings": { read: true, write: true },
+        "site-settings": { read: true, write: "draft" },
       },
       limits: { maxLimit: 25, maxDepth: 1 },
     }),
@@ -78,7 +79,10 @@ to anyone who may read the key document (own keys only, by default). Each key:
 - carries one checkbox per exposed collection and operation, plus one per
   custom tool. All checkboxes default to off. A key can never enable an
   operation the plugin config does not expose, and keys created before a
-  capability existed stay without it.
+  capability existed stay without it. The `publish` checkbox only exists where
+  a versioned entity is configured `write: "live"`, so a key issued before
+  publishing was possible stays closed to it, and it counts only alongside
+  `write`: publishing is an extension of writing, not a capability of its own.
 
 Keys authenticate only the MCP endpoint. They are deliberately not a Payload
 auth strategy, so a key can never authenticate the REST or GraphQL API; the
@@ -141,7 +145,7 @@ Claude Desktop (no direct HTTP header support) via `mcp-remote`:
 
 ## Tools
 
-The surface is fixed at seven tools plus your custom ones; exposing a global
+The surface is fixed at eight tools plus your custom ones; exposing a global
 adds an argument, never a tool. `tools/list` reflects the key: write tools
 disappear for read-only keys, and every `collection` and `global` enum contains
 only the slugs the key may touch.
@@ -155,6 +159,7 @@ only the slugs the key may touch.
 | `patchDocument`    | Apply RFC 6902 operations to the current draft.             | `collection` + `id` \| `global`, `locale`, `patches`, `expectedUpdatedAt?`                   |
 | `createDocument`   | Create a draft from a minimal seed.                         | `collection`, `locale`, `data`                                                               |
 | `validateDocument` | Publish blockers without saving anything.                   | `collection` + `id` \| `global`, `locale`                                                    |
+| `publishDocument`  | Publish the current draft.                                  | `collection` + `id` \| `global`, `expectedUpdatedAt?`                                        |
 
 Rules the tools enforce and explain in their own descriptions:
 
@@ -245,15 +250,40 @@ If `tools/list` omits `global` entirely, no global is exposed to that key; the
 argument only appears once one is. A deployment that uses no globals sees the
 tool schemas exactly as they were.
 
-## Drafts and publish blockers
+## Drafts and publishing
 
 Draft-only writing is enforced on the Payload operation, not in the tool
 handlers: a `beforeOperation` hook forces `draft: true` and strips `_status`
 from every write carrying the MCP request marker, so custom tools and anything
 else writing through the same request are covered too. A `beforeChange` hook
-refuses any write that would still not land as a draft. Globals expose the same
-`beforeOperation` interception point at the same position in the operation, so
-they are guarded exactly as strongly as collections, exposed or not.
+refuses any write that would still not land as a draft.
+
+The two hooks are not equally load-bearing on both sides. `updateGlobal` reads
+`draft` and the publish arguments off its argument bag _before_ it runs
+`beforeOperation`, and re-reads only `data` afterwards, so for a global the
+correction cannot apply and the `beforeChange` refusal is what actually holds
+the line. Both are installed on every collection and global, exposed or not.
+
+`publishDocument` is the one way through, and it opens the door for exactly one
+operation: the tool records an intent naming the entity and id it is about to
+publish, in `AsyncLocalStorage` rather than on the request, and the guard
+consults it. A concurrent call in the same JSON-RPC batch runs in another async
+context and sees nothing, a nested write to a different document meets the
+unguarded rules, and the intent is claimed once so a re-entrant write to the
+same document cannot ride along. It is not a security boundary — a custom tool
+holds the whole `payload` instance — but no ordinary write can widen itself into
+a publish by accident.
+
+Publishing covers the whole document, as the admin Publish button does, but
+Payload only validates the locale the publish runs in. A required field left
+empty in another locale therefore goes live empty; that is Payload's behaviour,
+not something this plugin adds. `publishDocument` refuses a document that fails
+validation and reports `validationErrors` with JSON Pointers. It is refused
+while a human holds the document open in the admin panel, and republishing an
+unchanged document is accepted but writes another version.
+
+There is no unpublish tool. Reverting a published document to a draft stays a
+human action.
 
 Publish blockers are advisory. Payload skips validation on draft saves (unless
 `versions.drafts.validate` is set), so after every write the plugin re-runs
@@ -308,9 +338,9 @@ Custom tools take the same route as the builtins: one `McpxTool` shape, one
 registration loop. Anything a builtin does, a custom tool can do.
 
 `handler` receives `scope` alongside `args`, `req` and `extra`. The scope
-carries what the key may touch (`readable`, `writable`, `readableGlobals`,
-`writableGlobals`), the configured locales, the limits in force and the
-exposed collections and globals. `req` is shorthand for `scope.req`.
+carries what the key may touch (`readable`, `writable`, `publishable`,
+`readableGlobals`, `writableGlobals`, `publishableGlobals`), the configured
+locales, the limits in force and the exposed collections and globals. `req` is shorthand for `scope.req`.
 
 `inputSchema` may be a function of that scope instead of a fixed shape, which
 is how a tool narrows an enum to what the key may read:
@@ -363,35 +393,48 @@ results shaped like a builtin's.
 
 ## Options
 
-| Option                               | Default                        | Description                                                                                                        |
-| ------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `collections`                        | required                       | Allow-list. `true` means `{ read: true }`.                                                                         |
-| `collections.<slug>.read`            | `true`                         | Expose `describeSchema`, `findDocuments`, `getDocument`.                                                           |
-| `collections.<slug>.write`           | `false`                        | Expose `patchDocument`, `createDocument`, `validateDocument`. Requires `versions.drafts` unless `allowLiveWrites`. |
-| `collections.<slug>.allowLiveWrites` | `false`                        | Permit writes to a collection without drafts (they land live).                                                     |
-| `globals`                            | `{}`                           | Allow-list of globals. `true` means `{ read: true }`.                                                              |
-| `globals.<slug>.read`                | `true`                         | Expose `describeSchema`, `getDocument`.                                                                            |
-| `globals.<slug>.write`               | `false`                        | Expose `patchDocument`, `validateDocument`. Requires `versions.drafts` unless `allowLiveWrites`.                   |
-| `globals.<slug>.allowLiveWrites`     | `false`                        | Permit writes to a global without drafts (they land live).                                                         |
-| `userCollection`                     | `config.admin.user` or `users` | Auth collection the keys act as.                                                                                   |
-| `apiKeys.slug`                       | `mcpx-api-keys`                | Slug of the generated key collection.                                                                              |
-| `apiKeys.setupGuide`                 | `true`                         | Add a "Connect a client" tab to saved keys. Needs the import map.                                                  |
-| `apiKeys.overrideCollection`         | none                           | Final override applied to the generated collection.                                                                |
-| `endpoint.path`                      | `/mcpx`                        | Endpoint path below the API route.                                                                                 |
-| `limits.maxLimit`                    | `25`                           | Upper bound for `findDocuments.limit`.                                                                             |
-| `limits.maxDepth`                    | `1`                            | Upper bound for `depth` on reads.                                                                                  |
-| `tools`                              | `[]`                           | Custom tools, defined the same way as the builtins.                                                                |
-| `auth.resolve`                       | none                           | Replace or wrap the default key resolution.                                                                        |
-| `serverInfo`                         | package name and version       | Reported to MCP clients.                                                                                           |
+| Option                       | Default                        | Description                                                       |
+| ---------------------------- | ------------------------------ | ----------------------------------------------------------------- |
+| `collections`                | required                       | Allow-list. `true` means `{ read: true }`.                        |
+| `collections.<slug>.read`    | `true`                         | Expose `describeSchema`, `findDocuments`, `getDocument`.          |
+| `collections.<slug>.write`   | `false`                        | `"draft"` or `"live"`. See below.                                 |
+| `globals`                    | `{}`                           | Allow-list of globals. `true` means `{ read: true }`.             |
+| `globals.<slug>.read`        | `true`                         | Expose `describeSchema`, `getDocument`.                           |
+| `globals.<slug>.write`       | `false`                        | `"draft"` or `"live"`. See below.                                 |
+| `userCollection`             | `config.admin.user` or `users` | Auth collection the keys act as.                                  |
+| `apiKeys.slug`               | `mcpx-api-keys`                | Slug of the generated key collection.                             |
+| `apiKeys.setupGuide`         | `true`                         | Add a "Connect a client" tab to saved keys. Needs the import map. |
+| `apiKeys.overrideCollection` | none                           | Final override applied to the generated collection.               |
+| `endpoint.path`              | `/mcpx`                        | Endpoint path below the API route.                                |
+| `limits.maxLimit`            | `25`                           | Upper bound for `findDocuments.limit`.                            |
+| `limits.maxDepth`            | `1`                            | Upper bound for `depth` on reads.                                 |
+| `tools`                      | `[]`                           | Custom tools, defined the same way as the builtins.               |
+| `auth.resolve`               | none                           | Replace or wrap the default key resolution.                       |
+| `serverInfo`                 | package name and version       | Reported to MCP clients.                                          |
 
-`allowLiveWrites` is the only way an MCP write reaches live content. Where it is
-set, the server instructions and the `patchDocument` and `createDocument`
-descriptions name those slugs for the key in question, so a client is never told
-its writes are drafts while they are not.
+`write` is one axis: how far MCP writes to this entity reach.
 
-Misconfiguration (unknown slugs, write on a collection without drafts, upload
-collections exposed for write, tool name collisions) fails at startup with
-`InvalidConfiguration`. Auth collections cannot be exposed at all, read
+| `write`   | With `versions.drafts`                                  | Without                                        |
+| --------- | ------------------------------------------------------- | ---------------------------------------------- |
+| `false`   | no write tool reaches it                                | no write tool reaches it                       |
+| `"draft"` | writes land as drafts, nothing is ever published        | refused at startup: there is no draft to write |
+| `"live"`  | writes land as drafts, and `publishDocument` is exposed | writes land on the live document               |
+
+`"live"` is the only way an MCP write reaches live content, whichever of the two
+shapes it takes. Wherever it is set, the server instructions and the
+`patchDocument` and `createDocument` descriptions name those slugs for the key in
+question, so a client is never told its writes are drafts while they are not,
+nor that publishing is out of reach when it is not.
+
+Migrating from the previous option shape: `write: true` becomes
+`write: "draft"`, and `write: true` with `allowLiveWrites: true` becomes
+`write: "live"`. A versioned entity moved to `write: "live"` gains a `publish`
+checkbox on every key, unticked, so nothing publishes until someone says so.
+
+Misconfiguration (unknown slugs, `write: "draft"` on a collection without
+drafts, upload collections exposed for write, tool name collisions) fails at
+startup with `InvalidConfiguration`. So does `write: "live"` on an entity using
+`versions.drafts.localizeStatus`, which is not supported yet. Auth collections cannot be exposed at all, read
 included: their documents carry credentials, such as the decrypted Payload API
 key of every user.
 
@@ -402,12 +445,16 @@ key of every user.
 - The endpoint authenticates with Bearer keys only; admin JWTs and cookies are
   ignored. Keys cannot authenticate REST or GraphQL.
 - Every operation runs under the linked user with `overrideAccess: false`.
+- Payload has no separate publish permission: at its access layer, anyone who
+  may update a document may publish it. The `publish` checkbox is this plugin's
+  fence, not Payload's.
 - Not covered in v1: `delete` (no tool exists and none is generated), uploads.
   Custom tools are trusted code and can do what the linked user may.
 
 ## Non-goals of v1 / roadmap
 
-Deletes, uploads, markdown authoring for rich text, addressing a rich text node
+Unpublishing, `versions.drafts.localizeStatus`, deletes, uploads, markdown
+authoring for rich text, addressing a rich text node
 by position in a patch (an editor state is written whole), schemas for `upload`
 node fields, row addressing by id instead of index, cross-locale publish
 blockers, pagination of `describeSchema` with `expand`, and a handler-level

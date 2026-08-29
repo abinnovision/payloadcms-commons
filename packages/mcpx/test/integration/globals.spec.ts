@@ -28,9 +28,9 @@ describe("globals", () => {
 		booted = await bootPayload({
 			key: CACHE_KEY,
 			plugin: {
-				collections: { pages: { read: true, write: true } },
+				collections: { pages: { read: true, write: "draft" } },
 				globals: {
-					[SETTINGS]: { read: true, write: true },
+					[SETTINGS]: { read: true, write: "draft" },
 					banner: { read: true },
 				},
 			},

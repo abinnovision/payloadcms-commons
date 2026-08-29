@@ -55,7 +55,6 @@ describe("normalizeOptions", () => {
 				slug: "pages",
 				read: true,
 				write: false,
-				allowLiveWrites: false,
 				hasDrafts: true,
 				fieldName: "pages",
 			},
@@ -69,22 +68,45 @@ describe("normalizeOptions", () => {
 		);
 	});
 
-	it("refuses write on a collection without drafts", () => {
-		expect(() => normalize({ collections: { tags: { write: true } } })).toThrow(
-			/no drafts/,
-		);
+	it("refuses draft writes on a collection without drafts", () => {
+		expect(() =>
+			normalize({ collections: { tags: { write: "draft" } } }),
+		).toThrow(/no drafts/);
 	});
 
-	it("accepts write on a collection without drafts when live writes are allowed", () => {
+	it("accepts live writes on a collection without drafts", () => {
 		const [tags] = normalize({
-			collections: { tags: { write: true, allowLiveWrites: true } },
+			collections: { tags: { write: "live" } },
 		}).collections;
 
-		expect(tags).toMatchObject({
-			write: true,
-			hasDrafts: false,
-			allowLiveWrites: true,
-		});
+		expect(tags).toMatchObject({ write: "live", hasDrafts: false });
+	});
+
+	it("accepts live writes on a collection with drafts, which is what publishing needs", () => {
+		const [entry] = normalize({
+			collections: { pages: { write: "live" } },
+		}).collections;
+
+		expect(entry).toMatchObject({ write: "live", hasDrafts: true });
+	});
+
+	it("refuses a write mode it does not know", () => {
+		expect(() =>
+			normalize({
+				collections: { pages: { write: true as unknown as "draft" } },
+			}),
+		).toThrow(/Use false, "draft" or "live"/);
+	});
+
+	it("refuses live writes on a collection with a localized status", () => {
+		const config = rawConfig([
+			users,
+			{ ...pages, versions: { drafts: { localizeStatus: true } } },
+		]);
+
+		expect(() =>
+			normalize({ collections: { pages: { write: "live" } } }, config),
+		).toThrow(/localizeStatus/);
 	});
 
 	it("refuses write on auth, upload and internal collections", () => {
@@ -97,18 +119,21 @@ describe("normalizeOptions", () => {
 		const config = rawConfig([users, media, pages]);
 
 		expect(() =>
-			normalize({ collections: { users: { write: true } } }, config),
+			normalize({ collections: { users: { write: "draft" } } }, config),
 		).toThrow(/Auth collection/);
 		// Read is refused too: auth documents carry credentials.
 		expect(() => normalize({ collections: { users: true } }, config)).toThrow(
 			/Auth collection/,
 		);
 		expect(() =>
-			normalize({ collections: { media: { write: true } } }, config),
+			normalize({ collections: { media: { write: "draft" } } }, config),
 		).toThrow(/Upload collection/);
 		expect(() =>
 			normalize(
-				{ collections: { pages: { write: true } }, apiKeys: { slug: "pages" } },
+				{
+					collections: { pages: { write: "draft" } },
+					apiKeys: { slug: "pages" },
+				},
 				config,
 			),
 		).toThrow(/already taken/);
@@ -118,7 +143,7 @@ describe("normalizeOptions", () => {
 		const config = rawConfig([users, { ...pages, timestamps: false }]);
 
 		expect(() =>
-			normalize({ collections: { pages: { write: true } } }, config),
+			normalize({ collections: { pages: { write: "draft" } } }, config),
 		).toThrow(/timestamps/);
 	});
 
@@ -135,7 +160,6 @@ describe("normalizeOptions", () => {
 				slug: "site-settings",
 				read: true,
 				write: false,
-				allowLiveWrites: false,
 				hasDrafts: true,
 				fieldName: "siteSettings",
 			},
@@ -148,23 +172,19 @@ describe("normalizeOptions", () => {
 		).toThrow(/Exposed global "nope" does not exist/);
 	});
 
-	it("refuses write on a global without drafts", () => {
+	it("refuses draft writes on a global without drafts", () => {
 		expect(() =>
-			normalize({ collections: {}, globals: { banner: { write: true } } }),
+			normalize({ collections: {}, globals: { banner: { write: "draft" } } }),
 		).toThrow(/Global "banner" has no drafts/);
 	});
 
-	it("accepts write on a global without drafts when live writes are allowed", () => {
+	it("accepts live writes on a global without drafts", () => {
 		const [entry] = normalize({
 			collections: {},
-			globals: { banner: { write: true, allowLiveWrites: true } },
+			globals: { banner: { write: "live" } },
 		}).globals;
 
-		expect(entry).toMatchObject({
-			write: true,
-			hasDrafts: false,
-			allowLiveWrites: true,
-		});
+		expect(entry).toMatchObject({ write: "live", hasDrafts: false });
 	});
 
 	it("lets a global and a collection share a capability field name", () => {

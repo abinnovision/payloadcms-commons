@@ -1,5 +1,5 @@
 import { InvalidConfiguration } from "payload";
-import { hasDraftsEnabled } from "payload/shared";
+import { hasDraftsEnabled, hasLocalizeStatusEnabled } from "payload/shared";
 
 import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
 import { MCPX_VERSION } from "./version.js";
@@ -8,6 +8,7 @@ import type {
 	McpxAnyTool,
 	McpxExposedEntity,
 	McpxPluginOptions,
+	McpxWriteMode,
 } from "./types.js";
 import type { CollectionConfig, Config, GlobalConfig } from "payload";
 
@@ -75,10 +76,50 @@ const assertExposable = (
 	}
 };
 
+/**
+ * The write mode, checked at runtime as well as in the type. JS callers get no
+ * type checking, and a typo reading as "no write" would be a silent downgrade.
+ */
+const normalizeWriteMode = (
+	kind: string,
+	slug: string,
+	value: unknown,
+): McpxWriteMode => {
+	if (value === undefined || value === false) {
+		return false;
+	}
+
+	if (value === "draft" || value === "live") {
+		return value;
+	}
+
+	return fail(
+		`${kind} "${slug}" has write: ${JSON.stringify(value)}. Use false, "draft" or "live".`,
+	);
+};
+
+/**
+ * `localizeStatus` makes `_status` a localized field, which flips Payload's
+ * `publishAllLocales` default to false and turns `_status` into a locale-keyed
+ * object. Publishing would then cover one locale while reporting success, and
+ * the tool responses model `_status` as a string. Refused until both are
+ * handled.
+ */
+const assertPublishable = (
+	kind: string,
+	config: CollectionConfig | GlobalConfig,
+): void => {
+	if (hasLocalizeStatusEnabled(config)) {
+		fail(
+			`${kind} "${config.slug}" has versions.drafts.localizeStatus enabled, which write: "live" does not support yet.`,
+		);
+	}
+};
+
 const assertWritable = (
 	collection: CollectionConfig,
 	options: {
-		allowLiveWrites: boolean;
+		write: McpxWriteMode;
 		hasDrafts: boolean;
 	},
 ): void => {
@@ -94,10 +135,14 @@ const assertWritable = (
 		);
 	}
 
-	if (!options.hasDrafts && !options.allowLiveWrites) {
+	if (options.write === "draft" && !options.hasDrafts) {
 		fail(
-			`Collection "${slug}" has no drafts. Enable versions.drafts or set allowLiveWrites.`,
+			`Collection "${slug}" has no drafts. Enable versions.drafts or set write: "live".`,
 		);
+	}
+
+	if (options.write === "live") {
+		assertPublishable("Collection", collection);
 	}
 };
 
@@ -118,12 +163,16 @@ const assertGlobalExposable = (global: GlobalConfig): void => {
  */
 const assertGlobalWritable = (
 	global: GlobalConfig,
-	options: { allowLiveWrites: boolean; hasDrafts: boolean },
+	options: { write: McpxWriteMode; hasDrafts: boolean },
 ): void => {
-	if (!options.hasDrafts && !options.allowLiveWrites) {
+	if (options.write === "draft" && !options.hasDrafts) {
 		fail(
-			`Global "${global.slug}" has no drafts. Enable versions.drafts or set allowLiveWrites.`,
+			`Global "${global.slug}" has no drafts. Enable versions.drafts or set write: "live".`,
 		);
+	}
+
+	if (options.write === "live") {
+		assertPublishable("Global", global);
 	}
 };
 
@@ -156,13 +205,12 @@ const normalizeCollections = (
 			const normalized: NormalizedCollection = {
 				slug,
 				read: settings.read ?? true,
-				write: settings.write ?? false,
-				allowLiveWrites: settings.allowLiveWrites ?? false,
+				write: normalizeWriteMode("Collection", slug, settings.write),
 				hasDrafts,
 				fieldName: toCamelCase(slug),
 			};
 
-			if (normalized.write) {
+			if (normalized.write !== false) {
 				assertWritable(collection, normalized);
 			}
 
@@ -209,13 +257,12 @@ const normalizeGlobals = (
 			const normalized: NormalizedGlobal = {
 				slug,
 				read: settings.read ?? true,
-				write: settings.write ?? false,
-				allowLiveWrites: settings.allowLiveWrites ?? false,
+				write: normalizeWriteMode("Global", slug, settings.write),
 				hasDrafts,
 				fieldName: toCamelCase(slug),
 			};
 
-			if (normalized.write) {
+			if (normalized.write !== false) {
 				assertGlobalWritable(global, normalized);
 			}
 

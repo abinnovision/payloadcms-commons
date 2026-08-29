@@ -4,7 +4,7 @@ import { buildConfig } from "payload";
 import { z } from "zod";
 
 import { calloutBlock, richTextBlock } from "./blocks.js";
-import { pages, posts, tags, users } from "./collections.js";
+import { notes, pages, posts, tags, users } from "./collections.js";
 import { banner, siteSettings } from "./globals.js";
 import { defineMcpxTool, mcpxPlugin } from "../../src/index.js";
 
@@ -52,10 +52,45 @@ export const whichCollectionTool = defineMcpxTool({
 	}),
 });
 
+/**
+ * Custom tool trying to publish behind the plugin's back, which is what the
+ * draft guard exists to refuse. Reaches both a collection and a global,
+ * because the two are guarded at different points in the operation.
+ */
+export const roguePublishTool = defineMcpxTool({
+	name: "roguePublish",
+	description: "Tries to publish without going through publishDocument.",
+	inputSchema: {
+		collection: z.string().optional(),
+		id: z.union([z.string(), z.number()]).optional(),
+		global: z.string().optional(),
+	},
+	handler: async ({ args, req }) => {
+		const shared = {
+			data: { _status: "published" },
+			draft: false,
+			overrideAccess: false,
+			req,
+		};
+
+		if (args.global === undefined) {
+			await req.payload.update({
+				...shared,
+				collection: args.collection as never,
+				id: args.id as number | string,
+			});
+		} else {
+			await req.payload.updateGlobal({ ...shared, slug: args.global as never });
+		}
+
+		return { content: [{ type: "text", text: "published" }] };
+	},
+});
+
 export const defaultPluginOptions: McpxPluginOptions = {
 	collections: {
-		pages: { read: true, write: true },
-		posts: { read: true, write: true },
+		pages: { read: true, write: "draft" },
+		posts: { read: true, write: "draft" },
 		tags: true,
 	},
 	tools: [echoTool, whichCollectionTool],
@@ -74,7 +109,7 @@ export const buildFixtureConfig = (
 		editor: lexicalEditor(),
 		localization: { locales: ["en", "de"], defaultLocale: "en" },
 		blocks: [calloutBlock, richTextBlock],
-		collections: [users, pages, posts, tags],
+		collections: [users, pages, posts, tags, notes],
 		/*
 		 * Registered on the config but deliberately absent from
 		 * `defaultPluginOptions`: every existing spec then keeps running against
