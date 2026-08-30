@@ -278,6 +278,50 @@ export const REQUIRED_NODE_PROPERTIES: Readonly<
 export const constrainsFields = (type: string): boolean =>
 	"fields" in (REQUIRED_NODE_PROPERTIES[type] ?? {});
 
+const describeConstraints = (
+	constraints: Readonly<Record<string, Constraint>>,
+): Record<string, string> =>
+	Object.fromEntries(
+		Object.entries(constraints)
+			.map(([property, constraint]) => [property, needs(constraint)] as const)
+			.sort((left, right) => left[0].localeCompare(right[0])),
+	);
+
+/**
+ * What each of the given node types has to carry, phrased the way the write
+ * side phrases it when it refuses one, so the listing and the error message
+ * never disagree. Read straight off the tables above, which is what keeps it
+ * true: nothing here is stated a second time.
+ *
+ * Keyed by node type rather than reported per field, because that is what it
+ * depends on. A field says which types it allows, in its `nodes`; what a `text`
+ * node has to carry is the same wherever one is written, so a response that
+ * describes twenty rich text fields still states it once.
+ *
+ * `type` is listed although {@link UNIVERSAL_PROPERTIES} omits it. The
+ * validator never reports it missing, because a node's `type` is how it finds
+ * the entry to check against, but a client assembling a node from this listing
+ * still has to write one.
+ */
+export const nodePropertiesFor = (
+	types: readonly string[],
+): Record<string, Record<string, string>> =>
+	Object.fromEntries(
+		[...new Set(types)].sort().map((type) => [
+			type,
+			describeConstraints(
+				/* The root is closed rather than extended: these six and nothing else. */
+				type === "root"
+					? ROOT_PROPERTIES
+					: {
+							...REQUIRED_NODE_PROPERTIES[type],
+							...UNIVERSAL_PROPERTIES,
+							type: "string",
+						},
+			),
+		]),
+	);
+
 /**
  * A property that is absent, and one that is present but cannot be what the
  * node class does with it.

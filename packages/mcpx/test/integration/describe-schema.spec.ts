@@ -8,9 +8,10 @@ import type { Booted, Seeded } from "./helpers/payload.js";
 
 interface Node {
 	collection: string;
-	schemaPath: string;
+	/** Absent on an error entry and on the node-type listing. */
+	schemaPath?: string;
 	blockType?: string;
-	fields: {
+	fields?: {
 		path: string;
 		type: string;
 		blocks?: string[];
@@ -18,9 +19,11 @@ interface Node {
 		maxRows?: number;
 		minRows?: number;
 		nodeOptions?: Record<string, Record<string, string[]>>;
+		nodes?: string[];
 	}[];
 	next?: string[];
 	error?: string;
+	nodeProperties?: Record<string, Record<string, string>>;
 }
 
 const nodes = (data: Record<string, unknown>): Node[] =>
@@ -48,7 +51,7 @@ describe("describeSchema", () => {
 
 		expect(result.isError).toBe(false);
 		expect(root?.schemaPath).toBe("");
-		expect(root?.fields.map((f) => f.path)).toEqual([
+		expect(root?.fields?.map((f) => f.path)).toEqual([
 			"/title",
 			"/slug",
 			"/layout/color",
@@ -57,7 +60,7 @@ describe("describeSchema", () => {
 			"/meta/title",
 		]);
 		expect(
-			root?.fields.find((f) => f.path === "/layout/sections")?.blocks,
+			root?.fields?.find((f) => f.path === "/layout/sections")?.blocks,
 		).toEqual(["sectionWrapper", "richText"]);
 		expect(root?.next).toEqual([
 			"/layout/sections/sectionWrapper",
@@ -84,11 +87,11 @@ describe("describeSchema", () => {
 		const [node] = nodes(result.data);
 
 		expect(node?.blockType).toBe("sectionWrapper");
-		expect(node?.fields.map((f) => f.path)).toEqual([
+		expect(node?.fields?.map((f) => f.path)).toEqual([
 			"/identifier",
 			"/modules",
 		]);
-		expect(node?.fields.find((f) => f.path === "/modules")?.blocks).toEqual([
+		expect(node?.fields?.find((f) => f.path === "/modules")?.blocks).toEqual([
 			"hero",
 			"richText",
 		]);
@@ -98,7 +101,12 @@ describe("describeSchema", () => {
 		const result = await describe_({ collection: "pages", expand: true });
 		const config = await booted.config;
 
-		expect(nodes(result.data).map((n) => n.schemaPath)).toEqual(
+		/* The response carries the node-type listing too, which names no path. */
+		expect(
+			nodes(result.data)
+				.filter((node) => node.schemaPath !== undefined)
+				.map((n) => n.schemaPath),
+		).toEqual(
 			reachableSchemaPaths(config, { kind: "collection", slug: "pages" }).paths,
 		);
 	});
@@ -110,14 +118,14 @@ describe("describeSchema", () => {
 		});
 		const [root, bad] = nodes(result.data);
 
-		expect(root?.fields.length).toBeGreaterThan(0);
+		expect(root?.fields?.length).toBeGreaterThan(0);
 		expect(bad?.error).toContain("carousel");
 		expect(bad?.error).toContain("sectionWrapper");
 	});
 
 	it("carries the constraints a field declares", async () => {
 		const root = nodes((await describe_({ collection: "posts" })).data)[0];
-		const at = (path: string) => root?.fields.find((f) => f.path === path);
+		const at = (path: string) => root?.fields?.find((f) => f.path === path);
 
 		expect(at("/items")).toMatchObject({
 			maxRows: 4,
@@ -138,6 +146,47 @@ describe("describeSchema", () => {
 			(await describe_({ collection: "posts", paths: ["/content/link"] })).data,
 		)[0];
 
-		expect(link?.fields.map((f) => f.path)).toContain("/rel");
+		expect(link?.fields?.map((f) => f.path)).toContain("/rel");
+	});
+
+	/*
+	 * The point of publishing this is that a node can be assembled from one
+	 * read. Stated once for the response, because it turns on the node type and
+	 * not on which field the node is written into.
+	 */
+	it("states what each Lexical node type has to carry, once", async () => {
+		const answered = nodes((await describe_({ collection: "posts" })).data);
+		const listing = answered.filter((node) => node.nodeProperties);
+
+		expect(listing).toHaveLength(1);
+		expect(listing[0]?.nodeProperties?.["text"]).toEqual({
+			detail: "a number",
+			format: "a number",
+			mode: "a string",
+			style: "a string",
+			text: "a string",
+			type: "a string",
+			version: "a number",
+		});
+		expect(listing[0]?.nodeProperties?.["heading"]).toMatchObject({
+			tag: "a string",
+		});
+
+		/* Every type a field offers is answered for. */
+		const offered = answered.flatMap((node) =>
+			(node.fields ?? []).flatMap((f) => f.nodes ?? []),
+		);
+
+		expect(
+			offered.filter((type) => !(type in (listing[0]?.nodeProperties ?? {}))),
+		).toEqual([]);
+	});
+
+	it("omits the listing where no rich text was described", async () => {
+		const answered = nodes(
+			(await describe_({ collection: "posts", paths: ["/content/link"] })).data,
+		);
+
+		expect(answered.filter((node) => node.nodeProperties)).toEqual([]);
 	});
 });
