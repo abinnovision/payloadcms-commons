@@ -298,4 +298,21 @@ describe("resolveDataPointer inside a rich text field", () => {
 			/carry no addressable fields/,
 		);
 	});
+
+	/*
+	 * Which node sits at an index is only knowable from what is stored, so the
+	 * errors that turn on that say where to read it cheaply rather than leaving
+	 * a client to fetch the whole state.
+	 */
+	it("sends a client to the outline rather than the whole state", () => {
+		expect(() => inPost("/content/root/children/-/tag")).toThrow(
+			/getDocument with "outline"/,
+		);
+		expect(() => inPost("/content/root/children/first")).toThrow(
+			/getDocument with "outline"/,
+		);
+		expect(() => inPost("/content/children/0")).toThrow(
+			/getDocument with "outline"/,
+		);
+	});
 });

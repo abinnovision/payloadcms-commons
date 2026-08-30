@@ -141,7 +141,7 @@ export const resolveLexicalPointer = (at: {
 
 	if (entry !== "root") {
 		throw new Error(
-			`"${String(entry)}" is not a position in a rich text field. An editor state is entered at "root", e.g. "${descriptor.path}/root/children/0".`,
+			`"${String(entry)}" is not a position in a rich text field. An editor state is entered at "root", e.g. "${descriptor.path}/root/children/0". getDocument with "outline" lists every position this field holds.`,
 		);
 	}
 
@@ -183,7 +183,7 @@ export const resolveLexicalPointer = (at: {
 
 			if (!isIndexSegment(index)) {
 				throw new Error(
-					`"${descriptor.path}${joinPath([...walked, "children"])}" is a list; "${index}" is not an index.`,
+					`"${descriptor.path}${joinPath([...walked, "children"])}" is a list; "${index}" is not an index. getDocument with "outline" reports the pointer of each node in it.`,
 				);
 			}
 
@@ -206,7 +206,7 @@ export const resolveLexicalPointer = (at: {
 				}
 
 				throw new Error(
-					`Cannot tell which node "${descriptor.path}${joinPath([...walked, "children", index])}" is. Read the document first, or address an existing position.`,
+					`Cannot tell which node "${descriptor.path}${joinPath([...walked, "children", index])}" is. Call getDocument with "outline" for the pointer of each node, or address an existing position.`,
 				);
 			}
 
