@@ -21,6 +21,13 @@ import type {
  * `path` uses JSON Pointer syntax and is already resolved through every
  * construct that does not nest in the stored document, so it becomes a pointer
  * into a document by replacing each {@link ARRAY_MARKER} with an index.
+ *
+ * Inside a rich text field that substitution does not apply. A path there names
+ * the node type, and a block node its slug, where a pointer enters the stored
+ * state at `root` and walks `children` by an index counted over every child at
+ * that level, not over the blocks among them, carrying the node's own fields
+ * under `fields`: `/content/block/practice-note/variant` is written at
+ * `/content/root/children/7/fields/variant`.
  */
 export interface FieldDescriptor {
 	blocks?: string[];

@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
 	allowedNodeTypes,
 	nodeProblems,
+	nodePropertiesFor,
 	propertyProblem,
 	REQUIRED_NODE_PROPERTIES,
 	ROOT_PROPERTIES,
@@ -353,6 +354,72 @@ describe("what Payload declares", () => {
 			"version",
 		]);
 		expect(nodeProblems({ type: "quote" }).missing).toContain("version");
+	});
+});
+
+/**
+ * The published listing exists so a node can be built without a write being
+ * refused first, which is only worth anything if it says exactly what the
+ * refusal would have said. These hold it to the same tables the checks read,
+ * so a listing that drifts from the enforcement fails here.
+ */
+describe("nodePropertiesFor", () => {
+	it("covers every node type a field allows", () => {
+		const types = allowedNodeTypes(field);
+
+		expect(Object.keys(nodePropertiesFor(types)).sort()).toEqual(
+			[...types].sort(),
+		);
+	});
+
+	it("states the measured table, plus what every node carries", () => {
+		const listed = nodePropertiesFor(["list", "text"]);
+
+		expect(Object.keys(listed["list"] ?? {})).toEqual([
+			...Object.keys(REQUIRED_NODE_PROPERTIES["list"] ?? {}).sort(),
+			"type",
+			"version",
+		]);
+		expect(listed["text"]).toEqual({
+			detail: "a number",
+			format: "a number",
+			mode: "a string",
+			style: "a string",
+			text: "a string",
+			type: "a string",
+			version: "a number",
+		});
+	});
+
+	it("gives the root what Payload declares, not the universal set", () => {
+		expect(Object.keys(nodePropertiesFor(["root"])["root"] ?? {})).toEqual(
+			Object.keys(ROOT_PROPERTIES).sort(),
+		);
+	});
+
+	/* The same tolerance the checks show: guessing would reject working content. */
+	it("claims nothing of a node type the table does not cover", () => {
+		expect(nodePropertiesFor(["horizontalrule"])["horizontalrule"]).toEqual({
+			type: "a string",
+			version: "a number",
+		});
+	});
+
+	it("words a requirement the way a refused write words it", () => {
+		const listed = nodePropertiesFor(["heading", "listitem"]);
+
+		expect(propertyProblem("heading", "tag", 3)?.needs).toBe(
+			listed["heading"]?.["tag"],
+		);
+		expect(propertyProblem("listitem", "direction", "sideways")?.needs).toBe(
+			listed["listitem"]?.["direction"],
+		);
+		expect(
+			nodeProblems({ type: "listitem", version: "1" }).rejected,
+		).toContainEqual({
+			needs: listed["listitem"]?.["version"],
+			property: "version",
+		});
 	});
 });
 

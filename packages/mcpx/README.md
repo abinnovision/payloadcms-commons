@@ -228,6 +228,30 @@ Rules the tools enforce and explain in their own descriptions:
   when the document is opened, and a heading whose `tag` is `3` comes back
   untagged, none of which Payload notices on write. A write breaking either is
   refused, and the message names the property and what belongs there.
+- Those requirements are also published, so a node can be built without being
+  corrected into shape first. A `describeSchema` response that reached a
+  `richText` field ends with a `nodeProperties` entry stating what each node
+  type has to carry, in the same words the refusal uses:
+
+  ```json
+  {
+    "text": {
+      "detail": "a number",
+      "format": "a number",
+      "mode": "a string",
+      "style": "a string",
+      "text": "a string",
+      "type": "a string",
+      "version": "a number"
+    }
+  }
+  ```
+
+  It is keyed by node type and stated once for the whole response, because what
+  a node carries does not vary by where it is written; the field's own `nodes`
+  says which of those types it accepts. The listing is read off the same tables
+  the validator checks against, so the two cannot drift apart.
+
 - A rich text field's value is addressable, so a small edit does not have to
   rewrite the whole state. `/content/root/children/2` is a node,
   `/content/root/children/2/tag` one of its properties, and
@@ -266,6 +290,14 @@ Rules the tools enforce and explain in their own descriptions:
   its slug, where a pointer carries a 0-based index. So `/items/*/title` is
   written at `/items/0/title`, and `/layout/sections/hero` at
   `/layout/sections/0`.
+- Inside a rich text field that substitution does not apply, because an editor
+  state is a tree rather than a list per type. A path there names the node type,
+  and a block node its slug; a pointer enters the state at `root` and walks
+  `children` by an index counted over every child at that level, not over the
+  blocks among them, with the node's own fields under `fields`. So the path
+  `/content/block/practice-note/variant` is written at the pointer
+  `/content/root/children/7/fields/variant`, and only the stored state says
+  which index that is. `getDocument` with `outline` answers that.
 - Adding a block requires `blockType` on the value; append with `/-`.
 - Clearing is `replace` with `null`; a list is emptied with `[]` and refuses
   `null`. `remove` is only valid on list elements, because Payload keeps
