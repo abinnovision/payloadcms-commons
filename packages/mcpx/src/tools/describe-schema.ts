@@ -19,6 +19,8 @@ Call it with no "paths" to get a collection's own fields. Every "blocks" field s
 
 A "richText" field stops there too. It lists the Lexical node types it accepts in "nodes", and "next" carries a path for every node type that holds fields of its own: "/content/link" for a link node, "/content/block/callout" and "/content/inlineBlock/badge" for the block nodes. Descend to get the real field list instead of guessing what a node carries. Upload nodes are not addressable, because their fields depend on the collection the node points at.
 
+Write each Lexical node the way Lexical serializes it, with every property its type carries rather than a trimmed subset, and with the value Lexical would have written there. Every node needs a "version"; the root takes exactly "children", "direction", "format", "indent", "type" and "version" and refuses anything else; each node type adds its own on top. The admin editor rehydrates nodes through their classes, so a list item whose "indent" is missing, null or a string is stored and then throws on open, and a heading whose "tag" is a number is stored untagged. A write naming a property means exactly that.
+
 Paths here use the same JSON Pointer syntax as getDocument and patchDocument, and are already resolved through anything that does not nest in the stored document. The difference is only what stands in an element position: a path names an array element "*" and a block by its slug, where a pointer into a document carries a 0-based index. So "/items/*/title" is written at "/items/0/title", and "/layout/sections/hero" at "/layout/sections/0".
 
 Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;

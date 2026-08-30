@@ -1,4 +1,10 @@
-import { lexicalSubSchema } from "./lexical.js";
+import {
+	constrainsFields,
+	lexicalSubSchema,
+	nodeProblems,
+	rootProblems,
+	ROOT_PROPERTIES,
+} from "./lexical.js";
 import {
 	ARRAY_MARKER,
 	blockOf,
@@ -18,6 +24,9 @@ const TOLERATED_VALUE_KEYS = new Set(["blockName", "blockType", "id"]);
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
+
+const quoted = (properties: readonly string[]): string =>
+	properties.map((property) => `"${property}"`).join(", ");
 
 /**
  * A position in an incoming value, and where the problems go.
@@ -52,9 +61,12 @@ const checkNodeFields = (
 	const data = node.fields;
 
 	if (!isPlainObject(data)) {
-		scope.problems.push(
-			`${scope.pointer}: a "${node.type}" node carries a "fields" object.`,
-		);
+		/* Reported already, and more precisely, where the table constrains it. */
+		if (!constrainsFields(node.type)) {
+			scope.problems.push(
+				`${scope.pointer}: a "${node.type}" node carries a "fields" object.`,
+			);
+		}
 
 		return;
 	}
@@ -91,7 +103,9 @@ const checkNodeFields = (
  * later, at render or when the document is reopened in the admin editor. A key
  * a node's fields do not declare is dropped just as silently. The same holds
  * one level down, for the node properties a feature narrows: an `h3` in an
- * editor restricted to `h4` is stored as readily as an `h4`.
+ * editor restricted to `h4` is stored as readily as an `h4`, and a node written
+ * without the properties its class hydrates from is stored and then throws when
+ * the editor opens it.
  */
 const checkRichText = (
 	scope: CheckScope,
@@ -108,6 +122,27 @@ const checkRichText = (
 		);
 
 		return;
+	}
+
+	const root = value["root"];
+	const { missing, rejected, unexpected } = rootProblems(root);
+
+	if (missing.length > 0) {
+		scope.problems.push(
+			`${scope.pointer}/root: the root node is missing ${quoted(missing)}. Write nodes as Lexical serializes them.`,
+		);
+	}
+
+	for (const problem of rejected) {
+		scope.problems.push(
+			`${scope.pointer}/root/${problem.property}: the root node needs ${problem.needs} here.`,
+		);
+	}
+
+	for (const property of unexpected) {
+		scope.problems.push(
+			`${scope.pointer}/root/${property}: no such property on the root node. Available: ${Object.keys(ROOT_PROPERTIES).join(", ")}`,
+		);
 	}
 
 	const walk = (nodes: unknown, pointer: string): void => {
@@ -132,14 +167,36 @@ const checkRichText = (
 				return;
 			}
 
+			const problems = nodeProblems(node);
+
+			if (problems.missing.length > 0) {
+				scope.problems.push(
+					`${at}: a "${node["type"]}" node is missing ${quoted(problems.missing)}. Write nodes as Lexical serializes them.`,
+				);
+			}
+
+			for (const problem of problems.rejected) {
+				scope.problems.push(
+					`${at}/${problem.property}: a "${node["type"]}" node needs ${problem.needs} here.`,
+				);
+			}
+
 			for (const [property, values] of Object.entries(
 				editor.nodeOptions?.[node["type"]] ?? {},
 			)) {
 				const value = node[property];
 
-				if (typeof value === "string" && !values.includes(value)) {
+				/*
+				 * An absent property is already reported as missing. Anything
+				 * else present is checked, not just a string: Lexical stores a
+				 * heading tag of 3 as readily as one of "h3".
+				 */
+				if (
+					value !== undefined &&
+					!(typeof value === "string" && values.includes(value))
+				) {
 					scope.problems.push(
-						`${at}/${property}: "${value}" is not available for a "${node["type"]}" node in this field's editor. Allowed: ${values.join(", ")}`,
+						`${at}/${property}: ${JSON.stringify(value)} is not available for a "${node["type"]}" node in this field's editor. Allowed: ${values.join(", ")}`,
 					);
 				}
 			}
@@ -155,7 +212,7 @@ const checkRichText = (
 		});
 	};
 
-	walk(value["root"]["children"], `${scope.pointer}/root/children`);
+	walk(root["children"], `${scope.pointer}/root/children`);
 };
 
 const checkLeafValue = (

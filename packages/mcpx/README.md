@@ -222,6 +222,19 @@ Rules the tools enforce and explain in their own descriptions:
   answers `{ "heading": { "tag": ["h4"] } }`, and a write carrying any other
   heading tag is refused. Lexical stores whatever tag it is given, so this is
   the only place the restriction is checked.
+- A Lexical node must be written the way Lexical serializes it, and carry the
+  values Lexical would have written. The admin editor rehydrates nodes through
+  their classes, so a list item whose `indent` is absent, `null` or `"0"` throws
+  when the document is opened, and a heading whose `tag` is `3` comes back
+  untagged, none of which Payload notices on write. A write breaking either is
+  refused, and the message names the property and what belongs there.
+- Where Payload states the shape itself, that statement is what is enforced: its
+  `outputSchema` declares `version` required on every node, and gives the root
+  exactly `children`, `direction`, `format`, `indent`, `type` and `version`, so
+  an unknown property on the root is refused too. Payload declares nothing per
+  node type, so the rest is measured against the node classes
+  `@payloadcms/richtext-lexical` ships. Both halves are pinned by
+  `src/schema/lexical.spec.ts` rather than assumed.
 - Field and collection `admin.description` values are included in
   `describeSchema` and `listCapabilities`, so intent written for the admin
   panel reaches the client. A locale-keyed record is resolved to one string for

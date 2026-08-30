@@ -2,7 +2,13 @@ import { createLocalReq } from "payload";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { callTool, toolsList } from "./helpers/mcp.js";
-import { bootPayload, hero, section, seedKeys } from "./helpers/payload.js";
+import {
+	bootPayload,
+	bulletList,
+	hero,
+	section,
+	seedKeys,
+} from "./helpers/payload.js";
 
 import type { Booted, Seeded } from "./helpers/payload.js";
 import type { TypedUser } from "payload";
@@ -391,8 +397,22 @@ describe("patchDocument", () => {
 		const post = await createPost({ title: "Post" });
 		const summary = (tag: string) => ({
 			root: {
-				children: [{ children: [], tag, type: "heading" }],
+				children: [
+					{
+						children: [],
+						direction: null,
+						format: "",
+						indent: 0,
+						tag,
+						type: "heading",
+						version: 1,
+					},
+				],
+				direction: null,
+				format: "",
+				indent: 0,
 				type: "root",
+				version: 1,
 			},
 		});
 		const write = (tag: string) =>
@@ -453,6 +473,29 @@ describe("patchDocument", () => {
 		expect(JSON.stringify(result.data)).toContain(
 			"/content/root/children/0/fields/relation: no such field",
 		);
+	});
+
+	it("refuses a list node missing what the editor hydrates it from", async () => {
+		const post = await createPost({ title: "Post" });
+		const write = (value: Record<string, unknown>) =>
+			patch({
+				collection: "posts",
+				id: post.id,
+				locale: "en",
+				patches: [{ op: "replace", path: "/content", value }],
+			});
+
+		const refused = await write(bulletList("One", { stripIndent: true }));
+
+		expect(refused.isError).toBe(true);
+		expect(JSON.stringify(refused.data)).toContain(
+			'a \\"listitem\\" node is missing \\"indent\\"',
+		);
+
+		const saved = await readPost(post.id, "en");
+
+		expect(saved.content ?? null).toBeNull();
+		expect((await write(bulletList("One"))).isError).toBe(false);
 	});
 
 	it("writes a Lexical link field the editor declares", async () => {

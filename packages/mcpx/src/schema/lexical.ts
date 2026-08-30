@@ -132,6 +132,205 @@ export const subSchemaNodeTypes = (field: RichTextField): string[] =>
 	);
 
 /**
+ * What a serialized property has to be. A name is a kind; `{ is }` pins an
+ * exact value, which a node class occasionally demands.
+ */
+type Constraint = Kind | { is: number | string };
+
+type Kind = keyof typeof KINDS;
+
+/**
+ * `direction` carries Payload's own declaration for it, `oneOf` the two
+ * directions or null, rather than a looser "string or null".
+ */
+const KINDS = {
+	array: {
+		accepts: (value: unknown) => Array.isArray(value),
+		needs: "an array",
+	},
+	direction: {
+		accepts: (value: unknown) =>
+			value === null || value === "ltr" || value === "rtl",
+		needs: '"ltr", "rtl" or null',
+	},
+	number: {
+		accepts: (value: unknown) => typeof value === "number",
+		needs: "a number",
+	},
+	object: {
+		accepts: (value: unknown) =>
+			typeof value === "object" && value !== null && !Array.isArray(value),
+		needs: "an object",
+	},
+	optionalObject: {
+		accepts: (value: unknown) =>
+			value === null || (typeof value === "object" && !Array.isArray(value)),
+		needs: "an object or null",
+	},
+	string: {
+		accepts: (value: unknown) => typeof value === "string",
+		needs: "a string",
+	},
+} as const;
+
+const accepts = (constraint: Constraint, value: unknown): boolean =>
+	typeof constraint === "string"
+		? KINDS[constraint].accepts(value)
+		: value === constraint.is;
+
+const needs = (constraint: Constraint): string =>
+	typeof constraint === "string"
+		? KINDS[constraint].needs
+		: JSON.stringify(constraint.is);
+
+const ELEMENT_PROPERTIES = {
+	children: "array",
+	direction: "direction",
+	indent: "number",
+} as const satisfies Record<string, Constraint>;
+
+/** A text node and everything built on one. */
+const TEXT_PROPERTIES = {
+	detail: "number",
+	format: "number",
+	mode: "string",
+	style: "string",
+	text: "string",
+} as const satisfies Record<string, Constraint>;
+
+/**
+ * Carried by every node, whatever its type.
+ *
+ * Aligned with Payload rather than measured: its `outputSchema` declares `type`
+ * and `version` required for every node in the tree, and that declaration is
+ * what types the field in `payload-types.ts`. Lexical itself hydrates a node
+ * without a `version`, or with the wrong kind of one, unchanged - but a
+ * consumer reading the document through the generated types has been promised
+ * an integer, and `BlockNode.importJSON` migrates on it.
+ */
+const UNIVERSAL_PROPERTIES = { version: "number" } as const satisfies Record<
+	string,
+	Constraint
+>;
+
+/**
+ * The root, as Payload declares it and as an editor exports it: these six
+ * properties, these kinds, and nothing else.
+ */
+export const ROOT_PROPERTIES: Readonly<Record<string, Constraint>> = {
+	children: "array",
+	direction: "direction",
+	format: "string",
+	indent: "number",
+	type: "string",
+	version: "number",
+};
+
+/**
+ * What a serialized node must carry beyond {@link UNIVERSAL_PROPERTIES}, keyed
+ * by node type.
+ *
+ * Payload stores an editor state without hydrating it, so a node written
+ * without these, or with the wrong kind of value, is accepted and only fails
+ * later, in the admin editor. Payload declares nothing per node type, so this
+ * table is measured instead: an entry belongs here only if breaking it makes
+ * Lexical throw, or changes what the editor reads back. An element's `format`
+ * and a paragraph's text defaults are absent for that reason.
+ * `lexical.spec.ts` holds every entry to the rule against the node classes
+ * `@payloadcms/richtext-lexical` ships, so extend that test first.
+ *
+ * A node type with no entry is checked for the universal properties only.
+ * Guessing at the requirements of a project's own nodes would reject content
+ * that works.
+ */
+export const REQUIRED_NODE_PROPERTIES: Readonly<
+	Record<string, Readonly<Record<string, Constraint>>>
+> = {
+	autolink: { ...ELEMENT_PROPERTIES, fields: "object" },
+	block: { fields: "object" },
+	heading: { ...ELEMENT_PROPERTIES, tag: "string" },
+	inlineBlock: { fields: "object" },
+	link: { ...ELEMENT_PROPERTIES, fields: "object" },
+	list: { ...ELEMENT_PROPERTIES, listType: "string", start: "number" },
+	listitem: { ...ELEMENT_PROPERTIES, value: "number" },
+	paragraph: ELEMENT_PROPERTIES,
+	quote: ELEMENT_PROPERTIES,
+	relationship: { relationTo: "string", value: "number" },
+	/*
+	 * A tab is a text node holding one tab character, and its class refuses to
+	 * be told otherwise: both of these are exact because `setDetail` and
+	 * `setTextContent` throw for any other value.
+	 */
+	tab: { ...TEXT_PROPERTIES, detail: { is: 2 }, text: { is: "\t" } },
+	text: TEXT_PROPERTIES,
+	/*
+	 * An upload node's sub-fields depend on the collection it points at and are
+	 * not addressable through a schema path, so "fields" is usually written as
+	 * null. It is still required: Lexical reads the node back without it.
+	 */
+	upload: { fields: "optionalObject", relationTo: "string", value: "number" },
+};
+
+/**
+ * Whether the table already says what a node type's `fields` has to be, so the
+ * sub-field walk does not report the same problem a second time.
+ */
+export const constrainsFields = (type: string): boolean =>
+	"fields" in (REQUIRED_NODE_PROPERTIES[type] ?? {});
+
+/**
+ * A property that is absent, and one that is present but cannot be what the
+ * node class does with it.
+ */
+export interface PropertyProblems {
+	missing: string[];
+	rejected: { needs: string; property: string }[];
+}
+
+/** Present but `null` counts as present: `direction` is serialized that way. */
+const check = (
+	node: Record<string, unknown>,
+	constraints: Readonly<Record<string, Constraint>>,
+): PropertyProblems => {
+	const problems: PropertyProblems = { missing: [], rejected: [] };
+
+	for (const [property, constraint] of Object.entries(constraints)) {
+		if (!(property in node)) {
+			problems.missing.push(property);
+		} else if (!accepts(constraint, node[property])) {
+			problems.rejected.push({ needs: needs(constraint), property });
+		}
+	}
+
+	problems.missing.sort();
+	problems.rejected.sort((left, right) =>
+		left.property.localeCompare(right.property),
+	);
+
+	return problems;
+};
+
+export const nodeProblems = (node: Record<string, unknown>): PropertyProblems =>
+	check(node, {
+		...UNIVERSAL_PROPERTIES,
+		...(REQUIRED_NODE_PROPERTIES[node["type"] as string] ?? {}),
+	});
+
+/**
+ * The root is the one node Payload describes itself, down to refusing an
+ * unknown property, so it is checked against that description rather than
+ * against the walk's table.
+ */
+export const rootProblems = (
+	root: Record<string, unknown>,
+): PropertyProblems & { unexpected: string[] } => ({
+	...check(root, ROOT_PROPERTIES),
+	unexpected: Object.keys(root).filter(
+		(property) => !(property in ROOT_PROPERTIES),
+	),
+});
+
+/**
  * Values a feature restricts a node property to, keyed by node type and then by
  * the property on the node that carries the value.
  */
