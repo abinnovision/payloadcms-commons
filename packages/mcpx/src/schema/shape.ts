@@ -2,6 +2,7 @@ import {
 	constrainsFields,
 	lexicalSubSchema,
 	nodeProblems,
+	propertyProblem,
 	rootProblems,
 	ROOT_PROPERTIES,
 } from "./lexical.js";
@@ -12,9 +13,11 @@ import {
 	describeAddressableFields,
 	findBlocksField,
 	findRichTextField,
+	isPlainObject,
 	splitPath,
 } from "./walk.js";
 
+import type { LexicalPosition } from "./lexical-pointer.js";
 import type { NodeOptions } from "./lexical.js";
 import type { PointerResolution } from "./pointer.js";
 import type { FieldDescriptor } from "./walk.js";
@@ -22,8 +25,14 @@ import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
 
 const TOLERATED_VALUE_KEYS = new Set(["blockName", "blockType", "id"]);
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
+/**
+ * Lexical refuses to hydrate a state whose root holds nothing: `isEmpty` is a
+ * node map of one, and the editor throws on it rather than rendering nothing.
+ * An empty field is stored as null instead, so this is only ever reached by
+ * emptying one that was there.
+ */
+export const EMPTY_ROOT =
+	"an editor state needs at least one node. Clear the field with null instead.";
 
 const quoted = (properties: readonly string[]): string =>
 	properties.map((property) => `"${property}"`).join(", ");
@@ -97,23 +106,125 @@ const checkNodeFields = (
 };
 
 /**
- * Payload does not check this: the Lexical validator runs node validations only for the
- * few node types that register one, so a `heading` inside a field whose
- * editor has no heading feature is stored without complaint and only fails
- * later, at render or when the document is reopened in the admin editor. A key
- * a node's fields do not declare is dropped just as silently. The same holds
- * one level down, for the node properties a feature narrows: an `h3` in an
- * editor restricted to `h4` is stored as readily as an `h4`, and a node written
- * without the properties its class hydrates from is stored and then throws when
- * the editor opens it.
+ * What the field's editor allows, carried down the walk so a node is judged
+ * against the editor it lands in rather than against Lexical in general.
  */
+interface EditorScope {
+	allowed: readonly string[];
+	field: RichTextField | undefined;
+	nodeOptions: NodeOptions | undefined;
+}
+
+/**
+ * An absent property is already reported as missing. Anything else present is
+ * checked, not just a string: Lexical stores a heading tag of 3 as readily as
+ * one of "h3".
+ */
+const checkNarrowedProperty = (
+	scope: CheckScope,
+	at: { pointer: string; type: string; values: readonly string[] },
+	value: unknown,
+): void => {
+	if (
+		value !== undefined &&
+		!(typeof value === "string" && at.values.includes(value))
+	) {
+		scope.problems.push(
+			`${at.pointer}: ${JSON.stringify(value)} is not available for a "${at.type}" node in this field's editor. Allowed: ${at.values.join(", ")}`,
+		);
+	}
+};
+
+/**
+ * One node, wherever it came from. `pointer` addresses the node itself, so a
+ * node written at a position and a node written inside a whole editor state
+ * are held to the same rules and report them the same way.
+ *
+ * Payload does not check any of this: the Lexical validator runs node
+ * validations only for the few node types that register one, so a `heading`
+ * inside a field whose editor has no heading feature is stored without
+ * complaint and only fails later, at render or when the document is reopened
+ * in the admin editor. A key a node's fields do not declare is dropped just as
+ * silently. The same holds one level down, for the node properties a feature
+ * narrows: an `h3` in an editor restricted to `h4` is stored as readily as an
+ * `h4`, and a node written without the properties its class hydrates from is
+ * stored and then throws when the editor opens it.
+ */
+const checkNode = (
+	scope: CheckScope,
+	editor: EditorScope,
+	node: unknown,
+	pointer: string,
+): void => {
+	if (!isPlainObject(node) || typeof node["type"] !== "string") {
+		scope.problems.push(`${pointer}: every node needs a "type".`);
+
+		return;
+	}
+
+	const type = node["type"];
+
+	if (!editor.allowed.includes(type)) {
+		scope.problems.push(
+			`${pointer}: "${type}" is not available in this field's editor. Allowed: ${editor.allowed.join(", ")}`,
+		);
+
+		return;
+	}
+
+	const problems = nodeProblems(node);
+
+	if (problems.missing.length > 0) {
+		scope.problems.push(
+			`${pointer}: a "${type}" node is missing ${quoted(problems.missing)}. Write nodes as Lexical serializes them.`,
+		);
+	}
+
+	for (const problem of problems.rejected) {
+		scope.problems.push(
+			`${pointer}/${problem.property}: a "${type}" node needs ${problem.needs} here.`,
+		);
+	}
+
+	for (const [property, values] of Object.entries(
+		editor.nodeOptions?.[type] ?? {},
+	)) {
+		checkNarrowedProperty(
+			scope,
+			{ pointer: `${pointer}/${property}`, type, values },
+			node[property],
+		);
+	}
+
+	if (editor.field) {
+		checkNodeFields({ ...scope, pointer }, editor.field, {
+			fields: node["fields"],
+			type,
+		});
+	}
+
+	checkNodes(scope, editor, node["children"], `${pointer}/children`);
+};
+
+/** `pointer` addresses the list. A node holding none is left alone. */
+const checkNodes = (
+	scope: CheckScope,
+	editor: EditorScope,
+	nodes: unknown,
+	pointer: string,
+): void => {
+	if (!Array.isArray(nodes)) {
+		return;
+	}
+
+	nodes.forEach((node, index) => {
+		checkNode(scope, editor, node, `${pointer}/${String(index)}`);
+	});
+};
+
 const checkRichText = (
 	scope: CheckScope,
-	editor: {
-		allowed: readonly string[];
-		field: RichTextField | undefined;
-		nodeOptions: NodeOptions | undefined;
-	},
+	editor: EditorScope,
 	value: unknown,
 ): void => {
 	if (!isPlainObject(value) || !isPlainObject(value["root"])) {
@@ -145,74 +256,111 @@ const checkRichText = (
 		);
 	}
 
-	const walk = (nodes: unknown, pointer: string): void => {
-		if (!Array.isArray(nodes)) {
+	/* Same reason as at a position: an empty root is not a hydratable state. */
+	if (Array.isArray(root["children"]) && root["children"].length === 0) {
+		scope.problems.push(`${scope.pointer}/root/children: ${EMPTY_ROOT}`);
+	}
+
+	checkNodes(scope, editor, root["children"], `${scope.pointer}/root/children`);
+};
+
+/**
+ * `type` decides how every other property on a node is read, so replacing it
+ * alone would leave a heading shaped like a text node. Everything else is held
+ * to the constraint the node walk holds it to and nothing more, since a
+ * feature may put any property on a node.
+ */
+const checkNodeProperty = (
+	scope: CheckScope,
+	editor: EditorScope,
+	position: LexicalPosition & { kind: "property" },
+	value: unknown,
+): void => {
+	const { nodeType: type, property } = position;
+
+	if (property === "type") {
+		scope.problems.push(
+			`${scope.pointer}: a node's "type" cannot be replaced on its own. Replace the whole node.`,
+		);
+
+		return;
+	}
+
+	if (position.isRoot && !(property in ROOT_PROPERTIES)) {
+		scope.problems.push(
+			`${scope.pointer}: no such property on the root node. Available: ${Object.keys(ROOT_PROPERTIES).join(", ")}`,
+		);
+
+		return;
+	}
+
+	const problem = propertyProblem(type, property, value);
+
+	if (problem) {
+		scope.problems.push(
+			`${scope.pointer}: a "${type}" node needs ${problem.needs} here.`,
+		);
+	}
+
+	const values = editor.nodeOptions?.[type]?.[property];
+
+	if (values) {
+		checkNarrowedProperty(
+			scope,
+			{ pointer: scope.pointer, type, values },
+			value,
+		);
+	}
+};
+
+/**
+ * A value written at a position inside an editor state rather than as the
+ * whole state.
+ */
+const checkLexicalWrite = (
+	scope: CheckScope,
+	position: LexicalPosition,
+	value: unknown,
+): void => {
+	const editor: EditorScope = {
+		allowed: position.descriptor.nodes ?? [],
+		field: position.field,
+		nodeOptions: position.descriptor.nodeOptions,
+	};
+
+	if (position.kind === "property") {
+		checkNodeProperty(scope, editor, position, value);
+
+		return;
+	}
+
+	if (position.kind === "nodes") {
+		if (!Array.isArray(value)) {
+			scope.problems.push(`${scope.pointer}: expected an array of nodes.`);
+
 			return;
 		}
 
-		nodes.forEach((node, index) => {
-			const at = `${pointer}/${String(index)}`;
+		if (position.isRoot && value.length === 0) {
+			scope.problems.push(`${scope.pointer}: ${EMPTY_ROOT}`);
 
-			if (!isPlainObject(node) || typeof node["type"] !== "string") {
-				scope.problems.push(`${at}: every node needs a "type".`);
+			return;
+		}
 
-				return;
-			}
+		checkNodes(scope, editor, value, scope.pointer);
 
-			if (!editor.allowed.includes(node["type"])) {
-				scope.problems.push(
-					`${at}: "${node["type"]}" is not available in this field's editor. Allowed: ${editor.allowed.join(", ")}`,
-				);
+		return;
+	}
 
-				return;
-			}
+	if (position.isRoot) {
+		scope.problems.push(
+			`${scope.pointer}: the root of an editor state cannot be replaced on its own. Write the whole field instead.`,
+		);
 
-			const problems = nodeProblems(node);
+		return;
+	}
 
-			if (problems.missing.length > 0) {
-				scope.problems.push(
-					`${at}: a "${node["type"]}" node is missing ${quoted(problems.missing)}. Write nodes as Lexical serializes them.`,
-				);
-			}
-
-			for (const problem of problems.rejected) {
-				scope.problems.push(
-					`${at}/${problem.property}: a "${node["type"]}" node needs ${problem.needs} here.`,
-				);
-			}
-
-			for (const [property, values] of Object.entries(
-				editor.nodeOptions?.[node["type"]] ?? {},
-			)) {
-				const value = node[property];
-
-				/*
-				 * An absent property is already reported as missing. Anything
-				 * else present is checked, not just a string: Lexical stores a
-				 * heading tag of 3 as readily as one of "h3".
-				 */
-				if (
-					value !== undefined &&
-					!(typeof value === "string" && values.includes(value))
-				) {
-					scope.problems.push(
-						`${at}/${property}: ${JSON.stringify(value)} is not available for a "${node["type"]}" node in this field's editor. Allowed: ${values.join(", ")}`,
-					);
-				}
-			}
-
-			if (editor.field) {
-				checkNodeFields({ ...scope, pointer: at }, editor.field, {
-					fields: node["fields"],
-					type: node["type"],
-				});
-			}
-
-			walk(node["children"], `${at}/children`);
-		});
-	};
-
-	walk(root["children"], `${scope.pointer}/root/children`);
+	checkNode(scope, editor, value, scope.pointer);
 };
 
 const checkLeafValue = (
@@ -378,6 +526,12 @@ export const validateWriteValue = (
 		prefix: target.resolution.prefix,
 		problems,
 	};
+
+	if (target.resolution.lexical) {
+		checkLexicalWrite(scope, target.resolution.lexical, value);
+
+		return problems;
+	}
 
 	if (target.resolution.descriptor) {
 		checkLeafValue(scope, target.resolution.descriptor, value);

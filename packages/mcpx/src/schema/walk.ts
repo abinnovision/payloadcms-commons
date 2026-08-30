@@ -73,6 +73,15 @@ export const splitPath = (path: string): string[] =>
 		.slice(1)
 		.map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
 
+/** `-` included, since RFC 6901 reads it as the position after the last. */
+export const isIndexSegment = (segment: string): boolean =>
+	segment === "-" || /^\d+$/.test(segment);
+
+export const isPlainObject = (
+	value: unknown,
+): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
+
 /**
  * A path Payload reports on a validation error (`layout.0.title`) as a JSON
  * Pointer, so everything handed back addresses documents the same way. The

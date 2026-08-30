@@ -139,3 +139,163 @@ describe("resolveDataPointer", () => {
 		);
 	});
 });
+
+/**
+ * A `posts` content state carrying one node of every kind the walk branches
+ * on: a plain element, a node whose fields are a schema, and one whose fields
+ * are a block chosen by slug.
+ */
+const POST = {
+	content: {
+		root: {
+			children: [
+				{
+					children: [
+						{
+							children: [{ text: "Hi", type: "text", version: 1 }],
+							fields: { rel: "nofollow", url: "/x" },
+							type: "link",
+							version: 3,
+						},
+					],
+					type: "paragraph",
+					version: 1,
+				},
+				{
+					fields: { blockType: "callout", tone: "info" },
+					format: "",
+					type: "block",
+					version: 2,
+				},
+			],
+			direction: "ltr",
+			format: "",
+			indent: 0,
+			type: "root",
+			version: 1,
+		},
+	},
+	title: "Post",
+};
+
+const inPost = (pointer: string, added?: unknown) =>
+	resolveDataPointer(config, {
+		...(added === undefined ? {} : { addedValue: added }),
+		doc: POST,
+		pointer,
+		ref: { kind: "collection", slug: "posts" },
+	});
+
+describe("resolveDataPointer inside a rich text field", () => {
+	it("resolves a node, a list of nodes and a node property", () => {
+		expect(inPost("/content/root/children/0").lexical).toMatchObject({
+			kind: "node",
+			nodeType: "paragraph",
+		});
+		expect(inPost("/content/root/children").lexical).toMatchObject({
+			kind: "nodes",
+			nodeType: "root",
+		});
+		expect(
+			inPost("/content/root/children/0/children/0/fields/url").lexical,
+		).toBeUndefined();
+		expect(inPost("/content/root/children/0/format").lexical).toMatchObject({
+			kind: "property",
+			nodeType: "paragraph",
+			property: "format",
+		});
+	});
+
+	it("keeps the field's own descriptor at every position inside it", () => {
+		const at = inPost("/content/root/children/0/children/0");
+
+		expect(at.descriptor).toMatchObject({ path: "/content", type: "richText" });
+		expect(at.lexical).toMatchObject({ kind: "node", nodeType: "link" });
+	});
+
+	it("marks the root, so a write to it can be refused", () => {
+		expect(inPost("/content/root").lexical).toMatchObject({
+			isRoot: true,
+			kind: "node",
+		});
+		expect(inPost("/content/root/indent").lexical).toMatchObject({
+			isRoot: true,
+			kind: "property",
+		});
+	});
+
+	it("returns to Payload fields at a node's fields", () => {
+		const link = inPost("/content/root/children/0/children/0/fields/rel");
+
+		expect(link.lexical).toBeUndefined();
+		expect(link.descriptor).toMatchObject({
+			options: ["nofollow", "sponsored"],
+			type: "select",
+		});
+	});
+
+	it("reads the block a node holds from the stored node", () => {
+		const block = inPost("/content/root/children/1/fields/tone");
+
+		expect(block.blockType).toBe("callout");
+		expect(block.descriptor).toMatchObject({ options: ["info", "warning"] });
+	});
+
+	it("takes the type of an appended node from the value being added", () => {
+		expect(
+			inPost("/content/root/children/-", { type: "heading" }).lexical,
+		).toMatchObject({ kind: "node" });
+		expect(
+			inPost("/content/root/children/-/tag", { type: "heading" }).lexical,
+		).toMatchObject({ nodeType: "heading", property: "tag" });
+	});
+
+	it("resolves a state held by a block, keeping the block in scope", () => {
+		const nested = resolveDataPointer(config, {
+			doc: {
+				layout: {
+					sections: [
+						{
+							blockType: "richText",
+							content: {
+								root: { children: [{ type: "paragraph", version: 1 }] },
+							},
+						},
+					],
+				},
+			},
+			pointer: "/layout/sections/0/content/root/children/0/indent",
+			ref: { kind: "collection", slug: "pages" },
+		});
+
+		expect(nested.blockType).toBe("richText");
+		expect(nested.descriptor).toMatchObject({ type: "richText" });
+		expect(nested.lexical).toMatchObject({
+			kind: "property",
+			nodeType: "paragraph",
+			property: "indent",
+		});
+	});
+
+	it("refuses what it cannot resolve", () => {
+		expect(() => inPost("/summary/root/children/0")).toThrow(
+			/holds no editor state yet/,
+		);
+		expect(() => inPost("/content/children/0")).toThrow(/entered at "root"/);
+		expect(() => inPost("/content/root/children/first")).toThrow(
+			'"/content/root/children" is a list; "first" is not an index.',
+		);
+		expect(() => inPost("/content/root/children/-/tag")).toThrow(
+			'Cannot tell which node "/content/root/children/-" is.',
+		);
+		expect(() => inPost("/content/root/children/0/children/9/tag")).toThrow(
+			'Cannot tell which node "/content/root/children/0/children/9" is.',
+		);
+		expect(() => inPost("/content/root/children/0/format/x")).toThrow(
+			/nothing beneath it can be addressed/,
+		);
+		expect(() => inPost("/content/root/children/0/fields/url")).toThrow(
+			/carry no addressable fields/,
+		);
+	});
+});

@@ -257,9 +257,11 @@ describe("validateWriteValue", () => {
 	});
 
 	it("checks the kind of a root property too", () => {
-		expect(
-			checkPost({ ...state([]), root: { ...state([]).root, indent: "0" } }),
-		).toEqual(["/content/root/indent: the root node needs a number here."]);
+		const held = state([node("paragraph")]);
+
+		expect(checkPost({ ...held, root: { ...held.root, indent: "0" } })).toEqual(
+			["/content/root/indent: the root node needs a number here."],
+		);
 	});
 
 	it("asks for a version on a node type it knows nothing else about", () => {
@@ -272,19 +274,29 @@ describe("validateWriteValue", () => {
 	});
 
 	it("checks the root against the shape Payload declares for it", () => {
+		const held = state([node("paragraph")]);
+
 		expect(
-			checkPost({ root: { children: [], type: "root", version: 1 } }),
+			checkPost({
+				root: { children: [node("paragraph")], type: "root", version: 1 },
+			}),
 		).toEqual([
 			'/content/root: the root node is missing "direction", "format", "indent". Write nodes as Lexical serializes them.',
 		]);
 
 		expect(
-			checkPost({ ...state([]), root: { ...state([]).root, textFormat: 0 } }),
+			checkPost({ ...held, root: { ...held.root, textFormat: 0 } }),
 		).toEqual([
 			"/content/root/textFormat: no such property on the root node. Available: children, direction, format, indent, type, version",
 		]);
 
-		expect(checkPost(state([]))).toEqual([]);
+		expect(checkPost(held)).toEqual([]);
+	});
+
+	it("refuses a whole state whose root holds nothing", () => {
+		expect(checkPost(state([]))).toEqual([
+			expect.stringContaining("needs at least one node"),
+		]);
 	});
 
 	it("checks the fields a Lexical node carries", () => {
@@ -355,5 +367,115 @@ describe("validateWriteValue", () => {
 				{ title: "Home", layout: { colour: "light" } },
 			),
 		).toEqual(["/layout/colour: no such field. Available: color, sections"]);
+	});
+});
+
+/** A stored state, since a position is only resolvable against what is there. */
+const STORED = {
+	content: state([node("paragraph", {}, [textNode("hi")])]),
+	summary: state([node("heading", { tag: "h4" }, [textNode("hi")])]),
+};
+
+const checkAt = (pointer: string, value: unknown) =>
+	validateWriteValue(
+		config,
+		{
+			pointer,
+			resolution: resolveDataPointer(config, {
+				addedValue: value,
+				doc: STORED,
+				pointer,
+				ref: { kind: "collection", slug: "posts" },
+			}),
+		},
+		value,
+	);
+
+describe("validateWriteValue at a position inside an editor state", () => {
+	it("accepts a complete node", () => {
+		expect(
+			checkAt(
+				"/content/root/children/-",
+				node("paragraph", {}, [textNode("next")]),
+			),
+		).toEqual([]);
+	});
+
+	it("holds a node written at a position to what a whole state is held to", () => {
+		const incomplete = { children: [], type: "paragraph" };
+
+		expect(checkAt("/content/root/children/-", incomplete)).toEqual([
+			'/content/root/children/-: a "paragraph" node is missing "direction", "indent", "version". Write nodes as Lexical serializes them.',
+		]);
+		expect(
+			checkAt("/content/root/children/0", node("quote", { indent: "0" })),
+		).toContain(
+			'/content/root/children/0/indent: a "quote" node needs a number here.',
+		);
+	});
+
+	it("refuses a node type the editor does not have", () => {
+		expect(checkAt("/summary/root/children/-", node("quote"))).toEqual([
+			expect.stringContaining(
+				'"quote" is not available in this field\'s editor.',
+			),
+		]);
+	});
+
+	it("checks a narrowed property written on its own", () => {
+		expect(checkAt("/summary/root/children/0/tag", "h3")).toEqual([
+			'/summary/root/children/0/tag: "h3" is not available for a "heading" node in this field\'s editor. Allowed: h4',
+		]);
+		expect(checkAt("/summary/root/children/0/tag", "h4")).toEqual([]);
+	});
+
+	it("checks the kind of a property written on its own", () => {
+		expect(checkAt("/content/root/children/0/indent", "0")).toEqual([
+			'/content/root/children/0/indent: a "paragraph" node needs a number here.',
+		]);
+		expect(checkAt("/content/root/children/0/indent", 1)).toEqual([]);
+	});
+
+	it("leaves a property the node's type does not declare alone", () => {
+		expect(checkAt("/content/root/children/0/textFormat", 1)).toEqual([]);
+	});
+
+	it("refuses replacing a type, the root, or an unknown root property", () => {
+		expect(checkAt("/content/root/children/0/type", "heading")).toEqual([
+			'/content/root/children/0/type: a node\'s "type" cannot be replaced on its own. Replace the whole node.',
+		]);
+		expect(checkAt("/content/root", { children: [] })).toEqual([
+			"/content/root: the root of an editor state cannot be replaced on its own. Write the whole field instead.",
+		]);
+		expect(checkAt("/content/root/spacing", 1)).toEqual([
+			expect.stringContaining("no such property on the root node"),
+		]);
+	});
+
+	it("expects a list where the pointer addresses one", () => {
+		expect(checkAt("/content/root/children", node("paragraph"))).toEqual([
+			"/content/root/children: expected an array of nodes.",
+		]);
+		expect(checkAt("/content/root/children", [node("paragraph")])).toEqual([]);
+	});
+
+	it("checks every node in a list, not just the first", () => {
+		expect(
+			checkAt("/content/root/children", [
+				node("paragraph"),
+				{ children: [], type: "paragraph" },
+			]),
+		).toEqual([
+			expect.stringContaining(
+				'/content/root/children/1: a "paragraph" node is missing',
+			),
+		]);
+	});
+
+	it("refuses emptying the root, which Lexical cannot hydrate", () => {
+		expect(checkAt("/content/root/children", [])).toEqual([
+			expect.stringContaining("needs at least one node"),
+		]);
+		expect(checkAt("/content/root/children/0/children", [])).toEqual([]);
 	});
 });

@@ -331,6 +331,34 @@ export const rootProblems = (
 });
 
 /**
+ * What one serialized property has to be, for a write addressing a property
+ * rather than a whole node.
+ *
+ * Absent where the table says nothing, which is the same tolerance the node
+ * walk shows: a project's own node may carry any property, and guessing at one
+ * would reject content that works.
+ */
+export const propertyProblem = (
+	nodeType: string,
+	property: string,
+	value: unknown,
+): { needs: string } | undefined => {
+	const constraints: Readonly<Record<string, Constraint>> =
+		nodeType === "root"
+			? ROOT_PROPERTIES
+			: {
+					...UNIVERSAL_PROPERTIES,
+					...(REQUIRED_NODE_PROPERTIES[nodeType] ?? {}),
+				};
+
+	const constraint = constraints[property];
+
+	return constraint === undefined || accepts(constraint, value)
+		? undefined
+		: { needs: needs(constraint) };
+};
+
+/**
  * Values a feature restricts a node property to, keyed by node type and then by
  * the property on the node that carries the value.
  */
