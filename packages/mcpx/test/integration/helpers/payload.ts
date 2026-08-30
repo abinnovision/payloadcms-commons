@@ -129,7 +129,7 @@ export const seedKeys = async (payload: Payload): Promise<Seeded> => {
 	return { userId: user.id, keys };
 };
 
-/** A minimal Lexical editor state with one paragraph. */
+/** A Lexical editor state with one paragraph, serialized as the editor writes it. */
 export const paragraph = (text: string): Record<string, unknown> => ({
 	root: {
 		type: "root",
@@ -141,11 +141,83 @@ export const paragraph = (text: string): Record<string, unknown> => ({
 			{
 				type: "paragraph",
 				version: 1,
-				children: [{ type: "text", version: 1, text }],
+				direction: null,
+				format: "",
+				indent: 0,
+				children: [
+					{
+						type: "text",
+						version: 1,
+						detail: 0,
+						format: 0,
+						mode: "normal",
+						style: "",
+						text,
+					},
+				],
 			},
 		],
 	},
 });
+
+/**
+ * A bulleted list, the shape that reaches the editor as a hydrated node. Pass
+ * `stripIndent` for the payload a client produces when it trims boilerplate, or
+ * `indent` to put something else there. Payload stores either, and the admin
+ * editor throws opening it.
+ */
+export const bulletList = (
+	text: string,
+	options: { indent?: unknown; stripIndent?: boolean } = {},
+): Record<string, unknown> => {
+	const item: Record<string, unknown> = {
+		type: "listitem",
+		version: 1,
+		checked: false,
+		direction: null,
+		format: "",
+		indent: "indent" in options ? options.indent : 0,
+		value: 1,
+		children: [
+			{
+				type: "text",
+				version: 1,
+				detail: 0,
+				format: 0,
+				mode: "normal",
+				style: "",
+				text,
+			},
+		],
+	};
+
+	if (options.stripIndent === true) {
+		delete item["indent"];
+	}
+
+	return {
+		root: {
+			type: "root",
+			version: 1,
+			direction: null,
+			format: "",
+			indent: 0,
+			children: [
+				{
+					type: "list",
+					version: 1,
+					direction: null,
+					format: "",
+					indent: 0,
+					listType: "bullet",
+					start: 1,
+					tag: "ul",
+					children: [item],
+				},
+			],
+		},
+	};
+};
 
 /** A hero module block, as stored in a section wrapper's `modules`. */
 export const hero = (title: string): Record<string, unknown> => ({

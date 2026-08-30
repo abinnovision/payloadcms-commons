@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { callTool, collectionEnumOf, toolsList } from "./helpers/mcp.js";
-import { bootPayload, hero, section, seedKeys } from "./helpers/payload.js";
+import {
+	bootPayload,
+	bulletList,
+	hero,
+	section,
+	seedKeys,
+} from "./helpers/payload.js";
 
 import type { Booted, Seeded } from "./helpers/payload.js";
 
@@ -33,6 +39,47 @@ describe("createDocument and validateDocument", () => {
 
 		expect(problems).toContain("titel");
 		expect(problems).toContain("title");
+	});
+
+	it("refuses a list node missing what the editor hydrates it from", async () => {
+		const before = await booted.payload.count({ collection: "posts" });
+
+		const result = await call("createDocument", {
+			collection: "posts",
+			locale: "en",
+			data: {
+				title: "Listed",
+				content: bulletList("One", { stripIndent: true }),
+			},
+		});
+
+		expect(result.isError).toBe(true);
+		expect(result.data["problems"]).toEqual([
+			'/content/root/children/0/children/0: a "listitem" node is missing "indent". Write nodes as Lexical serializes them.',
+		]);
+
+		const after = await booted.payload.count({ collection: "posts" });
+
+		expect(after.totalDocs).toBe(before.totalDocs);
+
+		const mistyped = await call("createDocument", {
+			collection: "posts",
+			locale: "en",
+			data: { title: "Listed", content: bulletList("One", { indent: null }) },
+		});
+
+		expect(mistyped.isError).toBe(true);
+		expect(mistyped.data["problems"]).toEqual([
+			'/content/root/children/0/children/0/indent: a "listitem" node needs a number here.',
+		]);
+
+		const accepted = await call("createDocument", {
+			collection: "posts",
+			locale: "en",
+			data: { title: "Listed", content: bulletList("One") },
+		});
+
+		expect(accepted.isError).toBe(false);
 	});
 
 	it("refuses a seed carrying a top-level id and creates nothing", async () => {
