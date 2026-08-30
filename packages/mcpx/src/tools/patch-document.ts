@@ -37,6 +37,10 @@ Only the fields describeSchema lists can be addressed. A pointer that does not r
 
 Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so an edit made since that read is refused rather than overwritten.
 
+Inside a rich text field a pointer keeps going: "/content/root/children/2" is a node, "/content/root/children/2/tag" one of its properties, and "/content/root/children/2/fields/url" a field it carries. A node written at a position must carry everything Lexical serializes, "version" included, exactly as one written inside a whole state must; getDocument with "outline" returns each node's pointer and version, which is the cheapest way to get both right. A node's "type" cannot be replaced on its own, and neither can the root.
+
+Node positions shift as soon as anything is added or removed, so read immediately before patching, order removals from the last index to the first, and use a "test" operation on "/content/root/children/2/type" to assert a position is what you think it is before writing to it.
+
 A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but the document cannot be published until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing about whether the document is publishable.`;
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>

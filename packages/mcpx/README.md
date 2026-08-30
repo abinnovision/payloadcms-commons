@@ -228,6 +228,24 @@ Rules the tools enforce and explain in their own descriptions:
   when the document is opened, and a heading whose `tag` is `3` comes back
   untagged, none of which Payload notices on write. A write breaking either is
   refused, and the message names the property and what belongs there.
+- A rich text field's value is addressable, so a small edit does not have to
+  rewrite the whole state. `/content/root/children/2` is a node,
+  `/content/root/children/2/tag` one of its properties, and
+  `/content/root/children/2/fields/url` a field the node carries, resolved
+  through the same node schema `describeSchema` publishes. A node written at a
+  position is held to exactly what a node inside a whole state is held to. The
+  root and a node's `type` cannot be replaced on their own, and a node property
+  cannot be removed, because a node needs it.
+- Node positions shift the moment anything is added or removed, and a text or
+  paragraph node carries no id to fall back on. `getDocument` with `outline`
+  answers with one line per node, its pointer, its `version` and an excerpt, so
+  a position can be chosen and a complete node written without holding the
+  whole state. `expectedUpdatedAt` still guards the document, and a `test`
+  operation on a node's `type` guards the position.
+- A state whose root holds nothing is refused, however it is written. Lexical
+  reads such a state as empty and throws rather than rendering it, so neither a
+  whole-field write of one, nor emptying the node list, nor removing the last
+  node is allowed. An empty field is stored as null instead.
 - Where Payload states the shape itself, that statement is what is enforced: its
   `outputSchema` declares `version` required on every node, and gives the root
   exactly `children`, `direction`, `format`, `indent`, `type` and `version`, so
@@ -517,9 +535,8 @@ How the draft and publish guarantees are enforced, and where they stop, is in
 ## Non-goals of v1 / roadmap
 
 Unpublishing, `versions.drafts.localizeStatus`, deletes, creating upload
-documents and any file handling, markdown authoring for rich text, addressing a
-rich text node by position in a patch (an editor state is written whole),
-schemas for `upload` node fields, row addressing by id instead of index,
+documents and any file handling, markdown authoring for rich text, schemas for
+`upload` node fields, row addressing by id instead of index,
 cross-locale publish blockers, pagination of `describeSchema` with `expand`,
 and a handler-level timeout are all deliberate omissions for now.
 

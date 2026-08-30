@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
 	allowedNodeTypes,
 	nodeProblems,
+	propertyProblem,
 	REQUIRED_NODE_PROPERTIES,
 	ROOT_PROPERTIES,
 } from "./lexical.js";
@@ -416,5 +417,29 @@ describe("allowedNodeTypes", () => {
 			"tab",
 			"text",
 		]);
+	});
+});
+
+describe("propertyProblem", () => {
+	it("holds one property to what the node walk holds it to", () => {
+		expect(propertyProblem("listitem", "indent", "0")).toEqual({
+			needs: "a number",
+		});
+		expect(propertyProblem("listitem", "indent", 0)).toBeUndefined();
+		expect(propertyProblem("heading", "version", "1")).toEqual({
+			needs: "a number",
+		});
+	});
+
+	it("reads the root from Payload's own declaration", () => {
+		expect(propertyProblem("root", "direction", "sideways")).toEqual({
+			needs: '"ltr", "rtl" or null',
+		});
+		expect(propertyProblem("root", "direction", null)).toBeUndefined();
+	});
+
+	it("says nothing about a property no table constrains", () => {
+		expect(propertyProblem("paragraph", "textFormat", "x")).toBeUndefined();
+		expect(propertyProblem("artificial", "whatever", 1)).toBeUndefined();
 	});
 });

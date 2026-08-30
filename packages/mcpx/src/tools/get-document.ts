@@ -8,14 +8,25 @@ import {
 	localeShape,
 	targetShape,
 } from "./shared.js";
-import { requireIdFor, resolveTarget } from "./target.js";
+import { refOf, requireIdFor, resolveTarget } from "./target.js";
 import { errorResult, jsonResult } from "../result.js";
-import { JSON_POINTER_PATTERN } from "../schema/index.js";
+import {
+	findRichTextField,
+	JSON_POINTER_PATTERN,
+	lexicalOutline,
+	resolveDataPointer,
+	splitPath,
+} from "../schema/index.js";
 import { defineMcpxTool } from "../types.js";
+
+const OUTLINE_ERROR =
+	'"outline" applies to a rich text field; give "path" for one.';
 
 const DESCRIPTION = `Reads one document, or one subtree of it when "path" is given as a JSON pointer such as "/layout/sections/2". Returns the latest draft by default. Read before patching: the response carries "updatedAt" for expectedUpdatedAt and the indices pointers need.
 
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
+Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
+
+Set "outline" on a rich text "path" to get a compact positional listing of its nodes instead of the raw editor state.`;
 
 /**
  * With `path` the handler returns the subtree plus the `id`, `_status` and
@@ -50,6 +61,12 @@ export const getDocument = defineMcpxTool({
 			.boolean()
 			.optional()
 			.describe("Return the latest draft. Default true."),
+		outline: z
+			.boolean()
+			.optional()
+			.describe(
+				'For a rich text field, return a compact positional outline instead of the editor state. Requires "path".',
+			),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveTarget(scope, args, "read");
@@ -76,6 +93,10 @@ export const getDocument = defineMcpxTool({
 				}))) as Record<string, unknown>;
 
 		if (args.path === undefined || args.path === "") {
+			if (args.outline) {
+				return errorResult(OUTLINE_ERROR);
+			}
+
 			return jsonResult(doc);
 		}
 
@@ -87,14 +108,53 @@ export const getDocument = defineMcpxTool({
 			return errorResult(`"${args.path}" is not a valid JSON pointer.`);
 		}
 
-		return jsonResult({
+		const envelope = {
 			...(target.kind === "collection"
 				? { id: doc["id"] }
 				: { global: target.slug }),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			path: args.path,
-			value,
+		};
+
+		if (!args.outline) {
+			return jsonResult({ ...envelope, value });
+		}
+
+		/* The resolver throws for a path no field answers to. */
+		let resolution;
+
+		try {
+			resolution = resolveDataPointer(scope.req.payload.config, {
+				doc,
+				pointer: args.path,
+				ref: refOf(target),
+			});
+		} catch (error) {
+			return errorResult(
+				error instanceof Error ? error.message : OUTLINE_ERROR,
+			);
+		}
+
+		/*
+		 * A pointer running on into the state resolves to the same descriptor,
+		 * and outlining one node of it would answer with nothing.
+		 */
+		const field =
+			resolution.descriptor?.type === "richText" && !resolution.lexical
+				? findRichTextField(
+						resolution.fields,
+						splitPath(resolution.descriptor.path),
+					)
+				: undefined;
+
+		if (!field) {
+			return errorResult(OUTLINE_ERROR);
+		}
+
+		return jsonResult({
+			...envelope,
+			outline: lexicalOutline(value, args.path, field),
 		});
 	},
 });

@@ -158,4 +158,166 @@ describe("read tools", () => {
 
 		expect(result.isError).toBe(true);
 	});
+
+	describe("outlining a rich text field", () => {
+		const NODES = [
+			{
+				children: [
+					{
+						detail: 0,
+						format: 0,
+						mode: "normal",
+						style: "",
+						text: "Heading",
+						type: "text",
+						version: 1,
+					},
+				],
+				direction: "ltr",
+				format: "",
+				indent: 0,
+				tag: "h4",
+				type: "heading",
+				version: 1,
+			},
+		];
+
+		let postId: number | string;
+
+		beforeAll(async () => {
+			const post = await booted.payload.create({
+				collection: "posts",
+				locale: "en",
+				draft: true,
+				data: {
+					title: "Outlined",
+					summary: {
+						root: {
+							children: NODES,
+							direction: "ltr",
+							format: "",
+							indent: 0,
+							type: "root",
+							version: 1,
+						},
+					},
+				},
+			});
+
+			postId = post.id;
+		});
+
+		it("answers with a position, a version and the narrowed properties", async () => {
+			const result = await call("getDocument", {
+				collection: "posts",
+				id: postId,
+				path: "/summary",
+				outline: true,
+			});
+
+			expect(result.isError).toBe(false);
+			expect(result.data).not.toHaveProperty("value");
+			expect(result.data["outline"]).toEqual([
+				{
+					children: 1,
+					options: { tag: "h4" },
+					pointer: "/summary/root/children/0",
+					text: "Heading",
+					type: "heading",
+					version: 1,
+				},
+				{
+					pointer: "/summary/root/children/0/children/0",
+					text: "Heading",
+					type: "text",
+					version: 1,
+				},
+			]);
+		});
+
+		it("answers with a pointer and a version a patch can build on", async () => {
+			const outlined = await call("getDocument", {
+				collection: "posts",
+				id: postId,
+				path: "/summary",
+				outline: true,
+			});
+			const [first] = outlined.data["outline"] as {
+				pointer: string;
+				version: number;
+			}[];
+
+			/* The version comes from the outline, which is why it is reported. */
+			const patched = await callTool(
+				booted.config,
+				seeded.keys.full,
+				"patchDocument",
+				{
+					collection: "posts",
+					id: postId,
+					locale: "en",
+					patches: [
+						{
+							op: "add",
+							path: `${first!.pointer}/children/-`,
+							value: {
+								detail: 0,
+								format: 0,
+								mode: "normal",
+								style: "",
+								text: " appended",
+								type: "text",
+								version: first!.version,
+							},
+						},
+					],
+				},
+			);
+
+			expect(patched.isError).toBe(false);
+
+			const after = await call("getDocument", {
+				collection: "posts",
+				id: postId,
+				path: "/summary",
+				outline: true,
+			});
+
+			expect(after.data["outline"]).toMatchObject([
+				{ children: 2, pointer: "/summary/root/children/0" },
+				{ pointer: "/summary/root/children/0/children/0" },
+				{
+					pointer: "/summary/root/children/0/children/1",
+					text: " appended",
+				},
+			]);
+		});
+
+		it("refuses anything that is not a rich text field", async () => {
+			const withoutPath = await call("getDocument", {
+				collection: "posts",
+				id: postId,
+				outline: true,
+			});
+			const wrongField = await call("getDocument", {
+				collection: "posts",
+				id: postId,
+				path: "/title",
+				outline: true,
+			});
+			const insideTheState = await call("getDocument", {
+				collection: "posts",
+				id: postId,
+				path: "/summary/root/children/0",
+				outline: true,
+			});
+
+			for (const result of [withoutPath, wrongField, insideTheState]) {
+				expect(result.isError).toBe(true);
+				expect(result.data["error"]).toBe(
+					'"outline" applies to a rich text field; give "path" for one.',
+				);
+			}
+		});
+	});
 });

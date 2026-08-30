@@ -4,10 +4,12 @@ import { z } from "zod";
 import {
 	resolveDataPointer,
 	validateWriteValue,
+	EMPTY_ROOT,
 	ARRAY_MARKER,
 	blockOf,
 	describeAddressableFields,
 	findBlocksField,
+	isIndexSegment,
 	joinPath,
 	JSON_POINTER_PATTERN,
 	RESERVED_FIELD_NAMES,
@@ -58,9 +60,7 @@ export const droppedPointer = (operation: Operation): string | undefined => {
 };
 
 export const isElementPointer = (pointer: string): boolean => {
-	const last = pointer.split("/").pop() ?? "";
-
-	return last === "-" || /^\d+$/.test(last);
+	return isIndexSegment(pointer.split("/").pop() ?? "");
 };
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -177,6 +177,10 @@ const effectiveValue = (operation: Operation, doc: JsonObject): unknown => {
 
 /** A pointer stopping short addresses a subtree; the fields beneath decide. */
 const resolvesReadOnly = (resolution: PointerResolution): boolean => {
+	if (resolution.readOnly) {
+		return true;
+	}
+
 	if (resolution.descriptor) {
 		return resolution.descriptor.readOnly === true;
 	}
@@ -205,6 +209,67 @@ const isReadOnlyPointer = (
 			ref: target.ref,
 		}),
 	);
+
+/** Unresolvable pointers say nothing here; the caller reports them anyway. */
+const resolutionAt = (
+	config: SanitizedConfig,
+	target: { doc: JsonObject; pointer: string; ref: TargetRef },
+): PointerResolution | undefined => {
+	try {
+		return resolveDataPointer(config, {
+			doc: target.doc,
+			pointer: target.pointer,
+			ref: target.ref,
+		});
+	} catch {
+		return undefined;
+	}
+};
+
+/**
+ * Removing a field does nothing, but removing part of an editor state does
+ * something, and something worse: a node written without the properties its
+ * class hydrates from throws when the admin editor opens it. Both are refused,
+ * and only the reason differs.
+ */
+const droppedFieldProblem = (
+	config: SanitizedConfig,
+	target: { doc: JsonObject; pointer: string; ref: TargetRef },
+): string => {
+	const resolution = resolutionAt(config, target);
+	const lexical = resolution?.lexical;
+
+	if (lexical?.kind === "property") {
+		return `"${target.pointer}" is a node property, not a list element. A "${lexical.nodeType}" node needs it, so replace it rather than removing it.`;
+	}
+
+	if (lexical ?? resolution?.inLexical) {
+		return `"${target.pointer}" sits inside an editor state, which is written whole, so removing it would take effect and leave a node the admin editor cannot open. Replace it instead, or remove the node that holds it.`;
+	}
+
+	return `"${target.pointer}" is a field, not a list element, and removing it would do nothing. The patched document is written whole, and Payload keeps any field absent from a write rather than clearing it. Use "replace" with null to clear a field, or with [] to empty a list.`;
+};
+
+/**
+ * Dropping the only node under a root empties the state, which Lexical refuses
+ * to hydrate. Checked here rather than on the written value, because a
+ * `remove` carries none.
+ */
+const emptiesTheRoot = (
+	config: SanitizedConfig,
+	target: { doc: JsonObject; pointer: string; ref: TargetRef },
+): boolean => {
+	const list = joinPath(splitPath(target.pointer).slice(0, -1));
+	const owner = resolutionAt(config, { ...target, pointer: list })?.lexical;
+
+	if (owner?.kind !== "nodes" || owner.isRoot !== true) {
+		return false;
+	}
+
+	const nodes = Pointer.fromJSON(list).get(target.doc) as unknown;
+
+	return Array.isArray(nodes) && nodes.length === 1;
+};
 
 /**
  * Checked against the document as it stands when this operation runs: both
@@ -238,9 +303,7 @@ const findOperationProblems = (
 	const dropped = droppedPointer(operation);
 
 	if (dropped !== undefined && !isElementPointer(dropped)) {
-		return [
-			`"${dropped}" is a field, not a list element, and removing it would do nothing. The patched document is written whole, and Payload keeps any field absent from a write rather than clearing it. Use "replace" with null to clear a field, or with [] to empty a list.`,
-		];
+		return [droppedFieldProblem(config, { doc, pointer: dropped, ref })];
 	}
 
 	try {
@@ -259,6 +322,13 @@ const findOperationProblems = (
 			isReadOnlyPointer(config, { doc, pointer: dropped, ref })
 		) {
 			return [`"${dropped}" sits in a read-only field and cannot be removed.`];
+		}
+
+		if (
+			dropped !== undefined &&
+			emptiesTheRoot(config, { doc, pointer: dropped, ref })
+		) {
+			return [`"${dropped}": ${EMPTY_ROOT}`];
 		}
 
 		for (const pointer of pointers) {

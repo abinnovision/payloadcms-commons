@@ -17,7 +17,16 @@ import type { Operation } from "rfc6902";
 /** The smallest state the rich text shape check accepts. */
 const EMPTY_RICH_TEXT = {
 	root: {
-		children: [],
+		children: [
+			{
+				children: [],
+				direction: null,
+				format: "",
+				indent: 0,
+				type: "paragraph",
+				version: 1,
+			},
+		],
 		direction: null,
 		format: "",
 		indent: 0,
@@ -92,6 +101,9 @@ describe("pointer helpers", () => {
 		expect(isReservedPointer("/_status")).toBe(true);
 		expect(isReservedPointer("/layout/sections/0/id")).toBe(true);
 		expect(isReservedPointer("/title")).toBe(false);
+		/* A Lexical block node's row id is one of them; its own keys are not. */
+		expect(isReservedPointer("/content/root/children/0/fields/id")).toBe(true);
+		expect(isReservedPointer("/content/root/children/0/version")).toBe(false);
 	});
 
 	it("tells list elements from fields", () => {
@@ -109,11 +121,22 @@ describe("pointer helpers", () => {
 	});
 });
 
+/** A link node, so a read-only field has a node's own fields to address. */
+const LINK_NODE = {
+	children: [],
+	direction: "ltr",
+	fields: { linkType: "custom", newTab: false, url: "/old" },
+	format: "",
+	indent: 0,
+	type: "link",
+	version: 3,
+};
+
 const POSTS_DOC = {
 	id: "s1",
 	items: [{ id: "item-1", heading: "First" }],
 	locked: {
-		body: EMPTY_RICH_TEXT,
+		body: { root: { ...EMPTY_RICH_TEXT.root, children: [LINK_NODE] } },
 		entries: [{ id: "entry-1", label: "one" }],
 		note: "kept",
 		sections: [{ id: "block-1", blockType: "cta", label: "Go" }],
@@ -399,6 +422,32 @@ describe("applyPatchOperations against read-only fields", () => {
 			name: "move of a list element out",
 			patches: [{ from: "/locked/entries/0", op: "move", path: "/items/-" }],
 		},
+		{
+			name: "replace of a node property",
+			patches: [
+				{
+					op: "replace",
+					path: "/locked/body/root/children/0/format",
+					value: "",
+				},
+			],
+		},
+		{
+			name: "replace inside a node's own fields",
+			patches: [
+				{
+					op: "replace",
+					path: "/locked/body/root/children/0/fields/url",
+					value: "/evil",
+				},
+			],
+		},
+		{
+			name: "replace inside a read-only block's fields",
+			patches: [
+				{ op: "replace", path: "/locked/sections/0/label", value: "Changed" },
+			],
+		},
 	];
 
 	for (const { name, patches } of CASES) {
@@ -475,5 +524,126 @@ describe("buildWriteData", () => {
 		);
 
 		expect(data).toEqual({ alt: "A cat", credit: "Nobody" });
+	});
+});
+
+describe("dropping a pointer inside an editor state", () => {
+	let config: SanitizedConfig;
+
+	beforeAll(async () => {
+		config = await buildFixtureConfig();
+	});
+
+	const paragraph = {
+		children: [],
+		direction: null,
+		format: "",
+		indent: 0,
+		type: "paragraph",
+		version: 1,
+	};
+
+	const doc = {
+		id: "p1",
+		content: {
+			root: { ...EMPTY_RICH_TEXT.root, children: [paragraph, paragraph] },
+		},
+		title: "Post",
+	};
+
+	const remove = (path: string) =>
+		applyPatchOperations(config, {
+			doc,
+			patches: [{ op: "remove", path }],
+			ref: { kind: "collection", slug: "posts" },
+		});
+
+	it("removes a node, which is a list element like any other", () => {
+		const applied = remove("/content/root/children/0");
+
+		expect(applied).not.toHaveProperty("problems");
+		expect(
+			(applied as { next: { content: { root: { children: unknown[] } } } }).next
+				.content.root.children,
+		).toHaveLength(1);
+	});
+
+	it("refuses a node property, because the node needs it", () => {
+		expect(remove("/content/root/children/0/indent")).toEqual({
+			problems: [
+				expect.stringContaining(
+					'is a node property, not a list element. A "paragraph" node needs it',
+				),
+			],
+		});
+	});
+
+	it("refuses the structure a state is made of, and says why", () => {
+		expect(remove("/content/root/children")).toEqual({
+			problems: [
+				expect.stringContaining(
+					"sits inside an editor state, which is written whole, so removing it would take effect",
+				),
+			],
+		});
+	});
+
+	it("gives a node's own field the reason that applies inside a state", () => {
+		const withLink = {
+			id: "p1",
+			content: {
+				root: {
+					...EMPTY_RICH_TEXT.root,
+					children: [
+						{
+							children: [],
+							direction: "ltr",
+							fields: { linkType: "custom", newTab: false, url: "/x" },
+							format: "",
+							indent: 0,
+							type: "link",
+							version: 3,
+						},
+					],
+				},
+			},
+			title: "Post",
+		};
+
+		expect(
+			applyPatchOperations(config, {
+				doc: withLink,
+				patches: [
+					{ op: "remove", path: "/content/root/children/0/fields/url" },
+				],
+				ref: { kind: "collection", slug: "posts" },
+			}),
+		).toEqual({
+			problems: [expect.stringContaining("sits inside an editor state")],
+		});
+	});
+
+	it("refuses removing the only node, which empties the state", () => {
+		const single = {
+			id: "p1",
+			content: { root: { ...EMPTY_RICH_TEXT.root, children: [paragraph] } },
+			title: "Post",
+		};
+
+		expect(
+			applyPatchOperations(config, {
+				doc: single,
+				patches: [{ op: "remove", path: "/content/root/children/0" }],
+				ref: { kind: "collection", slug: "posts" },
+			}),
+		).toEqual({
+			problems: [expect.stringContaining("needs at least one node")],
+		});
+	});
+
+	it("still refuses a plain field with the reason that applies to it", () => {
+		expect(remove("/title")).toEqual({
+			problems: [expect.stringContaining("removing it would do nothing")],
+		});
 	});
 });
