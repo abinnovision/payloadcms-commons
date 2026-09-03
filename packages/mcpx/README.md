@@ -1,40 +1,21 @@
 # @abinnovision/payloadcms-mcpx
 
-A Payload CMS plugin that mounts an MCP (Model Context Protocol) server whose
-tool surface stays small and accurate regardless of the size of the content
-model.
+A Payload CMS plugin that mounts an MCP (Model Context Protocol) server over the
+content model. The tool surface stays fixed at eight tools plus your own,
+whatever the size of that model.
 
-Instead of generating one tool per collection with the full document schema
-inlined, the plugin types its surface in three layers. Tool signatures are small
-and static: collection slugs, locales and operations as enums, everything else
-scalars. Field shapes are pulled on demand through `describeSchema`, one node at
-a time, stopping at every blocks boundary. And every write is resolved
-server-side against the real config and the real document, so an unknown field,
-a misplaced block or an unusable rich text node comes back refused, with the
-valid alternatives listed rather than quietly dropped.
+- Field shapes are pulled on demand through `describeSchema`, one node at a
+  time, rather than inlined into tool signatures. Adding a collection changes an
+  enum, never the tool list.
+- Writes are RFC 6902 patches resolved server-side against the real config and
+  the real document. An unknown field, a misplaced block or an unusable rich
+  text node comes back refused, with the valid alternatives listed.
+- Every write lands as a draft unless the config says otherwise, and reports the
+  publish blockers still standing between that draft and a publish.
+- Capabilities are declared twice. The plugin config decides what can exist, a
+  checkbox on each API key decides what does, and a missing checkbox reads as no.
 
-Writes are RFC 6902 patches that land as drafts, and every write returns the
-publish blockers still standing between that draft and a publish. One config
-axis decides how far a write reaches. `write: "draft"` never changes live
-content. `write: "live"` does, by exposing `publishDocument` where versions
-exist and by permitting the write at all where they do not. Capabilities are
-declared twice: the plugin config decides what can exist, a checkbox on each API
-key decides what does, and a missing checkbox reads as no (fail-closed).
-
-## Contents
-
-- [Quick start](#quick-start)
-- [Configuration](#configuration)
-- [Tools](#tools)
-- [Globals](#globals)
-- [API keys](#api-keys)
-- [Drafts and publishing](#drafts-and-publishing)
-- [Custom tools](#custom-tools)
-- [How it is enforced](#how-it-is-enforced)
-- [Security notes](#security-notes)
-- [Non-goals of v1 / roadmap](#non-goals-of-v1--roadmap)
-
-## Quick start
+## Install
 
 ```bash
 yarn add @abinnovision/payloadcms-mcpx
@@ -46,8 +27,10 @@ yarn add @abinnovision/payloadcms-mcpx
   `apiKeys.setupGuide: false`.
 - The package is published as ESM only, matching Payload itself.
 
-Add the plugin and name the collections and globals it may reach. Nothing is
-exposed that is not listed here:
+## Usage
+
+Name the collections and globals the plugin may reach. Nothing outside this list
+is exposed:
 
 ```ts
 import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
@@ -63,7 +46,7 @@ export default buildConfig({
         tags: true, // shorthand for { read: true }
       },
       globals: {
-        "site-settings": { read: true, write: "draft" },
+        "site-settings": { read: true, write: "live" },
       },
       limits: { maxLimit: 25, maxDepth: 1 },
     }),
@@ -73,16 +56,16 @@ export default buildConfig({
 
 The plugin adds:
 
-- a `POST /api/mcpx` endpoint speaking MCP over streamable HTTP (stateless,
-  JSON responses; `GET`/`DELETE` answer 405),
-- an `mcpx-api-keys` collection (admin group "MCP") holding the keys and their
-  capability checkboxes,
+- a `POST /api/mcpx` endpoint speaking MCP over streamable HTTP (stateless, JSON
+  responses; `GET` and `DELETE` answer 405),
+- an `mcpx-api-keys` collection under the admin group "MCP", holding the keys
+  and their capability checkboxes,
 - a draft guard on every collection and global, so any write carrying the MCP
-  request marker lands as a draft, including writes made by custom tools.
+  request marker lands as a draft, custom tools included.
 
-Then create a key in the admin panel under MCP > API Keys, tick the capabilities
-it should have, and copy the plaintext key shown after saving. Checkboxes
-default to off, so a fresh key can do nothing until you say otherwise. See
+Create a key in the admin panel under MCP > API Keys, tick the capabilities it
+should have, and copy the plaintext key shown after saving. Checkboxes default
+to off, so a fresh key can do nothing until you say otherwise. See
 [API keys](#api-keys) for what a key is and is not.
 
 Then point a client at the endpoint, passing the key as a bearer token:
@@ -100,7 +83,8 @@ claude mcp add --transport http payload http://localhost:3000/api/mcpx \
 	--header "Authorization: Bearer <key>"
 ```
 
-Claude Desktop (no direct HTTP header support) via `mcp-remote`:
+Claude Desktop has no direct HTTP header support, so it goes through
+`mcp-remote`:
 
 ```json
 {
@@ -119,26 +103,28 @@ Claude Desktop (no direct HTTP header support) via `mcp-remote`:
 }
 ```
 
-## Configuration
+## Options
 
-| Option                       | Default                        | Description                                                       |
-| ---------------------------- | ------------------------------ | ----------------------------------------------------------------- |
-| `collections`                | required                       | Allow-list. `true` means `{ read: true }`.                        |
-| `collections.<slug>.read`    | `true`                         | Expose `describeSchema`, `findDocuments`, `getDocument`.          |
-| `collections.<slug>.write`   | `false`                        | `"draft"` or `"live"`. See below.                                 |
-| `globals`                    | `{}`                           | Allow-list of globals. `true` means `{ read: true }`.             |
-| `globals.<slug>.read`        | `true`                         | Expose `describeSchema`, `getDocument`.                           |
-| `globals.<slug>.write`       | `false`                        | `"draft"` or `"live"`. See below.                                 |
-| `userCollection`             | `config.admin.user` or `users` | Auth collection the keys act as.                                  |
-| `apiKeys.slug`               | `mcpx-api-keys`                | Slug of the generated key collection.                             |
-| `apiKeys.setupGuide`         | `true`                         | Add a "Connect a client" tab to saved keys. Needs the import map. |
-| `apiKeys.overrideCollection` | none                           | Final override applied to the generated collection.               |
-| `endpoint.path`              | `/mcpx`                        | Endpoint path below the API route.                                |
-| `limits.maxLimit`            | `25`                           | Upper bound for `findDocuments.limit`.                            |
-| `limits.maxDepth`            | `1`                            | Upper bound for `depth` on reads.                                 |
-| `tools`                      | `[]`                           | Custom tools, defined the same way as the builtins.               |
-| `auth.resolve`               | none                           | Replace or wrap the default key resolution.                       |
-| `serverInfo`                 | package name and version       | Reported to MCP clients.                                          |
+| Option                       | Type                                        | Default                                   | Description                                                       |
+| ---------------------------- | ------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------- |
+| `collections`                | `Record<slug, options \| true>`             | required                                  | Allow-list. `true` means `{ read: true }`.                        |
+| `collections.<slug>.read`    | `boolean`                                   | `true`                                    | Expose `describeSchema`, `findDocuments`, `getDocument`.          |
+| `collections.<slug>.write`   | `"draft" \| "live" \| false`                | `false`                                   | How far writes reach. See below.                                  |
+| `globals`                    | `Record<slug, options \| true>`             | `{}`                                      | Allow-list of globals. `true` means `{ read: true }`.             |
+| `globals.<slug>.read`        | `boolean`                                   | `true`                                    | Expose `describeSchema`, `getDocument`.                           |
+| `globals.<slug>.write`       | `"draft" \| "live" \| false`                | `false`                                   | How far writes reach. See below.                                  |
+| `userCollection`             | `string`                                    | `config.admin.user`, then `users`         | Auth collection the keys act as.                                  |
+| `apiKeys.slug`               | `string`                                    | `mcpx-api-keys`                           | Slug of the generated key collection.                             |
+| `apiKeys.setupGuide`         | `boolean`                                   | `true`                                    | Add a "Connect a client" tab to saved keys. Needs the import map. |
+| `apiKeys.overrideCollection` | `(c: CollectionConfig) => CollectionConfig` | —                                         | Final override applied to the generated collection.               |
+| `endpoint.path`              | `string`                                    | `/mcpx`                                   | Endpoint path below the API route.                                |
+| `limits.maxLimit`            | `number`                                    | `25`                                      | Upper bound for `findDocuments.limit`.                            |
+| `limits.maxDepth`            | `number`                                    | `1`                                       | Upper bound for `depth` on reads.                                 |
+| `tools`                      | `McpxTool[]`                                | `[]`                                      | Custom tools, defined the same way as the builtins.               |
+| `auth.resolve`               | `(args) => Promise<McpxAuthResult \| null>` | —                                         | Replace or wrap the default key resolution.                       |
+| `serverInfo`                 | `{ name?, version? }`                       | `payloadcms-mcpx` and the package version | Reported to MCP clients.                                          |
+
+### Write modes
 
 `write` is one axis: how far MCP writes to this entity reach.
 
@@ -151,163 +137,147 @@ Claude Desktop (no direct HTTP header support) via `mcp-remote`:
 `"live"` is the only way an MCP write reaches live content, whichever of the two
 shapes it takes. Wherever it is set, the server instructions and the
 `patchDocument` and `createDocument` descriptions name those slugs for the key in
-question, so a client is never told its writes are drafts while they are not,
-nor that publishing is out of reach when it is not.
+question, so a client is never told its writes are drafts while they are not.
 
-Migrating from the previous option shape: `write: true` becomes
-`write: "draft"`, and `write: true` with `allowLiveWrites: true` becomes
-`write: "live"`. A versioned entity moved to `write: "live"` gains a `publish`
-checkbox on every key, unticked, so nothing publishes until someone says so.
+### Upload collections
 
 An upload collection may be exposed for write. `patchDocument` and
 `validateDocument` reach it, and `publishDocument` under the same `write:
 "live"` rule as anywhere else, so an agent can edit the fields the collection
-declares itself, such as `alt` or a credit. Its base fields (`filename`, `url`,
-`filesize`, `sizes`, the focal point) are neither described nor writable, and
-`createDocument` leaves the slug out of its `collection` enum and says why in
-its description: a create there would have to carry the file, and no tool does.
-Upload the file in the admin panel first.
+declares itself, such as `alt` or a credit.
 
-Misconfiguration (unknown slugs, `write: "draft"` on a collection without
-drafts, tool name collisions) fails at startup with `InvalidConfiguration`. So
-does `write: "live"` on an entity using `versions.drafts.localizeStatus`, which
-is not supported yet. Auth collections cannot be exposed at all, read included:
-their documents carry credentials, such as the decrypted Payload API key of
-every user.
+Its base fields (`filename`, `url`, `filesize`, `sizes`, the focal point) are
+neither described nor writable. `createDocument` leaves the slug out of its
+`collection` enum and says why in its description: a create there would have to
+carry the file, and no tool does. Upload the file in the admin panel first.
+
+### Startup validation
+
+Misconfiguration fails at startup with `InvalidConfiguration`: unknown slugs,
+`write: "draft"` on a collection without drafts, `write` on a collection with
+`timestamps: false`, tool name collisions, and `write: "live"` on an entity
+using `versions.drafts.localizeStatus`, which is not supported yet.
+
+Auth collections cannot be exposed at all, read included. Their documents carry
+credentials, such as the decrypted Payload API key of every user.
 
 ## Tools
 
-The surface is fixed at eight tools plus your custom ones; exposing a global
-adds an argument, never a tool. `tools/list` reflects the key: write tools
-disappear for read-only keys, and every `collection` and `global` enum contains
-only the slugs the key may touch.
+`tools/list` reflects the key: write tools disappear for read-only keys, and
+every `collection` and `global` enum contains only the slugs the key may touch.
+Builtin tools reject unknown arguments by name instead of silently ignoring
+them.
 
 | Tool               | Purpose                                                                  | Key arguments                                                                                |
 | ------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | `listCapabilities` | What this key may do, `create` apart from `write`; call first to orient. | none                                                                                         |
 | `describeSchema`   | Field shape of one node; `next` lists the drill-down paths.              | `collection` \| `global`, `paths?`, `expand?`                                                |
 | `findDocuments`    | Query documents.                                                         | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?` |
-| `getDocument`      | Read one document or a subtree of it.                                    | `collection` + `id` \| `global`, `path?` (JSON pointer), `depth?`, `locale?`, `draft?`       |
+| `getDocument`      | Read one document or a subtree of it.                                    | `collection` + `id` \| `global`, `path?`, `depth?`, `locale?`, `draft?`, `outline?`          |
 | `patchDocument`    | Apply RFC 6902 operations to the current draft.                          | `collection` + `id` \| `global`, `locale`, `patches`, `expectedUpdatedAt?`                   |
 | `createDocument`   | Create a draft from a minimal seed. Not for upload collections.          | `collection`, `locale`, `data`                                                               |
 | `validateDocument` | Publish blockers without saving anything.                                | `collection` + `id` \| `global`, `locale`                                                    |
 | `publishDocument`  | Publish the current draft.                                               | `collection` + `id` \| `global`, `expectedUpdatedAt?`                                        |
 
-Rules the tools enforce and explain in their own descriptions:
+### Paths and pointers
 
-- `describeSchema` paths stop at blocks fields, which list the block slugs they
-  accept; every node carries `next`, the ready-to-use paths for those blocks
+Every path this plugin accepts or reports is a JSON Pointer. A schema path and a
+pointer into a document differ only in what stands in an element position: a
+schema path writes `*` for an array element and names a block by its slug, where
+a pointer carries a 0-based index. So `/items/*/title` is written at
+`/items/0/title`, and `/layout/sections/hero` at `/layout/sections/0`.
+
+Inside a rich text field that substitution does not apply, because an editor
+state is a tree rather than a list per type. A path there names the node type,
+and a block node its slug. A pointer enters the state at `root` and walks
+`children` by an index counted over every child at that level, with the node's
+own fields under `fields`. So the path `/content/block/practice-note/variant` is
+written at the pointer `/content/root/children/7/fields/variant`, and only the
+stored state says which index that is. `getDocument` with `outline` answers
+that.
+
+### Reading the schema
+
+- Paths stop at blocks fields, which list the block slugs they accept. Every
+  node carries `next`, the ready-to-use paths for those blocks
   (`/layout/sections/sectionWrapper`), so pass an entry of `next` as a `paths`
   element to descend. A block is described as it exists at that position.
-- Rich text paths continue the same way. A `richText` field lists the Lexical
-  node types it accepts in `nodes`, and `next` carries a path for every node
-  type that holds fields of its own: `/content/link` for a link node,
-  `/content/block/callout` and `/content/inlineBlock/badge` for the block
-  nodes. Descending returns the real field list, so a link extended through
-  `LinkFeature({ fields })` and a Lexical block are both described rather than
-  guessed. Any feature declaring `getSubFields` is picked up, custom ones
-  included. `upload` nodes are the exception: their fields depend on the
-  collection the node points at, so they are not addressable.
-- A field marked `admin.hidden` is not described and cannot be written. Payload
-  keeps such a field out of the admin panel only, and this is where the plugin
-  parts from it: kept from an editor means kept from a client. It is also what
-  keeps the base fields of an upload collection off the surface.
-- Constraints a field declares travel with it: `minRows`/`maxRows` on arrays
-  and blocks fields, `maxLength`/`minLength` on text, `min`/`max` on numbers.
-  An array is described in its own right, so the `*` in `/items/*/title` has
-  something to read; a group or named tab only when it declares a description
-  or a constraint of its own.
-- A `richText` field also reports `nodeOptions`, the node properties its editor
-  narrows. An editor built with `HeadingFeature({ enabledHeadingSizes: ["h4"] })`
-  answers `{ "heading": { "tag": ["h4"] } }`, and a write carrying any other
-  heading tag is refused. Lexical stores whatever tag it is given, so this is
-  the only place the restriction is checked.
-- A Lexical node must be written the way Lexical serializes it, and carry the
-  values Lexical would have written. The admin editor rehydrates nodes through
-  their classes, so a list item whose `indent` is absent, `null` or `"0"` throws
-  when the document is opened, and a heading whose `tag` is `3` comes back
-  untagged, none of which Payload notices on write. A write breaking either is
-  refused, and the message names the property and what belongs there.
-- Those requirements are also published, so a node can be built without being
-  corrected into shape first. A `describeSchema` response that reached a
-  `richText` field ends with a `nodeProperties` entry stating what each node
-  type has to carry, in the same words the refusal uses:
+- A field marked `admin.hidden` is neither described nor writable. Payload keeps
+  such a field out of the admin panel only, where this plugin keeps it from the
+  client as well.
+- Constraints a field declares travel with it: `minRows` and `maxRows` on arrays
+  and blocks fields, `maxLength` and `minLength` on text, `min` and `max` on
+  numbers. An array is described in its own right, so the `*` in `/items/*/title`
+  has something to read. A group or named tab is described only when it declares
+  a description or a constraint of its own.
+- Field and collection `admin.description` values reach `describeSchema` and
+  `listCapabilities`, so intent written for the admin panel reaches the client. A
+  locale-keyed record resolves to one string for the request's language, falling
+  back to the deployment's fallback language and then to the record's first
+  entry. Functions and components are dropped.
 
-  ```json
-  {
-    "text": {
-      "detail": "a number",
-      "format": "a number",
-      "mode": "a string",
-      "style": "a string",
-      "text": "a string",
-      "type": "a string",
-      "version": "a number"
-    }
-  }
-  ```
+### Patching
 
-  It is keyed by node type and stated once for the whole response, because what
-  a node carries does not vary by where it is written; the field's own `nodes`
-  says which of those types it accepts. The listing is read off the same tables
-  the validator checks against, so the two cannot drift apart.
-
-- A rich text field's value is addressable, so a small edit does not have to
-  rewrite the whole state. `/content/root/children/2` is a node,
-  `/content/root/children/2/tag` one of its properties, and
-  `/content/root/children/2/fields/url` a field the node carries, resolved
-  through the same node schema `describeSchema` publishes. A node written at a
-  position is held to exactly what a node inside a whole state is held to. The
-  root and a node's `type` cannot be replaced on their own, and a node property
-  cannot be removed, because a node needs it.
-- Node positions shift the moment anything is added or removed, and a text or
-  paragraph node carries no id to fall back on. `getDocument` with `outline`
-  answers with one line per node, its pointer, its `version` and an excerpt, so
-  a position can be chosen and a complete node written without holding the
-  whole state. `expectedUpdatedAt` still guards the document, and a `test`
-  operation on a node's `type` guards the position.
-- A state whose root holds nothing is refused, however it is written. Lexical
-  reads such a state as empty and throws rather than rendering it, so neither a
-  whole-field write of one, nor emptying the node list, nor removing the last
-  node is allowed. An empty field is stored as null instead.
-- Where Payload states the shape itself, that statement is what is enforced: its
-  `outputSchema` declares `version` required on every node, and gives the root
-  exactly `children`, `direction`, `format`, `indent`, `type` and `version`, so
-  an unknown property on the root is refused too. Payload declares nothing per
-  node type, so the rest is measured against the node classes
-  `@payloadcms/richtext-lexical` ships. Both halves are pinned by
-  `src/schema/lexical.spec.ts` rather than assumed.
-- Field and collection `admin.description` values are included in
-  `describeSchema` and `listCapabilities`, so intent written for the admin
-  panel reaches the client. A locale-keyed record is resolved to one string for
-  the request's language, falling back to the deployment's fallback language and
-  then to the record's first entry; functions and components are dropped.
-- Builtin tools reject unknown arguments by name instead of silently ignoring
-  them.
-- Every path this plugin accepts or reports is a JSON Pointer. A schema path
-  and a pointer into a document differ only in what stands in an element
-  position: a schema path writes `*` for an array element and names a block by
-  its slug, where a pointer carries a 0-based index. So `/items/*/title` is
-  written at `/items/0/title`, and `/layout/sections/hero` at
-  `/layout/sections/0`.
-- Inside a rich text field that substitution does not apply, because an editor
-  state is a tree rather than a list per type. A path there names the node type,
-  and a block node its slug; a pointer enters the state at `root` and walks
-  `children` by an index counted over every child at that level, not over the
-  blocks among them, with the node's own fields under `fields`. So the path
-  `/content/block/practice-note/variant` is written at the pointer
-  `/content/root/children/7/fields/variant`, and only the stored state says
-  which index that is. `getDocument` with `outline` answers that.
-- Adding a block requires `blockType` on the value; append with `/-`.
-- Clearing is `replace` with `null`; a list is emptied with `[]` and refuses
-  `null`. `remove` is only valid on list elements, because Payload keeps
-  fields absent from a write.
+- Adding a block requires `blockType` on the value. Append with `/-`.
+- Clearing is `replace` with `null`. A list is emptied with `[]` and refuses
+  `null`. `remove` is only valid on list elements, because Payload keeps fields
+  absent from a write.
 - Nothing in a patch batch is applied unless every operation validates first.
 - Pass the `updatedAt` you read as `expectedUpdatedAt` so a concurrent edit is
   refused instead of overwritten.
 - Fields Payload maintains (`id`, `_status`, `createdAt`, `updatedAt`,
-  `deletedAt`) are never listed and never writable; `readOnly` fields are
-  listed but refused on write.
+  `deletedAt`) are never listed and never writable. `readOnly` fields are listed
+  but refused on write.
+
+### Rich text
+
+A `richText` field lists the Lexical node types it accepts in `nodes`, and
+`next` carries a path for every node type that holds fields of its own:
+`/content/link` for a link node, `/content/block/callout` and
+`/content/inlineBlock/badge` for the block nodes. Descending returns the real
+field list. `upload` nodes are the exception, since their fields depend on the
+collection the node points at, so they are not addressable.
+
+A field also reports `nodeOptions`, the node properties its editor narrows. An
+editor built with `HeadingFeature({ enabledHeadingSizes: ["h4"] })` answers
+`{ "heading": { "tag": ["h4"] } }`, and a write carrying any other heading tag is
+refused. Lexical stores whatever tag it is given, so this is the only place the
+restriction is checked.
+
+A node must be written the way Lexical serializes it, carrying the values
+Lexical would have written. Payload does not check that on write, so this plugin
+does, and the refusal names the property and what belongs there. A
+`describeSchema` response that reached a `richText` field ends with a
+`nodeProperties` entry stating what each node type has to carry, keyed by node
+type and in the same words the refusal uses. Its `text` entry reads:
+
+```json
+{
+  "detail": "a number",
+  "format": "a number",
+  "mode": "a string",
+  "style": "a string",
+  "text": "a string",
+  "type": "a string",
+  "version": "a number"
+}
+```
+
+A field's value is addressable, so a small edit does not have to rewrite the
+whole state. `/content/root/children/2` is a node,
+`/content/root/children/2/tag` one of its properties, and
+`/content/root/children/2/fields/url` a field the node carries. The root and a
+node's `type` cannot be replaced on their own, and a node property cannot be
+removed. A state whose root holds nothing is refused however it is written,
+since Lexical reads it as empty and throws rather than rendering it; an empty
+field is stored as null instead.
+
+Node positions shift the moment anything is added or removed, and a text or
+paragraph node carries no id to fall back on. `getDocument` with `outline`
+answers with one line per node, its pointer, its `version` and an excerpt, so a
+position can be chosen without holding the whole state. `expectedUpdatedAt`
+still guards the document, and a `test` operation on a node's `type` guards the
+position.
 
 ## Globals
 
@@ -316,38 +286,31 @@ tools rather than tools of its own:
 
 ```ts
 mcpxPlugin({
-  collections: { pages: { read: true, write: true } },
-  globals: { "site-settings": { read: true, write: true } },
+  collections: { pages: { read: true, write: "draft" } },
+  globals: { "site-settings": { read: true, write: "draft" } },
 });
 ```
 
-Two rules follow from a global being a singleton, and because JSON Schema cannot
-state either one, both are enforced in the handler and repeated in every
-affected tool description:
+Two rules follow from a global being a singleton. JSON Schema cannot state
+either one, so both are enforced in the handler and repeated in every affected
+tool description:
 
 - Pass exactly **one** of `collection` and `global`.
 - `id` is required with `collection` and must be omitted with `global`.
 
 Refusals name the offending argument and the slug, so one failed call teaches
-the rule. `findDocuments` and `createDocument` stay collection-only: there is
-nothing to list and nothing to create when the document always exists. They
+the rule. `findDocuments` and `createDocument` stay collection-only, since there
+is nothing to list and nothing to create when the document always exists. They
 reject a `global` argument by name.
 
 Globals get their own `capabilities.globals.<name>` checkbox group, a separate
 namespace from `capabilities.collections.<name>`, so a global may share a
-camelCase name with a collection. Keys issued before a global was exposed have
-no such group, and an absent checkbox reads as `false`, so they stay closed to
-every global until one is ticked.
+camelCase name with a collection.
 
-Globals always carry `updatedAt`, because Payload appends it and there is no
-`timestamps: false` for globals, so `expectedUpdatedAt` behaves as it does for
-collections. The one exception is a global that has never been saved: it has no
-`updatedAt` to compare against, so the first write must omit
+`expectedUpdatedAt` behaves as it does for collections, since Payload appends
+`updatedAt` to every global. The exception is a global that has never been
+saved: it has no `updatedAt` to compare against, so the first write must omit
 `expectedUpdatedAt`, and supplying one is refused as a concurrency failure.
-
-If `tools/list` omits `global` entirely, no global is exposed to that key; the
-argument only appears once one is. A deployment that uses no globals sees the
-tool schemas exactly as they were.
 
 ## API keys
 
@@ -355,31 +318,30 @@ Keys are created in the admin panel under MCP > API Keys. The plaintext key is
 generated on create, stored encrypted with an HMAC index for lookup, and shown
 to anyone who may read the key document (own keys only, by default). Each key:
 
-- is bound to the user who created it and acts as that user: every operation
+- is bound to the user who created it and acts as that user. Every operation
   runs with `req.user` set to the linked user and `overrideAccess: false`, so
   your collection access control applies unchanged;
-- carries one checkbox per exposed collection and operation, plus one per
-  custom tool. All checkboxes default to off. A key can never enable an
-  operation the plugin config does not expose, and keys created before a
-  capability existed stay without it. The `publish` checkbox only exists where
-  a versioned entity is configured `write: "live"`, so a key issued before
-  publishing was possible stays closed to it, and it counts only alongside
-  `write`: publishing is an extension of writing, not a capability of its own.
+- carries one checkbox per exposed collection and operation, plus one per custom
+  tool. All checkboxes default to off. A key can never enable an operation the
+  plugin config does not expose, and keys created before a capability existed
+  stay without it. The `publish` checkbox only exists where a versioned entity
+  is configured `write: "live"`, and it counts only alongside `write`, since
+  publishing is an extension of writing.
 
 Keys authenticate only the MCP endpoint. They are deliberately not a Payload
-auth strategy, so a key can never authenticate the REST or GraphQL API; the
+auth strategy, so a key can never authenticate the REST or GraphQL API. The
 reverse also holds: an admin session or JWT is ignored by the MCP endpoint.
 
-Use `apiKeys.overrideCollection` to widen access (for example, admins manage
-all keys) or add fields.
+Use `apiKeys.overrideCollection` to widen access (for example, admins manage all
+keys) or add fields.
 
 ### The "Connect a client" tab
 
 Saved keys carry a **Connect a client** tab in the admin holding the client
-snippets from [Quick start](#quick-start) with their own URL and key filled in,
-each block behind a copy button. The tab only exists once the key does, so the create form stays free of
-it. Turn it off with `apiKeys.setupGuide: false`, which also drops the tabs and
-restores the flat form.
+snippets from [Usage](#usage) with their own URL and key filled in, each block
+behind a copy button. The tab only exists once the key does, so the create form
+stays free of it. Turn it off with `apiKeys.setupGuide: false`, which also drops
+the tabs and restores the flat form.
 
 The tab renders an admin component, so it has to be in the import map:
 
@@ -394,21 +356,18 @@ the config sets one and from the browser's origin otherwise.
 ## Drafts and publishing
 
 Every MCP write lands as a draft. That is enforced on the Payload operation
-rather than in the tool handlers, so a custom tool writing through the same
-request is covered as well; see [How it is enforced](#how-it-is-enforced) for
-the mechanism.
+rather than in the tool handlers, through a `beforeOperation` hook that forces
+`draft: true` and a `beforeChange` hook that refuses any write which would still
+not land as a draft. Both are installed on every collection and global, so a
+custom tool writing through the same request is covered as well.
 
-`publishDocument` is the one way through. Publishing covers the whole document,
-as the admin Publish button does, but Payload only validates the locale the
-publish runs in. A required field left empty in another locale therefore goes
-live empty. That is Payload's behaviour, not something this plugin adds.
-`publishDocument` refuses a document that fails validation and reports
-`validationErrors` with JSON Pointers. It is refused while a human holds the
-document open in the admin panel, and republishing an unchanged document is
-accepted but writes another version.
-
-There is no unpublish tool. Reverting a published document to a draft stays a
-human action.
+`publishDocument` is the one way through. It refuses a document that fails
+validation, and is refused while a human holds the document open in the admin
+panel. Publishing covers the whole document, as the admin Publish button does,
+but Payload only validates the locale the publish runs in, so a required field
+left empty in another locale goes live empty. That is Payload's behaviour, not
+something this plugin adds. There is no unpublish tool: reverting a published
+document to a draft stays a human action.
 
 Publish blockers are advisory. Payload skips validation on draft saves (unless
 `versions.drafts.validate` is set), so after every write the plugin re-runs
@@ -416,17 +375,18 @@ Payload's own field validation over the saved draft and returns the failures as
 `publishBlockers` with paths and labels. The write stands; the client gets a
 checklist of what remains. Collections with `versions.drafts.validate: true`
 refuse invalid drafts outright, and those failures come back as
-`validationErrors` instead. Both carry pointers, restated from the dotted paths
-Payload reports internally.
+`validationErrors` instead. Both carry pointers.
 
-`publishBlockersUnavailable` marks a check that could not complete, which is not
-the same answer as a document with nothing wrong with it. `validateDocument`
-runs the same traversal without saving anything, so it is not free of side
-effects: field `beforeValidate` and `beforeChange` hooks run, and it carries no
-`readOnlyHint` for that reason.
+`publishBlockersUnavailable` marks a check that could not complete, which is a
+different answer from a document with nothing wrong with it. Writes also report
+`notApplied`: pointers whose value Payload kept unchanged, which happens when
+field-level access denies the update.
 
-Writes also report `notApplied`: pointers whose value Payload kept unchanged,
-which happens when field-level access denies the update.
+Three limits apply to that check. Only the written locale is validated. Field
+`beforeChange` hooks run again during it, so they must be pure. And it runs
+privileged, so blocker paths and messages may name fields the key's user cannot
+read, though values are never included. `validateDocument` runs the same
+traversal without saving anything, which is why it carries no `readOnlyHint`.
 
 ## Custom tools
 
@@ -454,18 +414,17 @@ const publishQueue = defineMcpxTool({
 });
 ```
 
-Each custom tool gets its own checkbox on every API key, default off.
-
 Custom tools take the same route as the builtins: one `McpxTool` shape, one
-registration loop. Anything a builtin does, a custom tool can do.
+registration loop. Each gets its own checkbox on every API key, default off.
 
 `handler` receives `scope` alongside `args`, `req` and `extra`. The scope
 carries what the key may touch (`readable`, `writable`, `publishable`,
 `readableGlobals`, `writableGlobals`, `publishableGlobals`), the configured
-locales, the limits in force and the exposed collections and globals. `req` is shorthand for `scope.req`.
+locales, the limits in force and the exposed collections and globals. `req` is
+shorthand for `scope.req`.
 
-`inputSchema` may be a function of that scope instead of a fixed shape, which
-is how a tool narrows an enum to what the key may read:
+`inputSchema` may be a function of that scope instead of a fixed shape, which is
+how a tool narrows an enum to what the key may read:
 
 ```ts
 import { defineMcpxTool } from "@abinnovision/payloadcms-mcpx";
@@ -486,91 +445,43 @@ const whichCollection = defineMcpxTool({
 });
 ```
 
-`defineMcpxTool` defines every tool, builtin ones included, and infers the
-handler's arguments from the input schema either way: from a fixed shape, or
-from the object literal a per-request shape returns. Above, `args` is
-`{ collection: string }` without being told.
-
-Inference reaches as far as the shape's static type. A helper returning
-`z.ZodRawShape` erases that type and leaves `args` as
-`Record<string, unknown>`, so the builtins' shape helpers declare the superset
-they produce instead: which keys a helper emits depends on the key's scope,
-and the declared type states what a handler must cope with across every scope.
-Their arguments stay derived from their schema that way, and cannot drift from
-it. If your own helpers erase, state the arguments as a type argument:
-`defineMcpxTool<Args>({ ... })`.
+`defineMcpxTool` infers the handler's arguments from the input schema either
+way, so `args` above is `{ collection: string }` without being told. Inference
+reaches as far as the shape's static type, so a helper returning `z.ZodRawShape`
+leaves `args` as `Record<string, unknown>`. Where that happens, state the
+arguments as a type argument: `defineMcpxTool<Args>({ ... })`.
 
 `isEnabled` decides whether the tool is registered for this key at all: a tool
-that is not enabled never appears in `tools/list`. It defaults to the tool's
-own checkbox, which is what the builtins replace to derive their availability
-from the key's collection and global capabilities. Defining it **replaces**
-the checkbox check, so restate `scope.capabilities.tools[name]` when you still
-want it, as above.
+that is not enabled never appears in `tools/list`. It defaults to the tool's own
+checkbox, and defining it **replaces** that check, so restate
+`scope.capabilities.tools[name]` when you still want it, as above.
 
 Every input schema is registered strictly, custom tools included: an unknown
 argument is rejected by name rather than stripped before the handler runs.
 
-`jsonResult` and `errorResult` are exported so a custom tool can return
-results shaped like a builtin's.
+`jsonResult` and `errorResult` are exported so a custom tool can return results
+shaped like a builtin's. `isMcpxRequest(req)` lets your own hooks tell an
+MCP-originated write from any other.
 
-## How it is enforced
-
-Draft-only writing sits on the Payload operation, not in the tool handlers. A
-`beforeOperation` hook forces `draft: true` and strips `_status` from every
-write carrying the MCP request marker, so custom tools and anything else writing
-through the same request are covered too. A `beforeChange` hook then refuses any
-write that would still not land as a draft.
-
-The two hooks are not equally load-bearing on both sides. `updateGlobal` reads
-`draft` and the publish arguments off its argument bag _before_ it runs
-`beforeOperation`, and re-reads only `data` afterwards, so for a global the
-correction cannot apply and the `beforeChange` refusal is what actually holds
-the line. Both are installed on every collection and global, exposed or not.
-
-`publishDocument` opens the door for exactly one write: the tool marks that
-write's own `data` object, and the guard grants the publish only to a write
-carrying the mark. Nothing is scoped to a slug or an id because nothing else can
-reach it. A concurrent call in the same JSON-RPC batch has its own `data`, and
-so does a nested write from a hook during the publish.
-
-That distinction matters. The endpoint hands one `PayloadRequest` to every tool,
-and the transport dispatches the messages of a batch without awaiting each one,
-so an intent kept on the request would be reachable by a sibling `patchDocument`
-and would publish it instead. The mark is a string key holding a token minted
-per process, because Payload's copy of the write data keeps string keys and
-drops symbols, and a token cannot be forged by a client writing a field of the
-same name. None of this is a security boundary, since a custom tool holds the
-whole `payload` instance, but no ordinary write can widen itself into a publish.
-
-The publish-blocker check has three limits worth knowing. Only the written
-locale is validated. Field `beforeChange` hooks run again during the check, so
-they must be pure. And the check runs privileged, so blocker paths and messages
-may name fields the key's user cannot read, though values are never included.
-
-## Security notes
+## Security
 
 - Keys are stored encrypted; lookup is by HMAC-SHA256 index derived from
   `payload.secret`, the same scheme Payload uses for its own API keys.
-- The endpoint authenticates with Bearer keys only; admin JWTs and cookies are
-  ignored. Keys cannot authenticate REST or GraphQL.
+- The endpoint authenticates with Bearer keys only. Admin JWTs and cookies are
+  ignored, and keys cannot authenticate REST or GraphQL.
 - Every operation runs under the linked user with `overrideAccess: false`.
 - Payload has no separate publish permission: at its access layer, anyone who
   may update a document may publish it. The `publish` checkbox is this plugin's
   fence, not Payload's.
-- Not covered in v1: `delete` (no tool exists and none is generated), creating
-  upload documents and writing any file. Custom tools are trusted code and can
-  do what the linked user may.
+- Custom tools are trusted code and can do what the linked user may.
 
-How the draft and publish guarantees are enforced, and where they stop, is in
-[How it is enforced](#how-it-is-enforced).
-
-## Non-goals of v1 / roadmap
+## Non-goals
 
 Unpublishing, `versions.drafts.localizeStatus`, deletes, creating upload
 documents and any file handling, markdown authoring for rich text, schemas for
-`upload` node fields, row addressing by id instead of index,
-cross-locale publish blockers, pagination of `describeSchema` with `expand`,
-and a handler-level timeout are all deliberate omissions for now.
+`upload` node fields, row addressing by id instead of index, cross-locale
+publish blockers, pagination of `describeSchema` with `expand`, and a
+handler-level timeout are all deliberate omissions for now.
 
 ## License
 
