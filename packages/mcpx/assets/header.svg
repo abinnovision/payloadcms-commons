@@ -3,7 +3,7 @@
   <g>
     <text x="72" y="126" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#6B7079" letter-spacing="0.6">@abinnovision/</text>
     <text x="72" y="170" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="36" fill="#EDEDEF" letter-spacing="-0.4">payloadcms-mcpx</text>
-    <text x="72" y="202" font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#6B7079">A fixed MCP tool surface for Payload CMS</text>
+    <text x="72" y="202" font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#6B7079">An MCP server for actual large content models</text>
   </g>
   <g>
     <rect x="468" y="71" width="38" height="11" rx="3" fill="#33373E"/>
