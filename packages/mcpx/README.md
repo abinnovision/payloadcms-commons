@@ -463,26 +463,6 @@ argument is rejected by name rather than stripped before the handler runs.
 shaped like a builtin's. `isMcpxRequest(req)` lets your own hooks tell an
 MCP-originated write from any other.
 
-## Security
-
-- Keys are stored encrypted; lookup is by HMAC-SHA256 index derived from
-  `payload.secret`, the same scheme Payload uses for its own API keys.
-- The endpoint authenticates with Bearer keys only. Admin JWTs and cookies are
-  ignored, and keys cannot authenticate REST or GraphQL.
-- Every operation runs under the linked user with `overrideAccess: false`.
-- Payload has no separate publish permission: at its access layer, anyone who
-  may update a document may publish it. The `publish` checkbox is this plugin's
-  fence, not Payload's.
-- Custom tools are trusted code and can do what the linked user may.
-
-## Non-goals
-
-Unpublishing, `versions.drafts.localizeStatus`, deletes, creating upload
-documents and any file handling, markdown authoring for rich text, schemas for
-`upload` node fields, row addressing by id instead of index, cross-locale
-publish blockers, pagination of `describeSchema` with `expand`, and a
-handler-level timeout are all deliberate omissions for now.
-
 ## License
 
 Apache-2.0
