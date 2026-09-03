@@ -1,8 +1,8 @@
 # Recipes
 
-These are not montage features. Each is a small piece of your own code, built entirely on the
-public API in [`rendering.md`](./rendering.md). They are here because the package deliberately
-does not ship them (see [`limitations.md`](./limitations.md)), and to show that the boundary in
+These are not montage features. Each is a small piece of your own code, built on montage's public
+API and plain Payload. They are here because the package deliberately does not ship them (see
+[`limitations.md`](./limitations.md)), and to show that the boundary in
 [`concepts.md`](./concepts.md) is a usable one, not just a small one. Every example below is a
 real, tested fixture in this package's own test suite.
 
@@ -142,3 +142,61 @@ const meta = renderer.getBlockData(ctx, root);
 
 Share `root` and `ctx` between `generateMetadata` and the page render (via `React.cache()`, for
 example), so the root's resolver runs once per request rather than twice.
+
+## Checking the config against the registry
+
+Montage registers blocks in `config.blocks` and dispatches them from a separate registry. Nothing
+cross-checks the two at runtime: linking them would mean importing the registry, and the React
+components it holds, into the graph `payload.config.ts` loads. `defineBlockRegistry`'s `require`
+narrows this, but you maintain that list by hand.
+
+You can derive it instead. Keep the literal slug on each block config with `as const satisfies
+Block`. A `: Block` annotation widens `slug` to `string`, and the derivation stops working:
+
+```ts
+// blocks.ts, config side. No React here.
+import type { Block } from "payload";
+
+export const heroBlock = {
+  slug: "hero-module",
+  fields: [],
+} as const satisfies Block;
+export const factsBlock = {
+  slug: "location-facts-module",
+  fields: [],
+} as const satisfies Block;
+
+export const montageBlocks = [heroBlock, factsBlock];
+export type RegisteredSlug = (typeof montageBlocks)[number]["slug"];
+```
+
+Then compare that union against the registry's keys:
+
+```ts
+// registry.ts, render side.
+import type { RegisteredSlug } from "./blocks.js";
+
+/** Fails to compile unless `T` is `never`. */
+type Assert<T extends never> = T;
+
+const entries = {
+  "hero-module": HeroModule,
+  "location-facts-module": FactsModule,
+};
+
+type NoMissingComponent = Assert<Exclude<RegisteredSlug, keyof typeof entries>>;
+type NoOrphanComponent = Assert<Exclude<keyof typeof entries, RegisteredSlug>>;
+
+export const blocks = defineBlockRegistry(entries);
+```
+
+Both directions are checked. A block registered in the config with no component fails with
+`Type '"location-facts-module"' does not satisfy the constraint 'never'`, naming the slug that
+drifted. So does a component whose slug is in no block config.
+
+This is stronger than `require`, which can only check the slugs you remember to list. It still
+cannot see blocks contributed by other plugins, which is why `require` stays.
+
+The assertion can live on either side. To keep it in the config file instead, import the component
+slug union with `import type`. Type-only imports are erased, so no component reaches the graph
+`payload.config.ts` loads.

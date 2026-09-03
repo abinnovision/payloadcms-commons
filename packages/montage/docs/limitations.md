@@ -23,8 +23,12 @@ Each of these is a deliberate cut, not a gap that will close later without a rea
 - **`defineBlockRegistry`'s `require` option narrows the missing-component defect; it does not
   eliminate it.** It can only check what you list, and it cannot see blocks contributed by other
   plugins. A block you forget to list in `require` can still go unregistered without a compile
-  error.
+  error. See [Checking the config against the
+  registry](./recipes.md#checking-the-config-against-the-registry) for deriving the list from
+  your block configs rather than maintaining it by hand.
 - **The `./config` and `.` entrypoints share no runtime state.** They are joined only by
-  TypeScript types (Payload's generated `BlockSlug`/`TypedBlock`). There is no cross-check
+  TypeScript types (Payload's generated `BlockSlug`/`TypedBlock`). There is no runtime cross-check
   between what `montagePlugin` registers in `config.blocks` and what a registry built with `.`
-  actually defines.
+  actually defines, though you can derive one at the type level (see
+  [`recipes.md`](./recipes.md#checking-the-config-against-the-registry)). `montagePlugin` does
+  reject duplicate slugs in the merged `config.blocks`.
