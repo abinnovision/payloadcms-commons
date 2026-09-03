@@ -1,5 +1,7 @@
 # @abinnovision/payloadcms-mcpx
 
+![A content model of any size funnels through eight fixed tools out to one client](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/mcpx/assets/header.png)
+
 A Payload CMS plugin that mounts an MCP (Model Context Protocol) server over the
 content model. The tool surface stays fixed at eight tools plus your own,
 whatever the size of that model.
