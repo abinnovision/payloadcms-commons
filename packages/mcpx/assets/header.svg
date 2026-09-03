@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1152" height="320" viewBox="0 0 1152 320" role="img" aria-label="payloadcms-mcpx: a content model of any size funnels through eight fixed tools out to one client">
+  <rect width="1152" height="320" fill="#0B0C0E"/>
+  <g>
+    <text x="72" y="126" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#6B7079" letter-spacing="0.6">@abinnovision/</text>
+    <text x="72" y="170" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="36" fill="#EDEDEF" letter-spacing="-0.4">payloadcms-mcpx</text>
+    <text x="72" y="202" font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#6B7079">An MCP server for actual large content models</text>
+  </g>
+  <g>
+    <rect x="468" y="71" width="38" height="11" rx="3" fill="#33373E"/>
+    <rect x="521" y="72" width="26" height="11" rx="3" fill="#33373E"/>
+    <rect x="567" y="68" width="38" height="11" rx="3" fill="#3F444C"/>
+    <rect x="611" y="71" width="26" height="11" rx="3" fill="#5A6069"/>
+    <rect x="660" y="68" width="26" height="11" rx="3" fill="#5A6069"/>
+    <rect x="473" y="106" width="26" height="11" rx="3" fill="#33373E"/>
+    <rect x="520" y="106" width="32" height="11" rx="3" fill="#33373E"/>
+    <rect x="563" y="103" width="44" height="11" rx="3" fill="#33373E"/>
+    <rect x="613" y="105" width="32" height="11" rx="3" fill="#3F444C"/>
+    <rect x="663" y="104" width="26" height="11" rx="3" fill="#3F444C"/>
+    <rect x="471" y="140" width="26" height="11" rx="3" fill="#3F444C"/>
+    <rect x="515" y="140" width="38" height="11" rx="3" fill="#33373E"/>
+    <rect x="567" y="137" width="26" height="11" rx="3" fill="#5A6069"/>
+    <rect x="617" y="138" width="44" height="11" rx="3" fill="#5A6069"/>
+    <rect x="661" y="138" width="44" height="11" rx="3" fill="#3F444C"/>
+    <rect x="472" y="171" width="32" height="11" rx="3" fill="#33373E"/>
+    <rect x="519" y="173" width="38" height="11" rx="3" fill="#4C525B"/>
+    <rect x="565" y="174" width="44" height="11" rx="3" fill="#33373E"/>
+    <rect x="615" y="173" width="26" height="11" rx="3" fill="#3F444C"/>
+    <rect x="660" y="173" width="38" height="11" rx="3" fill="#5A6069"/>
+    <rect x="472" y="204" width="26" height="11" rx="3" fill="#4C525B"/>
+    <rect x="520" y="206" width="38" height="11" rx="3" fill="#5A6069"/>
+    <rect x="563" y="204" width="44" height="11" rx="3" fill="#4C525B"/>
+    <rect x="616" y="204" width="44" height="11" rx="3" fill="#33373E"/>
+    <rect x="664" y="208" width="38" height="11" rx="3" fill="#5A6069"/>
+    <rect x="472" y="241" width="38" height="11" rx="3" fill="#4C525B"/>
+    <rect x="518" y="240" width="26" height="11" rx="3" fill="#3F444C"/>
+    <rect x="566" y="238" width="26" height="11" rx="3" fill="#3F444C"/>
+    <rect x="612" y="239" width="38" height="11" rx="3" fill="#5A6069"/>
+    <rect x="665" y="241" width="44" height="11" rx="3" fill="#33373E"/>
+  </g>
+  <g fill="none" stroke="#3A3E45" stroke-width="1.25">
+    <path d="M712 76.0C747 76.0 747 111.0 782 111.0"/>
+    <path d="M712 100.3C747 100.3 747 125.0 782 125.0"/>
+    <path d="M712 124.6C747 124.6 747 139.0 782 139.0"/>
+    <path d="M712 148.9C747 148.9 747 153.0 782 153.0"/>
+    <path d="M712 173.1C747 173.1 747 167.0 782 167.0"/>
+    <path d="M712 197.4C747 197.4 747 181.0 782 181.0"/>
+    <path d="M712 221.7C747 221.7 747 195.0 782 195.0"/>
+    <path d="M712 246.0C747 246.0 747 209.0 782 209.0"/>
+  </g>
+  <g>
+    <rect x="788" y="108" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="122" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="136" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="150" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="164" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="178" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="192" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="206" width="60" height="6" rx="3" fill="#D98E3D"/>
+  </g>
+  <g fill="none" stroke="#D98E3D" stroke-width="1.25" opacity="0.55">
+    <path d="M854 111.0C894 111.0 904 160 944 160"/>
+    <path d="M854 125.0C894 125.0 904 160 944 160"/>
+    <path d="M854 139.0C894 139.0 904 160 944 160"/>
+    <path d="M854 153.0C894 153.0 904 160 944 160"/>
+    <path d="M854 167.0C894 167.0 904 160 944 160"/>
+    <path d="M854 181.0C894 181.0 904 160 944 160"/>
+    <path d="M854 195.0C894 195.0 904 160 944 160"/>
+    <path d="M854 209.0C894 209.0 904 160 944 160"/>
+  </g>
+  <path d="M944 160H1066" stroke="#D98E3D" stroke-width="2"/>
+  <path d="M1066 142H1080V178H1066" fill="none" stroke="#D98E3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <g font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="11" letter-spacing="1.4" text-anchor="middle">
+    <text x="588" y="286" fill="#6B7079">CONTENT MODEL</text>
+    <text x="818" y="286" fill="#D98E3D">8 TOOLS</text>
+    <text x="1012" y="286" fill="#6B7079">CLIENT</text>
+  </g>
+</svg>
