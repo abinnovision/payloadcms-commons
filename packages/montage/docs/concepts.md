@@ -85,5 +85,10 @@ It is curried so the block type and the data type can both be inferred correctly
 Payload keys generated block interfaces by name. If you instantiate the same block config more
 than once (for example, one section-wrapper block per collection, with a different set of
 allowed nested blocks each time) under a shared `interfaceName`, the generated union silently
-keeps only the first definition's members. If you do this, give each instance its own
-`interfaceName`. Montage cannot prevent this; your build will simply produce the wrong type.
+keeps only the last definition's members: the schema for each name goes into a `Map`, so a
+repeated name overwrites. Which instance wins depends on the order Payload traverses your config,
+so it is not stable across edits.
+
+If you do this, give each instance its own `interfaceName`. Leaving `interfaceName` off entirely
+also avoids the collision, since each usage is then inlined separately, at the cost of a named
+type to import. Montage cannot prevent this; your build will simply produce the wrong type.
