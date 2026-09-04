@@ -67,10 +67,12 @@ describe("deriveLinkLabel", () => {
 	it("falls back to an app-declared variant's own value", () => {
 		const variants: LinkVariant[] = [{ value: "download", label: "Download" }];
 
-		expect(deriveLinkLabel({ type: "download" }, variants)).toBe("download");
+		expect(deriveLinkLabel({ type: "download" }, { variants })).toBe(
+			"download",
+		);
 	});
 
 	it("returns undefined for a type no variant declares", () => {
-		expect(deriveLinkLabel({ type: "download" }, [])).toBeUndefined();
+		expect(deriveLinkLabel({ type: "download" }, {})).toBeUndefined();
 	});
 });

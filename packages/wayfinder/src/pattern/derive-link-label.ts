@@ -1,4 +1,7 @@
-import type { LinkFieldData, LinkVariant } from "./types.js";
+import { variantsOf } from "./define-links.js";
+
+import type { LinkVariantSource } from "./define-links.js";
+import type { LinkFieldData } from "./types.js";
 
 /**
  * Derives a short destination hint for a link.
@@ -15,11 +18,11 @@ import type { LinkFieldData, LinkVariant } from "./types.js";
  * component need it, and neither may import the other.
  *
  * @param link The nested link group of a link node.
- * @param variants App-declared link types, which may describe themselves.
+ * @param source App-declared link types, which may describe themselves.
  */
 export const deriveLinkLabel = <TCtx, TExtra>(
 	link: LinkFieldData<string, TExtra>,
-	variants?: LinkVariant<TCtx, TExtra>[],
+	source: LinkVariantSource<TCtx, TExtra> = {},
 ): string | undefined => {
 	switch (link.type) {
 		case "custom":
@@ -52,7 +55,9 @@ export const deriveLinkLabel = <TCtx, TExtra>(
 			 * An app-declared variant. Its own value is the only thing the
 			 * package can say about it without knowing its fields.
 			 */
-			const variant = variants?.find((it) => it.value === link.type);
+			const variant = variantsOf<TCtx, TExtra>(source).find(
+				(it) => it.value === link.type,
+			);
 
 			return variant?.value;
 		}

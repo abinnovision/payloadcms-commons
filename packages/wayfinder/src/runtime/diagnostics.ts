@@ -12,7 +12,8 @@ export type DiagnosticReason =
 	| "no-locale-pattern"
 	| "unpopulated-reference"
 	| "missing-param"
-	| "no-document";
+	| "no-document"
+	| "unknown-variant";
 
 export interface Diagnostic<TReason extends DiagnosticReason> {
 	reason: TReason;
@@ -20,6 +21,7 @@ export interface Diagnostic<TReason extends DiagnosticReason> {
 	locale?: string;
 	path?: string;
 	param?: string;
+	variant?: string;
 }
 
 /**
@@ -39,7 +41,7 @@ export type BuildDiagnosticReason =
 
 /** Reasons link resolution can report. */
 export type ResolveLinkDiagnosticReason =
-	BuildDiagnosticReason | "unpopulated-reference";
+	BuildDiagnosticReason | "unpopulated-reference" | "unknown-variant";
 
 /** Reasons path resolution can report. */
 export type ResolvePathDiagnosticReason = "no-mapping" | "no-document";

@@ -13,16 +13,33 @@ candidates by specificity, and works out which field a parameter queries.
 
 ```
 defineMappings            compile a code-defined map
+defineLinks               declare an app's link vocabulary
+variantsOf                flatten either form of variant declaration into one list
 resolveCollectionMapping  compile one mapping
 resolversFor              pick a locale's resolvers, falling back to the unlocalized bucket
 matchCollectionMappings   every candidate for a path, most specific first
 resolveParamQueryPath     the query path a parameter filters on
 isRootWildcard            whether a wildcard pattern was handed the site root
-deriveLinkLabel           (internal, shared by the editor feature and the admin component)
+deriveLinkLabel           a link's destination hint, shared by the editor feature and the admin component
 ```
 
 Depends on `path-to-regexp` and on `import type` from `payload`, which erases. No database, no
 network, no React.
+
+### `defineLinks` returns plain data
+
+A declaration built by [`defineLinks`](./linking.md#declaring-link-types-with-definelinks) is an
+object of variant definitions and nothing else. It builds no field and resolves no link itself.
+
+Binding a `links.resolve(...)` method to it would be the obvious convenience, and is the reason it
+does not have one. The declaration is a single module that both sides import: `payload.config.ts`
+hands it to `linkField`, and the frontend hands it to `resolveLink`. A method would make that
+module depend on the runtime, and `linkField` already makes the config side depend on
+`payload/shared`. Every consumer would then pull in both, so a frontend that only resolves links
+would ship the config layer to call a method on a value it already holds.
+
+Keeping it data leaves each side importing only the layer it needs. `linkField` comes from
+`./config`, `resolveLink` from `.`, and the declaration itself from `.` with no runtime attached.
 
 ## L2: runtime
 

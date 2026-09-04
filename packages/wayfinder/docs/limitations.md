@@ -96,6 +96,43 @@ const onDiagnostic: OnDiagnostic<DiagnosticReason> = (d) => {
 };
 ```
 
+## Only scalar variant fields are typed
+
+`defineLinks` derives each contributed field's type from the `fields` array. It models the scalar
+field types and nothing else:
+
+| Field `type`                        | Derived as                               |
+| ----------------------------------- | ---------------------------------------- |
+| `text`, `textarea`, `email`, `code` | `string \| null \| undefined`            |
+| `number`                            | `number \| null \| undefined`            |
+| `checkbox`                          | `boolean \| null \| undefined`           |
+| `select`                            | the union of its own `options`, nullable |
+| anything else                       | `unknown`                                |
+
+**Consequence.** A variant contributing an `array`, a `group`, a `relationship` or an `upload`
+field gets `unknown` for it, and the resolver has to narrow the value itself.
+
+**Workaround.** Either narrow inside the resolver, or use
+[the array form](./linking.md#the-array-form) and write the contributed type by hand.
+
+The alternative would be guessing at the richer shapes, which is worse than being unhelpful: a
+wrong type here would be believed. Payload's own `generate:types` produces the accurate shapes when
+you need them.
+
+## A variant field can shadow a built-in one
+
+The derived link data is the built-in shape intersected with what the variants contribute, and the
+variant fields are applied on top. A variant field named `url`, `newTab`, `reference`, `label` or
+`type` therefore overrides the built-in property of that name in the derived type.
+
+**Consequence.** A variant contributing `{ name: "url", type: "number" }` makes `link.url` a
+number everywhere, including on the `custom` branch that stores a string there. The field also
+collides in the stored group, since both live under the same `link` group in Payload.
+
+**Workaround.** Prefix variant field names, or otherwise keep them distinct from the five built-in
+ones. The package does not rename them for you, because a silently renamed field is a field whose
+stored data no longer matches what was declared.
+
 ## Translations only come with the plugin
 
 `wayfinderPlugin` registers the admin messages the mapping global's validators use.

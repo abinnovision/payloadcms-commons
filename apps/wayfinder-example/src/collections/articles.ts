@@ -1,5 +1,7 @@
 import { linkField } from "@abinnovision/payloadcms-wayfinder/config";
 
+import { links } from "../links";
+
 import type { CollectionConfig } from "payload";
 
 /**
@@ -29,6 +31,7 @@ export const articles: CollectionConfig = {
 			relationTo: ["pages", "articles", "sections"],
 			required: false,
 			withLabel: true,
+			links,
 		}),
 	],
 };

@@ -87,6 +87,66 @@ Compiled mappings are plain objects holding functions, so they do not cross a se
 boundary. A client component either receives the already-resolved `href` as a prop, or receives the
 raw mapping rows and compiles them with `defineMappings` inside a client provider.
 
+### With a link declaration
+
+If the app declares link types with
+[`defineLinks`](./linking.md#declaring-link-types-with-definelinks), the component takes the same
+shape with two changes: `LinkDataOf` types the prop, and the declaration and its context are passed
+to `resolveLink`.
+
+```tsx
+// components/AppLink.tsx
+import { resolveLink } from "@abinnovision/payloadcms-wayfinder";
+
+import { links } from "../links/index.js";
+
+import type {
+  LinkDataOf,
+  PayloadCollectionMappingResolved,
+} from "@abinnovision/payloadcms-wayfinder";
+import type { ReactNode } from "react";
+
+interface AppLinkProps {
+  link: LinkDataOf<typeof links> | undefined;
+  mappings: PayloadCollectionMappingResolved[];
+  locale: string;
+  children?: ReactNode;
+}
+
+export const AppLink = ({ link, mappings, locale, children }: AppLinkProps) => {
+  const resolved = resolveLink({
+    link,
+    links,
+    mappings,
+    locale,
+    context: { filesBase: "/files" },
+  });
+
+  if (!resolved) {
+    return <>{children ?? link?.label}</>;
+  }
+
+  return (
+    <a
+      href={resolved.href}
+      target={resolved.target}
+      rel={resolved.rel}
+      download={resolved.download}
+    >
+      {children ?? link?.label}
+    </a>
+  );
+};
+```
+
+`resolved.download` is readable without an annotation: passing `links` carries the declaration's
+resolvers through to the return type. The same declaration also decides what `context` must be, so
+passing the wrong shape is a compile error rather than an argument a resolver silently cannot use.
+
+Build the context alongside the mappings, once per request, and thread both together. The same
+declaration goes to `linkField` in `payload.config.ts`; a declaration that reaches one and not the
+other is what the `unknown-variant` diagnostic reports.
+
 Use `isAvailableLink` when the surrounding markup should disappear along with the link:
 
 ```tsx

@@ -30,7 +30,8 @@ It returns a `group` field named `link`.
 | Argument         | Default                  | Purpose                                                                                                                   |
 | ---------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | `relationTo`     | required                 | every collection that can be linked to; a target missing here cannot be picked                                            |
-| `variants`       | `[]`                     | app-declared link types, appended after the built-ins                                                                     |
+| `links`          | unset                    | the declaration built by [`defineLinks`](#declaring-link-types-with-definelinks)                                          |
+| `variants`       | unset                    | the array form of the same thing, for hand-written types                                                                  |
 | `required`       | `true`                   | when false, adds the `none` type and defaults to it                                                                       |
 | `withLabel`      | `false`                  | shows a `label` text field                                                                                                |
 | `localizedLabel` | `true`                   | whether that label is localized                                                                                           |
@@ -53,35 +54,138 @@ would block saving whenever a different link type was selected.
 `newTab` is available on every type and adds `target: "_blank"` and `rel: "noopener noreferrer"` to
 the resolved link. It is not applied to `same-page`, which is an in-page anchor.
 
-## App-declared variants
+## Declaring link types with `defineLinks`
 
-A variant is one object carrying both its admin fields and its resolver, so a link type is defined
-in exactly one place:
+`defineLinks` declares an app's link vocabulary once. Each variant carries its admin label, the
+fields it contributes, and how it turns into an href, so a link type is defined in exactly one
+place:
 
 ```ts
-// links/download-variant.ts
+// links/index.ts
+import { defineLinks } from "@abinnovision/payloadcms-wayfinder";
+
+export interface AppLinkContext {
+  filesBase: string;
+}
+
+export const links = defineLinks<AppLinkContext>()((variant) => ({
+  variants: {
+    download: variant({
+      label: "Download",
+      fields: [
+        { name: "fileName", type: "text" },
+        {
+          name: "disposition",
+          type: "select",
+          options: ["inline", "attachment"],
+        },
+      ],
+    }).resolve(({ link, context }) => ({
+      href: `${context.filesBase}/${link.fileName ?? ""}`,
+      download: link.disposition !== "inline",
+    })),
+  },
+}));
+```
+
+Each key is the variant's stored `type` value, so `download` is what `link.type` holds.
+
+Then pass the same declaration everywhere a link is handled:
+
+```ts
+linkField({ relationTo: ["pages", "articles"], links });
+wayfinderLinkFeature({ relationTo: ["pages", "articles"], links });
+```
+
+```ts
+resolveLink({ link, links, mappings, locale, context });
+isAvailableLink({ link, links, mappings, locale, context });
+resolveLinkNode({ fields: node.fields, links, mappings, locale, context });
+deriveLinkLabel(link, { links });
+```
+
+Passing it to all of them is the point. A variant that reaches the field but not the resolver is a
+type an editor can select and a link that renders nothing, which is what the
+[`unknown-variant` diagnostic](#the-unknown-variant-diagnostic) exists to name.
+
+A variant's `fields` are rendered under a condition on the variant's own value, so they appear only
+when that type is selected. `resolve` receives the link data and whatever you passed as `context`,
+untouched. A variant with no `resolve` resolves to `null`.
+
+### Field types are derived, not written
+
+The type of each contributed field comes from the `fields` array itself. Inside the resolver above,
+`link.fileName` is `string | null | undefined` and `link.disposition` is
+`"inline" | "attachment" | null | undefined`, both without a hand-written type anywhere.
+
+That is the main thing the declaration buys. Renaming a field's `name`, or removing an option from
+a `select`, breaks every reader of it at compile time rather than at render time.
+
+Only scalar field types are modelled. Anything else contributes `unknown`; see
+[`limitations.md`](./limitations.md#only-scalar-variant-fields-are-typed).
+
+### Why the API has the shape it has
+
+Two things about the call signature are deliberate.
+
+**Two calls, `variant({...}).resolve(...)`.** TypeScript will not contextually type a resolver from
+a sibling property of the same object literal, so a single object with `fields` and `resolve` next
+to each other would leave the resolver's `link` untyped. Passing the fields through `variant(...)`
+first is what lets `.resolve()` see them.
+
+**Curried, `defineLinks<Ctx>()(...)`.** TypeScript has no partial type-argument inference. Naming
+the context type up front in a single call would force every variant's fields to be named too, so
+the context type goes in the first call and everything else is inferred in the second. Omit the
+type argument entirely if no variant needs a context.
+
+### Replacing a built-in
+
+A variant may claim a built-in's value (`reference`, `custom`, `same-page`, `none`) to replace how
+it resolves. The declaration is consulted before the built-ins, so the variant wins:
+
+```ts
+export const links = defineLinks()((variant) => ({
+  variants: {
+    "same-page": variant({
+      label: "Section on this page",
+      fields: [{ name: "offset", type: "number" }],
+    }).resolve(({ link }) =>
+      link.samePageIdentifier
+        ? { href: `#${link.samePageIdentifier}`, offset: link.offset ?? 0 }
+        : null,
+    ),
+  },
+}));
+```
+
+The radio option is not offered twice. It keeps the built-in's position in the list, because
+editors read that list by shape, and takes the variant's label.
+
+The built-ins are defaults rather than a fixed set. An in-page link that has to offset for a fixed
+header, or an internal link routed through something other than the mapping, is still the same link
+type to an editor and should not need a second one invented for it.
+
+### The array form
+
+`variants` takes the same thing as a list of `LinkVariant` objects, with the stored value as an
+explicit `value` property. Use it when the contributed types are hand-written rather than derived,
+which includes reusing types that already exist elsewhere:
+
+```ts
 import type { LinkVariant } from "@abinnovision/payloadcms-wayfinder";
 
 export interface DownloadExtra {
-  fileId?: string | null;
-}
-
-export interface AppLinkContext {
-  assetBaseUrl: string;
+  fileName?: string | null;
 }
 
 export const downloadVariant: LinkVariant<AppLinkContext, DownloadExtra> = {
   value: "download",
-  label: "File download",
-  fields: [{ name: "fileId", type: "text" }],
+  label: "Download",
+  fields: [{ name: "fileName", type: "text" }],
   resolve: ({ link, context }) =>
-    link.fileId
-      ? { href: `${context.assetBaseUrl}/${link.fileId}`, fileId: link.fileId }
-      : null,
+    link.fileName ? { href: `${context.filesBase}/${link.fileName}` } : null,
 };
 ```
-
-Pass it to the field and to the resolver:
 
 ```ts
 linkField<AppLinkContext, DownloadExtra>({
@@ -90,19 +194,8 @@ linkField<AppLinkContext, DownloadExtra>({
 });
 ```
 
-```ts
-resolveLink<AppLinkContext, DownloadExtra>({
-  link: block.link,
-  mappings,
-  locale,
-  variants: [downloadVariant],
-  context: { assetBaseUrl: "/assets" },
-});
-```
-
-A variant's `fields` are rendered under a condition on the variant's own value, so they appear only
-when that type is selected. `resolve` receives the link data and whatever you passed as `context`,
-untouched. A variant with no `resolve` resolves to `null`.
+Both forms flatten to the same list and behave identically from there. `links` and `variants` are
+not merged: if `links` is given, `variants` is ignored.
 
 ## `resolveLink`
 
@@ -119,7 +212,8 @@ const resolved = resolveLink({ link: block.link, mappings, locale: "en" });
 | `link`             | required | the link group's value; `undefined` resolves to `null`                                |
 | `mappings`         | required | compiled mappings                                                                     |
 | `locale`           | required | which locale's pattern to build with                                                  |
-| `variants`         | unset    | app-declared link types                                                               |
+| `links`            | unset    | the declaration built by `defineLinks`                                                |
+| `variants`         | unset    | the array form of the same thing                                                      |
 | `context`          | unset    | passed to a variant's `resolve` untouched                                             |
 | `formatHref`       | identity | rewrites the built path; see [`recipes.md`](./recipes.md#locale-prefixes-and-preview) |
 | `identifierField`  | `"slug"` | fallback identifier for relationship parameters                                       |
@@ -128,6 +222,22 @@ const resolved = resolveLink({ link: block.link, mappings, locale: "en" });
 
 It returns `null` rather than degrading to the site root. A link that silently points somewhere
 plausible is harder to find than one that renders nothing.
+
+### The `unknown-variant` diagnostic
+
+`onDiagnostic` reports `unknown-variant`, with the offending value in `variant`, when a link's
+`type` is neither a built-in nor a declared one. The usual cause is a declaration that reached
+`linkField` but not `resolveLink`, which would otherwise just make the link disappear:
+
+```ts
+resolveLink({
+  link: block.link,
+  links,
+  mappings,
+  locale,
+  onDiagnostic: (d) => console.warn("[wayfinder]", d.reason, d.variant),
+});
+```
 
 ### Resolving references without population
 
@@ -162,6 +272,7 @@ import { isAvailableLink } from "@abinnovision/payloadcms-wayfinder";
 
 const show = isAvailableLink({
   link: block.link,
+  links,
   mappings,
   locale,
   withLabel: true,
@@ -171,34 +282,89 @@ const show = isAvailableLink({
 With `withLabel: true`, a link whose `label` is empty counts as unavailable even if its href would
 resolve.
 
-## The generic types
+## `deriveLinkLabel`
 
-Two type parameters run through the linking API.
+Returns a short destination hint for a link (`articles/6716b1f0`, `#section-two`,
+`https://example.com`), or `undefined` when the link points nowhere. It is what
+[`linkLabelFeature`](#the-lexical-feature) writes into a rich-text link node so the floating link
+editor has a hover preview.
+
+```ts
+import { deriveLinkLabel } from "@abinnovision/payloadcms-wayfinder";
+
+const hint = deriveLinkLabel(block.link, { links });
+```
+
+For a declared variant it returns the variant's own value, which is the only thing the package can
+say about a link type whose fields it does not know.
+
+## The two type extractors
+
+`LinkDataOf<typeof links>` is the stored shape of a link field built from a declaration, and
+`ResolvedLinkOf<typeof links>` is what resolving one can produce. Both are type-level extractors:
+the declaration is a plain value with no `$data` property to read them off.
+
+```ts
+import type {
+  LinkDataOf,
+  ResolvedLinkOf,
+} from "@abinnovision/payloadcms-wayfinder";
+
+import { links } from "./links/index.js";
+
+type AppLink = LinkDataOf<typeof links>;
+// { type?: "none" | "reference" | "custom" | "same-page" | "download" | null,
+//   label?, reference?, url?, samePageIdentifier?, newTab?,
+//   fileName?: string | null,
+//   disposition?: "inline" | "attachment" | null }
+
+type AppResolvedLink = ResolvedLinkOf<typeof links>;
+// { href: string, target?: string, rel?: string, download?: boolean }
+```
+
+`type` is the union of the built-ins and every declared key. The contributed properties are
+optional on both, and for the same reason: each type is the union across all variants, and no
+single variant can supply the others' properties. A resolver returns its own and nothing else.
+
+Passing `links` carries the declaration's resolvers through to the return type, so a contributed
+property is readable without an annotation. `ResolvedLinkOf` is still there for the times you want
+to name the type, in a prop or a return signature:
+
+```ts
+const resolved = resolveLink({
+  link: block.link,
+  links,
+  mappings,
+  locale,
+  context: { filesBase: "/files" },
+});
+
+if (resolved?.download) {
+  // ...
+}
+```
+
+### The underlying types
+
+`LinkDataOf` and `ResolvedLinkOf` are built out of two types you can also use directly, which is
+what the array form does.
 
 `LinkFieldData<TVariant, TExtra>` is the structural shape of the stored group. `TVariant` carries
 any app-declared variant names beyond the four built-ins, and `TExtra` the fields those variants
-contribute:
-
-```ts
-type DownloadLink = LinkFieldData<"download", DownloadExtra>;
-// { type?: "none" | "reference" | "custom" | "same-page" | "download" | null,
-//   label?, reference?, url?, samePageIdentifier?, newTab? } & Partial<DownloadExtra>
-```
-
-It is declared in the package rather than imported from a project's generated types, so the field
-definition does not depend on its own output. Every property is nullable, because that is how
-Payload emits optional fields; a mismatch there shows up at every call site.
+contribute. It is declared in the package rather than imported from a project's generated types, so
+the field definition does not depend on its own output. Every property is nullable, because that is
+how Payload emits optional fields; a mismatch there shows up at every call site.
 
 `ResolvedLink<E>` is `{ href, target?, rel? }` widened by whatever a variant returns. `E` defaults
 to `object` rather than `unknown`, because an intersection with an uninstantiated type parameter
-stays deferred and would force a cast at every built-in branch. `BaseResolvedLink` is the
-unwidened shape.
+stays deferred and would force a cast at every built-in branch. `BaseResolvedLink` is the unwidened
+shape.
 
 ## The Lexical feature
 
 `wayfinderLinkFeature` replaces Lexical's own link fields with the wayfinder link field, so a link
 written in rich text routes through the mapping exactly like a link authored in a block. It takes
-the same arguments as `linkField`.
+the same arguments as `linkField`, including `links`.
 
 ```ts
 // collections/articles.ts
@@ -207,6 +373,8 @@ import {
   wayfinderLinkFeature,
 } from "@abinnovision/payloadcms-wayfinder/lexical";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
+
+import { links } from "../links/index.js";
 
 export const articles: CollectionConfig = {
   slug: "articles",
@@ -218,7 +386,7 @@ export const articles: CollectionConfig = {
       editor: lexicalEditor({
         features: ({ defaultFeatures }) => [
           ...defaultFeatures,
-          wayfinderLinkFeature({ relationTo: ["pages", "articles"] }),
+          wayfinderLinkFeature({ relationTo: ["pages", "articles"], links }),
           linkLabelFeature,
         ],
       }),
@@ -229,12 +397,11 @@ export const articles: CollectionConfig = {
 
 `linkLabelFeature` is optional but worth adding. Payload's floating link editor builds its hover
 preview from a top-level `label` and `url`, neither of which a nested link group populates, so
-without it the preview is blank for every link. The feature derives a short destination hint
-(`articles/6716b1f0`, `#section-two`, `https://example.com`) whenever a link is created or edited.
-The hint describes where the link points rather than what it says; anchor text would look like a
-resolved title while telling an editor nothing about the destination. It runs on the create and
-edit path rather than as an always-on node transform, so documents are never mutated merely by
-being opened.
+without it the preview is blank for every link. The feature derives a short destination hint with
+`deriveLinkLabel` whenever a link is created or edited. The hint describes where the link points
+rather than what it says; anchor text would look like a resolved title while telling an editor
+nothing about the destination. It runs on the create and edit path rather than as an always-on node
+transform, so documents are never mutated merely by being opened.
 
 `linkLabelFeature` mounts a client component from the `./admin` entrypoint, so run
 `payload generate:importmap` after adding it, as for any plugin contributing admin components.
@@ -246,9 +413,16 @@ being opened.
 ```tsx
 import { resolveLinkNode } from "@abinnovision/payloadcms-wayfinder/lexical";
 
+import { links } from "../links/index.js";
+
 const converters = {
   link: ({ node, nodesToJSX }) => {
-    const resolved = resolveLinkNode({ fields: node.fields, mappings, locale });
+    const resolved = resolveLinkNode({
+      fields: node.fields,
+      links,
+      mappings,
+      locale,
+    });
     const children = nodesToJSX({ nodes: node.children });
 
     return resolved ? (

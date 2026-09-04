@@ -94,6 +94,16 @@ export type FormatHref = (args: { path: string; locale: string }) => string;
 /** Label accepted wherever the admin panel shows one. */
 export type LabelLike = string | Record<string, string>;
 
+/**
+ * Optional-everything, including an explicit `undefined`.
+ *
+ * `Partial<T>` is not enough under `exactOptionalPropertyTypes`: it marks a
+ * property optional without letting it hold `undefined`, so a variant that
+ * reads one of its own optional fields and passes it straight back would not
+ * typecheck against its own declared shape.
+ */
+export type Contributed<T> = { [K in keyof T]?: T[K] | undefined };
+
 /** The link types the package understands without configuration. */
 export type BuiltinLinkVariant = "none" | "reference" | "custom" | "same-page";
 
@@ -124,7 +134,7 @@ export type LinkFieldData<TVariant extends string = never, TExtra = object> = {
 	url?: string | null;
 	samePageIdentifier?: string | null;
 	newTab?: boolean | null;
-} & Partial<TExtra>;
+} & Contributed<TExtra>;
 
 /** What every link resolves to, before any variant adds to it. */
 export interface BaseResolvedLink {
@@ -139,8 +149,13 @@ export interface BaseResolvedLink {
  * `E` defaults to an empty object rather than `unknown`: an intersection with
  * an uninstantiated type parameter stays deferred, which would force a cast at
  * every built-in branch.
+ *
+ * Every contributed property is optional, for the same reason it is on
+ * {@link LinkFieldData}: `E` is the union of what *every* variant contributes,
+ * so requiring all of it would mean each variant had to return the other
+ * variants' properties alongside its own.
  */
-export type ResolvedLink<E = object> = BaseResolvedLink & E;
+export type ResolvedLink<E = object> = BaseResolvedLink & Contributed<E>;
 
 /**
  * An app-declared link type.
@@ -153,7 +168,8 @@ export type ResolvedLink<E = object> = BaseResolvedLink & E;
 export interface LinkVariant<TCtx = unknown, TExtra = object> {
 	value: string;
 	label: LabelLike;
-	fields?: Field[];
+	/** Readonly, because a `const` type parameter infers a readonly tuple. */
+	fields?: readonly Field[];
 	resolve?: (args: {
 		link: LinkFieldData<string, TExtra>;
 		context: TCtx;

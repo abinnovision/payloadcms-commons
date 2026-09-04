@@ -193,7 +193,7 @@ export interface Article {
 	body?: string | null;
 	link?: {
 		label?: string | null;
-		type?: ("none" | "reference" | "custom" | "same-page") | null;
+		type?: ("none" | "reference" | "custom" | "same-page" | "download") | null;
 		newTab?: boolean | null;
 		reference?:
 			| ({
@@ -210,6 +210,8 @@ export interface Article {
 			  } | null);
 		url?: string | null;
 		samePageIdentifier?: string | null;
+		fileName?: string | null;
+		inline?: boolean | null;
 	};
 	updatedAt: string;
 	createdAt: string;
@@ -359,6 +361,8 @@ export interface ArticlesSelect<T extends boolean = true> {
 				reference?: T;
 				url?: T;
 				samePageIdentifier?: T;
+				fileName?: T;
+				inline?: T;
 		  };
 	updatedAt?: T;
 	createdAt?: T;

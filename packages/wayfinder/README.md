@@ -96,7 +96,7 @@ export default Page;
 ## Entrypoints
 
 ```
-"."         buildHref, buildPath, resolvePathToDocument, resolveLink, defineMappings, types
+"."         buildHref, buildPath, resolvePathToDocument, resolveLink, defineMappings, defineLinks, types
 "./config"  wayfinderPlugin, createMappingGlobal, loadMappings, linkField
 "./lexical" wayfinderLinkFeature, linkLabelFeature, resolveLinkNode
 "./admin"   LinkLabelFeatureClient, mounted by linkLabelFeature through the import map
@@ -117,7 +117,7 @@ and by `payload generate:types`, so it must stay React-free. `./lexical`, `./adm
   works without.
 - [`docs/integration.md`](./docs/integration.md): plugin setup, caching, catch-all routes,
   sitemaps and `defaultPopulate`.
-- [`docs/linking.md`](./docs/linking.md): `linkField`, variants, `resolveLink` and the Lexical
+- [`docs/linking.md`](./docs/linking.md): `linkField`, `defineLinks`, `resolveLink` and the Lexical
   feature.
 - [`docs/code-defined-mappings.md`](./docs/code-defined-mappings.md): `defineMappings`, with no CMS
   global at all.

@@ -1,10 +1,9 @@
 import { relationship, text } from "payload/shared";
 
-import type {
-	LabelLike,
-	LinkFieldData,
-	LinkVariant,
-} from "../pattern/types.js";
+import { variantsOf } from "../pattern/define-links.js";
+
+import type { LinkVariantSource } from "../pattern/define-links.js";
+import type { LabelLike, LinkFieldData } from "../pattern/types.js";
 import type { Field, PolymorphicRelationshipField, TextField } from "payload";
 
 /** Admin labels for the built-in link types. */
@@ -35,14 +34,15 @@ const DEFAULT_LABELS: Required<LinkFieldLabels> = {
 	samePageField: "Section identifier",
 };
 
-export interface LinkFieldArgs<TCtx = unknown, TExtra = object> {
+export interface LinkFieldArgs<
+	TCtx = unknown,
+	TExtra = object,
+> extends LinkVariantSource<TCtx, TExtra> {
 	/**
 	 * Every collection that has a URL. A target missing here cannot be linked
 	 * to from the admin panel even if its mapping exists.
 	 */
 	relationTo: string[];
-	/** App-declared link types, appended after the built-ins. */
-	variants?: LinkVariant<TCtx, TExtra>[];
 	required?: boolean;
 	withLabel?: boolean;
 	localizedLabel?: boolean;
@@ -99,7 +99,7 @@ export const linkField = <TCtx = unknown, TExtra = object>(
 	const withLabel = args.withLabel ?? false;
 	const localizedLabel = args.localizedLabel ?? true;
 	const labels = { ...DEFAULT_LABELS, ...args.labels };
-	const variants = args.variants ?? [];
+	const variants = variantsOf<TCtx, TExtra>(args);
 
 	/*
 	 * Payload validates hidden fields too, so required-ness has to be checked

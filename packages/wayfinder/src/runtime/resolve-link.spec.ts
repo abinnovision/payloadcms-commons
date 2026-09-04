@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { isAvailableLink, resolveLink } from "./resolve-link.js";
+import { linkField } from "../config/link-field.js";
+import { defineLinks } from "../pattern/define-links.js";
 import { resolveCollectionMapping } from "../pattern/resolver.js";
 
 import type { Diagnostic, ResolveLinkDiagnosticReason } from "./diagnostics.js";
@@ -381,5 +383,132 @@ describe("resolveLink with a variant overriding a built-in", () => {
 
 		expect(resolved).toEqual({ href: "#pricing" });
 		expect(clickHandlerOf(resolved)).toBeUndefined();
+	});
+});
+
+describe("resolveLink with several variants", () => {
+	/*
+	 * Each variant contributes its own fields, and the type parameter is the
+	 * union of all of them. Requiring the whole union would mean every variant
+	 * had to return the others' properties alongside its own, which no variant
+	 * can do — so both what a variant reads and what it returns are optional.
+	 */
+	interface ActionExtra {
+		action?: string | null;
+	}
+
+	interface DownloadExtra {
+		fileName?: string | null;
+		download?: boolean;
+	}
+
+	type Extras = ActionExtra & DownloadExtra;
+
+	const variants: LinkVariant<{ base: string }, Extras>[] = [
+		{
+			value: "action",
+			label: "Action",
+			fields: [{ name: "action", type: "text" }],
+			resolve: ({ link }) => ({ href: "", action: link.action }),
+		},
+		{
+			value: "download",
+			label: "Download",
+			fields: [{ name: "fileName", type: "text" }],
+			resolve: ({ link, context }) => ({
+				href: `${context.base}/${link.fileName ?? ""}`,
+				download: true,
+			}),
+		},
+	];
+
+	it("routes each type to its own resolver", () => {
+		expect(
+			resolveLink({
+				link: { type: "action", action: "renew-consent" },
+				mappings: [],
+				locale: "en",
+				variants,
+				context: { base: "/files" },
+			}),
+		).toEqual({ href: "", action: "renew-consent" });
+
+		expect(
+			resolveLink({
+				link: { type: "download", fileName: "report.pdf" },
+				mappings: [],
+				locale: "en",
+				variants,
+				context: { base: "/files" },
+			}),
+		).toEqual({ href: "/files/report.pdf", download: true });
+	});
+
+	it("gives every variant its own conditional fields", () => {
+		const group = linkField({ relationTo: ["pages"], variants });
+		const names = (group as { fields: { name?: string }[] }).fields.map(
+			(it) => it.name,
+		);
+
+		expect(names).toContain("action");
+		expect(names).toContain("fileName");
+	});
+});
+
+describe("resolveLink with a declaration", () => {
+	const links = defineLinks<{ filesBase: string }>()((variant) => ({
+		variants: {
+			download: variant({
+				label: "Download",
+				fields: [{ name: "fileName", type: "text" }],
+			}).resolve(({ link, context }) => ({
+				href: `${context.filesBase}/${link.fileName ?? ""}`,
+				download: true,
+			})),
+		},
+	}));
+
+	it("resolves through the declaration exactly as through the array", () => {
+		expect(
+			resolveLink({
+				link: { type: "download", fileName: "report.pdf" },
+				mappings: [],
+				locale: "en",
+				links,
+				context: { filesBase: "/files" },
+			}),
+		).toEqual({ href: "/files/report.pdf", download: true });
+	});
+
+	it("reports a type that is neither built in nor declared", () => {
+		/*
+		 * The failure this diagnostic exists for: a variant added to the field
+		 * but not passed to the resolver. Without it the link simply vanishes.
+		 */
+		const seen: Diagnostic<ResolveLinkDiagnosticReason>[] = [];
+
+		expect(
+			resolveLink({
+				link: { type: "download", fileName: "report.pdf" },
+				mappings: [],
+				locale: "en",
+				onDiagnostic: (it) => seen.push(it),
+			}),
+		).toBeNull();
+
+		expect(seen).toEqual([{ reason: "unknown-variant", variant: "download" }]);
+	});
+
+	it("stays quiet for a built-in that simply has no value", () => {
+		const seen: Diagnostic<ResolveLinkDiagnosticReason>[] = [];
+
+		resolveLink({
+			link: { type: "custom" },
+			mappings: [],
+			locale: "en",
+			onDiagnostic: (it) => seen.push(it),
+		});
+
+		expect(seen).toEqual([]);
 	});
 });

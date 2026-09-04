@@ -9,9 +9,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPayload } from "payload";
 
+import { links } from "../../../links";
 import { getMappings } from "../../../wayfinder";
 
-import type { LinkFieldData } from "@abinnovision/payloadcms-wayfinder";
+import type { LinkDataOf } from "@abinnovision/payloadcms-wayfinder";
 
 interface Params {
 	params: Promise<{ segments?: string[] }>;
@@ -60,9 +61,19 @@ const Page = async ({ params }: Params) => {
 	const raw = document["title"];
 	const title = typeof raw === "string" ? raw : "";
 	const body = document["body"];
-	const link = document["link"] as LinkFieldData | undefined;
+	const link = document["link"] as LinkDataOf<typeof links> | undefined;
 
-	const authored = resolveLink({ link, mappings, locale: "default" });
+	/*
+	 * The same declaration the field was built from, so a variant cannot exist
+	 * in the admin panel and resolve to nothing here.
+	 */
+	const authored = resolveLink({
+		link,
+		mappings,
+		locale: "default",
+		links,
+		context: { filesBase: "/files" },
+	});
 
 	/*
 	 * Round-tripping the document back through the mapping shows the two
