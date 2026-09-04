@@ -96,6 +96,39 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@abinnovision/payloadcms-montage@workspace:*, @abinnovision/payloadcms-montage@workspace:packages/montage":
+  version: 0.0.0-use.local
+  resolution: "@abinnovision/payloadcms-montage@workspace:packages/montage"
+  dependencies:
+    "@abinnovision/eslint-config-base": "npm:^3.4.2"
+    "@abinnovision/prettier-config": "npm:^2.2.0"
+    "@arethetypeswrong/core": "npm:^0.18.5"
+    "@payloadcms/db-sqlite": "npm:3.88.0"
+    "@payloadcms/richtext-lexical": "npm:3.88.0"
+    "@swc/core": "npm:^1.16.1"
+    "@types/node": "npm:^26.3.0"
+    "@types/react": "npm:^19.2.18"
+    "@vitest/coverage-v8": "npm:^4.1.10"
+    eslint: "npm:^10.9.1"
+    payload: "npm:3.88.0"
+    prettier: "npm:^3.9.5"
+    publint: "npm:^0.3.24"
+    react: "npm:^19.2.8"
+    react-dom: "npm:^19.2.8"
+    tsdown: "npm:^0.22.14"
+    typescript: "npm:^6.0.3"
+    unplugin-swc: "npm:^1.5.11"
+    vitest: "npm:^4.1.10"
+  peerDependencies:
+    "@payloadcms/richtext-lexical": ">=3.88.0 <4"
+    payload: ">=3.88.0 <4"
+    react: ^19
+  peerDependenciesMeta:
+    "@payloadcms/richtext-lexical":
+      optional: true
+  languageName: unknown
+  linkType: soft
+
 "@abinnovision/prettier-config@npm:^2.2.0":
   version: 2.2.0
   resolution: "@abinnovision/prettier-config@npm:2.2.0"
@@ -1713,6 +1746,30 @@ __metadata:
   dependencies:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/payloadcms-mcpx": "workspace:*"
+    "@abinnovision/prettier-config": "npm:^2.2.0"
+    "@payloadcms/db-sqlite": "npm:3.88.0"
+    "@payloadcms/next": "npm:3.88.0"
+    "@payloadcms/richtext-lexical": "npm:3.88.0"
+    "@types/node": "npm:^26.3.0"
+    "@types/react": "npm:^19.2.0"
+    "@types/react-dom": "npm:^19.2.5"
+    eslint: "npm:^10.9.1"
+    graphql: "npm:^17.0.2"
+    next: "npm:^16.3.3"
+    payload: "npm:3.88.0"
+    prettier: "npm:^3.9.5"
+    react: "npm:^19.2.0"
+    react-dom: "npm:^19.2.0"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
+"@internal/montage-example@workspace:apps/montage-example":
+  version: 0.0.0-use.local
+  resolution: "@internal/montage-example@workspace:apps/montage-example"
+  dependencies:
+    "@abinnovision/eslint-config-base": "npm:^3.4.2"
+    "@abinnovision/payloadcms-montage": "workspace:*"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@payloadcms/db-sqlite": "npm:3.88.0"
     "@payloadcms/next": "npm:3.88.0"

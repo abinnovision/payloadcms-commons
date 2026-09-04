@@ -11,6 +11,10 @@
 		"packages/mcpx": {
 			"package-name": "@abinnovision/payloadcms-mcpx",
 			"component": "payloadcms-mcpx"
+		},
+		"packages/montage": {
+			"package-name": "@abinnovision/payloadcms-montage",
+			"component": "payloadcms-montage"
 		}
 	}
 }
