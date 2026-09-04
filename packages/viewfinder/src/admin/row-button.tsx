@@ -58,13 +58,13 @@ export interface RowButtonProps {
  */
 export const RowButton = (props: RowButtonProps): ReactNode => {
 	const [hovered, setHovered] = useState(false);
-	const [focused, setFocused] = useState(false);
+	const [keyboardFocus, setKeyboardFocus] = useState(false);
 
 	return (
 		<button
 			aria-label={props.label}
 			onBlur={() => {
-				setFocused(false);
+				setKeyboardFocus(false);
 			}}
 			onClick={(event) => {
 				/* The header is also the collapse toggle. */
@@ -72,8 +72,13 @@ export const RowButton = (props: RowButtonProps): ReactNode => {
 				event.stopPropagation();
 				props.onSelect();
 			}}
-			onFocus={() => {
-				setFocused(true);
+			onFocus={(event) => {
+				/*
+				 * `:focus-visible` rather than focus, so that clicking does not
+				 * leave a ring behind. Payload's own controls are styled the same
+				 * way, through the global `:focus-visible` rule.
+				 */
+				setKeyboardFocus(event.currentTarget.matches(":focus-visible"));
 			}}
 			onMouseEnter={() => {
 				setHovered(true);
@@ -84,11 +89,16 @@ export const RowButton = (props: RowButtonProps): ReactNode => {
 			style={{
 				...BUTTON,
 				/* The drag handle beside it sits at the same weight when idle. */
-				opacity: hovered || focused ? 1 : 0.5,
+				opacity: hovered || keyboardFocus ? 1 : 0.5,
 				background:
-					hovered || focused ? "var(--theme-elevation-0)" : "transparent",
-				outline: focused ? "var(--accessibility-outline)" : "none",
-				outlineOffset: "var(--accessibility-outline-offset)",
+					hovered || keyboardFocus ? "var(--theme-elevation-0)" : "transparent",
+				outline: keyboardFocus ? "var(--accessibility-outline)" : "none",
+				/*
+				 * Inset, unlike Payload's own offset ring: the header this sits in
+				 * is `overflow: hidden`, so anything drawn outside the button is
+				 * clipped to two arcs.
+				 */
+				outlineOffset: "-2px",
 			}}
 			title={props.label}
 			type="button"
