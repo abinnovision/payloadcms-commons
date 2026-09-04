@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BLOCK_ID_ATTRIBUTE } from "../attributes.js";
 import { isAdminMessage, previewMessage } from "../protocol.js";
 import { measureElement, scrollBoxIntoView } from "./geometry.js";
-import { Overlay } from "./overlay.js";
+import { Overlay, OVERLAY_ATTRIBUTE } from "./overlay.js";
 import { resolveTarget } from "./target.js";
 
 import type { Box } from "./geometry.js";
@@ -19,38 +19,40 @@ export interface ViewfinderBridgeProps {
 	 * it renders, and validates what it is told to highlight.
 	 */
 	adminOrigin: string;
-	/**
-	 * Suppress link navigation for clicks inside a marked block, so selecting
-	 * a block does not navigate away from the page being edited. Hold a
-	 * modifier key to follow a link anyway. Defaults to `true`.
-	 */
-	interceptNavigation?: boolean | undefined;
 }
 
 interface Active {
 	element: Element;
-	label: string | undefined;
+	address: BlockAddress;
 }
 
 const findBlock = (id: string): Element | null =>
 	document.querySelector(`[${BLOCK_ID_ATTRIBUTE}="${CSS.escape(id)}"]`);
 
-const labelFor = (address: BlockAddress): string | undefined =>
+const labelFor = (address: BlockAddress): string =>
 	address.field === undefined
-		? address.blockType
+		? (address.blockType ?? "block")
 		: `${address.blockType ?? "block"} · ${address.field}`;
 
 /**
  * Connects the rendered page to the Payload admin that is previewing it.
  * Mount once, near the root of the app.
  *
+ * Hovering a block outlines it and reveals a badge; the badge is the only
+ * thing that selects. Nothing else in the page is intercepted, so links and
+ * buttons behave for an editor exactly as they do for a visitor.
+ *
  * Does nothing at all when the page is not framed, so the same tree can be
  * served to real visitors without a second code path.
  */
 export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
-	const { adminOrigin, interceptNavigation = true } = props;
+	const { adminOrigin } = props;
 	const [active, setActive] = useState<Active | null>(null);
 	const [box, setBox] = useState<Box | undefined>(undefined);
+
+	/* Read by the badge's click handler, which outlives any one render. */
+	const current = useRef<Active | null>(active);
+	current.current = active;
 
 	useEffect(() => {
 		if (window.parent === window) {
@@ -61,38 +63,40 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 			window.parent.postMessage(message, adminOrigin);
 		};
 
-		const show = (element: Element, address: BlockAddress): void => {
-			setActive({ element, label: labelFor(address) });
+		/*
+		 * `pointerover` fires on every element transition, so hover is posted
+		 * only when the block underneath actually changes. Without this the
+		 * channel carries a message per mouse twitch.
+		 */
+		let hovered: string | null = null;
+		const postHover = (address: BlockAddress | null): void => {
+			const id = address?.id ?? null;
+			if (id === hovered) {
+				return;
+			}
+
+			hovered = id;
+			post(address ? previewMessage.hover(address) : previewMessage.leave());
 		};
 
 		const onPointerOver = (event: PointerEvent): void => {
-			const resolved = resolveTarget(event.target as Element | null);
+			const target = event.target as Element | null;
+
+			/* Moving onto the badge must not dismiss the badge. */
+			if (target?.closest(`[${OVERLAY_ATTRIBUTE}]`)) {
+				return;
+			}
+
+			const resolved = resolveTarget(target);
 			if (!resolved) {
 				setActive(null);
-				post(previewMessage.leave());
+				postHover(null);
 
 				return;
 			}
 
-			show(resolved.element, resolved.address);
-			post(previewMessage.hover(resolved.address));
-		};
-
-		const onClick = (event: MouseEvent): void => {
-			const resolved = resolveTarget(event.target as Element | null);
-			if (!resolved) {
-				return;
-			}
-
-			const modified =
-				event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
-			const link = (event.target as Element | null)?.closest("a[href]");
-			if (interceptNavigation && link && !modified) {
-				event.preventDefault();
-			}
-
-			show(resolved.element, resolved.address);
-			post(previewMessage.select(resolved.address));
+			setActive({ element: resolved.element, address: resolved.address });
+			postHover(resolved.address);
 		};
 
 		const onMessage = (event: MessageEvent): void => {
@@ -115,7 +119,7 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 				return;
 			}
 
-			show(element, event.data.address);
+			setActive({ element, address: event.data.address });
 			if (event.data.type === "scrollTo") {
 				const measured = measureElement(element);
 				if (measured) {
@@ -125,16 +129,14 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 		};
 
 		document.addEventListener("pointerover", onPointerOver, { passive: true });
-		document.addEventListener("click", onClick);
 		window.addEventListener("message", onMessage);
 		post(previewMessage.ready());
 
 		return () => {
 			document.removeEventListener("pointerover", onPointerOver);
-			document.removeEventListener("click", onClick);
 			window.removeEventListener("message", onMessage);
 		};
-	}, [adminOrigin, interceptNavigation]);
+	}, [adminOrigin]);
 
 	useEffect(() => {
 		if (!active) {
@@ -171,5 +173,18 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 		};
 	}, [active]);
 
-	return <Overlay box={box} label={active?.label} />;
+	const onSelect = (): void => {
+		const address = current.current?.address;
+		if (address && window.parent !== window) {
+			window.parent.postMessage(previewMessage.select(address), adminOrigin);
+		}
+	};
+
+	return (
+		<Overlay
+			box={box}
+			label={active ? labelFor(active.address) : undefined}
+			onSelect={onSelect}
+		/>
+	);
 };

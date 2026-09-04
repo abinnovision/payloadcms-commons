@@ -4,15 +4,15 @@
 
 Each of these was cut on purpose. If one of them lands later, it will be for a stated reason.
 
-| Not included                     | Why                                                                                                                                                                                                        |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inline editing                   | Viewfinder is the addressing layer a visual editor needs first. Mutating content means owning form patching, validation, undo and conflict handling, none of which addressing requires.                    |
-| Any content mutation at all      | The package never writes to a document and never patches form state. Both bridges only read, resolve and post.                                                                                             |
-| Automatic per-field addressing   | Would need a content source map: an API change, a virtual field, or an annotation on every element that renders a value. Block ids are already there and cost nothing. `markField` covers the rest opt-in. |
-| Client-side live preview         | Montage keys resolver results by object identity, and a deserialised document breaks that. Server-side live preview re-renders on the server, so it holds. See below.                                      |
-| Styling and theming              | The overlay is inline-styled with a fixed blue. No class names, no CSS custom properties, no props to change it.                                                                                           |
-| Reacting to `hover` and `leave`  | The protocol carries them, but the admin acts only on `select` today. Scrolling the form on every pointer move would fight the editor for control of the scroll position.                                  |
-| A generated `data-vf-*` contract | The attribute names are exported constants, not a stable public format. Read them from the package rather than hard-coding the strings.                                                                    |
+| Not included                     | Why                                                                                                                                                                                                                                |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inline editing                   | Viewfinder is the addressing layer a visual editor needs first. Mutating content means owning form patching, validation, undo and conflict handling, none of which addressing requires.                                            |
+| Any content mutation at all      | The package never writes to a document and never patches form state. Both bridges only read, resolve and post.                                                                                                                     |
+| Automatic per-field addressing   | Would need a content source map: an API change, a virtual field, or an annotation on every element that renders a value. Block ids are already there and cost nothing. `markField` covers the rest opt-in.                         |
+| Client-side live preview         | Montage keys resolver results by object identity, and a deserialised document breaks that. Server-side live preview re-renders on the server, so it holds. See below.                                                              |
+| Styling and theming              | The preview badge and the admin row button are inline-styled with a fixed blue. No class names, no CSS custom properties, no props to change either.                                                                               |
+| Reacting to `hover` and `leave`  | The protocol carries them (deduplicated, so one message per block rather than one per pointer move), but the admin acts only on `select`. Scrolling the form as the pointer sweeps would fight the editor for the scroll position. |
+| A generated `data-vf-*` contract | The attribute names are exported constants, not a stable public format. Read them from the package rather than hard-coding the strings.                                                                                            |
 
 ## Known gaps
 
@@ -56,7 +56,14 @@ rather than parsing an id back into a path. Ids are also assumed unique; if two 
 the same one, the shallowest path wins, so the result is deterministic but not necessarily the row
 you meant.
 
-The overlay is not themeable. It is one inline-styled fixed-position frame with an optional label,
-portalled to `document.body` so that a transformed or clipping ancestor cannot shift it away from
-the block it outlines. There are no styling hooks, and the label shows the block type and field
-name as sent, not a human-readable admin label.
+The overlay is not themeable. It is one inline-styled fixed-position frame whose badge is the
+selection control, portalled to `document.body` so that a transformed or clipping ancestor cannot
+shift it away from the block it outlines. There are no styling hooks, and the badge shows the block
+type and field name as sent, not a human-readable admin label.
+
+The admin's row button is portalled into a Payload class name, `.blocks-field__block-header`. That
+is a third undocumented assumption alongside the two above, and it fails closed in the same way: if
+the class moves, no button is found and no button is rendered. It is refreshed by a
+`MutationObserver` on the document, because rows mount and unmount as the editor expands and
+collapses them and expanding changes no form state, so a render-driven scan would miss it. The
+scan is skipped entirely when no preview frame is present.

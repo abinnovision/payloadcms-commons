@@ -108,10 +108,9 @@ Mount it once, near the root. It attaches no listeners and draws nothing when
 `window.parent === window`, so the same tree serves real visitors; there is no second layout to
 keep in step.
 
-| Prop                  | Required | Purpose                                                                                                                                                                  |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `adminOrigin`         | yes      | Origin of the Payload admin. Required rather than defaulting to `"*"`: this window posts the ids it renders.                                                             |
-| `interceptNavigation` | no       | Suppress link navigation for clicks inside a marked block, so selecting a block does not navigate away. Defaults to `true`; hold a modifier key to follow a link anyway. |
+| Prop          | Required | Purpose                                                                                                      |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| `adminOrigin` | yes      | Origin of the Payload admin. Required rather than defaulting to `"*"`: this window posts the ids it renders. |
 
 ## 5a. Mark the blocks, without montage
 
@@ -216,9 +215,12 @@ generic hook; this is one use of it.
 ## Checking it works
 
 Open a document in the admin and switch to the Live Preview tab. Hovering a block in the preview
-outlines it; clicking it scrolls the matching form row into view, expanding whatever is collapsed
-around it, and flashes it. Clicking or focusing a field in the form outlines the corresponding
-block in the preview and scrolls it to the centre of the frame.
+outlines it and shows a badge; clicking that badge scrolls the matching form row into view,
+expanding whatever is collapsed around it, and flashes it. Every block row in the form carries a
+button in its header that scrolls the preview to that block and outlines it.
+
+Nothing else in either window triggers anything: links in the preview navigate normally, and
+typing, collapsing rows or opening a row menu in the form leaves the preview where it is.
 
 If nothing happens at all, check in this order: the import map was regenerated, the collection is
 in the plugin's `collections` list, `adminOrigin` matches the admin's real origin, and the blocks

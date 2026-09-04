@@ -66,13 +66,22 @@ its own.
 
 ## The two directions
 
-Preview to admin: a pointer event is walked up to the nearest `data-vf-id`, turned into an address,
-and posted to the parent window. The admin resolves the address to a form path, expands every
-collapsed ancestor around it, scrolls to it and flashes it.
+Preview to admin: hovering walks the pointer's target up to the nearest `data-vf-id` and outlines
+that block, and the badge above it is the only thing that selects. Clicking the badge posts the
+address to the parent window; the admin resolves it to a form path, expands every collapsed
+ancestor around it, scrolls to it and flashes it.
 
-Admin to preview: focus or a click inside the form is walked up to the nearest field wrapper or
-block row, turned back into an address, and posted into the iframe. The preview finds the element
-with that id, measures it and draws the overlay.
+Admin to preview: each rendered block row gets a button portalled into Payload's own row header,
+which posts that row's address into the iframe. The preview finds the element with that id,
+measures it, scrolls to it and draws the overlay.
+
+Both triggers are deliberate. An earlier version drove each direction from ordinary clicks and
+focus changes, which meant the preview scrolled while an editor was only placing a caret, and a
+click anywhere in the previewed page was swallowed. Nothing incidental drives either window now.
+
+The button is portalled rather than registered as the block's `Label` component. That slot replaces
+the whole header fragment, including the block-name input, and only reaches blocks that live in
+`config.blocks`, so inline blocks passed through `blockReferences` would silently get nothing.
 
 Both windows treat the other as untrusted. Every message carries a source tag and a protocol
 version, and is validated structurally on arrival rather than cast. The frontend requires an

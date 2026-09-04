@@ -8,7 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const entry = resolve(here, "index.ts");
 
 /** Everything the admin bundle is allowed to pull in at runtime. */
-const ALLOWED = new Set(["react", "@payloadcms/ui"]);
+const ALLOWED = new Set(["react", "react-dom", "@payloadcms/ui"]);
 
 describe("./admin module boundary", () => {
 	it("reaches nothing beyond React and the admin UI package", () => {
@@ -28,5 +28,6 @@ describe("./admin module boundary", () => {
 		);
 		expect(names).toContain("bridge.tsx");
 		expect(names).toContain("resolve-path.ts");
+		expect(names).toContain("row-headers.ts");
 	});
 });
