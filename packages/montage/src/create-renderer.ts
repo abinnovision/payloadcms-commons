@@ -8,6 +8,7 @@ import {
 import type {
 	BlockContext,
 	BlockRegistry,
+	BlockWrapper,
 	InternalRegistry,
 	Renderer,
 } from "./types.js";
@@ -22,7 +23,11 @@ export const createRenderer = <TCtx>(
 ): Renderer<TCtx> => {
 	const internal = registry as unknown as InternalRegistry;
 
-	const dispatch = createBlockTree<TCtx>(internal.entries, internal.canRender);
+	const dispatch = createBlockTree<TCtx>(
+		internal.entries,
+		internal.canRender,
+		internal.wrapBlock as BlockWrapper<TCtx> | undefined,
+	);
 
 	return {
 		...dispatch,

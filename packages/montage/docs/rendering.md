@@ -143,3 +143,43 @@ direct dispatch of an unregistered slug when `NODE_ENV !== "production"`, and re
 otherwise. `renderer.canRender` never throws; it returns `false` and logs a warning in
 development, which keeps the common `filter(canRender)` pattern usable instead of turning it into
 a trap.
+
+## Wrapping every block with `wrapBlock`
+
+`defineBlockRegistry` takes an optional `wrapBlock`, which runs around every block the registry
+renders:
+
+```ts
+export type BlockWrapper<TCtx> = (args: {
+  block: { blockType?: string };
+  ctx: BlockContext<TCtx>;
+  children: ReactNode | Promise<ReactNode>;
+}) => ReactNode | Promise<ReactNode>;
+```
+
+```tsx
+export const blocks = defineBlockRegistry(entries, {
+  wrapBlock: ({ block, children }) => (
+    <BlockErrorBoundary slug={block.blockType}>{children}</BlockErrorBoundary>
+  ),
+});
+```
+
+It runs at the single dispatch choke point inside `Block`, which is what makes one hook enough.
+Every block reaches that line, at every nesting depth and through every route into the tree: a
+parent calling `renderer.Block`, an inline block, a block embedded in richtext. There is no second
+path to remember to instrument.
+
+It runs after all four gating stages (the null guard, the registry-level `canRender`, the
+`blockType` guard and registration lookup, and the block's own `canRender`), so a block that
+renders nothing is never wrapped. A wrapper cannot introduce an empty element around a block that
+collapsed, and it never sees a block that is not going to render.
+
+`children` may be a promise, because a block component may be `async`. Pass it through rather than
+inspecting it; a wrapper that needs the rendered output has to await it and therefore has to be
+async itself.
+
+Nothing about the hook is preview- or editor-specific. Error boundaries, suspense boundaries,
+render timing and instrumentation, and the DOM markers a visual editor needs in order to address
+blocks all fit the same shape. [`recipes.md`](./recipes.md#addressable-blocks-for-live-preview)
+works through the last of those.
