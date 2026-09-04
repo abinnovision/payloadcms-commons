@@ -215,12 +215,14 @@ generic hook; this is one use of it.
 ## Checking it works
 
 Open a document in the admin and switch to the Live Preview tab. Hovering a block in the preview
-outlines it and shows a badge; clicking that badge scrolls the matching form row into view,
-expanding whatever is collapsed around it, and flashes it. Every block row in the form carries a
-button in its header that scrolls the preview to that block and outlines it.
+outlines it and names it; clicking anywhere inside it scrolls the matching form row into view,
+expanding whatever is collapsed around it, and flashes it. Going the other way, hovering a block
+row outlines that block in the preview without moving it, and the button in the row header scrolls
+the preview to it.
 
-Nothing else in either window triggers anything: links in the preview navigate normally, and
-typing, collapsing rows or opening a row menu in the form leaves the preview where it is.
+Nothing else in the form triggers anything: typing, collapsing rows or opening a row menu leaves
+the preview where it is. In the preview, a plain click inside a marked block selects it rather than
+following a link; hold a modifier, or click outside every marked block, to use the page normally.
 
 If nothing happens at all, check in this order: the import map was regenerated, the collection is
 in the plugin's `collections` list, `adminOrigin` matches the admin's real origin, and the blocks

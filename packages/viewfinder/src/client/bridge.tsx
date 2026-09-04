@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { BLOCK_ID_ATTRIBUTE } from "../attributes.js";
 import { isAdminMessage, previewMessage } from "../protocol.js";
 import { measureElement, scrollBoxIntoView } from "./geometry.js";
-import { Overlay, OVERLAY_ATTRIBUTE } from "./overlay.js";
+import { Overlay } from "./overlay.js";
 import { resolveTarget } from "./target.js";
 
 import type { Box } from "./geometry.js";
@@ -38,9 +38,8 @@ const labelFor = (address: BlockAddress): string =>
  * Connects the rendered page to the Payload admin that is previewing it.
  * Mount once, near the root of the app.
  *
- * Hovering a block outlines it and reveals a badge; the badge is the only
- * thing that selects. Nothing else in the page is intercepted, so links and
- * buttons behave for an editor exactly as they do for a visitor.
+ * Hovering a block outlines it and names it; clicking anywhere inside it
+ * selects it. The whole block is the target, so there is nothing to aim at.
  *
  * Does nothing at all when the page is not framed, so the same tree can be
  * served to real visitors without a second code path.
@@ -49,10 +48,6 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 	const { adminOrigin } = props;
 	const [active, setActive] = useState<Active | null>(null);
 	const [box, setBox] = useState<Box | undefined>(undefined);
-
-	/* Read by the badge's click handler, which outlives any one render. */
-	const current = useRef<Active | null>(active);
-	current.current = active;
 
 	useEffect(() => {
 		if (window.parent === window) {
@@ -80,14 +75,7 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 		};
 
 		const onPointerOver = (event: PointerEvent): void => {
-			const target = event.target as Element | null;
-
-			/* Moving onto the badge must not dismiss the badge. */
-			if (target?.closest(`[${OVERLAY_ATTRIBUTE}]`)) {
-				return;
-			}
-
-			const resolved = resolveTarget(target);
+			const resolved = resolveTarget(event.target as Element | null);
 			if (!resolved) {
 				setActive(null);
 				postHover(null);
@@ -97,6 +85,39 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 
 			setActive({ element: resolved.element, address: resolved.address });
 			postHover(resolved.address);
+		};
+
+		/*
+		 * Capture phase, so a block that stops propagation on its own root
+		 * cannot make itself unselectable.
+		 *
+		 * A click inside a marked block selects it instead of doing whatever
+		 * the page would have done, which is the trade this makes: the whole
+		 * block is the target, and a link inside one does not navigate while
+		 * the page is framed. Modified and secondary clicks are left alone, so
+		 * an editor can still open a link in a new tab. Clicks outside every
+		 * marked block are never touched.
+		 */
+		const onClick = (event: MouseEvent): void => {
+			if (
+				event.button !== 0 ||
+				event.metaKey ||
+				event.ctrlKey ||
+				event.shiftKey ||
+				event.altKey
+			) {
+				return;
+			}
+
+			const resolved = resolveTarget(event.target as Element | null);
+			if (!resolved) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+			setActive({ element: resolved.element, address: resolved.address });
+			post(previewMessage.select(resolved.address));
 		};
 
 		const onMessage = (event: MessageEvent): void => {
@@ -129,11 +150,13 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 		};
 
 		document.addEventListener("pointerover", onPointerOver, { passive: true });
+		document.addEventListener("click", onClick, { capture: true });
 		window.addEventListener("message", onMessage);
 		post(previewMessage.ready());
 
 		return () => {
 			document.removeEventListener("pointerover", onPointerOver);
+			document.removeEventListener("click", onClick, { capture: true });
 			window.removeEventListener("message", onMessage);
 		};
 	}, [adminOrigin]);
@@ -173,18 +196,7 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 		};
 	}, [active]);
 
-	const onSelect = (): void => {
-		const address = current.current?.address;
-		if (address && window.parent !== window) {
-			window.parent.postMessage(previewMessage.select(address), adminOrigin);
-		}
-	};
-
 	return (
-		<Overlay
-			box={box}
-			label={active ? labelFor(active.address) : undefined}
-			onSelect={onSelect}
-		/>
+		<Overlay box={box} label={active ? labelFor(active.address) : undefined} />
 	);
 };

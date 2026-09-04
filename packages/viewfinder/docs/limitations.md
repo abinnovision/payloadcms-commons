@@ -56,9 +56,10 @@ rather than parsing an id back into a path. Ids are also assumed unique; if two 
 the same one, the shallowest path wins, so the result is deterministic but not necessarily the row
 you meant.
 
-The overlay is not themeable. It is one inline-styled fixed-position frame whose badge is the
-selection control, portalled to `document.body` so that a transformed or clipping ancestor cannot
-shift it away from the block it outlines. There are no styling hooks, and the badge shows the block
+The overlay is not themeable. It is one inline-styled fixed-position frame with an inert badge,
+portalled to `document.body` so that a transformed or clipping ancestor cannot shift it away from
+the block it outlines. The badge takes no pointer events; the block underneath is the click
+target. There are no styling hooks, and the badge shows the block
 type and field name as sent, not a human-readable admin label.
 
 The admin's row button is portalled into a Payload class name, `.blocks-field__block-header`. That
@@ -67,3 +68,10 @@ the class moves, no button is found and no button is rendered. It is refreshed b
 `MutationObserver` on the document, because rows mount and unmount as the editor expands and
 collapses them and expanding changes no form state, so a render-driven scan would miss it. The
 scan is skipped entirely when no preview frame is present.
+
+Revealing a row waits for Payload to render it. Payload wraps a row's fields in
+`RenderIfInViewport`, which mounts them only once the wrapper comes within 1000px of the viewport,
+so expanding an ancestor is not enough on its own: each ancestor is scrolled into view as it is
+expanded, which is what brings the next level down inside that margin. The wait for each level is
+about a second, after which the reveal gives up and nothing happens. A form deep enough that a
+level takes longer than that to render would fail silently.

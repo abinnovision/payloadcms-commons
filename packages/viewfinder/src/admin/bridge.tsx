@@ -43,10 +43,13 @@ const post = (message: AdminMessage): void => {
  * document form by `viewfinderPlugin`, and inert until a framed page
  * announces itself.
  *
- * Both directions are explicit. A `select` from the preview reveals the
- * matching form row; a locate button in each row header sends the preview to
- * that block. Nothing is driven by incidental clicks or focus changes, which
- * is what kept the preview scrolling while an editor was only placing a caret.
+ * A `select` from the preview reveals the matching form row. In the other
+ * direction, hovering a row header outlines that block in the preview without
+ * moving it, and the locate button in that header scrolls the preview to it.
+ *
+ * Only the button scrolls. Driving the scroll from focus or from an ordinary
+ * click, as an earlier version did, moved the preview while an editor was
+ * merely placing a caret.
  */
 export const ViewfinderFormBridge = (): ReactNode => {
 	const [fields] = useAllFormFields();
@@ -123,12 +126,47 @@ export const ViewfinderFormBridge = (): ReactNode => {
 		};
 	}, [pathsKey]);
 
+	/*
+	 * Hover is the cheap half of the lookup: it outlines the block in place,
+	 * so an editor can sweep the form and see what each row is without
+	 * anything moving under them.
+	 */
+	useEffect(() => {
+		const detach: Array<() => void> = [];
+
+		for (const [path, header] of headers) {
+			const onEnter = (): void => {
+				const address = resolveAddressForPath(formState.current, path);
+				if (address) {
+					post(adminMessage.highlight(address));
+				}
+			};
+
+			const onLeave = (): void => {
+				post(adminMessage.clear());
+			};
+
+			header.addEventListener("pointerenter", onEnter);
+			header.addEventListener("pointerleave", onLeave);
+			detach.push(() => {
+				header.removeEventListener("pointerenter", onEnter);
+				header.removeEventListener("pointerleave", onLeave);
+			});
+		}
+
+		return () => {
+			for (const off of detach) {
+				off();
+			}
+		};
+	}, [headers]);
+
 	return (
 		<>
 			{[...headers].map(([path, header]) =>
 				createPortal(
 					<RowButton
-						label="Show this block in the preview"
+						label="Scroll the preview to this block"
 						onSelect={() => {
 							const address = resolveAddressForPath(formState.current, path);
 							if (address) {

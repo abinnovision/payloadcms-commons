@@ -23,9 +23,9 @@ const FRAME: CSSProperties = {
 };
 
 /**
- * The only interactive part of the overlay, and the only thing in the page
- * that selects a block. Everything else keeps `pointerEvents: none`, so links
- * and buttons in the previewed page behave exactly as they do for a visitor.
+ * Names the block being pointed at. Inert on purpose: the block itself is the
+ * click target, so a badge that took pointer events would only carve a dead
+ * spot out of it.
  */
 const BADGE: CSSProperties = {
 	position: "absolute",
@@ -34,37 +34,17 @@ const BADGE: CSSProperties = {
 	display: "inline-flex",
 	alignItems: "center",
 	gap: "0.35em",
-	margin: 0,
 	padding: "0 0.45em",
-	border: 0,
 	borderRadius: "2px",
 	background: ACCENT,
 	color: "#fff",
 	font: "500 11px/1.5em ui-sans-serif, system-ui, sans-serif",
 	whiteSpace: "nowrap",
-	cursor: "pointer",
-	pointerEvents: "auto",
 };
-
-const LocateIcon = (): ReactNode => (
-	<svg
-		aria-hidden
-		fill="none"
-		height="11"
-		stroke="currentColor"
-		strokeWidth="1.6"
-		viewBox="0 0 16 16"
-		width="11"
-	>
-		<circle cx="8" cy="8" r="3.2" />
-		<path d="M8 1v2.2M8 12.8V15M1 8h2.2M12.8 8H15" strokeLinecap="round" />
-	</svg>
-);
 
 export interface OverlayProps {
 	box: Box | undefined;
 	label: string | undefined;
-	onSelect: () => void;
 }
 
 /**
@@ -84,10 +64,7 @@ export const Overlay = (props: OverlayProps): ReactNode => {
 			{...{ [OVERLAY_ATTRIBUTE]: "" }}
 			style={{ ...FRAME, top, left, width, height }}
 		>
-			<button onClick={props.onSelect} style={BADGE} type="button">
-				<LocateIcon />
-				{props.label ?? "block"}
-			</button>
+			<span style={BADGE}>{props.label ?? "block"}</span>
 		</div>,
 		document.body,
 	);

@@ -5,9 +5,9 @@ admin form.
 
 Viewfinder owns addressing and transport, and nothing else. It puts a stable identifier on each
 rendered block, resolves that identifier back to a path in the admin's own form state, and carries
-messages between the two windows. Both directions are explicit: hovering a block in the live
-preview reveals a badge whose button scrolls the matching form row into view, and each block row in
-the admin gets a button that sends the preview to that block.
+messages between the two windows. In the preview, hovering a block outlines and names it and
+clicking anywhere inside it scrolls the matching form row into view. In the admin, hovering a block
+row outlines that block in the preview, and a button in the row header scrolls the preview to it.
 
 Inline editing is deliberately not part of it. A visual editor needs to know which DOM node belongs
 to which field before it can do anything else, and that layer is useful on its own.
@@ -82,8 +82,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => (
 
 The bridge does nothing when the page is not framed, so the same tree can be served to real
 visitors without a second code path. Inside the preview it outlines the block under the pointer and
-shows a badge; only that badge selects, so links and buttons in the page behave for an editor
-exactly as they do for a visitor.
+names it, and a click anywhere inside that block selects it. The whole block is the target, so a
+plain click on a link inside a marked block selects rather than navigates while the page is framed.
+Modified and secondary clicks are left alone, so an editor can still open a link in a new tab.
 
 Finally, mark the blocks. Wrap each one in `<Marked>`, passing the Payload row `id` and your own
 preview flag:

@@ -9,7 +9,7 @@ const COLLAPSED_TOGGLE = `${TOGGLE}--collapsed`;
 const COLLAPSIBLE = ".collapsible";
 const COLLAPSED = ".collapsible--collapsed";
 const FLASH_MS = 1200;
-const WAIT_ATTEMPTS = 30;
+const WAIT_ATTEMPTS = 60;
 
 const POLL_MS = 16;
 
@@ -21,7 +21,9 @@ const wait = async (view: Window, ms: number): Promise<void> => {
 
 /**
  * Waits for one of `ids` to appear, since expanding a row re-renders and the
- * element does not exist on the tick the click was dispatched.
+ * element does not exist on the tick the click was dispatched. Gives it about
+ * a second: Payload's own lazy field rendering sits between the expand and
+ * the element showing up.
  *
  * Polls on a timer rather than on animation frames: the admin tab can be
  * backgrounded (or throttled) while the editor works elsewhere, and
@@ -112,6 +114,15 @@ export const revealPath = async (
 		const row = await waitForElement(doc, [id]);
 		if (row) {
 			expandRow(row);
+
+			/*
+			 * Payload renders a row's fields lazily, once their wrapper is near
+			 * the viewport. A row deep in a long form would otherwise be
+			 * expanded and then never populated, and the wait below for the next
+			 * level down would time out on a row that is only waiting to be
+			 * looked at.
+			 */
+			row.scrollIntoView({ block: "center" });
 		}
 	}
 

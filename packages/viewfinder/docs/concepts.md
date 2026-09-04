@@ -66,18 +66,24 @@ its own.
 
 ## The two directions
 
-Preview to admin: hovering walks the pointer's target up to the nearest `data-vf-id` and outlines
-that block, and the badge above it is the only thing that selects. Clicking the badge posts the
-address to the parent window; the admin resolves it to a form path, expands every collapsed
-ancestor around it, scrolls to it and flashes it.
+Preview to admin: hovering walks the pointer's target up to the nearest `data-vf-id`, outlines that
+block and names it. A click anywhere inside the block posts its address to the parent window; the
+admin resolves it to a form path, expands every collapsed ancestor around it, scrolls to it and
+flashes it.
 
-Admin to preview: each rendered block row gets a button portalled into Payload's own row header,
-which posts that row's address into the iframe. The preview finds the element with that id,
-measures it, scrolls to it and draws the overlay.
+The whole block is the target rather than a control drawn on top of it, because a control small
+enough not to obscure the block is also small enough to be hard to hit, and it has to be aimed at
+after the block has already been found. The cost is that a plain click on a link inside a marked
+block selects instead of navigating while the page is framed. Clicks carrying a modifier, and
+clicks outside every marked block, are never touched.
 
-Both triggers are deliberate. An earlier version drove each direction from ordinary clicks and
-focus changes, which meant the preview scrolled while an editor was only placing a caret, and a
-click anywhere in the previewed page was swallowed. Nothing incidental drives either window now.
+Admin to preview: hovering a block row outlines that block in the preview and nothing else, so an
+editor can sweep the form and see what each row is without the preview moving. The button in the
+row header is what scrolls, posting that row's address into the iframe; the preview finds the
+element with that id, measures it, scrolls to it and draws the overlay.
+
+Hover and click are split that way on purpose. An earlier version scrolled the preview on any click
+or focus change in the form, which moved the page while an editor was only placing a caret.
 
 The button is portalled rather than registered as the block's `Label` component. That slot replaces
 the whole header fragment, including the block-name input, and only reaches blocks that live in
