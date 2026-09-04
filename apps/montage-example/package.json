@@ -27,7 +27,9 @@
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
 		"@abinnovision/payloadcms-montage": "workspace:*",
+		"@abinnovision/payloadcms-viewfinder": "workspace:*",
 		"@payloadcms/db-sqlite": "3.88.0",
+		"@payloadcms/live-preview-react": "3.88.0",
 		"@payloadcms/next": "3.88.0",
 		"@payloadcms/richtext-lexical": "3.88.0",
 		"graphql": "^17.0.2",

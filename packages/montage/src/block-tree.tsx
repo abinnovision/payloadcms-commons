@@ -5,7 +5,12 @@ import {
 	getBlockData as rawGetBlockData,
 } from "./resolver/execute.js";
 
-import type { BlockContext, InternalBlockEntry, Renderer } from "./types.js";
+import type {
+	BlockContext,
+	BlockWrapper,
+	InternalBlockEntry,
+	Renderer,
+} from "./types.js";
 import type { ReactElement, ReactNode } from "react";
 
 const isDev = (): boolean => process.env["NODE_ENV"] !== "production";
@@ -32,6 +37,8 @@ export const createBlockTree = <TCtx,>(
 				ctx: BlockContext<TCtx>;
 		  }) => boolean)
 		| undefined,
+	/** Optional: the existing call sites predate it and pass nothing. */
+	wrapBlock?: BlockWrapper<TCtx>,
 ): Pick<
 	Renderer<TCtx>,
 	"Block" | "canRender" | "isRegistered" | "renderBlockTree"
@@ -127,11 +134,27 @@ export const createBlockTree = <TCtx,>(
 
 		checkIdentity(props.ctx, props.block, entries);
 
-		return result.entry.component({
+		const children = result.entry.component({
 			block: props.block,
 			ctx: props.ctx,
 			data: result.data,
 			renderer: renderer as unknown as Renderer<unknown>,
+		});
+
+		/*
+		 * The single choke point: every block reaches this line, at every
+		 * nesting depth and through every route into the tree (a parent
+		 * calling `renderer.Block`, an inline block, a richtext-embedded
+		 * block), so one wrapper instruments the whole tree.
+		 */
+		if (!wrapBlock) {
+			return children;
+		}
+
+		return wrapBlock({
+			block: props.block as { blockType?: string },
+			ctx: props.ctx,
+			children,
 		});
 	};
 

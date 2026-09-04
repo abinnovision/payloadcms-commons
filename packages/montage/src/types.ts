@@ -38,6 +38,19 @@ export type RequireGeneratedTypes = string extends BlockSlug
 	? "montage: run `payload generate:types` before typechecking"
 	: unknown;
 
+/**
+ * Wraps every block the renderer dispatches, at every nesting depth.
+ *
+ * Runs after all gating, so a block the renderer decided not to render is
+ * never wrapped. `children` may be a promise, since components are allowed to
+ * be async; return it untouched to opt out for a given block.
+ */
+export type BlockWrapper<TCtx> = (args: {
+	block: { blockType?: string };
+	ctx: BlockContext<TCtx>;
+	children: ReactNode | Promise<ReactNode>;
+}) => ReactNode | Promise<ReactNode>;
+
 export interface BlockRenderArgs<TBlock, D, TCtx> {
 	block: TBlock;
 	ctx: BlockContext<TCtx>;
@@ -136,6 +149,12 @@ export interface Montage<TCtx extends object> {
 				ctx: BlockContext<TCtx>;
 			}) => boolean;
 			require?: R;
+			/**
+			 * One place to wrap, instrument or bound every rendered block:
+			 * error and suspense boundaries, render timing, or the marker a
+			 * visual editor needs in order to address blocks in the DOM.
+			 */
+			wrapBlock?: BlockWrapper<TCtx>;
 		},
 	) => BlockRegistry;
 
@@ -178,4 +197,5 @@ export interface InternalRegistry extends BlockRegistry {
 				ctx: BlockContext<unknown>;
 		  }) => boolean)
 		| undefined;
+	readonly wrapBlock?: BlockWrapper<unknown> | undefined;
 }

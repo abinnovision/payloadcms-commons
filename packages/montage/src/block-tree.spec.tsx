@@ -197,6 +197,95 @@ describe("createBlockTree", () => {
 		});
 	});
 
+	describe("wrapBlock", () => {
+		it("wraps a rendered block", async () => {
+			const entries = new Map([["hero", entry({ slug: "hero" })]]);
+			const { renderBlockTree } = createBlockTree(
+				entries,
+				undefined,
+				({ children }) => `[${children as string}]`,
+			);
+			const ctx = createBlockContext({});
+
+			const el = await renderBlockTree({ block: { blockType: "hero" }, ctx });
+			expect(el?.props).toEqual({ children: "[rendered]" });
+		});
+
+		it("receives the block and context alongside the children", async () => {
+			const entries = new Map([["hero", entry({ slug: "hero" })]]);
+			const wrapBlock = vi.fn(({ children }) => children);
+			const { renderBlockTree } = createBlockTree(
+				entries,
+				undefined,
+				wrapBlock,
+			);
+			const ctx = createBlockContext({ locale: "de" });
+			const block = { blockType: "hero", id: "hero-1" };
+
+			await renderBlockTree({ block, ctx });
+
+			expect(wrapBlock).toHaveBeenCalledWith({
+				block,
+				ctx,
+				children: "rendered",
+			});
+		});
+
+		it("runs after gating, so a block that renders nothing is never wrapped", () => {
+			/*
+			 * Anything hanging a marker off the wrapper would otherwise emit one
+			 * for a block the reader never sees.
+			 */
+			const entries = new Map([
+				["hero", entry({ slug: "hero", canRender: () => false })],
+			]);
+			const wrapBlock = vi.fn(({ children }) => children);
+			const { Block } = createBlockTree(entries, undefined, wrapBlock);
+			const ctx = createBlockContext({});
+
+			expect(Block({ block: { blockType: "hero" }, ctx })).toBeNull();
+			expect(wrapBlock).not.toHaveBeenCalled();
+		});
+
+		it("wraps nested blocks too, since children dispatch through the same Block", async () => {
+			const entries = new Map([
+				[
+					"section",
+					entry({
+						slug: "section",
+						component: ({ ctx, renderer }) =>
+							renderer.Block({ block: { blockType: "hero" }, ctx }),
+					}),
+				],
+				["hero", entry({ slug: "hero" })],
+			]);
+			const { renderBlockTree } = createBlockTree(
+				entries,
+				undefined,
+				({ block, children }) =>
+					`<${String(block.blockType)}>${children as string}`,
+			);
+			const ctx = createBlockContext({});
+
+			const el = await renderBlockTree({
+				block: { blockType: "section" },
+				ctx,
+			});
+			expect(el?.props).toEqual({
+				children: "<section><hero>rendered",
+			});
+		});
+
+		it("is inert when not supplied", async () => {
+			const entries = new Map([["hero", entry({ slug: "hero" })]]);
+			const { renderBlockTree } = createBlockTree(entries, undefined);
+			const ctx = createBlockContext({});
+
+			const el = await renderBlockTree({ block: { blockType: "hero" }, ctx });
+			expect(el?.props).toEqual({ children: "rendered" });
+		});
+	});
+
 	describe("renderBlockTree", () => {
 		it("returns null when the component itself returns null", async () => {
 			const entries = new Map([

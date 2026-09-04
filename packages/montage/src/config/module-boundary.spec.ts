@@ -1,70 +1,13 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { walkModuleGraph as walk } from "../../test/module-graph.js";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = resolve(here, "index.ts");
-
-const SPECIFIER_RE =
-	/^\s*(?:import|export)\s+(?:type\s+)?(?:[\s\S]*?\bfrom\s+)?["']([^"']+)["']|^\s*import\s*\(\s*["']([^"']+)["']\s*\)/gm;
-const TYPE_ONLY_RE = /^\s*(?:import|export)\s+type\b/;
-
-const resolveRelative = (fromFile: string, specifier: string): string => {
-	const base = resolve(dirname(fromFile), specifier);
-
-	return base.endsWith(".js") ? `${base.slice(0, -3)}.ts` : `${base}.ts`;
-};
-
-interface Walk {
-	files: Set<string>;
-	bareSpecifiers: Set<string>;
-}
-
-/**
- * Walks the value-import graph reachable from `entryFile`. Type-only imports
- * and exports erase at compile time, so they are excluded: only they may
- * legally cross the `./config` boundary.
- */
-const walk = (entryFile: string): Walk => {
-	const files = new Set<string>();
-	const bareSpecifiers = new Set<string>();
-	const queue = [entryFile];
-
-	while (queue.length > 0) {
-		const file = queue.pop();
-		if (!file || files.has(file)) {
-			continue;
-		}
-
-		files.add(file);
-
-		const source = readFileSync(file, "utf8");
-		for (const line of source.split("\n")) {
-			if (TYPE_ONLY_RE.test(line)) {
-				continue;
-			}
-
-			SPECIFIER_RE.lastIndex = 0;
-			let match: RegExpExecArray | null;
-			while ((match = SPECIFIER_RE.exec(line))) {
-				const specifier = match[1] ?? match[2];
-				if (!specifier) {
-					continue;
-				}
-
-				if (specifier.startsWith(".")) {
-					queue.push(resolveRelative(file, specifier));
-				} else {
-					bareSpecifiers.add(specifier);
-				}
-			}
-		}
-	}
-
-	return { files, bareSpecifiers };
-};
 
 describe("./config module boundary", () => {
 	it("reaches no bare specifier other than `payload`", () => {

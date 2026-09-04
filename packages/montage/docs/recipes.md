@@ -4,7 +4,8 @@ Each recipe below is a small piece of your own code, written against montage's p
 plain Payload. The package deliberately does not ship any of them (see
 [`limitations.md`](./limitations.md)); together they show that the boundary drawn in
 [`concepts.md`](./concepts.md) is a workable one. Every example is a real, tested
-fixture in this package's own test suite.
+fixture in this package's own test suite, except the last one, which is running code from
+`apps/montage-example`.
 
 ## Section wrapper
 
@@ -199,3 +200,53 @@ cannot see blocks contributed by other plugins, which is why `require` stays.
 The assertion can live on either side. To keep it in the config file instead, import the component
 slug union with `import type`. Type-only imports are erased, so no component reaches the graph
 `payload.config.ts` loads.
+
+## Addressable blocks for live preview
+
+Making every rendered block point back at its own row in the admin form is one `wrapBlock` away.
+This is the example app's real registry:
+
+```tsx
+import { Marked } from "@abinnovision/payloadcms-viewfinder/client";
+
+import { HeroModule } from "./HeroModule";
+import { RecentPostsModule } from "./RecentPostsModule";
+import { SectionWrapper } from "./SectionWrapper";
+import { defineBlockRegistry } from "../montage";
+
+import type { ReactNode } from "react";
+
+export const blocks = defineBlockRegistry(
+  {
+    "hero-module": HeroModule,
+    "recent-posts-module": RecentPostsModule,
+    "section-wrapper": SectionWrapper,
+  },
+  {
+    require: ["hero-module", "recent-posts-module"],
+    wrapBlock: ({ block, ctx, children }) => (
+      <Marked
+        blockType={block.blockType}
+        enabled={ctx.isPreview}
+        id={(block as { id?: string | null }).id ?? ""}
+      >
+        {children as ReactNode}
+      </Marked>
+    ),
+  },
+);
+```
+
+Because `wrapBlock` sits at montage's one dispatch point, this alone makes the whole tree
+addressable: nested modules, inline blocks and richtext-embedded blocks included. Because it runs
+after gating, a collapsed block leaves no marker behind. `ctx.isPreview` is the app's own context
+field, not something montage knows about; outside preview `Marked` renders its children untouched.
+
+The `id` cast is needed because `wrapBlock` sees a block as `{ blockType?: string }`. The value is
+Payload's row id, which every saved block row carries.
+
+[`@abinnovision/payloadcms-viewfinder`](../../viewfinder/README.md) is a separate, optional
+package. Montage does not depend on it, it does not depend on montage, and `wrapBlock` is a generic
+hook that happens to suit it. It does require server-side live preview, for the identity-keying
+reason described under [Resolving data](./rendering.md#resolving-data): a client-side live preview
+hands the page a freshly deserialised document, and no resolved data survives that.

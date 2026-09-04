@@ -1,4 +1,5 @@
 import { montagePlugin } from "@abinnovision/payloadcms-montage/config";
+import { viewfinderPlugin } from "@abinnovision/payloadcms-viewfinder/config";
 import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import path from "node:path";
@@ -27,7 +28,15 @@ export default buildConfig({
 	// section wrapper is deliberately not registered here: it is instantiated
 	// inline on `pages.layout` instead (see collections/pages.ts), so it never
 	// reaches `config.blocks`.
-	plugins: [montagePlugin({ blocks: [heroBlock, recentPostsBlock] })],
+	plugins: [
+		montagePlugin({ blocks: [heroBlock, recentPostsBlock] }),
+		/*
+		 * Mounts the admin half of viewfinder on the pages collection. Run
+		 * `yarn generate:importmap` after adding it, as for any plugin that
+		 * contributes admin components.
+		 */
+		viewfinderPlugin({ collections: ["pages"] }),
+	],
 	graphQL: { disable: true },
 	typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },
 });

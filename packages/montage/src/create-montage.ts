@@ -21,7 +21,7 @@ export const createMontage = <TCtx extends object>(): Montage<TCtx> => {
 		defineInlineBlockComponent:
 			defineInlineBlockComponent as Montage<TCtx>["defineInlineBlockComponent"],
 		defineBlockRegistry: (entries, options) =>
-			buildRegistry<TCtx>(entries, options?.canRender),
+			buildRegistry<TCtx>(entries, options?.canRender, options?.wrapBlock),
 		createRenderer: (registry) => createRenderer<TCtx>(registry),
 	};
 };

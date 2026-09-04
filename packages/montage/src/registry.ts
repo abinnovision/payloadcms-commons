@@ -2,6 +2,7 @@ import type {
 	BlockContext,
 	BlockComponent,
 	BlockRegistry,
+	BlockWrapper,
 	InternalBlockEntry,
 	InternalRegistry,
 } from "./types.js";
@@ -20,6 +21,7 @@ export const buildRegistry = <TCtx>(
 				ctx: BlockContext<TCtx>;
 		  }) => boolean)
 		| undefined,
+	wrapBlock: BlockWrapper<TCtx> | undefined,
 ): BlockRegistry => {
 	const map = new Map<string, InternalBlockEntry>();
 	for (const [slug, component] of Object.entries(entries)) {
@@ -29,5 +31,6 @@ export const buildRegistry = <TCtx>(
 	return {
 		entries: map,
 		canRender,
+		wrapBlock,
 	} as unknown as InternalRegistry;
 };
