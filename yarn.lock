@@ -162,6 +162,57 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@abinnovision/payloadcms-wayfinder@workspace:*, @abinnovision/payloadcms-wayfinder@workspace:packages/wayfinder":
+  version: 0.0.0-use.local
+  resolution: "@abinnovision/payloadcms-wayfinder@workspace:packages/wayfinder"
+  dependencies:
+    "@abinnovision/eslint-config-base": "npm:^3.4.2"
+    "@abinnovision/payloadcms-montage": "workspace:*"
+    "@abinnovision/prettier-config": "npm:^2.2.0"
+    "@arethetypeswrong/core": "npm:^0.18.5"
+    "@lexical/react": "npm:0.41.0"
+    "@payloadcms/db-sqlite": "npm:3.88.0"
+    "@payloadcms/richtext-lexical": "npm:3.88.0"
+    "@payloadcms/ui": "npm:3.88.0"
+    "@swc/core": "npm:^1.16.1"
+    "@types/node": "npm:^26.3.0"
+    "@types/react": "npm:^19.2.18"
+    "@vitest/coverage-v8": "npm:^4.1.10"
+    eslint: "npm:^10.9.1"
+    lexical: "npm:0.41.0"
+    path-to-regexp: "npm:^8.4.2"
+    payload: "npm:3.88.0"
+    prettier: "npm:^3.9.5"
+    publint: "npm:^0.3.24"
+    react: "npm:^19.2.8"
+    tsdown: "npm:^0.22.14"
+    typescript: "npm:^6.0.3"
+    unplugin-swc: "npm:^1.5.11"
+    vitest: "npm:^4.1.10"
+  peerDependencies:
+    "@abinnovision/payloadcms-montage": ">=1.0.0-beta.1"
+    "@lexical/react": ">=0.35 <1"
+    "@payloadcms/richtext-lexical": ">=3.88.0 <4"
+    "@payloadcms/ui": ">=3.88.0 <4"
+    lexical: ">=0.35 <1"
+    payload: ">=3.88.0 <4"
+    react: ^19
+  peerDependenciesMeta:
+    "@abinnovision/payloadcms-montage":
+      optional: true
+    "@lexical/react":
+      optional: true
+    "@payloadcms/richtext-lexical":
+      optional: true
+    "@payloadcms/ui":
+      optional: true
+    lexical:
+      optional: true
+    react:
+      optional: true
+  languageName: unknown
+  linkType: soft
+
 "@abinnovision/prettier-config@npm:^2.2.0":
   version: 2.2.0
   resolution: "@abinnovision/prettier-config@npm:2.2.0"
@@ -1841,6 +1892,30 @@ __metadata:
     turbo: "npm:^2.10.12"
     typescript: "npm:^6.0.3"
     vitest: "npm:^4.1.10"
+  languageName: unknown
+  linkType: soft
+
+"@internal/wayfinder-example@workspace:apps/wayfinder-example":
+  version: 0.0.0-use.local
+  resolution: "@internal/wayfinder-example@workspace:apps/wayfinder-example"
+  dependencies:
+    "@abinnovision/eslint-config-base": "npm:^3.4.2"
+    "@abinnovision/payloadcms-wayfinder": "workspace:*"
+    "@abinnovision/prettier-config": "npm:^2.2.0"
+    "@payloadcms/db-sqlite": "npm:3.88.0"
+    "@payloadcms/next": "npm:3.88.0"
+    "@payloadcms/richtext-lexical": "npm:3.88.0"
+    "@types/node": "npm:^26.3.0"
+    "@types/react": "npm:^19.2.0"
+    "@types/react-dom": "npm:^19.2.5"
+    eslint: "npm:^10.9.1"
+    graphql: "npm:^17.0.2"
+    next: "npm:^16.3.3"
+    payload: "npm:3.88.0"
+    prettier: "npm:^3.9.5"
+    react: "npm:^19.2.0"
+    react-dom: "npm:^19.2.0"
+    typescript: "npm:^6.0.3"
   languageName: unknown
   linkType: soft
 
@@ -7450,7 +7525,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"path-to-regexp@npm:^8.0.0":
+"path-to-regexp@npm:^8.0.0, path-to-regexp@npm:^8.4.2":
   version: 8.4.2
   resolution: "path-to-regexp@npm:8.4.2"
   checksum: 10/70fd2cbce0b962cbcf4d312af07818bfce2bae11c09cf3bd86be99c0e30168238a1a7b02b18b452e73f075897df04597d30d63e56da7be41eecfc37998693389

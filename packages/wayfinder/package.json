@@ -1,0 +1,133 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@abinnovision/payloadcms-wayfinder",
+	"version": "0.0.0",
+	"description": "Editor-authored URL routing for Payload: collection-to-path patterns, document-to-href building, path-to-document resolution and a routing-aware link field.",
+	"keywords": [
+		"payload",
+		"payloadcms",
+		"routing",
+		"permalinks",
+		"urls",
+		"link-field"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/abinnovision/payloadcms-commons.git",
+		"directory": "packages/wayfinder"
+	},
+	"license": "Apache-2.0",
+	"author": {
+		"name": "abi group GmbH",
+		"email": "info@abigroup.io",
+		"url": "https://abigroup.io"
+	},
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"default": "./dist/index.mjs"
+		},
+		"./config": {
+			"types": "./dist/config/index.d.mts",
+			"default": "./dist/config/index.mjs"
+		},
+		"./lexical": {
+			"types": "./dist/lexical/index.d.mts",
+			"default": "./dist/lexical/index.mjs"
+		},
+		"./admin": {
+			"types": "./dist/admin/index.d.mts",
+			"default": "./dist/admin/index.mjs"
+		},
+		"./montage": {
+			"types": "./dist/montage/index.d.mts",
+			"default": "./dist/montage/index.mjs"
+		}
+	},
+	"files": [
+		"dist",
+		"LICENSE",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsdown",
+		"format:check": "prettier --check 'src/**/*.{ts,tsx}' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"format:fix": "prettier --write 'src/**/*.{ts,tsx}' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"lint:check": "eslint 'src/**/*.{ts,tsx}' 'test/**/*.ts'",
+		"lint:fix": "eslint 'src/**/*.{ts,tsx}' 'test/**/*.ts' --fix",
+		"test-integration": "vitest --run --config test/integration/vitest.config.mts",
+		"test-unit": "vitest --run --coverage --config vitest.config.mts",
+		"test-unit:watch": "vitest --config vitest.config.mts",
+		"typecheck": "tsc --noEmit"
+	},
+	"lint-staged": {
+		"src/**/*.{ts,tsx}": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{json{,5},md,y{,a}ml}": "prettier --write"
+	},
+	"prettier": "@abinnovision/prettier-config",
+	"dependencies": {
+		"path-to-regexp": "^8.4.2"
+	},
+	"devDependencies": {
+		"@abinnovision/eslint-config-base": "^3.4.2",
+		"@abinnovision/payloadcms-montage": "workspace:*",
+		"@abinnovision/prettier-config": "^2.2.0",
+		"@arethetypeswrong/core": "^0.18.5",
+		"@lexical/react": "0.41.0",
+		"@payloadcms/db-sqlite": "3.88.0",
+		"@payloadcms/richtext-lexical": "3.88.0",
+		"@payloadcms/ui": "3.88.0",
+		"@swc/core": "^1.16.1",
+		"@types/node": "^26.3.0",
+		"@types/react": "^19.2.18",
+		"@vitest/coverage-v8": "^4.1.10",
+		"eslint": "^10.9.1",
+		"lexical": "0.41.0",
+		"payload": "3.88.0",
+		"prettier": "^3.9.5",
+		"publint": "^0.3.24",
+		"react": "^19.2.8",
+		"tsdown": "^0.22.14",
+		"typescript": "^6.0.3",
+		"unplugin-swc": "^1.5.11",
+		"vitest": "^4.1.10"
+	},
+	"peerDependencies": {
+		"@abinnovision/payloadcms-montage": ">=1.0.0-beta.1",
+		"@lexical/react": ">=0.35 <1",
+		"@payloadcms/richtext-lexical": ">=3.88.0 <4",
+		"@payloadcms/ui": ">=3.88.0 <4",
+		"lexical": ">=0.35 <1",
+		"payload": ">=3.88.0 <4",
+		"react": "^19"
+	},
+	"peerDependenciesMeta": {
+		"@abinnovision/payloadcms-montage": {
+			"optional": true
+		},
+		"@lexical/react": {
+			"optional": true
+		},
+		"@payloadcms/richtext-lexical": {
+			"optional": true
+		},
+		"@payloadcms/ui": {
+			"optional": true
+		},
+		"lexical": {
+			"optional": true
+		},
+		"react": {
+			"optional": true
+		}
+	},
+	"publishConfig": {
+		"ghpr": true,
+		"npm": true,
+		"npmAccess": "public"
+	}
+}

@@ -1,0 +1,40 @@
+{
+	"compilerOptions": {
+		"lib": ["ES2024", "DOM", "DOM.Iterable"],
+		"target": "ES2024",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"jsx": "react-jsx",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"isolatedModules": true,
+		"resolveJsonModule": true,
+		"allowJs": true,
+		"incremental": true,
+		"noEmit": true,
+		"exactOptionalPropertyTypes": true,
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"plugins": [
+			{
+				"name": "next"
+			}
+		],
+		"paths": {
+			"@payload-config": ["./src/payload.config.ts"]
+		}
+	},
+	"include": [
+		"next-env.d.ts",
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		".next/types/**/*.ts",
+		".next/dev/types/**/*.ts"
+	],
+	"exclude": ["node_modules", ".next"]
+}

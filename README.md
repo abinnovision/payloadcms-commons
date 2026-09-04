@@ -11,6 +11,8 @@ A collection of common packages and plugins for [Payload CMS](https://payloadcms
 | [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.                |
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server plugin with a fixed, schema-aware tool surface and per-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                           |
+| [`@abinnovision/payloadcms-viewfinder`](./packages/viewfinder)             | Two-way block addressing between a rendered frontend and the admin form.            |
+| [`@abinnovision/payloadcms-wayfinder`](./packages/wayfinder)               | Editor-authored URL routing: collection-to-path patterns, hrefs and a link field.   |
 
 A new package follows the layout of an existing one: source under `src/`,
 tsdown for the build, unit tests beside the source and integration tests under
