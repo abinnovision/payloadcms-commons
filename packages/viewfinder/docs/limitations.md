@@ -21,16 +21,20 @@ block resolves to that block. Field-level addressing exists but is opt-in, one `
 element you care about, and it only reaches values you chose to annotate. A block you never marked
 is invisible: clicking it resolves to the nearest marked ancestor instead.
 
-The `display: contents` wrapper is a trade-off, not a free win. `<Marked>` wraps a block in an
-element with `display: contents` so that marking a block cannot change how it lays out. The cost is
-that such an element generates no box of its own, so its `getBoundingClientRect()` is all zeroes
-and the overlay measures a `Range` over the wrapper's contents instead. That covers element and
-text children alike, but it is an inference: a child that is absolutely positioned or transformed
-contributes its own rect to the range, so the resulting box can be larger, offset, or both.
-Scrolling has the same shape, which is why the measured box is scrolled to rather than
-`Element.scrollIntoView`. A block that already renders a stable root element can spread
-`markBlock()` onto it and skip the wrapper, which gives the overlay a real box. Where that is
-possible, do it.
+The `display: contents` fallback is a trade-off, not a free win. `<Marked>` marks its child
+directly when that child is a DOM element, and only wraps when it is not: a component element, a
+fragment, an array, text, or a promise, which is what an async block renders to. `display: contents`
+keeps that wrapper out of layout, but not out of the tree. It still matches `>` and `:nth-child()`
+selectors aimed at the block, and the HTML parser reparents it out of a table or a paragraph, where
+no CSS can help.
+
+It also generates no box of its own, so its `getBoundingClientRect()` is all zeroes and the overlay
+measures a `Range` over its contents instead. That covers element and text children alike, but it
+is an inference: a child that is absolutely positioned or transformed contributes its own rect to
+the range, so the resulting box can be larger, offset, or both. Scrolling has the same shape, which
+is why the measured box is scrolled to rather than `Element.scrollIntoView`. A block that renders a
+stable root element can spread `markBlock()` onto it and be certain of all of this rather than
+relying on what `Marked` can infer.
 
 Client-side live preview is unsupported when montage renders the tree. Montage keys resolver
 results by object identity (`packages/montage/src/resolver/execute.ts`), and `useLivePreview` hands

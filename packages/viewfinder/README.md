@@ -101,8 +101,10 @@ import { Marked } from "@abinnovision/payloadcms-viewfinder/client";
 With `enabled={false}` the children render untouched, with no wrapper and no attributes, so
 production output is unaffected by having viewfinder installed.
 
-A block that already renders a stable root element can spread `markBlock()` onto it and skip the
-wrapper entirely, which gives the highlight overlay a real box to measure:
+`Marked` adds nothing to the tree when its child is a DOM element: the attributes go onto that
+element. Only a component element, a fragment, an array, text or a promise gets a
+`display: contents` wrapper, since a component may not forward unknown props to any DOM node. A
+block can settle it either way by spreading `markBlock()` onto its own element:
 
 ```tsx
 import {

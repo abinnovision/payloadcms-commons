@@ -137,10 +137,16 @@ import { Marked } from "@abinnovision/payloadcms-viewfinder/client";
 no wrapper and no attributes. An empty `id` is treated the same way, so an unsaved row cannot emit
 an address that resolves to nothing.
 
-A block that already renders a stable root element can spread `markBlock()` onto it instead and
-skip the wrapper. That is worth doing wherever it applies: a real element has a real box, so the
-highlight overlay measures it directly rather than inferring geometry from the block's contents
-(see [`limitations.md`](./limitations.md#known-gaps)).
+`Marked` only wraps when it has to. If its child is a DOM element, the attributes go straight onto
+that element and nothing is added to the tree. A component element, a fragment, an array, text or a
+promise gets the `display: contents` wrapper instead, because there is no way to know whether a
+component forwards unknown props to a DOM node.
+
+That distinction is worth understanding, because the wrapper is a real element even though it has
+no box: it breaks `>` and `:nth-child()` selectors aimed at the block, the HTML parser reparents it
+out of a table or a paragraph, and the overlay has to measure a range over its children rather than
+a rect (see [`limitations.md`](./limitations.md#known-gaps)). A block can put the question beyond
+doubt by spreading `markBlock()` onto its own element and skipping `Marked` altogether.
 
 ```tsx
 import {
