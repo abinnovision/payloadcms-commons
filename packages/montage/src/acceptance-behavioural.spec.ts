@@ -24,7 +24,7 @@ const ctx = (): ReturnType<typeof createBlockContext<AppContext>> =>
 		path: "/",
 	});
 
-describe("acceptance (WP7): document template — synthetic root with an id resolves under identity keying", () => {
+describe("acceptance (WP7): document template, where a synthetic root with an id resolves under identity keying", () => {
 	it("root is bound once and the same reference is resolved and rendered", async () => {
 		const renderer = createRenderer(blocks);
 		const root: PagesDocumentTemplateBlock = {
@@ -43,7 +43,7 @@ describe("acceptance (WP7): document template — synthetic root with an id reso
 	});
 });
 
-describe("acceptance (WP7): CardsSliderModule — a resolver plus a data-reading predicate, together", () => {
+describe("acceptance (WP7): CardsSliderModule combines a resolver with a data-reading predicate", () => {
 	it("does not render when the resolver returns zero items", async () => {
 		const renderer = createRenderer(blocks);
 		const block = {
@@ -84,7 +84,7 @@ describe("acceptance (WP7): CardsSliderModule — a resolver plus a data-reading
 	});
 });
 
-describe("acceptance (WP7): generateMetadata — scope: root stops before block resolvers", () => {
+describe("acceptance (WP7): generateMetadata with scope: root stops before block resolvers", () => {
 	it("resolves only the root, then a later tree call resolves the rest without re-running the root", async () => {
 		const renderer = createRenderer(blocks);
 		const nested = {
@@ -114,7 +114,7 @@ describe("acceptance (WP7): generateMetadata — scope: root stops before block 
 	});
 });
 
-describe("acceptance (WP7): a resolver returning documents — expands: false does not traverse into its result", () => {
+describe("acceptance (WP7): a resolver returning documents, where expands: false does not traverse into its result", () => {
 	it("the module inside a returned card never gets its own resolver executed", async () => {
 		const renderer = createRenderer(blocks);
 		const block = {

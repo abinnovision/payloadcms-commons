@@ -24,16 +24,13 @@ extension you create) and reads nothing outside it.
 const ctx = createBlockContext<AppContext>({ locale: "de", draft: false });
 ```
 
-Two rules the plumbing depends on:
+Two rules keep the plumbing correct. First, a context is per request and mutable, because
+`resolveBlockData` writes to it, so never reuse one across requests. Second, resolve before you
+clone. `createChildContext` is a shallow clone and the results store lives behind a shared
+reference, so a child cloned ahead of the resolve pass carries no results.
 
-- **A context is per request and mutable.** `resolveBlockData` writes to it. Never reuse one
-  across requests.
-- **Resolve before cloning.** `createChildContext` is a shallow clone. The results store lives
-  behind a shared reference, so cloning before you resolve gives the child no results.
-
-The context is **not serializable** once montage has written to it, because the results store is
-a `Map` keyed on object identity. Pass individual fields to client components, not the whole
-context.
+The context is also not serializable once montage has written to it, since the results store is a
+`Map` keyed on object identity. Pass individual fields to client components, not the whole context.
 
 ## `renderer` is an argument, not an import
 
@@ -54,18 +51,18 @@ the registry and its own components.
 
 ## Async components versus `resolve`
 
-A block component may be a plain `async` function that fetches inline. That is the default, and
-it needs no other machinery.
+A block component may be a plain `async` function that fetches inline. That is the default, and it
+needs no other machinery.
 
-`resolve` exists for one reason: **collapse**. If a parent needs to know, before rendering,
-whether a child will render anything (so it can render nothing itself rather than an empty
-wrapper), the parent has to inspect data the child hasn't fetched yet. React gives no way to
-inspect what a child will render before rendering it, and no way to un-render a parent
-afterwards. `resolve` runs ahead of render specifically so `canRender` can see the result.
+`resolve` exists for collapse. If a parent needs to know, before rendering, whether a child will
+render anything (so it can render nothing itself rather than an empty wrapper), the parent has to
+inspect data the child hasn't fetched yet. React gives no way to inspect what a child will render
+before rendering it, and no way to un-render a parent afterwards. `resolve` runs ahead of render
+specifically so `canRender` can see the result.
 
-So: write a plain async component by default. Reach for `resolve` when a block needs to
-participate in a parent's collapse decision, or when it sits deep enough in the tree that
-fetching ahead of render (in parallel with its siblings) matters more than fetching inline.
+Write a plain async component by default. Reach for `resolve` when a block needs to participate in
+a parent's collapse decision, or when it sits deep enough in the tree that fetching ahead of render
+(in parallel with its siblings) matters more than fetching inline.
 
 The cost is explicit: a block that fetches inline cannot participate in collapse, because nothing
 can know in advance that it will return nothing.
@@ -80,15 +77,16 @@ Traversal visits any plain object carrying a string `blockType`, including insid
 objects, richtext subtrees, and populated relationship values. This matches how a document
 usually arrives from Payload: relationships are already populated, not lazily fetched.
 
-**Results are keyed by node identity.** A resolved node's data lives behind the exact object
-reference that was traversed, not a computed key. This is what removes any requirement that a
-node have an `id` (a synthetic root works, for example), but it introduces one rule:
+Results are keyed by node identity. A resolved node's data lives behind the exact object reference
+that was traversed, not a computed key. That is what removes any requirement for a node to have an
+`id` (a synthetic root works, for example), and it introduces one rule:
 
 > Do not spread or clone a block between resolving and rendering. Montage matches results by
 > object identity, so a re-created object gets no data.
 
 In development, montage warns when it renders or looks up a node whose `blockType` has a
-registered resolver but no entry in the results store, which is exactly this mistake.
+registered resolver but no entry in the results store, since that is what a cloned block looks
+like.
 
 ### Bounding fan-out with `expands`
 
@@ -129,8 +127,8 @@ const meta = renderer.getBlockData(ctx, root);
 await renderer.resolveBlockData({ root, ctx });
 ```
 
-Cache the **root object and the context together**. A separate context means a separate results
-store, and the root resolver runs twice.
+Cache the root object and the context together. A separate context means a separate results store,
+and the root resolver runs twice.
 
 ### Errors
 
@@ -143,4 +141,5 @@ the error.
 `renderer.Block` (and its narrower sibling, `renderer.renderBlockTree`, used in tests) throws on
 direct dispatch of an unregistered slug when `NODE_ENV !== "production"`, and renders nothing
 otherwise. `renderer.canRender` never throws; it returns `false` and logs a warning in
-development, so the common `filter(canRender)` pattern stays usable rather than becoming a trap.
+development, which keeps the common `filter(canRender)` pattern usable instead of turning it into
+a trap.

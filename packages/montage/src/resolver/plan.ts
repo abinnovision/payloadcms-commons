@@ -89,7 +89,7 @@ export const planPass = (
 	return executions;
 };
 
-/** `scope: "root"` — checks only the root node, does not traverse, ignores `expands`. */
+/** `scope: "root"`: checks only the root node, does not traverse, ignores `expands`. */
 export const planRootOnly = (
 	root: unknown,
 	entries: ReadonlyMap<string, InternalBlockEntry>,

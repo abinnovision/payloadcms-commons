@@ -1,6 +1,6 @@
 # Concepts
 
-Montage is a typed block registry and RSC renderer. That is the whole scope. It does not model
+Montage is a typed block registry and RSC renderer, and that is all it is. It does not model
 pages, sections, templates, or reusable blocks. Those are decisions you make with Payload's own
 collections, globals, and fields.
 
@@ -15,16 +15,15 @@ collections, globals, and fields.
 | deciding whether a block renders (`canRender`) | which slugs a given field offers                     |
 | rendering blocks embedded in Lexical           | preview, caching, routing, i18n                      |
 
-This is a deliberate cut, not an oversight. An earlier draft of this package modeled a section
-wrapper, a global-block collection, global references, layout regions, and document templates as
-first-class concepts. All of it turned out to be buildable in a few lines on top of the engine
-below, using nothing but `canRender`, the renderer, and the render context. See
-[`recipes.md`](./recipes.md) for the rebuild.
+The cut is deliberate. Section wrappers, a global-block collection, global references, layout
+regions and document templates all live on the right-hand side of that table, and each one takes a
+few lines to build with `canRender`, the renderer, and the render context.
+[`recipes.md`](./recipes.md) works through them.
 
 Montage takes no dependency on Next. `Link`, `Image`, `locale`, `draft`, and anything else
-framework-shaped reach your blocks through your own context fields, not through montage.
+framework-shaped reach your blocks through fields on your own context.
 
-## Two entrypoints
+## Entrypoints
 
 ```
 "."         the renderer, registry, context, resolver
@@ -61,9 +60,10 @@ defineBlockRegistry({
 });
 ```
 
-Without generated types, `BlockSlug` degrades to `string` rather than `never`, which would make
-every guarantee above silently disappear. `defineBlockRegistry` guards against this: without
-generated types, it fails to compile with a message telling you to run `generate:types`.
+All of that rests on the generated types being there. Without them `BlockSlug` degrades to
+`string` rather than `never`, and every guarantee above would silently disappear.
+`defineBlockRegistry` guards the case by failing to compile with a message telling you to run
+`generate:types`.
 
 ## Inline blocks
 
@@ -80,7 +80,7 @@ defineInlineBlockComponent<SectionWrapperBlock>()("section-wrapper", {
 It is curried so the block type and the data type can both be inferred correctly; see
 [`rendering.md`](./rendering.md) for why.
 
-## One trap to know about
+## A naming trap with `interfaceName`
 
 Payload keys generated block interfaces by name. If you instantiate the same block config more
 than once (for example, one section-wrapper block per collection, with a different set of

@@ -46,8 +46,8 @@ export const getBlockData = <D>(
 
 /**
  * Dev-mode identity-violation warning. `node`'s `blockType` has a registered
- * resolver, but the store holds no entry for this exact object reference —
- * the block was spread or cloned after resolving, which montage's
+ * resolver, but the store holds no entry for this exact object reference.
+ * That means the block was spread or cloned after resolving, which montage's
  * identity-keyed store cannot follow. Called from both render dispatch and
  * the public `getBlockData` accessor, since the exposure applies to both
  * resolve-to-render and resolve-to-use.
@@ -135,7 +135,7 @@ export const resolveBlockData = async (args: {
 	}
 
 	/*
-	 * scope: "tree" — pass 1 traverses `root`. Later passes traverse only the
+	 * scope: "tree". Pass 1 traverses `root`. Later passes traverse only the
 	 * stored results of resolvers that declared `expands`, iterating up to
 	 * `maxPasses`. A node already resolved is skipped for execution, but if
 	 * it declared `expands`, its stored result is still traversed here so a

@@ -4,10 +4,10 @@
 
 Typed block registry and RSC renderer for [Payload CMS](https://payloadcms.com/).
 
-Montage knows about Payload blocks and nothing else. It does not model pages, sections,
-templates, or reusable blocks. Those are things you build with Payload's own primitives; montage
-renders whatever you built. See [`docs/concepts.md`](./docs/concepts.md) for the boundary and
-[`docs/recipes.md`](./docs/recipes.md) for how to rebuild those patterns on top of it.
+Montage knows about Payload blocks and nothing else. Pages, sections, templates and reusable
+blocks stay yours to model with Payload's own primitives, and montage renders whatever you built.
+[`docs/concepts.md`](./docs/concepts.md) describes where that boundary sits;
+[`docs/recipes.md`](./docs/recipes.md) shows how to rebuild those patterns on top of it.
 
 ## Install
 
@@ -87,12 +87,12 @@ export default buildConfig({
 
 ## Documentation
 
-- [`docs/concepts.md`](./docs/concepts.md) — the registry, the render context, and the boundary.
-- [`docs/rendering.md`](./docs/rendering.md) — `defineBlockComponent`, inline blocks, resolvers,
+- [`docs/concepts.md`](./docs/concepts.md): the registry, the render context, and the boundary.
+- [`docs/rendering.md`](./docs/rendering.md): `defineBlockComponent`, inline blocks, resolvers,
   the render context, and the collapse rule.
-- [`docs/recipes.md`](./docs/recipes.md) — rebuilding section wrappers, global references, page
+- [`docs/recipes.md`](./docs/recipes.md): rebuilding section wrappers, global references, page
   layouts, and document templates on top of montage.
-- [`docs/limitations.md`](./docs/limitations.md) — what montage does not do, and why.
+- [`docs/limitations.md`](./docs/limitations.md): what montage does not do, and why.
 
 ## License
 

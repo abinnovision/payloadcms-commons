@@ -14,8 +14,7 @@ import "../test/fixtures/blocks.js";
 /**
  * These are also compile-time fixtures. Every `@ts-expect-error` below is
  * load-bearing: removing one and re-running `tsc --noEmit` must reintroduce
- * the type error it silences. Verified during the WP0 spike by flipping one
- * such directive and observing the real error reappear.
+ * the type error it silences.
  */
 interface MyContext {
 	locale: string;

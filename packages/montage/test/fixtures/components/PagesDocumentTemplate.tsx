@@ -8,11 +8,11 @@ export interface PagesDocumentTemplateMeta {
 }
 
 /**
- * A document-template pattern: a synthetic root, not a Payload block, given
- * a literal `blockType` so slug checking still works (WP7 falsifier: "a
- * synthetic root with no `id` resolves under identity keying" — this one
- * legitimately has an `id`; the no-`id` case is the dedicated "document
- * template" test).
+ * A document-template pattern: a synthetic root rather than a Payload block,
+ * given a literal `blockType` so slug checking still works. This fixture
+ * legitimately has an `id`. The WP7 falsifier "a synthetic root with no `id`
+ * resolves under identity keying" is covered by the dedicated "document
+ * template" test.
  *
  * `resolve` stands in for a document-level resolver whose result
  * `generateMetadata` reads without running any block resolver
