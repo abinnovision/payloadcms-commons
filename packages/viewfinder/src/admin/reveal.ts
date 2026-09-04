@@ -9,6 +9,7 @@ const COLLAPSED_TOGGLE = `${TOGGLE}--collapsed`;
 const COLLAPSIBLE = ".collapsible";
 const COLLAPSED = ".collapsible--collapsed";
 const FLASH_MS = 1200;
+const FLASH_COLOR = "var(--theme-elevation-800)";
 const WAIT_ATTEMPTS = 60;
 
 const POLL_MS = 16;
@@ -78,11 +79,40 @@ const expandRow = (row: HTMLElement): void => {
 	}
 };
 
+/**
+ * Marks the target briefly so the eye can find it after the scroll.
+ *
+ * Darkens the row's own border rather than drawing an outline around it.
+ * Payload already gives a row a border, and an outline sits outside that, so
+ * it reads as a second box drawn around the row instead of as the row being
+ * picked out. The colour is Payload's, so it follows the theme.
+ *
+ * A field wrapper has no border to darken, so that case keeps an outline, in
+ * the same colour.
+ */
 const flash = (element: HTMLElement): void => {
-	const previous = element.style.outline;
-	element.style.outline = "2px solid #2d81ff";
-	element.ownerDocument.defaultView?.setTimeout(() => {
-		element.style.outline = previous;
+	const view = element.ownerDocument.defaultView;
+	if (!view) {
+		return;
+	}
+
+	const bordered =
+		element.querySelector<HTMLElement>(`:scope > ${COLLAPSIBLE}`) ?? element;
+
+	if (view.getComputedStyle(bordered).borderTopWidth === "0px") {
+		const previous = element.style.outline;
+		element.style.outline = `2px solid ${FLASH_COLOR}`;
+		view.setTimeout(() => {
+			element.style.outline = previous;
+		}, FLASH_MS);
+
+		return;
+	}
+
+	const previous = bordered.style.borderColor;
+	bordered.style.borderColor = FLASH_COLOR;
+	view.setTimeout(() => {
+		bordered.style.borderColor = previous;
 	}, FLASH_MS);
 };
 
