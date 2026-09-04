@@ -1,5 +1,7 @@
 # abinnovision/payloadcms-commons
 
+![Five interchangeable building blocks, the three a project needs composed into one Payload site](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/assets/header.png)
+
 [![Build](https://github.com/abinnovision/payloadcms-commons/actions/workflows/build.yaml/badge.svg)](https://github.com/abinnovision/payloadcms-commons/actions/workflows/build.yaml)
 
 Building blocks for production [Payload CMS](https://payloadcms.com/) sites.
