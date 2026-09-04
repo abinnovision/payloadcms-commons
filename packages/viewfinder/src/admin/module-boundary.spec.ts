@@ -28,6 +28,6 @@ describe("./admin module boundary", () => {
 		);
 		expect(names).toContain("bridge.tsx");
 		expect(names).toContain("resolve-path.ts");
-		expect(names).toContain("row-headers.ts");
+		expect(names).toContain("rows.ts");
 	});
 });

@@ -53,8 +53,8 @@ Open <http://localhost:3000/admin>, create the first user, then:
 4. Open that `pages` document in the admin and switch to the Live Preview tab. Hover a block in
    the preview: it is outlined, with its slug in the corner. Click it: the matching row in the
    `layout` field expands if it was collapsed, scrolls into view, and flashes. Going back the
-   other way, hover a block row in the form: that block is outlined in the preview where it
-   stands. Click the button in the row header: the preview scrolls it to the centre of the frame.
+   other way, hover a block row in the form, anywhere in it: that block is outlined in the
+   preview where it stands. Click the button in the row header: the preview scrolls it to the centre of the frame.
 
 ## What this app demonstrates
 

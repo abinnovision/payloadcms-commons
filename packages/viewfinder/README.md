@@ -6,8 +6,9 @@ admin form.
 Viewfinder owns addressing and transport, and nothing else. It puts a stable identifier on each
 rendered block, resolves that identifier back to a path in the admin's own form state, and carries
 messages between the two windows. In the preview, hovering a block outlines and names it and
-clicking anywhere inside it scrolls the matching form row into view. In the admin, hovering a block
-row outlines that block in the preview, and a button in the row header scrolls the preview to it.
+clicking anywhere inside it scrolls the matching form row into view. In the admin, hovering anywhere
+in a block row outlines that block in the preview, and a button in the row header scrolls the
+preview to it.
 
 Inline editing is deliberately not part of it. A visual editor needs to know which DOM node belongs
 to which field before it can do anything else, and that layer is useful on its own.

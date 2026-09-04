@@ -10,10 +10,11 @@ import { revealPath } from "./reveal.js";
 import { RowButton } from "./row-button.js";
 import {
 	blockPaths,
-	findRowHeaders,
-	rowHoverTarget,
-	sameHeaders,
-} from "./row-headers.js";
+	findRows,
+	rowHeader,
+	rowPathAt,
+	sameRows,
+} from "./rows.js";
 
 import type { AdminMessage } from "../protocol.js";
 import type { FormStateLike } from "../resolve-path.js";
@@ -49,8 +50,9 @@ const post = (message: AdminMessage): void => {
  * announces itself.
  *
  * A `select` from the preview reveals the matching form row. In the other
- * direction, hovering a row header outlines that block in the preview without
- * moving it, and the locate button in that header scrolls the preview to it.
+ * direction, hovering anywhere in a block row outlines that block in the
+ * preview without moving it, and the locate button in the row's header
+ * scrolls the preview to it.
  *
  * Only the button scrolls. Driving the scroll from focus or from an ordinary
  * click, as an earlier version did, moved the preview while an editor was
@@ -58,9 +60,7 @@ const post = (message: AdminMessage): void => {
  */
 export const ViewfinderFormBridge = (): ReactNode => {
 	const [fields] = useAllFormFields();
-	const [headers, setHeaders] = useState<ReadonlyMap<string, HTMLElement>>(
-		new Map(),
-	);
+	const [rows, setRows] = useState<ReadonlyMap<string, HTMLElement>>(new Map());
 
 	/*
 	 * Form state changes on every keystroke. Held in a ref so the listeners
@@ -69,6 +69,16 @@ export const ViewfinderFormBridge = (): ReactNode => {
 	 */
 	const formState = useRef<FormStateLike>(fields);
 	formState.current = fields;
+
+	/*
+	 * The same rows indexed by element, which is the direction the hover
+	 * listener needs: it starts from whatever the pointer landed on.
+	 */
+	const rowPaths = useRef<ReadonlyMap<HTMLElement, string>>(new Map());
+	rowPaths.current = useMemo(
+		() => new Map([...rows].map(([path, row]) => [row, path])),
+		[rows],
+	);
 
 	/* Rescanning on every keystroke is wasted work; only the set of blocks matters. */
 	const pathsKey = useMemo(() => blockPaths(fields).join("|"), [fields]);
@@ -106,10 +116,10 @@ export const ViewfinderFormBridge = (): ReactNode => {
 
 		const rescan = (): void => {
 			const next = previewIframe()
-				? findRowHeaders(document, formState.current)
+				? findRows(document, formState.current)
 				: new Map<string, HTMLElement>();
 
-			setHeaders((previous) => (sameHeaders(previous, next) ? previous : next));
+			setRows((previous) => (sameRows(previous, next) ? previous : next));
 		};
 
 		rescan();
@@ -135,56 +145,75 @@ export const ViewfinderFormBridge = (): ReactNode => {
 	 * Hover is the cheap half of the lookup: it outlines the block in place,
 	 * so an editor can sweep the form and see what each row is without
 	 * anything moving under them.
+	 *
+	 * One listener on the document rather than one per row. Payload sets
+	 * `pointer-events: none` across a row's header so its collapse toggle
+	 * catches every click, which means listeners bound to the rows themselves
+	 * fire unevenly depending on what the pointer happens to be over.
 	 */
 	useEffect(() => {
-		const detach: Array<() => void> = [];
+		let hovered: string | undefined;
 
-		for (const [path, header] of headers) {
-			const strip = rowHoverTarget(header);
+		const highlight = (path: string | undefined): void => {
+			if (path === hovered) {
+				return;
+			}
 
-			const onEnter = (): void => {
-				const address = resolveAddressForPath(formState.current, path);
-				if (address) {
-					post(adminMessage.highlight(address));
-				}
-			};
+			hovered = path;
+			const address =
+				path === undefined
+					? undefined
+					: resolveAddressForPath(formState.current, path);
 
-			const onLeave = (): void => {
-				post(adminMessage.clear());
-			};
+			post(address ? adminMessage.highlight(address) : adminMessage.clear());
+		};
 
-			strip.addEventListener("pointerenter", onEnter);
-			strip.addEventListener("pointerleave", onLeave);
-			detach.push(() => {
-				strip.removeEventListener("pointerenter", onEnter);
-				strip.removeEventListener("pointerleave", onLeave);
-			});
-		}
+		const onPointerOver = (event: PointerEvent): void => {
+			highlight(
+				rowPathAt(rowPaths.current, event.target as HTMLElement | null),
+			);
+		};
+
+		/* The pointer entering the preview frame is a leave as far as this document knows. */
+		const onPointerLeave = (): void => {
+			highlight(undefined);
+		};
+
+		document.addEventListener("pointerover", onPointerOver, { passive: true });
+		document.addEventListener("pointerleave", onPointerLeave, {
+			passive: true,
+		});
 
 		return () => {
-			for (const off of detach) {
-				off();
-			}
+			document.removeEventListener("pointerover", onPointerOver);
+			document.removeEventListener("pointerleave", onPointerLeave);
 		};
-	}, [headers]);
+	}, []);
 
 	return (
 		<>
-			{[...headers].map(([path, header]) =>
-				createPortal(
-					<RowButton
-						label="Scroll the preview to this block"
-						onSelect={() => {
-							const address = resolveAddressForPath(formState.current, path);
-							if (address) {
-								post(adminMessage.scrollTo(address));
-							}
-						}}
-					/>,
-					header,
-					path,
-				),
-			)}
+			{[...rows].map(([path, row]) => {
+				const header = rowHeader(row);
+
+				return header === null
+					? null
+					: createPortal(
+							<RowButton
+								label="Scroll the preview to this block"
+								onSelect={() => {
+									const address = resolveAddressForPath(
+										formState.current,
+										path,
+									);
+									if (address) {
+										post(adminMessage.scrollTo(address));
+									}
+								}}
+							/>,
+							header,
+							path,
+						);
+			})}
 		</>
 	);
 };

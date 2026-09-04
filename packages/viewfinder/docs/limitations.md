@@ -10,7 +10,7 @@ Each of these was cut on purpose. If one of them lands later, it will be for a s
 | Any content mutation at all      | The package never writes to a document and never patches form state. Both bridges only read, resolve and post.                                                                                                                     |
 | Automatic per-field addressing   | Would need a content source map: an API change, a virtual field, or an annotation on every element that renders a value. Block ids are already there and cost nothing. `markField` covers the rest opt-in.                         |
 | Client-side live preview         | Montage keys resolver results by object identity, and a deserialised document breaks that. Server-side live preview re-renders on the server, so it holds. See below.                                                              |
-| Styling and theming              | The preview badge and the admin row button are inline-styled with a fixed blue. No class names, no CSS custom properties, no props to change either.                                                                               |
+| Styling and theming              | The preview overlay is inline-styled with a fixed blue, and takes no class names or props. The admin row button follows Payload's own theme variables, but is likewise not configurable.                                           |
 | Reacting to `hover` and `leave`  | The protocol carries them (deduplicated, so one message per block rather than one per pointer move), but the admin acts only on `select`. Scrolling the form as the pointer sweeps would fight the editor for the scroll position. |
 | A generated `data-vf-*` contract | The attribute names are exported constants, not a stable public format. Read them from the package rather than hard-coding the strings.                                                                                            |
 
@@ -62,9 +62,11 @@ the block it outlines. The badge takes no pointer events; the block underneath i
 target. There are no styling hooks, and the badge shows the block
 type and field name as sent, not a human-readable admin label.
 
-The admin's row button is portalled into a Payload class name, `.blocks-field__block-header`. That
-is a third undocumented assumption alongside the two above, and it fails closed in the same way: if
-the class moves, no button is found and no button is rendered. It is refreshed by a
+The admin's row button is portalled into a Payload class name, `.blocks-field__block-header`, and
+draws its size and colours from Payload's own custom properties (`--base`, `--theme-elevation-0`,
+`--accessibility-outline`) so that it follows the active theme. That is a third undocumented
+assumption alongside the two above, and it fails closed in the same way: if the class moves, no
+button is found and no button is rendered. It is refreshed by a
 `MutationObserver` on the document, because rows mount and unmount as the editor expands and
 collapses them and expanding changes no form state, so a render-driven scan would miss it. The
 scan is skipped entirely when no preview frame is present.

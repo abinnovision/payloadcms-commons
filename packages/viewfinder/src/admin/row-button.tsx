@@ -4,8 +4,12 @@ import { useState } from "react";
 
 import type { CSSProperties, ReactNode } from "react";
 
-const ACCENT = "#2d81ff";
-
+/**
+ * Sized and shaped like Payload's own row controls: `base(1.2)` square with a
+ * pill radius, filling with `--theme-elevation-0` on hover the way
+ * `.array-actions__button` does. Everything visual comes from Payload's
+ * variables, so it follows the active theme rather than sitting on top of it.
+ */
 const BUTTON: CSSProperties = {
 	/*
 	 * Payload's collapse toggle is a button stretched over the whole header
@@ -25,15 +29,16 @@ const BUTTON: CSSProperties = {
 	alignItems: "center",
 	justifyContent: "center",
 	flex: "0 0 auto",
-	width: "24px",
-	height: "24px",
-	marginInlineStart: "0.4em",
+	width: "calc(var(--base) * 1.2)",
+	height: "calc(var(--base) * 1.2)",
+	marginInlineStart: "calc(var(--base) * 0.2)",
 	padding: 0,
 	border: 0,
-	borderRadius: "3px",
+	borderRadius: "100px",
 	background: "transparent",
 	color: "currentcolor",
 	cursor: "pointer",
+	transition: "opacity 100ms linear, background-color 100ms linear",
 };
 
 export interface RowButtonProps {
@@ -52,13 +57,14 @@ export interface RowButtonProps {
  * silently get nothing.
  */
 export const RowButton = (props: RowButtonProps): ReactNode => {
-	const [lit, setLit] = useState(false);
+	const [hovered, setHovered] = useState(false);
+	const [focused, setFocused] = useState(false);
 
 	return (
 		<button
 			aria-label={props.label}
 			onBlur={() => {
-				setLit(false);
+				setFocused(false);
 			}}
 			onClick={(event) => {
 				/* The header is also the collapse toggle. */
@@ -67,20 +73,22 @@ export const RowButton = (props: RowButtonProps): ReactNode => {
 				props.onSelect();
 			}}
 			onFocus={() => {
-				setLit(true);
+				setFocused(true);
 			}}
 			onMouseEnter={() => {
-				setLit(true);
+				setHovered(true);
 			}}
 			onMouseLeave={() => {
-				setLit(false);
+				setHovered(false);
 			}}
 			style={{
 				...BUTTON,
-				opacity: lit ? 1 : 0.65,
-				background: lit ? "rgba(45, 129, 255, 0.12)" : "transparent",
-				color: lit ? ACCENT : "currentcolor",
-				outline: lit ? `1px solid rgba(45, 129, 255, 0.4)` : "none",
+				/* The drag handle beside it sits at the same weight when idle. */
+				opacity: hovered || focused ? 1 : 0.5,
+				background:
+					hovered || focused ? "var(--theme-elevation-0)" : "transparent",
+				outline: focused ? "var(--accessibility-outline)" : "none",
+				outlineOffset: "var(--accessibility-outline-offset)",
 			}}
 			title={props.label}
 			type="button"

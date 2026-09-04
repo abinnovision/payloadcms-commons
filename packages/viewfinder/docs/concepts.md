@@ -77,10 +77,13 @@ after the block has already been found. The cost is that a plain click on a link
 block selects instead of navigating while the page is framed. Clicks carrying a modifier, and
 clicks outside every marked block, are never touched.
 
-Admin to preview: hovering a block row outlines that block in the preview and nothing else, so an
-editor can sweep the form and see what each row is without the preview moving. The button in the
-row header is what scrolls, posting that row's address into the iframe; the preview finds the
-element with that id, measures it, scrolls to it and draws the overlay.
+Admin to preview: hovering anywhere in a block row, header or fields, outlines that block in the
+preview and nothing else, so an editor can sweep the form and see what each row is without the
+preview moving. One listener on the document walks up from the pointer's target to the innermost
+row containing it, which mirrors how the preview resolves a block and gives nesting the same
+answer: a hero inside a section wrapper is reached before the wrapper is. The button in the row
+header is what scrolls, posting that row's address into the iframe; the preview finds the element
+with that id, measures it, scrolls to it and draws the overlay.
 
 Hover and click are split that way on purpose. An earlier version scrolled the preview on any click
 or focus change in the form, which moved the page while an editor was only placing a caret.
