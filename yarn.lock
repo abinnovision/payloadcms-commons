@@ -129,6 +129,39 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@abinnovision/payloadcms-viewfinder@workspace:*, @abinnovision/payloadcms-viewfinder@workspace:packages/viewfinder":
+  version: 0.0.0-use.local
+  resolution: "@abinnovision/payloadcms-viewfinder@workspace:packages/viewfinder"
+  dependencies:
+    "@abinnovision/eslint-config-base": "npm:^3.4.2"
+    "@abinnovision/prettier-config": "npm:^2.2.0"
+    "@arethetypeswrong/core": "npm:^0.18.5"
+    "@payloadcms/ui": "npm:3.88.0"
+    "@swc/core": "npm:^1.16.1"
+    "@types/node": "npm:^26.3.0"
+    "@types/react": "npm:^19.2.18"
+    "@vitest/coverage-v8": "npm:^4.1.10"
+    eslint: "npm:^10.9.1"
+    payload: "npm:3.88.0"
+    prettier: "npm:^3.9.5"
+    publint: "npm:^0.3.24"
+    react: "npm:^19.2.8"
+    react-dom: "npm:^19.2.8"
+    tsdown: "npm:^0.22.14"
+    typescript: "npm:^6.0.3"
+    unplugin-swc: "npm:^1.5.11"
+    vitest: "npm:^4.1.10"
+  peerDependencies:
+    "@payloadcms/ui": ">=3.88.0 <4"
+    payload: ">=3.88.0 <4"
+    react: ^19
+    react-dom: ^19
+  peerDependenciesMeta:
+    "@payloadcms/ui":
+      optional: true
+  languageName: unknown
+  linkType: soft
+
 "@abinnovision/prettier-config@npm:^2.2.0":
   version: 2.2.0
   resolution: "@abinnovision/prettier-config@npm:2.2.0"
@@ -1770,8 +1803,10 @@ __metadata:
   dependencies:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/payloadcms-montage": "workspace:*"
+    "@abinnovision/payloadcms-viewfinder": "workspace:*"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@payloadcms/db-sqlite": "npm:3.88.0"
+    "@payloadcms/live-preview-react": "npm:3.88.0"
     "@payloadcms/next": "npm:3.88.0"
     "@payloadcms/richtext-lexical": "npm:3.88.0"
     "@types/node": "npm:^26.3.0"
@@ -2457,6 +2492,25 @@ __metadata:
   bin:
     payload-graphql: bin.js
   checksum: 10/633c1300f3f64546c03127c6d32791a6b3ddb3581b8b8ea9e4edd0fc46b498b5aad4c986acbdfd04e0fa7ccfc0645b61938edcfcd356c96ce8e0d94a05a10f53
+  languageName: node
+  linkType: hard
+
+"@payloadcms/live-preview-react@npm:3.88.0":
+  version: 3.88.0
+  resolution: "@payloadcms/live-preview-react@npm:3.88.0"
+  dependencies:
+    "@payloadcms/live-preview": "npm:3.88.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.1 || ^19.1.2 || ^19.2.1
+    react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.1 || ^19.1.2 || ^19.2.1
+  checksum: 10/b22cb91892e9b7775b77601e2fd12a2a5397d02da37b6594f74c878c7a79857caf1da81c5d461240a1c1a8b9441b252fbe329cbe2aa31e140d5e95712f522a55
+  languageName: node
+  linkType: hard
+
+"@payloadcms/live-preview@npm:3.88.0":
+  version: 3.88.0
+  resolution: "@payloadcms/live-preview@npm:3.88.0"
+  checksum: 10/09c57a047fae925c095c222f962d23278233b04d3bea7ad7bb8d0fcfcd92bf4064da4aad1d7a1f23bd5a3a605f3de530c493bf9ec818e3627ae004b834d7ec5c
   languageName: node
   linkType: hard
 
