@@ -52,4 +52,18 @@ export default defineConfig([
 			],
 		},
 	},
+	{
+		files: ["src/config/**/*.spec.ts"],
+		rules: {
+			/*
+			 * Specs are excluded from the build, and the boundary this rule
+			 * guards is the shipped module graph — which the spec asserts
+			 * directly by walking it.
+			 */
+			"@typescript-eslint/no-restricted-imports": [
+				"error",
+				{ patterns: [noNext] },
+			],
+		},
+	},
 ]);
