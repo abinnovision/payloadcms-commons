@@ -5,6 +5,7 @@ import type { FormStateLike } from "../resolve-path.js";
 const BLOCK_TYPE_SUFFIX = ".blockType";
 const COLLAPSIBLE = ".collapsible";
 const BLOCK_HEADER = ".blocks-field__block-header";
+const TOGGLE_WRAP = ".collapsible__toggle-wrap";
 
 /**
  * The header element of the block row at `path`, when that row is currently
@@ -38,6 +39,29 @@ const rowHeader = (doc: Document, path: string): HTMLElement | null => {
 
 	return null;
 };
+
+/**
+ * The slice of `Element` `rowHoverTarget` needs, so that resolving it can be
+ * tested without a layout engine. Method syntax for the same reason as
+ * `client/target.ts`: `strictFunctionTypes` would otherwise stop a real
+ * `Element` from satisfying it.
+ */
+export interface RowHeaderElement {
+	/* eslint-disable-next-line @typescript-eslint/method-signature-style -- see above */
+	closest(selector: string): RowHeaderElement | null;
+}
+
+/**
+ * The element that actually receives pointer events for a row header.
+ *
+ * Payload sets `pointer-events: none` on the wrap around the header so that
+ * its collapse toggle, a button stretched over the whole strip, gets every
+ * click. A listener on the header itself would therefore never fire. The
+ * toggle wrap around it is the same visible strip and does receive them.
+ */
+export const rowHoverTarget = <TElement extends RowHeaderElement>(
+	header: TElement,
+): TElement => (header.closest(TOGGLE_WRAP) ?? header) as TElement;
 
 /** Every block path the form knows about, whether rendered or not. */
 export const blockPaths = (formState: FormStateLike): string[] =>

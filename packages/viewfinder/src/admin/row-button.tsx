@@ -7,6 +7,20 @@ import type { CSSProperties, ReactNode } from "react";
 const ACCENT = "#2d81ff";
 
 const BUTTON: CSSProperties = {
+	/*
+	 * Payload's collapse toggle is a button stretched over the whole header
+	 * (`.collapsible__toggle`, absolute, `width/height: 100%`), and the header
+	 * around it sets `pointer-events: none` so that every click reaches the
+	 * toggle. Payload's own controls in the header opt back in the same way.
+	 *
+	 * Both lines are needed. Without the pointer events this button is not
+	 * hit-testable at all; without the stacking context the toggle, being
+	 * positioned, paints over it. Either one missing and a click collapses the
+	 * row instead.
+	 */
+	pointerEvents: "auto",
+	position: "relative",
+	zIndex: 1,
 	display: "inline-flex",
 	alignItems: "center",
 	justifyContent: "center",

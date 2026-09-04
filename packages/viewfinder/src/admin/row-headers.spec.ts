@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { blockPaths, sameHeaders } from "./row-headers.js";
+import { blockPaths, rowHoverTarget, sameHeaders } from "./row-headers.js";
 
+import type { RowHeaderElement } from "./row-headers.js";
 import type { FormStateLike } from "../resolve-path.js";
 
 const value = (v: unknown): { value: unknown } => ({ value: v });
@@ -60,5 +61,22 @@ describe("sameHeaders", () => {
 		expect(
 			sameHeaders(new Map([["layout.0", a]]), new Map([["layout.1", a]])),
 		).toBe(false);
+	});
+});
+
+describe("rowHoverTarget", () => {
+	/* Only `closest` matters here, so a stub stands in for the DOM. */
+	const stub = (found: RowHeaderElement | null): RowHeaderElement => ({
+		closest: () => found,
+	});
+
+	it("prefers the toggle wrap, which is what receives pointer events", () => {
+		const wrap = stub(null);
+		expect(rowHoverTarget(stub(wrap))).toBe(wrap);
+	});
+
+	it("falls back to the header when the wrap is not there", () => {
+		const header = stub(null);
+		expect(rowHoverTarget(header)).toBe(header);
 	});
 });

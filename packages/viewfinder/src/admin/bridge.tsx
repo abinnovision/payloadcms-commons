@@ -8,7 +8,12 @@ import { adminMessage, isPreviewMessage } from "../protocol.js";
 import { resolveAddressForPath, resolveAddressPath } from "../resolve-path.js";
 import { revealPath } from "./reveal.js";
 import { RowButton } from "./row-button.js";
-import { blockPaths, findRowHeaders, sameHeaders } from "./row-headers.js";
+import {
+	blockPaths,
+	findRowHeaders,
+	rowHoverTarget,
+	sameHeaders,
+} from "./row-headers.js";
 
 import type { AdminMessage } from "../protocol.js";
 import type { FormStateLike } from "../resolve-path.js";
@@ -135,6 +140,8 @@ export const ViewfinderFormBridge = (): ReactNode => {
 		const detach: Array<() => void> = [];
 
 		for (const [path, header] of headers) {
+			const strip = rowHoverTarget(header);
+
 			const onEnter = (): void => {
 				const address = resolveAddressForPath(formState.current, path);
 				if (address) {
@@ -146,11 +153,11 @@ export const ViewfinderFormBridge = (): ReactNode => {
 				post(adminMessage.clear());
 			};
 
-			header.addEventListener("pointerenter", onEnter);
-			header.addEventListener("pointerleave", onLeave);
+			strip.addEventListener("pointerenter", onEnter);
+			strip.addEventListener("pointerleave", onLeave);
 			detach.push(() => {
-				header.removeEventListener("pointerenter", onEnter);
-				header.removeEventListener("pointerleave", onLeave);
+				strip.removeEventListener("pointerenter", onEnter);
+				strip.removeEventListener("pointerleave", onLeave);
 			});
 		}
 
