@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1152" height="320" viewBox="0 0 1152 320" role="img" aria-label="payloadcms-montage: a flat list of Payload blocks passes through a slug-to-component registry and renders as a React tree">
+  <rect width="1152" height="320" fill="#0B0C0E"/>
+  <g>
+    <text x="72" y="126" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#6B7079" letter-spacing="0.6">@abinnovision/</text>
+    <text x="72" y="170" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="34" fill="#EDEDEF" letter-spacing="-0.4">payloadcms-montage</text>
+    <text x="72" y="202" font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#6B7079">Typed block registry and RSC renderer</text>
+  </g>
+  <g>
+    <rect x="490" y="78" width="42" height="11" rx="3" fill="#3F444C"/>
+    <rect x="538" y="78" width="30" height="11" rx="3" fill="#33373E"/>
+    <rect x="574" y="78" width="36" height="11" rx="3" fill="#33373E"/>
+    <rect x="490" y="106" width="34" height="11" rx="3" fill="#4C525B"/>
+    <rect x="530" y="106" width="44" height="11" rx="3" fill="#33373E"/>
+    <rect x="580" y="106" width="30" height="11" rx="3" fill="#33373E"/>
+    <rect x="490" y="134" width="46" height="11" rx="3" fill="#3F444C"/>
+    <rect x="542" y="134" width="26" height="11" rx="3" fill="#33373E"/>
+    <rect x="574" y="134" width="36" height="11" rx="3" fill="#33373E"/>
+    <rect x="490" y="162" width="30" height="11" rx="3" fill="#5A6069"/>
+    <rect x="526" y="162" width="40" height="11" rx="3" fill="#33373E"/>
+    <rect x="572" y="162" width="38" height="11" rx="3" fill="#33373E"/>
+    <rect x="490" y="190" width="38" height="11" rx="3" fill="#4C525B"/>
+    <rect x="534" y="190" width="32" height="11" rx="3" fill="#33373E"/>
+    <rect x="572" y="190" width="38" height="11" rx="3" fill="#33373E"/>
+    <rect x="490" y="218" width="44" height="11" rx="3" fill="#3F444C"/>
+    <rect x="540" y="218" width="28" height="11" rx="3" fill="#33373E"/>
+    <rect x="574" y="218" width="36" height="11" rx="3" fill="#33373E"/>
+  </g>
+  <g fill="none" stroke="#3A3E45" stroke-width="1.25">
+    <path d="M618 83.5H656"/>
+    <path d="M618 111.5H656"/>
+    <path d="M618 139.5H656"/>
+    <path d="M618 167.5H656"/>
+    <path d="M618 195.5H656"/>
+    <path d="M618 223.5H656"/>
+  </g>
+  <rect x="650" y="64" width="176" height="180" rx="6" fill="none" stroke="#212429"/>
+  <g>
+    <rect x="660" y="79.5" width="68" height="8" rx="3" fill="#4C525B"/>
+    <rect x="744" y="79.5" width="68" height="8" rx="3" fill="#D98E3D"/>
+    <rect x="660" y="107.5" width="68" height="8" rx="3" fill="#3F444C"/>
+    <rect x="744" y="107.5" width="68" height="8" rx="3" fill="#D98E3D"/>
+    <rect x="660" y="135.5" width="68" height="8" rx="3" fill="#4C525B"/>
+    <rect x="744" y="135.5" width="68" height="8" rx="3" fill="#D98E3D"/>
+    <rect x="660" y="163.5" width="68" height="8" rx="3" fill="#3F444C"/>
+    <rect x="744" y="163.5" width="68" height="8" rx="3" fill="#D98E3D"/>
+    <rect x="660" y="191.5" width="68" height="8" rx="3" fill="#4C525B"/>
+    <rect x="744" y="191.5" width="68" height="8" rx="3" fill="#D98E3D"/>
+    <rect x="660" y="219.5" width="68" height="8" rx="3" fill="#3F444C"/>
+    <rect x="744" y="219.5" width="68" height="8" rx="3" fill="#D98E3D"/>
+  </g>
+  <g fill="none" stroke="#3A3E45" stroke-width="1.25">
+    <path d="M732 83.5H744"/>
+    <path d="M732 111.5H744"/>
+    <path d="M732 139.5H744"/>
+    <path d="M732 167.5H744"/>
+    <path d="M732 195.5H744"/>
+    <path d="M732 223.5H744"/>
+  </g>
+  <g fill="none" stroke="#D98E3D" stroke-width="1.25" opacity="0.55">
+    <path d="M812 83.5C862 83.5 866 150 906 150"/>
+    <path d="M812 111.5C862 111.5 866 150 906 150"/>
+    <path d="M812 139.5C862 139.5 866 150 906 150"/>
+    <path d="M812 167.5C862 167.5 866 150 906 150"/>
+    <path d="M812 195.5C862 195.5 866 150 906 150"/>
+    <path d="M812 223.5C862 223.5 866 150 906 150"/>
+  </g>
+  <path d="M906 150H924" stroke="#D98E3D" stroke-width="2"/>
+  <g fill="none" stroke="#D98E3D" stroke-width="1.25" opacity="0.55" stroke-linecap="round">
+    <path d="M924 89V218.5"/>
+    <path d="M924 108.5H938"/>
+    <path d="M924 174.5H938"/>
+    <path d="M924 218.5H938"/>
+    <path d="M942 113V152.5"/>
+    <path d="M942 130.5H956"/>
+    <path d="M942 152.5H956"/>
+    <path d="M942 179V196.5"/>
+    <path d="M942 196.5H956"/>
+  </g>
+  <g fill="#D98E3D">
+    <rect x="920" y="80" width="56" height="9" rx="2"/>
+    <rect x="938" y="104" width="62" height="9" rx="2" opacity="0.85"/>
+    <rect x="938" y="170" width="56" height="9" rx="2" opacity="0.85"/>
+    <rect x="938" y="214" width="46" height="9" rx="2" opacity="0.85"/>
+  </g>
+  <g fill="none" stroke="#D98E3D" stroke-width="1.25">
+    <rect x="956" y="126" width="52" height="9" rx="2"/>
+    <rect x="956" y="148" width="62" height="9" rx="2"/>
+    <rect x="956" y="192" width="52" height="9" rx="2"/>
+  </g>
+  <g font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="11" letter-spacing="1.4" text-anchor="middle">
+    <text x="550" y="286" fill="#6B7079">BLOCK DATA</text>
+    <text x="736" y="286" fill="#D98E3D">REGISTRY</text>
+    <text x="969" y="286" fill="#6B7079">RENDERED TREE</text>
+  </g>
+</svg>

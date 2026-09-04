@@ -1,5 +1,7 @@
 # @abinnovision/payloadcms-montage
 
+![A flat list of Payload blocks passes through a slug-to-component registry and comes out as a rendered React tree](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/montage/assets/header.png)
+
 Typed block registry and RSC renderer for [Payload CMS](https://payloadcms.com/).
 
 Montage knows about Payload blocks and nothing else. It does not model pages, sections,
