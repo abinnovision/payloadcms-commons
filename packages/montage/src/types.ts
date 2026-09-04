@@ -122,10 +122,10 @@ export interface Montage<TCtx extends object> {
 		/**
 		 * `RequireGeneratedTypes` resolves to `unknown` (a no-op intersection)
 		 * once a consumer's generated types are present, and to a blocking
-		 * string literal otherwise. The lint rule only sees whichever
-		 * resolution is in scope for the current compilation and calls the
-		 * `unknown` case redundant; that is the fail-open/fail-closed design,
-		 * not a mistake.
+		 * string literal otherwise. The lint rule only ever sees whichever
+		 * resolution is in scope for the current compilation, so it calls the
+		 * `unknown` case redundant. That is the fail-closed design working as
+		 * intended.
 		 */
 		// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 		entries: E & RequireGeneratedTypes,

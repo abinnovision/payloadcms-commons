@@ -18,9 +18,9 @@ import type { AppContext } from "../test/fixtures/context.js";
 
 /**
  * WP4, structural acceptance: the rebuild walkthrough compiles and runs
- * against the exported surface, before the resolver exists. Pass condition
- * per the plan is not just "it works", it is that no capability montage
- * does not already export was needed. Four ports, chosen so each can fail:
+ * against the exported surface, before the resolver exists. The bar is
+ * higher than "it works": every port below has to be reachable with
+ * capabilities montage already exports. Four ports, chosen so each can fail:
  * SectionWrapper (canRender sufficiency, child-context clone), GlobalReference
  * (curried inline typing, a block reached through a relationship),
  * PageLayout (createChildContext + extension signalling), and a `ctx`-only

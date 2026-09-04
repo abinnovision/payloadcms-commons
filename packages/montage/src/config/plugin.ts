@@ -45,9 +45,9 @@ const describeDuplicateSlugs = (
  * deduplicate `config.blocks`, and the two consumers of that array disagree
  * about which duplicate wins: a slug reference resolves to the first match,
  * while a generated interface is keyed by the last. A duplicate therefore
- * produces a schema and a type that describe different blocks. The merge here
- * is the point where a consumer's own blocks meet montage's, so it is where
- * the collision is most likely.
+ * produces a schema and a type that describe different blocks. This merge is
+ * where a consumer's own blocks meet montage's, so it is the likeliest place
+ * for that collision to appear.
  */
 export const montagePlugin = (args: { blocks: Block[] }): Plugin => {
 	const plugin: Plugin = (config) => {

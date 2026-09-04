@@ -1,10 +1,10 @@
 # Recipes
 
-These are not montage features. Each is a small piece of your own code, built on montage's public
-API and plain Payload. They are here because the package deliberately does not ship them (see
-[`limitations.md`](./limitations.md)), and to show that the boundary in
-[`concepts.md`](./concepts.md) is a usable one, not just a small one. Every example below is a
-real, tested fixture in this package's own test suite.
+Each recipe below is a small piece of your own code, written against montage's public API and
+plain Payload. The package deliberately does not ship any of them (see
+[`limitations.md`](./limitations.md)); together they show that the boundary drawn in
+[`concepts.md`](./concepts.md) is a workable one. Every example is a real, tested
+fixture in this package's own test suite.
 
 ## Section wrapper
 
@@ -32,9 +32,8 @@ export const SectionWrapper = defineInlineBlockComponent<SectionWrapperBlock>()(
 );
 ```
 
-`canRender` is the only engine capability this needs. Filtering with it before rendering, rather
-than rendering and checking afterward, is what makes the collapse possible: React cannot un-render
-a parent once a child has rendered nothing.
+`canRender` is the only engine capability this needs. The collapse works because the filtering
+happens before rendering: React cannot un-render a parent once a child has rendered nothing.
 
 ## Global reference
 
@@ -55,7 +54,7 @@ keying applies to it independently.
 
 ## Page layout
 
-A plain component, not a montage block, iterating fixed regions and passing along a
+A plain component rather than a montage block. It iterates fixed regions and passes along a
 context extension so the first section can render differently (no divider above it, for
 example):
 

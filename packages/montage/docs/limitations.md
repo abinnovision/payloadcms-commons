@@ -2,7 +2,7 @@
 
 ## Not included
 
-Each of these is a deliberate cut, not a gap that will close later without a reason. See
+Each of these was cut on purpose. If one of them lands later, it will be for a stated reason. See
 [`recipes.md`](./recipes.md) for how to build the ones you need on top of montage.
 
 | Not included                         | Why                                                                                                                                                                                                  |
@@ -17,18 +17,19 @@ Each of these is a deliberate cut, not a gap that will close later without a rea
 
 ## Known gaps
 
-- **The context is not serializable once montage has written to it.** The results store is a
-  `Map` keyed on object identity, which cannot cross a serialization boundary (into a client
-  component, for instance). Pass individual fields, not the context itself.
-- **`defineBlockRegistry`'s `require` option narrows the missing-component defect; it does not
-  eliminate it.** It can only check what you list, and it cannot see blocks contributed by other
-  plugins. A block you forget to list in `require` can still go unregistered without a compile
-  error. See [Checking the config against the
-  registry](./recipes.md#checking-the-config-against-the-registry) for deriving the list from
-  your block configs rather than maintaining it by hand.
-- **The `./config` and `.` entrypoints share no runtime state.** They are joined only by
-  TypeScript types (Payload's generated `BlockSlug`/`TypedBlock`). There is no runtime cross-check
-  between what `montagePlugin` registers in `config.blocks` and what a registry built with `.`
-  actually defines, though you can derive one at the type level (see
-  [`recipes.md`](./recipes.md#checking-the-config-against-the-registry)). `montagePlugin` does
-  reject duplicate slugs in the merged `config.blocks`.
+The context stops being serializable once montage has written to it. The results store is a `Map`
+keyed on object identity, and a `Map` keyed that way cannot cross a serialization boundary into a
+client component. Pass individual fields rather than the context itself.
+
+`defineBlockRegistry`'s `require` option narrows the missing-component defect without eliminating
+it. It can only check what you list, and it cannot see blocks contributed by other plugins, so a
+block you forget to list in `require` can still go unregistered with no compile error. [Checking
+the config against the registry](./recipes.md#checking-the-config-against-the-registry) derives
+that list from your block configs instead of leaving you to maintain it by hand.
+
+The `./config` and `.` entrypoints share no runtime state. TypeScript types are all that join them,
+by way of Payload's generated `BlockSlug` and `TypedBlock`. Nothing checks at runtime that what
+`montagePlugin` registers in `config.blocks` agrees with what a registry built from `.` actually
+defines, though you can derive such a check at the type level (see
+[`recipes.md`](./recipes.md#checking-the-config-against-the-registry)). `montagePlugin` does
+reject duplicate slugs in the merged `config.blocks`.

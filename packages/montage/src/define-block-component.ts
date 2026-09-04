@@ -33,11 +33,11 @@ export const defineBlockComponent = <S extends BlockSlug, D = undefined>(
 /**
  * Blocks declared inline in a field, which never reach `config.blocks`
  * (the section wrapper, global references, document templates, ...).
- * Curried so `D` still infers once `TBlock` is supplied explicitly: `TBlock`
- * sits in an indexed-access position (`TBlock["blockType"]`), not an
- * inference site, so it must be given explicitly, and TypeScript has no
- * partial type-argument inference. Supplying it in a single call would pin
- * `D` to its default.
+ * Curried so `D` still infers once `TBlock` is supplied explicitly. `TBlock`
+ * sits in an indexed-access position (`TBlock["blockType"]`) rather than an
+ * inference site, so a caller has to give it, and TypeScript has no partial
+ * type-argument inference. Supplying it in a single call would pin `D` to its
+ * default.
  */
 export const defineInlineBlockComponent =
 	<TBlock extends { blockType: string }>() =>

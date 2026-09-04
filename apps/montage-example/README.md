@@ -1,7 +1,7 @@
 # montage example
 
 A Payload CMS app mounting [`@abinnovision/payloadcms-montage`](../../packages/montage) against a
-content model big enough to exercise a real data resolver and the collapse pattern, not just a
+content model big enough to exercise a real data resolver and the collapse pattern rather than a
 single static block.
 
 | Block                 | Kind                             | Demonstrates                                                                                                                         |
@@ -41,16 +41,19 @@ Open <http://localhost:3000/admin>, create the first user, then:
 
 ## What this app demonstrates
 
-- **`payload.config.ts` never imports React.** `montagePlugin` comes from the `./config`
-  entrypoint and only appends to `config.blocks`. The section wrapper is passed to
-  `pages.layout`'s `blockReferences` by object instead, since it is instantiated per host.
-- **No dependency on Next inside a block component.** `HeroModule` and `RecentPostsModule` reach
-  `next/link` through the render context (`src/montage.ts`'s `AppContext`), injected once in
-  `src/app/(app)/[slug]/page.tsx`, never imported directly.
-- **A real data resolver.** `RecentPostsModule.resolve` calls `getPayload` and `payload.find`
-  itself; montage takes no `io` and does not fetch on a consumer's behalf.
-- **Collapse.** `SectionWrapper` filters its modules with `renderer.canRender` before rendering,
-  so a module whose resolver returns nothing never leaves an empty gap.
-- **The full pipeline**: `payload generate:types` produces the slug-checked block types,
-  `defineBlockComponent` uses them, and `next build` succeeds with the package installed as an
-  ordinary workspace dependency.
+`payload.config.ts` never imports React. `montagePlugin` comes from the `./config` entrypoint and
+only appends to `config.blocks`; the section wrapper is passed to `pages.layout`'s
+`blockReferences` by object instead, since it is instantiated per host.
+
+No block component depends on Next either. `HeroModule` and `RecentPostsModule` reach `next/link`
+through the render context (`src/montage.ts`'s `AppContext`), injected once in
+`src/app/(app)/[slug]/page.tsx` and never imported directly.
+
+`RecentPostsModule.resolve` is a real data resolver. It calls `getPayload` and `payload.find`
+itself, because montage takes no `io` and does not fetch on a consumer's behalf. `SectionWrapper`
+then filters its modules with `renderer.canRender` before rendering, so a module whose resolver
+returns nothing never leaves an empty gap.
+
+The whole pipeline runs: `payload generate:types` produces the slug-checked block types,
+`defineBlockComponent` uses them, and `next build` succeeds with the package installed as an
+ordinary workspace dependency.

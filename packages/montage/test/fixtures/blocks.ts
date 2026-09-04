@@ -1,8 +1,8 @@
 /**
- * Hand-written stand-in types, not real generated Payload types: the
- * package's own test suite carries no dependency on a real consumer app.
- * Shapes are chosen only to exercise the patterns the acceptance set
- * falsifies (structural and behavioural coverage of the rebuild recipes).
+ * Hand-written stand-ins for generated Payload types, since the package's
+ * own test suite carries no dependency on a real consumer app. The shapes
+ * exist only to exercise the patterns the acceptance set falsifies
+ * (structural and behavioural coverage of the rebuild recipes).
  */
 
 export interface HeroModuleBlock {
