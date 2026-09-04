@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { defineLinks } from "./define-links.js";
 import { deriveLinkLabel } from "./derive-link-label.js";
-
-import type { LinkVariant } from "./types.js";
 
 describe("deriveLinkLabel", () => {
 	it("uses the raw URL for a custom link", () => {
@@ -65,11 +64,11 @@ describe("deriveLinkLabel", () => {
 	 * value is the most it can say without knowing them.
 	 */
 	it("falls back to an app-declared variant's own value", () => {
-		const variants: LinkVariant[] = [{ value: "download", label: "Download" }];
+		const links = defineLinks()(() => ({
+			variants: { download: { label: "Download" } },
+		}));
 
-		expect(deriveLinkLabel({ type: "download" }, { variants })).toBe(
-			"download",
-		);
+		expect(deriveLinkLabel({ type: "download" }, { links })).toBe("download");
 	});
 
 	it("returns undefined for a type no variant declares", () => {

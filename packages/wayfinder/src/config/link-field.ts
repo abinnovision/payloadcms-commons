@@ -2,7 +2,10 @@ import { relationship, text } from "payload/shared";
 
 import { variantsOf } from "../pattern/define-links.js";
 
-import type { LinkVariantSource } from "../pattern/define-links.js";
+import type {
+	LinkDeclaration,
+	LinkVariantSource,
+} from "../pattern/define-links.js";
 import type { LabelLike, LinkFieldData } from "../pattern/types.js";
 import type { Field, PolymorphicRelationshipField, TextField } from "payload";
 
@@ -35,9 +38,8 @@ const DEFAULT_LABELS: Required<LinkFieldLabels> = {
 };
 
 export interface LinkFieldArgs<
-	TCtx = unknown,
-	TExtra = object,
-> extends LinkVariantSource<TCtx, TExtra> {
+	TDeclaration extends LinkDeclaration = LinkDeclaration,
+> extends LinkVariantSource<TDeclaration> {
 	/**
 	 * Every collection that has a URL. A target missing here cannot be linked
 	 * to from the admin panel even if its mapping exists.
@@ -92,14 +94,16 @@ const withVariantCondition = <T extends Field>(field: T, value: string): T => {
 	return next;
 };
 
-export const linkField = <TCtx = unknown, TExtra = object>(
-	args: LinkFieldArgs<TCtx, TExtra>,
+export const linkField = <
+	TDeclaration extends LinkDeclaration = LinkDeclaration,
+>(
+	args: LinkFieldArgs<TDeclaration>,
 ): Field => {
 	const isRequired = args.required ?? true;
 	const withLabel = args.withLabel ?? false;
 	const localizedLabel = args.localizedLabel ?? true;
 	const labels = { ...DEFAULT_LABELS, ...args.labels };
-	const variants = variantsOf<TCtx, TExtra>(args);
+	const variants = variantsOf(args);
 
 	/*
 	 * Payload validates hidden fields too, so required-ness has to be checked

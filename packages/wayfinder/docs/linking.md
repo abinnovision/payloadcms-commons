@@ -31,7 +31,6 @@ It returns a `group` field named `link`.
 | ---------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | `relationTo`     | required                 | every collection that can be linked to; a target missing here cannot be picked                                            |
 | `links`          | unset                    | the declaration built by [`defineLinks`](#declaring-link-types-with-definelinks)                                          |
-| `variants`       | unset                    | the array form of the same thing, for hand-written types                                                                  |
 | `required`       | `true`                   | when false, adds the `none` type and defaults to it                                                                       |
 | `withLabel`      | `false`                  | shows a `label` text field                                                                                                |
 | `localizedLabel` | `true`                   | whether that label is localized                                                                                           |
@@ -165,37 +164,31 @@ The built-ins are defaults rather than a fixed set. An in-page link that has to 
 header, or an internal link routed through something other than the mapping, is still the same link
 type to an editor and should not need a second one invented for it.
 
-### The array form
+### Fields this cannot type
 
-`variants` takes the same thing as a list of `LinkVariant` objects, with the stored value as an
-explicit `value` property. Use it when the contributed types are hand-written rather than derived,
-which includes reusing types that already exist elsewhere:
+A few field types resolve to `unknown`, because guessing at their shape would produce something
+wrong rather than something vague, and a wrong type gets believed. `.data<T>()` names the shape for
+those, leaving the rest of the variant derived:
 
 ```ts
-import type { LinkVariant } from "@abinnovision/payloadcms-wayfinder";
-
-export interface DownloadExtra {
-  fileName?: string | null;
+interface ScheduleData {
+  window?: { from: string; to: string } | null;
 }
 
-export const downloadVariant: LinkVariant<AppLinkContext, DownloadExtra> = {
-  value: "download",
-  label: "Download",
-  fields: [{ name: "fileName", type: "text" }],
-  resolve: ({ link, context }) =>
-    link.fileName ? { href: `${context.filesBase}/${link.fileName}` } : null,
-};
+const links = defineLinks<AppLinkContext>()((variant) => ({
+  variants: {
+    scheduled: variant({
+      label: "Scheduled",
+      fields: [{ name: "window", type: "group", fields: [] }],
+    })
+      .data<ScheduleData>()
+      .resolve(({ link }) => ({ href: "/", from: link.window?.from })),
+  },
+}));
 ```
 
-```ts
-linkField<AppLinkContext, DownloadExtra>({
-  relationTo: ["pages", "articles"],
-  variants: [downloadVariant],
-});
-```
-
-Both forms flatten to the same list and behave identically from there. `links` and `variants` are
-not merged: if `links` is given, `variants` is ignored.
+It replaces the derived shape rather than adding to it, so name every field the resolver reads.
+See [`docs/limitations.md`](./limitations.md) for which types are derived.
 
 ## `resolveLink`
 
@@ -213,7 +206,6 @@ const resolved = resolveLink({ link: block.link, mappings, locale: "en" });
 | `mappings`         | required | compiled mappings                                                                     |
 | `locale`           | required | which locale's pattern to build with                                                  |
 | `links`            | unset    | the declaration built by `defineLinks`                                                |
-| `variants`         | unset    | the array form of the same thing                                                      |
 | `context`          | unset    | passed to a variant's `resolve` untouched                                             |
 | `formatHref`       | identity | rewrites the built path; see [`recipes.md`](./recipes.md#locale-prefixes-and-preview) |
 | `identifierField`  | `"slug"` | fallback identifier for relationship parameters                                       |
@@ -346,8 +338,8 @@ if (resolved?.download) {
 
 ### The underlying types
 
-`LinkDataOf` and `ResolvedLinkOf` are built out of two types you can also use directly, which is
-what the array form does.
+`LinkDataOf` and `ResolvedLinkOf` are built out of two types you can also use directly, when you
+want to name a link's shape without a declaration in hand.
 
 `LinkFieldData<TVariant, TExtra>` is the structural shape of the stored group. `TVariant` carries
 any app-declared variant names beyond the four built-ins, and `TExtra` the fields those variants

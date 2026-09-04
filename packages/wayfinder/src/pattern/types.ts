@@ -158,14 +158,13 @@ export interface BaseResolvedLink {
 export type ResolvedLink<E = object> = BaseResolvedLink & Contributed<E>;
 
 /**
- * An app-declared link type.
+ * One variant, flattened out of a declaration with its key put back on it.
  *
- * `fields` are shown in the admin panel under a condition on the variant's own
- * value, and `resolve` turns the resulting data into a link. The resolver sits
- * on the variant rather than in a separate map so there is exactly one place a
- * link type is defined.
+ * The shape everything downstream of {@link defineLinks} works with. Not an
+ * authoring form: variants are written through the builder, which is what
+ * derives their field types.
  */
-export interface LinkVariant<TCtx = unknown, TExtra = object> {
+export interface DeclaredLinkVariant<TCtx = unknown, TExtra = object> {
 	value: string;
 	label: LabelLike;
 	/** Readonly, because a `const` type parameter infers a readonly tuple. */

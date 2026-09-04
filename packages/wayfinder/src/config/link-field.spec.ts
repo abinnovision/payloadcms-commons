@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { linkField } from "./link-field.js";
-
-import type { LinkVariant } from "../pattern/types.js";
+import { defineLinks } from "../pattern/define-links.js";
 
 /**
  * The slice of a field this module produces. Payload's own `Field` union is
@@ -117,14 +116,20 @@ describe("linkField type options", () => {
 	});
 
 	it("appends app-declared variants after the built-ins", () => {
-		const variants: LinkVariant[] = [
-			{ value: "download", label: "Download" },
-			{ value: "dialog", label: "Dialog" },
-		];
+		const links = defineLinks()(() => ({
+			variants: {
+				download: { label: "Download" },
+				dialog: { label: "Dialog" },
+			},
+		}));
 
-		expect(optionValues(build({ relationTo: ["articles"], variants }))).toEqual(
-			["reference", "custom", "same-page", "download", "dialog"],
-		);
+		expect(optionValues(build({ relationTo: ["articles"], links }))).toEqual([
+			"reference",
+			"custom",
+			"same-page",
+			"download",
+			"dialog",
+		]);
 	});
 });
 
@@ -157,14 +162,15 @@ describe("linkField conditional sub-fields", () => {
 });
 
 describe("linkField variant fields", () => {
-	const variants: LinkVariant[] = [
-		{
-			value: "download",
-			label: "Download",
-			fields: [{ name: "fileName", type: "text" }],
+	const links = defineLinks()((variant) => ({
+		variants: {
+			download: variant({
+				label: "Download",
+				fields: [{ name: "fileName", type: "text" }],
+			}),
 		},
-	];
-	const field = build({ relationTo: ["articles"], variants });
+	}));
+	const field = build({ relationTo: ["articles"], links });
 
 	it("appends a variant's own fields to the group", () => {
 		expect(subFields(field).map((it) => it.name)).toContain("fileName");
@@ -184,10 +190,10 @@ describe("linkField with a variant claiming a built-in value", () => {
 	 * link type, so the option has to appear once, with the variant's label,
 	 * and in the built-in's original position: editors read this list by shape.
 	 */
-	const field = build({
-		relationTo: ["pages"],
-		variants: [{ value: "same-page", label: "Jump to section" }],
-	});
+	const links = defineLinks()(() => ({
+		variants: { "same-page": { label: "Jump to section" } },
+	}));
+	const field = build({ relationTo: ["pages"], links });
 
 	it("offers the value once, with the variant's own label", () => {
 		const options = sub(field, "type")?.options ?? [];

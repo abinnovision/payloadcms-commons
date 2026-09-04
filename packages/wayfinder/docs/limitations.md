@@ -101,19 +101,24 @@ const onDiagnostic: OnDiagnostic<DiagnosticReason> = (d) => {
 `defineLinks` derives each contributed field's type from the `fields` array. It models the scalar
 field types and nothing else:
 
-| Field `type`                        | Derived as                               |
-| ----------------------------------- | ---------------------------------------- |
-| `text`, `textarea`, `email`, `code` | `string \| null \| undefined`            |
-| `number`                            | `number \| null \| undefined`            |
-| `checkbox`                          | `boolean \| null \| undefined`           |
-| `select`                            | the union of its own `options`, nullable |
-| anything else                       | `unknown`                                |
+| Field `type`                        | Derived as                                        |
+| ----------------------------------- | ------------------------------------------------- |
+| `text`, `textarea`, `email`, `code` | `string \| null \| undefined`                     |
+| `number`                            | `number \| null \| undefined`                     |
+| `checkbox`                          | `boolean \| null \| undefined`                    |
+| `date`                              | `string \| null \| undefined`                     |
+| `select`, `radio`                   | the union of its own `options`, nullable          |
+| `relationship`, `upload`            | `string \| number \| { id } \| null \| undefined` |
+| anything else                       | `unknown`                                         |
 
-**Consequence.** A variant contributing an `array`, a `group`, a `relationship` or an `upload`
-field gets `unknown` for it, and the resolver has to narrow the value itself.
+A `hasMany` field of any of the above holds an array of that type.
 
-**Workaround.** Either narrow inside the resolver, or use
-[the array form](./linking.md#the-array-form) and write the contributed type by hand.
+**Consequence.** A variant contributing an `array`, a `group`, a `blocks` or a `richText` field
+gets `unknown` for it.
+
+**Workaround.** Name the shape with
+[`.data<T>()`](./linking.md#fields-this-cannot-type), which replaces the derived type for that
+variant while leaving the others alone.
 
 The alternative would be guessing at the richer shapes, which is worse than being unhelpful: a
 wrong type here would be believed. Payload's own `generate:types` produces the accurate shapes when

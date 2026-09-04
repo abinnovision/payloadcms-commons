@@ -36,7 +36,7 @@ export type {
 	FormatHref,
 	LabelLike,
 	LinkFieldData,
-	LinkVariant,
+	DeclaredLinkVariant,
 	PayloadCollectionMapping,
 	PayloadCollectionMappingMatch,
 	PayloadCollectionMappingResolved,

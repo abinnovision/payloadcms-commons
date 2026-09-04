@@ -6,11 +6,6 @@ import { defineLinks } from "../pattern/define-links.js";
 import { resolveCollectionMapping } from "../pattern/resolver.js";
 
 import type { Diagnostic, ResolveLinkDiagnosticReason } from "./diagnostics.js";
-import type {
-	BaseResolvedLink,
-	LinkVariant,
-	ResolvedLink,
-} from "../pattern/types.js";
 
 const mappings = [
 	resolveCollectionMapping({ collection: "articles", path: "/journal/:slug" }),
@@ -217,22 +212,17 @@ describe("resolveLink references", () => {
 });
 
 describe("resolveLink variants", () => {
-	/** The fields the variant contributes, plus what its resolver adds back. */
-	interface DownloadExtra {
-		fileName?: string | null;
-		download?: boolean;
-	}
-
-	const variants: LinkVariant<{ base: string }, DownloadExtra>[] = [
-		{
-			value: "download",
-			label: "Download",
-			resolve: ({ link, context }) => ({
+	const links = defineLinks<{ base: string }>()((variant) => ({
+		variants: {
+			download: variant({
+				label: "Download",
+				fields: [{ name: "fileName", type: "text" }],
+			}).resolve(({ link, context }) => ({
 				href: `${context.base}/${link.fileName ?? ""}`,
 				download: true,
-			}),
+			})),
 		},
-	];
+	}));
 
 	it("calls the variant's own resolver and keeps its extra properties", () => {
 		expect(
@@ -240,19 +230,23 @@ describe("resolveLink variants", () => {
 				link: { type: "download", fileName: "hello-world.pdf" },
 				mappings,
 				locale: "en",
-				variants,
+				links,
 				context: { base: "/files" },
 			}),
 		).toEqual({ href: "/files/hello-world.pdf", download: true });
 	});
 
 	it("returns null for a variant that declares no resolver", () => {
+		const bare = defineLinks()(() => ({
+			variants: { download: { label: "Download" } },
+		}));
+
 		expect(
 			resolveLink({
 				link: { type: "download" },
 				mappings,
 				locale: "en",
-				variants: [{ value: "download", label: "Download" }],
+				links: bare,
 			}),
 		).toBeNull();
 	});
@@ -315,22 +309,6 @@ describe("isAvailableLink", () => {
 	});
 });
 
-interface ScrollBehaviour {
-	onClick: () => void;
-}
-
-/**
- * Narrows a resolved link to its click handler, if it has one.
- *
- * The return type is a union because the built-in branches genuinely do not
- * produce the variant's extra, so reading it needs a narrowing rather than a
- * cast. Kept out of the test bodies, which may not branch.
- */
-const clickHandlerOf = (
-	resolved: BaseResolvedLink | ResolvedLink<ScrollBehaviour> | null,
-): (() => void) | undefined =>
-	resolved && "onClick" in resolved ? resolved.onClick : undefined;
-
 describe("resolveLink with a variant overriding a built-in", () => {
 	/*
 	 * An in-page link on a site with a fixed header cannot be a plain anchor:
@@ -340,29 +318,37 @@ describe("resolveLink with a variant overriding a built-in", () => {
 	 */
 	const scrolled: string[] = [];
 
-	const samePageWithOffset: LinkVariant<{ offset: number }, ScrollBehaviour> = {
-		value: "same-page",
-		label: "Same page",
-		resolve: ({ link, context }) => {
-			const id = link.samePageIdentifier;
+	const links = defineLinks<{ offset: number }>()((variant) => ({
+		variants: {
+			"same-page": variant({ label: "Same page" }).resolve(
+				({ link, context }) => {
+					const id = link.samePageIdentifier;
 
-			if (!id) {
-				return null;
-			}
+					if (!id) {
+						return null;
+					}
 
-			return {
-				href: `#${id}`,
-				onClick: () => scrolled.push(`${id}@${String(context.offset)}`),
-			};
+					return {
+						href: `#${id}`,
+						onClick: () => scrolled.push(`${id}@${String(context.offset)}`),
+					};
+				},
+			),
 		},
-	};
+	}));
+
+	/** Narrows a resolved link to its click handler, if it has one. */
+	const clickHandlerOf = (resolved: unknown): (() => void) | undefined =>
+		resolved && typeof resolved === "object" && "onClick" in resolved
+			? (resolved.onClick as () => void)
+			: undefined;
 
 	it("resolves through the variant rather than the built-in", () => {
-		const resolved = resolveLink<{ offset: number }, ScrollBehaviour>({
+		const resolved = resolveLink({
 			link: { type: "same-page", samePageIdentifier: "pricing" },
 			mappings: [],
 			locale: "en",
-			variants: [samePageWithOffset],
+			links,
 			context: { offset: 80 },
 		});
 
@@ -388,39 +374,26 @@ describe("resolveLink with a variant overriding a built-in", () => {
 
 describe("resolveLink with several variants", () => {
 	/*
-	 * Each variant contributes its own fields, and the type parameter is the
+	 * Each variant contributes its own fields, and the resolved type is the
 	 * union of all of them. Requiring the whole union would mean every variant
 	 * had to return the others' properties alongside its own, which no variant
-	 * can do — so both what a variant reads and what it returns are optional.
+	 * can do, so both what a variant reads and what it returns are optional.
 	 */
-	interface ActionExtra {
-		action?: string | null;
-	}
-
-	interface DownloadExtra {
-		fileName?: string | null;
-		download?: boolean;
-	}
-
-	type Extras = ActionExtra & DownloadExtra;
-
-	const variants: LinkVariant<{ base: string }, Extras>[] = [
-		{
-			value: "action",
-			label: "Action",
-			fields: [{ name: "action", type: "text" }],
-			resolve: ({ link }) => ({ href: "", action: link.action }),
-		},
-		{
-			value: "download",
-			label: "Download",
-			fields: [{ name: "fileName", type: "text" }],
-			resolve: ({ link, context }) => ({
+	const links = defineLinks<{ base: string }>()((variant) => ({
+		variants: {
+			action: variant({
+				label: "Action",
+				fields: [{ name: "action", type: "text" }],
+			}).resolve(({ link }) => ({ href: "", action: link.action })),
+			download: variant({
+				label: "Download",
+				fields: [{ name: "fileName", type: "text" }],
+			}).resolve(({ link, context }) => ({
 				href: `${context.base}/${link.fileName ?? ""}`,
 				download: true,
-			}),
+			})),
 		},
-	];
+	}));
 
 	it("routes each type to its own resolver", () => {
 		expect(
@@ -428,7 +401,7 @@ describe("resolveLink with several variants", () => {
 				link: { type: "action", action: "renew-consent" },
 				mappings: [],
 				locale: "en",
-				variants,
+				links,
 				context: { base: "/files" },
 			}),
 		).toEqual({ href: "", action: "renew-consent" });
@@ -438,14 +411,14 @@ describe("resolveLink with several variants", () => {
 				link: { type: "download", fileName: "report.pdf" },
 				mappings: [],
 				locale: "en",
-				variants,
+				links,
 				context: { base: "/files" },
 			}),
 		).toEqual({ href: "/files/report.pdf", download: true });
 	});
 
 	it("gives every variant its own conditional fields", () => {
-		const group = linkField({ relationTo: ["pages"], variants });
+		const group = linkField({ relationTo: ["pages"], links });
 		const names = (group as { fields: { name?: string }[] }).fields.map(
 			(it) => it.name,
 		);

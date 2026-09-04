@@ -3,7 +3,7 @@ import type {
 	Contributed,
 	LabelLike,
 	LinkFieldData,
-	LinkVariant,
+	DeclaredLinkVariant,
 } from "./types.js";
 import type { Field } from "payload";
 
@@ -29,28 +29,38 @@ type OptionValue<O> = O extends readonly (infer I)[]
 			: never
 	: never;
 
+/** What a relationship or upload holds, populated or not. */
+type RelatedValue = string | number | { id: string | number };
+
 /**
  * The value one field holds, as Payload emits it.
  *
- * Deliberately narrow. The scalar types cover what a link variant realistically
- * contributes, and anything else resolves to `unknown` rather than a guess: a
- * wrong type here would be worse than an unhelpful one, because it would be
- * believed. `hasMany` is checked before the scalar case for the same reason —
- * it changes the value to an array, and typing it as a scalar would be wrong
- * rather than merely vague.
+ * Covers the field types a link variant realistically uses to describe a
+ * destination. Anything else resolves to `unknown` rather than a guess: a wrong
+ * type would be worse than an unhelpful one, because it would be believed.
+ *
+ * `hasMany` is checked before each scalar case for that reason — it changes the
+ * value to an array, and typing it as a scalar would be wrong rather than
+ * merely vague.
  */
 type FieldData<F> = F extends { name: infer N extends string }
-	? F extends { type: "select"; options: infer O; hasMany: true }
+	? F extends { type: "select" | "radio"; options: infer O; hasMany: true }
 		? { [K in N]?: OptionValue<O>[] | null }
-		: F extends { type: "select"; options: infer O }
+		: F extends { type: "select" | "radio"; options: infer O }
 			? { [K in N]?: OptionValue<O> | null }
-			: F extends { type: "text" | "textarea" | "email" | "code" }
-				? { [K in N]?: string | null }
-				: F extends { type: "number" }
-					? { [K in N]?: number | null }
-					: F extends { type: "checkbox" }
-						? { [K in N]?: boolean | null }
-						: { [K in N]?: unknown }
+			: F extends { type: "relationship" | "upload"; hasMany: true }
+				? { [K in N]?: RelatedValue[] | null }
+				: F extends { type: "relationship" | "upload" }
+					? { [K in N]?: RelatedValue | null }
+					: F extends {
+								type: "text" | "textarea" | "email" | "code" | "date";
+						  }
+						? { [K in N]?: string | null }
+						: F extends { type: "number" }
+							? { [K in N]?: number | null }
+							: F extends { type: "checkbox" }
+								? { [K in N]?: boolean | null }
+								: { [K in N]?: unknown }
 	: object;
 
 /** Everything a variant's own fields contribute, as one object type. */
@@ -71,13 +81,22 @@ export interface LinkVariantDefinition<
 	TCtx = unknown,
 	TFields extends readonly Field[] = readonly Field[],
 	TExtra = object,
+	TData = DataOfFields<TFields>,
 > {
 	label: LabelLike;
 	fields?: TFields;
 	resolve?: (args: {
-		link: LinkFieldData<string, DataOfFields<TFields>>;
+		link: LinkFieldData<string, TData>;
 		context: TCtx;
 	}) => (BaseResolvedLink & TExtra) | null;
+	/**
+	 * The variant's data shape, in a position it can be read back from.
+	 *
+	 * Declared and never assigned, so no such key exists at runtime. It is
+	 * here because `.data<T>()` has to override what a variant contributes,
+	 * and re-deriving from `fields` would ignore it.
+	 */
+	readonly __data?: TData;
 }
 
 /**
@@ -104,17 +123,27 @@ export interface LinkDeclaration<
 }
 
 /** The stored shape of a link field built from a declaration. */
+/**
+ * What one variant contributes.
+ *
+ * Read off `__data` rather than re-derived from `fields`, so a variant that
+ * named its own shape with `.data<T>()` keeps it.
+ */
+type DataOfVariant<V> = V extends { __data?: infer D }
+	? unknown extends D
+		? object
+		: D
+	: V extends { fields?: infer F extends readonly unknown[] }
+		? DataOfFields<F>
+		: object;
+
 export type LinkDataOf<T> =
 	T extends LinkDeclaration<infer TVariants>
 		? LinkFieldData<
 				Extract<keyof TVariants, string>,
 				UnionToIntersection<
 					{
-						[K in keyof TVariants]: TVariants[K] extends {
-							fields?: infer F extends readonly unknown[];
-						}
-							? DataOfFields<F>
-							: object;
+						[K in keyof TVariants]: DataOfVariant<TVariants[K]>;
 					}[keyof TVariants]
 				>
 			>
@@ -146,24 +175,40 @@ export type ResolvedLinkOf<T> =
  * type a resolver from a sibling property of the same object literal. Passing
  * the fields through `variant(...)` first is what lets `.resolve()` see them.
  */
-export type VariantBuilder<TCtx> = <const TFields extends readonly Field[]>(
-	spec: LinkVariantSpec<TFields>,
-) => LinkVariantDefinition<TCtx, TFields> & {
+/** A variant part-way through being built. */
+interface VariantStep<TCtx, TFields extends readonly Field[], TData> {
 	resolve: <TExtra extends object>(
 		fn: (args: {
-			link: LinkFieldData<string, DataOfFields<TFields>>;
+			link: LinkFieldData<string, TData>;
 			context: TCtx;
 		}) => (BaseResolvedLink & TExtra) | null,
-	) => LinkVariantDefinition<TCtx, TFields, TExtra>;
-};
+	) => LinkVariantDefinition<TCtx, TFields, TExtra, TData>;
+	/**
+	 * Names the shape for fields that cannot be derived.
+	 *
+	 * A few field types resolve to `unknown`, because guessing at their shape
+	 * would produce something wrong rather than something vague, and a wrong
+	 * type gets believed. This replaces the derived shape for one variant,
+	 * leaving every other variant alone.
+	 */
+	data: <TOverride>() => VariantStep<TCtx, TFields, TOverride>;
+}
 
-const createVariantBuilder = <TCtx>(): VariantBuilder<TCtx> =>
-	(<const TFields extends readonly Field[]>(
-		spec: LinkVariantSpec<TFields>,
-	) => ({
+export type VariantBuilder<TCtx> = <const TFields extends readonly Field[]>(
+	spec: LinkVariantSpec<TFields>,
+) => LinkVariantDefinition<TCtx, TFields, object, DataOfFields<TFields>> &
+	VariantStep<TCtx, TFields, DataOfFields<TFields>>;
+
+const createVariantBuilder = <TCtx>(): VariantBuilder<TCtx> => {
+	const step = (spec: object): object => ({
 		...spec,
 		resolve: (fn: unknown) => ({ ...spec, resolve: fn }),
-	})) as VariantBuilder<TCtx>;
+		// Type-level only: the declared shape changes, the value does not.
+		data: () => step(spec),
+	});
+
+	return ((spec: object) => step(spec)) as VariantBuilder<TCtx>;
+};
 
 /**
  * Declares the link types an app offers.
@@ -210,7 +255,7 @@ export type LinkContextOf<T> =
 		: unknown;
 
 /**
- * Accepts either form of variant declaration.
+ * Carries a declaration to whichever function needs it.
  *
  * `TDeclaration` is a type parameter rather than the bare
  * {@link LinkDeclaration} so that what the declaration's resolvers return, and
@@ -218,33 +263,26 @@ export type LinkContextOf<T> =
  * would have to annotate the result to see its own variants' properties.
  */
 export interface LinkVariantSource<
-	TCtx = unknown,
-	TExtra = object,
 	TDeclaration extends LinkDeclaration = LinkDeclaration,
 > {
 	/** The declaration built by {@link defineLinks}. */
 	links?: TDeclaration;
-	/** The array form, for hand-written variant types. */
-	variants?: readonly LinkVariant<TCtx, TExtra>[];
 }
 
 /**
- * Flattens whichever form was supplied into one list.
+ * Flattens a declaration into a list.
  *
- * The keyed declaration carries each variant's value as its key, so it is put
- * back on the object here and everything downstream works with one shape.
+ * The keyed form carries each variant's value as its key, so it is put back on
+ * the object here and everything downstream works with one shape.
  *
- * @param source The declaration, the array, or neither.
+ * @param source The declaration, or nothing.
  */
 export const variantsOf = <TCtx, TExtra>(
-	source: LinkVariantSource<TCtx, TExtra>,
-): readonly LinkVariant<TCtx, TExtra>[] => {
-	if (source.links) {
-		return Object.entries(source.links.variants).map(([value, definition]) => ({
-			...(definition as unknown as LinkVariant<TCtx, TExtra>),
-			value,
-		}));
-	}
-
-	return source.variants ?? [];
-};
+	source: LinkVariantSource,
+): readonly DeclaredLinkVariant<TCtx, TExtra>[] =>
+	source.links
+		? Object.entries(source.links.variants).map(([value, definition]) => ({
+				...(definition as unknown as DeclaredLinkVariant<TCtx, TExtra>),
+				value,
+			}))
+		: [];

@@ -46,10 +46,9 @@ export type ResolveReference = (args: {
 }) => string | null;
 
 export interface ResolveLinkArgs<
-	TCtx = unknown,
 	TExtra = object,
 	TDeclaration extends LinkDeclaration = LinkDeclaration,
-> extends LinkVariantSource<TCtx, TExtra, TDeclaration> {
+> extends LinkVariantSource<TDeclaration> {
 	link: LinkFieldData<string, TExtra> | undefined;
 	mappings: PayloadCollectionMappingResolved[];
 	locale: string;
@@ -61,9 +60,7 @@ export interface ResolveLinkArgs<
 	 * expect, so that shape wins over the array form's own parameter: without
 	 * this, any context at all would satisfy a declaration-based call.
 	 */
-	context?: unknown extends LinkContextOf<TDeclaration>
-		? TCtx
-		: LinkContextOf<TDeclaration>;
+	context?: LinkContextOf<TDeclaration>;
 	formatHref?: FormatHref;
 	identifierField?: string;
 	resolveReference?: ResolveReference;
@@ -83,11 +80,10 @@ export interface ResolveLinkArgs<
  * @param args The link value, mappings, locale and any app-declared variants.
  */
 export const resolveLink = <
-	TCtx = unknown,
 	TExtra = object,
 	TDeclaration extends LinkDeclaration = LinkDeclaration,
 >(
-	args: ResolveLinkArgs<TCtx, TExtra, TDeclaration>,
+	args: ResolveLinkArgs<TExtra, TDeclaration>,
 ):
 	| BaseResolvedLink
 	| ResolvedLink<TExtra>
@@ -107,11 +103,14 @@ export const resolveLink = <
 	 * than the mapping, is still the same link type to an editor and should
 	 * not need a second one invented for it.
 	 */
-	const declared = variantsOf<TCtx, TExtra>(args);
+	const declared = variantsOf<LinkContextOf<TDeclaration>, TExtra>(args);
 	const variant = declared.find((it) => it.value === link.type);
 
 	if (variant?.resolve) {
-		return variant.resolve({ link, context: args.context as TCtx });
+		return variant.resolve({
+			link,
+			context: args.context as LinkContextOf<TDeclaration>,
+		});
 	}
 
 	if (link.type === "custom" && link.url) {
@@ -180,11 +179,10 @@ export const resolveLink = <
  *   is required for the link to be worth rendering.
  */
 export const isAvailableLink = <
-	TCtx = unknown,
 	TExtra = object,
 	TDeclaration extends LinkDeclaration = LinkDeclaration,
 >(
-	args: ResolveLinkArgs<TCtx, TExtra, TDeclaration> & { withLabel?: boolean },
+	args: ResolveLinkArgs<TExtra, TDeclaration> & { withLabel?: boolean },
 ): boolean => {
 	if (args.withLabel && !args.link?.label) {
 		return false;

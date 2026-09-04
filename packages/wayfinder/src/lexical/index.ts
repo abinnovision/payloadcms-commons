@@ -4,6 +4,7 @@ import { linkField } from "../config/link-field.js";
 import { resolveLink } from "../runtime/resolve-link.js";
 
 import type { LinkFieldArgs } from "../config/link-field.js";
+import type { LinkDeclaration } from "../pattern/define-links.js";
 import type { LinkFieldData } from "../pattern/types.js";
 import type { ResolveLinkArgs } from "../runtime/resolve-link.js";
 
@@ -31,8 +32,10 @@ export const linkLabelFeature = createServerFeature({
  *
  * @param args The same arguments as the standalone link field.
  */
-export const wayfinderLinkFeature = <TCtx = unknown, TExtra = object>(
-	args: LinkFieldArgs<TCtx, TExtra>,
+export const wayfinderLinkFeature = <
+	TDeclaration extends LinkDeclaration = LinkDeclaration,
+>(
+	args: LinkFieldArgs<TDeclaration>,
 ): ReturnType<typeof LinkFeature> =>
 	LinkFeature({ fields: () => [linkField(args)] });
 
@@ -94,8 +97,11 @@ const normaliseNodeFields = (
  *
  * @param args The node's fields plus the usual link-resolution arguments.
  */
-export const resolveLinkNode = <TCtx = unknown, TExtra = object>(
-	args: Omit<ResolveLinkArgs<TCtx, TExtra>, "link"> & {
+export const resolveLinkNode = <
+	TExtra = object,
+	TDeclaration extends LinkDeclaration = LinkDeclaration,
+>(
+	args: Omit<ResolveLinkArgs<TExtra, TDeclaration>, "link"> & {
 		fields: SerializedLinkFields | undefined;
 	},
 ) => {

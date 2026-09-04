@@ -84,6 +84,59 @@ describe("defineLinks", () => {
 			.toEqualTypeOf<("a" | "b")[] | null | undefined>();
 	});
 
+	it("derives the field types it models", () => {
+		const modelled = defineLinks()((variant) => ({
+			variants: {
+				mixed: variant({
+					label: "Mixed",
+					fields: [
+						{ name: "when", type: "date" },
+						{ name: "size", type: "radio", options: ["s", "m"] },
+						{ name: "target", type: "relationship", relationTo: "pages" },
+					],
+				}),
+			},
+		}));
+
+		expectTypeOf<LinkDataOf<typeof modelled>>()
+			.toHaveProperty("when")
+			.toEqualTypeOf<string | null | undefined>();
+		expectTypeOf<LinkDataOf<typeof modelled>>()
+			.toHaveProperty("size")
+			.toEqualTypeOf<"s" | "m" | null | undefined>();
+		expectTypeOf<LinkDataOf<typeof modelled>>()
+			.toHaveProperty("target")
+			.toEqualTypeOf<
+				string | number | { id: string | number } | null | undefined
+			>();
+	});
+
+	it("lets a variant name what cannot be derived", () => {
+		/*
+		 * A `group` resolves to `unknown`, because guessing at its shape would
+		 * produce something wrong rather than something vague. Naming it keeps
+		 * the rest of the declaration derived.
+		 */
+		interface ScheduleData {
+			window?: { from: string } | null;
+		}
+
+		const scheduled = defineLinks()((variant) => ({
+			variants: {
+				scheduled: variant({
+					label: "Scheduled",
+					fields: [{ name: "window", type: "group", fields: [] }],
+				})
+					.data<ScheduleData>()
+					.resolve(({ link }) => ({ href: link.window?.from ?? "/" })),
+			},
+		}));
+
+		expectTypeOf<LinkDataOf<typeof scheduled>>()
+			.toHaveProperty("window")
+			.toEqualTypeOf<{ from: string } | null | undefined>();
+	});
+
 	it("derives scalar field types", () => {
 		expectTypeOf<LinkDataOf<typeof links>>()
 			.toHaveProperty("fileName")
@@ -128,13 +181,7 @@ describe("defineLinks", () => {
 		]);
 	});
 
-	it("passes the array form through untouched", () => {
-		const variants = [{ value: "download", label: "Download" }];
-
-		expect(variantsOf({ variants })).toEqual(variants);
-	});
-
-	it("returns nothing when neither form is given", () => {
+	it("returns nothing when no declaration is given", () => {
 		expect(variantsOf({})).toEqual([]);
 	});
 });

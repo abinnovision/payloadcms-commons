@@ -20,9 +20,9 @@ import type { LinkFieldData } from "./types.js";
  * @param link The nested link group of a link node.
  * @param source App-declared link types, which may describe themselves.
  */
-export const deriveLinkLabel = <TCtx, TExtra>(
+export const deriveLinkLabel = <TExtra>(
 	link: LinkFieldData<string, TExtra>,
-	source: LinkVariantSource<TCtx, TExtra> = {},
+	source: LinkVariantSource = {},
 ): string | undefined => {
 	switch (link.type) {
 		case "custom":
@@ -55,9 +55,7 @@ export const deriveLinkLabel = <TCtx, TExtra>(
 			 * An app-declared variant. Its own value is the only thing the
 			 * package can say about it without knowing its fields.
 			 */
-			const variant = variantsOf<TCtx, TExtra>(source).find(
-				(it) => it.value === link.type,
-			);
+			const variant = variantsOf(source).find((it) => it.value === link.type);
 
 			return variant?.value;
 		}
