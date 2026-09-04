@@ -4,7 +4,7 @@ import type { FormStateLike } from "../resolve-path.js";
 
 const BLOCK_TYPE_SUFFIX = ".blockType";
 const COLLAPSIBLE = ".collapsible";
-const BLOCK_HEADER = ".blocks-field__block-header";
+const ACTIONS_WRAP = ".collapsible__actions-wrap";
 
 /** Every block path the form knows about, whether rendered or not. */
 export const blockPaths = (formState: FormStateLike): string[] =>
@@ -37,23 +37,24 @@ export const findRows = (
 };
 
 /**
- * The header strip inside a row, which is where the locate button goes.
+ * The controls cluster at the right of a row's header, alongside Payload's
+ * own row menu and collapse chevron, which is where the locate button goes.
  *
  * Payload puts the row id on a bare wrapper whose only child is the
  * collapsible, so the row element is not itself `.collapsible`. Resolving
- * that child first is what keeps this from returning a nested row's header.
+ * that child first is what keeps this from returning a nested row's cluster.
  */
-export const rowHeader = (row: HTMLElement): HTMLElement | null => {
+export const rowControls = (row: HTMLElement): HTMLElement | null => {
 	const collapsible = row.querySelector<HTMLElement>(`:scope > ${COLLAPSIBLE}`);
 	if (!collapsible) {
 		return null;
 	}
 
-	for (const header of collapsible.querySelectorAll<HTMLElement>(
-		BLOCK_HEADER,
+	for (const controls of collapsible.querySelectorAll<HTMLElement>(
+		ACTIONS_WRAP,
 	)) {
-		if (header.closest(COLLAPSIBLE) === collapsible) {
-			return header;
+		if (controls.closest(COLLAPSIBLE) === collapsible) {
+			return controls;
 		}
 	}
 

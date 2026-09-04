@@ -88,8 +88,9 @@ with that id, measures it, scrolls to it and draws the overlay.
 Hover and click are split that way on purpose. An earlier version scrolled the preview on any click
 or focus change in the form, which moved the page while an editor was only placing a caret.
 
-The button is portalled rather than registered as the block's `Label` component. That slot replaces
-the whole header fragment, including the block-name input, and only reaches blocks that live in
+The button is portalled into the row's own controls, beside Payload's row menu and collapse
+chevron, rather than registered as the block's `Label` component. That slot replaces the whole
+header fragment, including the block-name input, and only reaches blocks that live in
 `config.blocks`, so inline blocks passed through `blockReferences` would silently get nothing.
 
 Both windows treat the other as untrusted. Every message carries a source tag and a protocol

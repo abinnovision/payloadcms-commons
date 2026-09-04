@@ -5,17 +5,19 @@ import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 /**
- * Sized and shaped like Payload's own row controls: `base(1.2)` square with a
- * pill radius, filling with `--theme-elevation-0` on hover the way
- * `.array-actions__button` does. Everything visual comes from Payload's
- * variables, so it follows the active theme rather than sitting on top of it.
+ * Sized and shaped like Payload's own row controls, which it sits beside:
+ * `base(1.2)` square with a pill radius, filling with `--theme-elevation-0`
+ * on hover the way `.array-actions__button` does. Everything visual comes
+ * from Payload's variables, so it follows the active theme rather than
+ * sitting on top of it.
  */
 const BUTTON: CSSProperties = {
 	/*
 	 * Payload's collapse toggle is a button stretched over the whole header
-	 * (`.collapsible__toggle`, absolute, `width/height: 100%`), and the header
-	 * around it sets `pointer-events: none` so that every click reaches the
-	 * toggle. Payload's own controls in the header opt back in the same way.
+	 * (`.collapsible__toggle`, absolute, `width/height: 100%`), and the cluster
+	 * around this one sets `pointer-events: none` so that every click reaches
+	 * the toggle. Payload's own controls in the cluster opt back in the same
+	 * way.
 	 *
 	 * Both lines are needed. Without the pointer events this button is not
 	 * hit-testable at all; without the stacking context the toggle, being
@@ -25,13 +27,14 @@ const BUTTON: CSSProperties = {
 	pointerEvents: "auto",
 	position: "relative",
 	zIndex: 1,
+	/* The cluster is a flex row, and this belongs before the row menu. */
+	order: -1,
 	display: "inline-flex",
 	alignItems: "center",
 	justifyContent: "center",
 	flex: "0 0 auto",
 	width: "calc(var(--base) * 1.2)",
 	height: "calc(var(--base) * 1.2)",
-	marginInlineStart: "calc(var(--base) * 0.2)",
 	padding: 0,
 	border: 0,
 	borderRadius: "100px",
@@ -50,11 +53,11 @@ export interface RowButtonProps {
  * The admin's half of the addressing UI: one button per block row, which
  * sends the preview to that block.
  *
- * Portalled into Payload's own row header rather than registered as the
- * block's `Label` component. That slot replaces the whole header fragment,
- * including the block-name input, and only reaches blocks that live in
- * `config.blocks` — inline blocks passed through `blockReferences` would
- * silently get nothing.
+ * Portalled into Payload's own row controls, beside the row menu and the
+ * collapse chevron, rather than registered as the block's `Label` component.
+ * That slot replaces the whole header fragment, including the block-name
+ * input, and only reaches blocks that live in `config.blocks` — inline blocks
+ * passed through `blockReferences` would silently get nothing.
  */
 export const RowButton = (props: RowButtonProps): ReactNode => {
 	const [hovered, setHovered] = useState(false);
@@ -93,12 +96,7 @@ export const RowButton = (props: RowButtonProps): ReactNode => {
 				background:
 					hovered || keyboardFocus ? "var(--theme-elevation-0)" : "transparent",
 				outline: keyboardFocus ? "var(--accessibility-outline)" : "none",
-				/*
-				 * Inset, unlike Payload's own offset ring: the header this sits in
-				 * is `overflow: hidden`, so anything drawn outside the button is
-				 * clipped to two arcs.
-				 */
-				outlineOffset: "-2px",
+				outlineOffset: "var(--accessibility-outline-offset)",
 			}}
 			title={props.label}
 			type="button"

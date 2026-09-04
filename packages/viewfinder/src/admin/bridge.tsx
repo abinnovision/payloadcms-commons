@@ -11,7 +11,7 @@ import { RowButton } from "./row-button.js";
 import {
 	blockPaths,
 	findRows,
-	rowHeader,
+	rowControls,
 	rowPathAt,
 	sameRows,
 } from "./rows.js";
@@ -51,7 +51,7 @@ const post = (message: AdminMessage): void => {
  *
  * A `select` from the preview reveals the matching form row. In the other
  * direction, hovering anywhere in a block row outlines that block in the
- * preview without moving it, and the locate button in the row's header
+ * preview without moving it, and the locate button in the row's controls
  * scrolls the preview to it.
  *
  * Only the button scrolls. Driving the scroll from focus or from an ordinary
@@ -193,9 +193,9 @@ export const ViewfinderFormBridge = (): ReactNode => {
 	return (
 		<>
 			{[...rows].map(([path, row]) => {
-				const header = rowHeader(row);
+				const controls = rowControls(row);
 
-				return header === null
+				return controls === null
 					? null
 					: createPortal(
 							<RowButton
@@ -210,7 +210,7 @@ export const ViewfinderFormBridge = (): ReactNode => {
 									}
 								}}
 							/>,
-							header,
+							controls,
 							path,
 						);
 			})}

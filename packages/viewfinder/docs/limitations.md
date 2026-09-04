@@ -66,7 +66,7 @@ the block it outlines. The badge takes no pointer events; the block underneath i
 target. There are no styling hooks, and the badge shows the block
 type and field name as sent, not a human-readable admin label.
 
-The admin's row button is portalled into a Payload class name, `.blocks-field__block-header`, and
+The admin's row button is portalled into a Payload class name, `.collapsible__actions-wrap`, and
 draws its size and colours from Payload's own custom properties (`--base`, `--theme-elevation-0`,
 `--accessibility-outline`) so that it follows the active theme. That is a third undocumented
 assumption alongside the two above, and it fails closed in the same way: if the class moves, no
