@@ -1,5 +1,7 @@
 # @abinnovision/payloadcms-viewfinder
 
+![A row in the Payload admin form and its block in the rendered preview address each other through one stable block address](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/viewfinder/assets/header.png)
+
 Two-way block addressing between a rendered frontend and the [Payload CMS](https://payloadcms.com/)
 admin form.
 
