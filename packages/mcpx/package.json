@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json.schemastore.org/package.json",
 	"name": "@abinnovision/payloadcms-mcpx",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"description": "Payload CMS plugin exposing a fixed, schema-aware MCP tool surface with draft-only writes and per-API-key capabilities.",
 	"keywords": [
 		"payload",
