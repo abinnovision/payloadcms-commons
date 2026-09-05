@@ -54,9 +54,11 @@ endpoint URL. Set it if you serve the admin from anywhere else.
 | `/topic/journal`           | a `sections` document                                 |
 | `/journal/hello-world`     | an `articles` document, addressed through its section |
 | `/de`, `/de/thema/journal` | the same documents in German                          |
+| `/sitemap.xml`             | every published document, in both locales             |
 
 There is one route file, `src/app/(app)/[[...segments]]/page.tsx`, and it names
-no collection and no URL shape.
+no collection and no URL shape. `src/app/(app)/sitemap.ts` names three, because
+a sitemap has to enumerate what a catch-all can afford to discover.
 
 ## Things to try
 
@@ -64,6 +66,13 @@ no collection and no URL shape.
 and change the `articles` row to `/writing/:section/:slug`. The article moves,
 and the call-to-action on `/about/team` moves with it, because links resolve
 through the same mapping the route matched.
+
+The pattern is localized, so that edit moves the English URL only:
+`/de/journal/hello-world` keeps working and `/de/writing/hello-world` does not
+exist. Switch the admin panel to German and edit the row again to move both.
+One pattern per locale is the point of a localized mapping — it is what lets
+the German article live at `/thema/…` rather than at a translated slug under an
+English path.
 
 **Watch a block collapse.** `recent-posts-module` declares a resolver, and
 `canRender` reads its result. Delete every `posts` document and the module
@@ -106,20 +115,24 @@ its children untouched, so the tree served to visitors is the same tree.
 `packages/viewfinder/docs/integration.md` has the per-block version for an app
 without montage.
 
-**wayfinder → montage.** The route calls `initWayfinder` once, which parks the
-compiled mappings on the render context. `src/components/AppLink.tsx` reads them
-back with `getMappings(ctx)` and is the only file that does: it takes the whole
-context rather than a bag of props, so the mappings, the locale and the href
-formatter never have to be threaded down the tree. A page with dozens of links
-reads the mapping global once per request rather than once per link, and no
-block component imports wayfinder at all.
+**wayfinder → montage.** The route calls `initWayfinder` once, which parks a
+wayfinder router on the render context with the mappings, the locale and the
+href formatter already bound into it. `src/components/AppLink.tsx` reads it
+back with `wayfinderFrom(ctx)` and is the only file that does. A page with
+dozens of links reads the mapping global once per request rather than once per
+link, and no block component imports wayfinder at all.
+
+Binding is what makes that safe rather than merely tidy. Resolving a link
+builds an href internally, so a caller handed the mappings but not the href
+formatter produces links that quietly leave the locale — or leave preview — on
+the first click. There is no way to hand a block half of it.
 
 Every link the site renders goes through that one component, including the ones
-typed into rich text — `resolveLinkNode` unwraps a Lexical node into the same
-link data and hands off to the same `resolveLink` call, so the two cannot
-disagree. `src/wayfinder.ts` keeps the standalone `loadMappings` wrapper next to
-it, which is what an app without montage would use, and what the preview route
-uses here.
+typed into rich text — `router.linkNode` unwraps a Lexical node into the same
+link data and hands off to the same resolution, so the two cannot disagree.
+`src/wayfinder.ts` holds the one description of what a router here is made of,
+memoised per request, which is what the sitemap and the preview route build
+theirs from.
 
 ## Decisions worth knowing about
 
@@ -130,23 +143,43 @@ Client-side live preview would give the page a freshly deserialised document,
 and montage keys resolver results by object identity, so nothing resolved would
 survive the round trip.
 
-That route also computes where to send the browser with `buildHref` rather than
+That route also computes where to send the browser from the mapping rather than
 taking a path as a parameter, so preview follows the pattern an editor authored
-instead of a second copy of it written into the collection config.
+instead of a second copy of it written into the collection config. It refuses
+to redirect anywhere that is not a same-origin path: the target is built from a
+slug an editor can type, and a slug beginning `//` would otherwise compile into
+a URL pointing off the site.
 
 **The locale prefix lives in `formatHref`, not in the patterns.** The German
 mapping rows carry translated segments (`/thema/:slug`), not a `/de` prefix.
 `src/locales.ts` strips the prefix off the incoming path and puts it back on
 every path the site emits. Authoring `/de/*slug` as a pattern would work for
 every URL but one: a wildcard cannot match an empty rest, so the German home
-page would be unreachable. `formatHref` has to reach `buildHref`, `buildPath`
-**and** `resolveLink` — it is threaded through the render context for that
-reason.
+page would be unreachable.
+
+The two halves are inverses, and `src/locales.spec.ts` is what keeps them so.
+The root is the case that breaks first: a prefix concatenated onto `/` builds
+`/de/`, and nothing normalises trailing slashes, so that URL matches no pattern
+at all.
+
+`formatHref` reaches every path the site emits because it is bound into the
+router once, in `src/wayfinder.ts`, rather than passed to each call. That file
+is the only description of what a router here is made of, so nothing can build
+one with the mappings and without the formatter.
 
 **`payload.config.ts` never imports React.** Every plugin comes from an
 entrypoint that is free of it. Block components in turn never import Next:
 `Link` reaches them through the render context in `src/montage.ts`, injected
 once by the route.
+
+**Metadata and the sitemap come from the same mapping the route matched.**
+`generateMetadata` emits the canonical URL and an `hreflang` alternate per
+locale, and `src/app/(app)/sitemap.ts` enumerates every published document in
+both. Both build their URLs by asking the mapping, so moving a pattern in the
+admin panel moves the canonical tag and the sitemap entry with it. The sitemap
+is the one caller that has to know which collections keep versions: `sections`
+has none, so filtering it on `_status` would query a column that does not
+exist.
 
 **Localization is on the document, not on block chrome.** `pages.title`,
 `posts.content` and `rich-text-module.content` are localized; a hero's title is

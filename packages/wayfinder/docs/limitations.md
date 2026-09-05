@@ -14,8 +14,8 @@ URLs stop resolving. A document that used to live at `/journal/hello-world` and 
 "also served at", and nothing emits a canonical tag.
 
 **Workaround.** Redirects belong to the layer above. Keep a redirect collection of your own and
-consult it in the catch-all route when `resolvePathToDocument` returns `null`, or use Payload's
-redirects plugin. For canonicals, `buildHref` gives you the one true URL of a document, which is
+consult it in the catch-all route when `router.resolve` returns `null`, or use Payload's
+redirects plugin. For canonicals, `router.href` gives you the one true URL of a document, which is
 exactly what a `<link rel="canonical">` needs.
 
 ## One mapping per instance
@@ -32,7 +32,7 @@ belongs to and pass it down; everything downstream behaves identically. Mixing i
 concatenate a tenant-specific code-defined map with the authored one.
 
 The domain or tenant part of resolution is separately your concern. Use `where` on
-`resolvePathToDocument` to scope the lookup to a tenant, and `formatHref` to prefix or absolutise
+`router.resolve` to scope the lookup to a tenant, and `formatHref` to prefix or absolutise
 the result.
 
 ## Trailing slashes are not normalised
@@ -68,7 +68,7 @@ anything wayfinder does.
 
 **Workaround.** Normalise slugs on write with a `beforeValidate` hook on the identifier field, so
 what is stored is always lowercase, and lowercase the incoming path in the route before calling
-`resolvePathToDocument`. That makes behaviour identical everywhere regardless of collation.
+`router.resolve`. That makes behaviour identical everywhere regardless of collation.
 
 ## Diagnostics are not deduplicated
 
@@ -101,15 +101,15 @@ const onDiagnostic: OnDiagnostic<DiagnosticReason> = (d) => {
 `defineLinks` derives each contributed field's type from the `fields` array. It models the scalar
 field types and nothing else:
 
-| Field `type`                        | Derived as                                        |
-| ----------------------------------- | ------------------------------------------------- |
-| `text`, `textarea`, `email`, `code` | `string \| null \| undefined`                     |
-| `number`                            | `number \| null \| undefined`                     |
-| `checkbox`                          | `boolean \| null \| undefined`                    |
-| `date`                              | `string \| null \| undefined`                     |
-| `select`, `radio`                   | the union of its own `options`, nullable          |
-| `relationship`, `upload`            | `string \| number \| { id } \| null \| undefined` |
-| anything else                       | `unknown`                                         |
+| Field `type`                        | Derived as                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `text`, `textarea`, `email`, `code` | `string \| null \| undefined`                                                                     |
+| `number`                            | `number \| null \| undefined`                                                                     |
+| `checkbox`                          | `boolean \| null \| undefined`                                                                    |
+| `date`                              | `string \| null \| undefined`                                                                     |
+| `select`, `radio`                   | the union of its own `options`, nullable                                                          |
+| `relationship`, `upload`            | `DocumentId \| { id: DocumentId } \| null \| undefined`, where `DocumentId` is `string \| number` |
+| anything else                       | `unknown`                                                                                         |
 
 A `hasMany` field of any of the above holds an array of that type.
 
@@ -123,6 +123,28 @@ variant while leaving the others alone.
 The alternative would be guessing at the richer shapes, which is worse than being unhelpful: a
 wrong type here would be believed. Payload's own `generate:types` produces the accurate shapes when
 you need them.
+
+## Document ids are `string | number`
+
+Payload keys documents by whatever its database adapter uses: Mongo by string, SQLite and serial
+Postgres by number. Every place a reference id crosses the package boundary accepts both, which is
+what the exported `DocumentId` names. Narrowing it to `string` would be wrong for half the adapters,
+and a wrong type gets believed.
+
+**Consequence.** A value read off `link.reference.value` is `DocumentId | { id: DocumentId }`, so it
+needs narrowing before it is used as a string. Handing it straight to something keyed by string, a
+`Map` or a template of your own, does not typecheck.
+
+**Workaround.** Narrow on `typeof` for the populated case and coerce the id:
+
+```ts
+const { relationTo, value } = link.reference;
+const id = typeof value === "object" ? value.id : value;
+const key = `${relationTo}:${String(id)}`;
+```
+
+The same check tells a populated reference from a bare id, which is why the package tests for the
+object rather than for `string`.
 
 ## A variant field can shadow a built-in one
 
@@ -138,18 +160,25 @@ collides in the stored group, since both live under the same `link` group in Pay
 ones. The package does not rename them for you, because a silently renamed field is a field whose
 stored data no longer matches what was declared.
 
-## Translations only come with the plugin
+## Placing the global by hand loses two things the plugin does for you
 
-`wayfinderPlugin` registers the admin messages the mapping global's validators use.
-`createMappingGlobal` on its own does not.
+`wayfinderPlugin` registers the admin messages the mapping global's validators use, and it derives
+`localized` from the config's `localization` block. `createMappingGlobal` on its own does neither:
+it is handed a field configuration, not the config, so it cannot see whether the project has
+locales and defaults `localized` to `true`.
 
-**Consequence.** A project that places the global by hand, without the plugin, sees the validation
-messages in English regardless of the admin locale. Payload returns the key itself when nothing is
-registered, so the package falls back to the English sentence rather than showing an editor a bare
-`wayfinder:invalidPath`, but there is no translation.
+**Consequence.** Validation messages appear in English regardless of the admin locale. Payload
+returns the key itself when nothing is registered, so the package falls back to the English sentence
+rather than showing an editor a bare `wayfinder:invalidPath`, but there is no translation.
 
-**Workaround.** Use the plugin, or merge `wayfinderTranslations` into `i18n.translations`
-yourself:
+The `localized` default is the sharper edge. A project with no `localization` block that places the
+global by hand gets a localized `path` field, while `loadMappings` derives `false` from the running
+instance and expects a scalar. The two then disagree about the stored shape, and the symptom is a
+mapping that matches nothing rather than an error — which is exactly the drift the derivation
+exists to remove everywhere else.
+
+**Workaround.** Use the plugin. If you cannot, merge `wayfinderTranslations` into
+`i18n.translations` yourself and state `localized` explicitly on both sides:
 
 ```ts
 import { wayfinderTranslations } from "@abinnovision/payloadcms-wayfinder/config";
@@ -159,4 +188,7 @@ export default buildConfig({
   globals: [createMappingGlobal({ localized: false })],
   // ...
 });
+
+// ...and the same answer wherever the mapping is read.
+const mappings = await loadMappings({ payload, localized: false });
 ```

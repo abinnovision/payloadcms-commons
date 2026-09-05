@@ -4,7 +4,10 @@ The CMS-authored global is one way to produce mappings. `defineMappings` is the 
 in the runtime can tell them apart.
 
 ```ts
-import { buildHref, defineMappings } from "@abinnovision/payloadcms-wayfinder";
+import {
+  createRouter,
+  defineMappings,
+} from "@abinnovision/payloadcms-wayfinder";
 
 const mappings = defineMappings([
   { collection: "pages", path: "/*path" },
@@ -12,18 +15,15 @@ const mappings = defineMappings([
   { collection: "sections", path: "/:slug" },
 ]);
 
-buildHref({
-  mappings,
-  collection: "articles",
-  document: { slug: "hello-world" },
-  locale: "en",
-});
+const router = createRouter({ mappings, locale: "en" });
+
+router.href("articles", { slug: "hello-world" });
 // "/journal/hello-world"
 ```
 
 No plugin, no global, no Payload instance. `defineMappings` compiles the same
 `PayloadCollectionMapping[]` shape `loadMappings` produces from the global, and returns the same
-`PayloadCollectionMappingResolved[]` every runtime function takes.
+`PayloadCollectionMappingResolved[]` a router takes.
 
 Localized patterns work the same way, keyed by locale:
 
@@ -40,14 +40,29 @@ A plain string means the project has no locales. It normalises into a single buc
 `DEFAULT_LOCALE_KEY`, and `resolversFor` falls back to that bucket for any locale, so callers pass
 whatever locale they have and still get the right pattern.
 
+## The identifier fallback
+
+A second argument sets what a relationship parameter falls back to when the target collection's own
+pattern cannot name an identifier:
+
+```ts
+const mappings = defineMappings(rows, { fallbackIdentifierField: "permalink" });
+```
+
+It belongs here rather than on a routing call because it does not vary per request: the same answer
+is right for every href, every path lookup and every preview URL in the process. Compiling it into
+the mappings is what lets it reach all three without being passed to any of them.
+`loadMappings({ payload, fallbackIdentifierField })` sets it the same way for mappings read from the
+global. Left unset, it is `DEFAULT_IDENTIFIER_FIELD` (`"slug"`).
+
 ## Why the runtime works this way
 
-Every runtime function takes `mappings` as data rather than reading the global itself. That was the
-first decision in the package, and it is what makes this file short.
+A router takes `mappings` as data rather than reading the global itself. That was the first decision
+in the package, and it is what makes this file short.
 
-If the runtime read the global, `buildHref` would need a `Payload` instance and would become async.
-A sitemap generator would boot Payload to format a URL. A unit test of pattern behaviour would need
-a database. Preview and production would share a hidden singleton that one of them populated first.
+If the runtime read the global, `router.href` would need a `Payload` instance and would become
+async. A sitemap generator would boot Payload to format a URL. A unit test of pattern behaviour
+would need a database. Preview and production would share a hidden singleton that one of them populated first.
 Passing the data in removes all of that: the read is one function, `loadMappings`, called wherever
 the caller decides, and everything downstream is pure.
 
@@ -68,27 +83,26 @@ patterns.
 
 ```ts
 import {
+  createRouter,
   defineMappings,
-  resolveLink,
 } from "@abinnovision/payloadcms-wayfinder";
 import { describe, expect, it } from "vitest";
 
-describe("resolveLink", () => {
-  const mappings = defineMappings([
-    { collection: "articles", path: "/journal/:slug" },
-  ]);
+describe("link resolution", () => {
+  const router = createRouter({
+    mappings: defineMappings([
+      { collection: "articles", path: "/journal/:slug" },
+    ]),
+    locale: "en",
+  });
 
   it("routes a reference through the mapping", () => {
-    const resolved = resolveLink({
-      link: {
-        type: "reference",
-        reference: {
-          relationTo: "articles",
-          value: { id: "1", slug: "hello-world" },
-        },
-      },
-      mappings,
-      locale: "en",
+    // As a populated reference arrives: the id, plus whatever was selected.
+    const article = { id: "1", slug: "hello-world" };
+
+    const resolved = router.link({
+      type: "reference",
+      reference: { relationTo: "articles", value: article },
     });
 
     expect(resolved).toEqual({ href: "/journal/hello-world" });
@@ -113,6 +127,6 @@ const mappings = [
 ```
 
 Order matters only for ties that specificity does not break, and duplicate collections are not
-rejected here the way the global's validator rejects them: `buildHref` and `buildPath` take the
+rejected here the way the global's validator rejects them: `router.href` and `router.path` take the
 first mapping matching a collection, so a code-defined row placed first wins over an authored one
 for the same collection. Path matching still considers both.

@@ -6,10 +6,11 @@ Editor-authored URL routing for [Payload CMS](https://payloadcms.com/).
 
 Wayfinder owns one thing: the map from collections to the URL patterns their documents are served
 at. That map is authored in the CMS, so adding a page type is an editorial act rather than a code
-change. Everything else in the package falls out of it. `buildHref` turns a document into an href,
-`buildPath` builds a path from parameter values alone for sitemaps and feeds,
-`resolvePathToDocument` turns a request path back into a document for a catch-all route, and
-`resolveLink` plus `linkField` give editors a link that follows its target when that collection's
+change. Everything else in the package falls out of it. `createRouter` binds the mapping, the
+locale and the href formatter once per request and hands back a router: `router.href` turns a
+document into an href, `router.path` builds a path from parameter values alone for sitemaps and
+feeds, `router.resolve` turns a request path back into a document for a catch-all route, and
+`router.link` plus `linkField` give editors a link that follows its target when that collection's
 pattern changes. [`docs/concepts.md`](./docs/concepts.md) describes the model;
 [`docs/limitations.md`](./docs/limitations.md) states what is out of scope and why.
 
@@ -42,7 +43,7 @@ import { buildConfig } from "payload";
 
 export default buildConfig({
   // ...
-  plugins: [wayfinderPlugin({ linkableCollections: ["pages", "articles"] })],
+  plugins: [wayfinderPlugin({ checkDefaultPopulateOn: ["pages", "articles"] })],
 });
 ```
 
@@ -63,7 +64,7 @@ Read the mapping and hand it to a catch-all route:
 
 ```tsx
 // app/[[...path]]/page.tsx
-import { resolvePathToDocument } from "@abinnovision/payloadcms-wayfinder";
+import { createRouter } from "@abinnovision/payloadcms-wayfinder";
 import { loadMappings } from "@abinnovision/payloadcms-wayfinder/config";
 import { notFound } from "next/navigation";
 import { getPayload } from "payload";
@@ -75,11 +76,10 @@ const Page = async ({ params }: { params: Promise<{ path?: string[] }> }) => {
   const mappings = await loadMappings({ payload });
   const { path } = await params;
 
-  const resolved = await resolvePathToDocument({
+  const wayfinder = createRouter({ mappings, locale: "en" });
+
+  const resolved = await wayfinder.resolve(`/${(path ?? []).join("/")}`, {
     payload,
-    mappings,
-    path: `/${(path ?? []).join("/")}`,
-    locale: "en",
   });
 
   if (!resolved) {
@@ -98,17 +98,20 @@ export default Page;
 ## Entrypoints
 
 ```
-"."         buildHref, buildPath, resolvePathToDocument, resolveLink, defineMappings, defineLinks, types
-"./config"  wayfinderPlugin, createMappingGlobal, loadMappings, linkField
-"./lexical" wayfinderLinkFeature, linkLabelFeature, resolveLinkNode
-"./admin"   LinkLabelFeatureClient, mounted by linkLabelFeature through the import map
-"./montage" initWayfinder, getMappings, wayfinderExtension
+"."          createRouter, defineMappings, defineLinks, resolveRelationshipSlug, deriveLinkLabel, types
+"./internal" the unbound functions the router is built out of, plus the pattern internals
+"./config"   wayfinderPlugin, createMappingGlobal, loadMappings, linkField
+"./lexical"  wayfinderLinkFeature, linkLabelFeature, resolveLinkNode
+"./admin"    LinkLabelFeatureClient, mounted by linkLabelFeature through the import map
+"./montage"  initWayfinder, wayfinderFrom, wayfinderExtension
 ```
 
 `.` is the runtime half. It takes mappings as plain data and never reads the CMS, so it runs in a
-route handler, a sitemap, a script or a test alike. `./config` is loaded by the CLI, by migrations
-and by `payload generate:types`, so it must stay React-free. `./lexical`, `./admin` and
-`./montage` each pull in an optional peer and are separate for that reason.
+route handler, a sitemap, a script or a test alike. `./internal` is the escape hatch behind it,
+for a caller that holds no request or wants a different set of arguments per call; nothing there
+carries a compatibility guarantee. `./config` is loaded by the CLI, by migrations and by
+`payload generate:types`, so it must stay React-free. `./lexical`, `./admin` and `./montage` each
+pull in an optional peer and are separate for that reason.
 [`docs/layers.md`](./docs/layers.md) explains the split.
 
 ## Documentation
@@ -119,7 +122,7 @@ and by `payload generate:types`, so it must stay React-free. `./lexical`, `./adm
   works without.
 - [`docs/integration.md`](./docs/integration.md): plugin setup, caching, catch-all routes,
   sitemaps and `defaultPopulate`.
-- [`docs/linking.md`](./docs/linking.md): `linkField`, `defineLinks`, `resolveLink` and the Lexical
+- [`docs/linking.md`](./docs/linking.md): `linkField`, `defineLinks`, `router.link` and the Lexical
   feature.
 - [`docs/code-defined-mappings.md`](./docs/code-defined-mappings.md): `defineMappings`, with no CMS
   global at all.

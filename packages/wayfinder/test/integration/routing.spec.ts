@@ -18,7 +18,6 @@ import {
 } from "../../src/runtime/index.js";
 
 import type { Diagnostic, DiagnosticReason } from "../../src/index.js";
-
 import type { PayloadCollectionMappingResolved } from "../../src/pattern/index.js";
 import type { Payload } from "payload";
 
