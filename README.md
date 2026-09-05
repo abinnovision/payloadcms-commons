@@ -35,8 +35,7 @@ addressable from the admin's live preview in one hook, at every nesting depth.
 Montage does not depend on viewfinder and viewfinder does not depend on montage;
 the hook is a plain wrapper either of them can live without. See
 [`packages/viewfinder/docs/integration.md`](./packages/viewfinder/docs/integration.md)
-for the two integration paths, and
-[`apps/montage-example`](./apps/montage-example) for the seam in a running app.
+for the two integration paths.
 
 The second is wayfinder's `./montage` entrypoint, behind an optional peer. It
 parks compiled route mappings on montage's render context, so a page with dozens
@@ -48,6 +47,9 @@ both paths.
 
 mcpx and the Lettermint adapter have no seam with any of the others. A site
 installs whichever of the five it needs.
+
+[`apps/example`](./apps/example) is one app mounting four of the five, with both
+seams wired and a seed that leaves a routed, localized site to click through.
 
 ## Compatibility
 
@@ -87,8 +89,9 @@ yarn dev              # Start the example apps in apps/
 
 A new package follows the layout of an existing one: source under `src/`, tsdown
 for the build, unit tests beside the source and integration tests under `test/`.
-[`packages/mcpx`](./packages/mcpx) is the fullest reference to copy from.
-Private example apps live in [`apps/`](./apps).
+[`packages/mcpx`](./packages/mcpx) is the fullest reference to copy from. The
+private example app in [`apps/example`](./apps/example) is where a new package
+gets exercised against the others.
 
 Each package is versioned and released independently through
 [release-please](https://github.com/googleapis/release-please), so a new one has

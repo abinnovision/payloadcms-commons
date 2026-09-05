@@ -5,7 +5,7 @@ plain Payload. The package deliberately does not ship any of them (see
 [`limitations.md`](./limitations.md)); together they show that the boundary drawn in
 [`concepts.md`](./concepts.md) is a workable one. Every example is a real, tested
 fixture in this package's own test suite, except the last one, which is running code from
-`apps/montage-example`.
+`apps/example`.
 
 ## Section wrapper
 

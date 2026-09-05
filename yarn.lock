@@ -1824,37 +1824,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@internal/mcpx-example@workspace:apps/mcpx-example":
+"@internal/example@workspace:apps/example":
   version: 0.0.0-use.local
-  resolution: "@internal/mcpx-example@workspace:apps/mcpx-example"
+  resolution: "@internal/example@workspace:apps/example"
   dependencies:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/payloadcms-mcpx": "workspace:*"
-    "@abinnovision/prettier-config": "npm:^2.2.0"
-    "@payloadcms/db-sqlite": "npm:3.88.0"
-    "@payloadcms/next": "npm:3.88.0"
-    "@payloadcms/richtext-lexical": "npm:3.88.0"
-    "@types/node": "npm:^26.3.0"
-    "@types/react": "npm:^19.2.0"
-    "@types/react-dom": "npm:^19.2.5"
-    eslint: "npm:^10.9.1"
-    graphql: "npm:^17.0.2"
-    next: "npm:^16.3.3"
-    payload: "npm:3.88.0"
-    prettier: "npm:^3.9.5"
-    react: "npm:^19.2.0"
-    react-dom: "npm:^19.2.0"
-    typescript: "npm:^6.0.3"
-  languageName: unknown
-  linkType: soft
-
-"@internal/montage-example@workspace:apps/montage-example":
-  version: 0.0.0-use.local
-  resolution: "@internal/montage-example@workspace:apps/montage-example"
-  dependencies:
-    "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/payloadcms-montage": "workspace:*"
     "@abinnovision/payloadcms-viewfinder": "workspace:*"
+    "@abinnovision/payloadcms-wayfinder": "workspace:*"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@payloadcms/db-sqlite": "npm:3.88.0"
     "@payloadcms/live-preview-react": "npm:3.88.0"
@@ -1892,30 +1870,6 @@ __metadata:
     turbo: "npm:^2.10.12"
     typescript: "npm:^6.0.3"
     vitest: "npm:^4.1.10"
-  languageName: unknown
-  linkType: soft
-
-"@internal/wayfinder-example@workspace:apps/wayfinder-example":
-  version: 0.0.0-use.local
-  resolution: "@internal/wayfinder-example@workspace:apps/wayfinder-example"
-  dependencies:
-    "@abinnovision/eslint-config-base": "npm:^3.4.2"
-    "@abinnovision/payloadcms-wayfinder": "workspace:*"
-    "@abinnovision/prettier-config": "npm:^2.2.0"
-    "@payloadcms/db-sqlite": "npm:3.88.0"
-    "@payloadcms/next": "npm:3.88.0"
-    "@payloadcms/richtext-lexical": "npm:3.88.0"
-    "@types/node": "npm:^26.3.0"
-    "@types/react": "npm:^19.2.0"
-    "@types/react-dom": "npm:^19.2.5"
-    eslint: "npm:^10.9.1"
-    graphql: "npm:^17.0.2"
-    next: "npm:^16.3.3"
-    payload: "npm:3.88.0"
-    prettier: "npm:^3.9.5"
-    react: "npm:^19.2.0"
-    react-dom: "npm:^19.2.0"
-    typescript: "npm:^6.0.3"
   languageName: unknown
   linkType: soft
 
