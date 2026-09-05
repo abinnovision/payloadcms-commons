@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json.schemastore.org/package.json",
 	"name": "@abinnovision/payloadcms-viewfinder",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"description": "Two-way block addressing between a rendered frontend and the Payload CMS admin form.",
 	"keywords": [
 		"payload",
