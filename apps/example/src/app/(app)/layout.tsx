@@ -1,6 +1,9 @@
 import { ViewfinderBridge } from "@abinnovision/payloadcms-viewfinder/client";
+import { headers } from "next/headers";
 
 import { RefreshOnSave } from "./RefreshOnSave";
+import { splitLocale } from "../../locales";
+import { PATHNAME_HEADER } from "../../proxy";
 
 import type React from "react";
 
@@ -17,17 +20,27 @@ const serverURL = process.env["PAYLOAD_URL"] ?? "http://localhost:3000";
  * the page is inside the admin's preview iframe, so there is no second tree
  * to keep in step with the real one.
  *
- * The `<html>` shell is not here. It needs the locale for its `lang`, and the
- * locale is a function of the path, which only the route below this sees — a
- * layout that hardcoded one served every German page as English.
+ * The document shell lives here because this is the root layout of the site,
+ * and Next renders it for the not-found path too, where no page runs. `lang`
+ * still has to be right for whichever locale the path names, so the path
+ * arrives on a header the middleware sets — a layout is not given the params
+ * of the segments below it, and this app's locale is an optional prefix inside
+ * a catch-all rather than a segment of its own.
  */
-const Layout = ({ children }: { children: React.ReactNode }) => (
-	<>
-		{children}
-		<RefreshOnSave serverURL={serverURL} />
-		<ViewfinderBridge adminOrigin={new URL(serverURL).origin} />
-	</>
-);
+const Layout = async ({ children }: { children: React.ReactNode }) => {
+	const pathname = (await headers()).get(PATHNAME_HEADER) ?? "/";
+	const { locale } = splitLocale(pathname.split("/").filter(Boolean));
+
+	return (
+		<html lang={locale}>
+			<body style={{ fontFamily: "system-ui, sans-serif", margin: 0 }}>
+				{children}
+				<RefreshOnSave serverURL={serverURL} />
+				<ViewfinderBridge adminOrigin={new URL(serverURL).origin} />
+			</body>
+		</html>
+	);
+};
 
 export { metadata };
 export default Layout;

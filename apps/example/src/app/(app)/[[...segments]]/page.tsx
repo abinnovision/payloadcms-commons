@@ -144,19 +144,15 @@ const Page = async ({ params }: Params) => {
 	await renderer.resolveBlockData({ root: { layout }, ctx });
 
 	return (
-		<html lang={locale}>
-			<body style={{ fontFamily: "system-ui, sans-serif", margin: 0 }}>
-				<main style={{ padding: "2rem" }}>
-					<p style={{ color: "#666" }}>
-						{collection} · {locale}
-					</p>
-					<h1>{title}</h1>
-					{layout.map((block) => (
-						<renderer.Block key={block.id} block={block} ctx={ctx} />
-					))}
-				</main>
-			</body>
-		</html>
+		<main style={{ padding: "2rem" }}>
+			<p style={{ color: "#666" }}>
+				{collection} · {locale}
+			</p>
+			<h1>{title}</h1>
+			{layout.map((block) => (
+				<renderer.Block key={block.id} block={block} ctx={ctx} />
+			))}
+		</main>
 	);
 };
 

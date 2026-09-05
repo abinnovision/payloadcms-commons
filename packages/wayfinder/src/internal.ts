@@ -31,7 +31,6 @@ export type { BuildHrefArgs } from "./runtime/build-href.js";
 export type { BuildPathArgs } from "./runtime/build-path.js";
 export type { ResolveLinkArgs } from "./runtime/resolve-link.js";
 export type { ResolvePathToDocumentArgs } from "./runtime/resolve-path.js";
-export type { ResolveRelationshipSlugArgs } from "./runtime/resolve-relationship-slug.js";
 export type {
 	AnyLinkVariantDefinition,
 	DataOfFields,
@@ -47,6 +46,7 @@ export type {
 export type {
 	Contributed,
 	DeclaredLinkVariant,
+	ResolvedLink,
 	PayloadCollectionMappingMatch,
 	PayloadCollectionMappingResolvers,
 	PayloadCollectionMappingSpecificity,

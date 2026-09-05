@@ -53,9 +53,15 @@ const deriveIdentifierField = (
 	args: ResolveParamQueryPathArgs,
 ): string => {
 	const mapping = args.mappings?.find((it) => it.collection === target);
+	/*
+	 * The explicit argument wins. A compiled mapping always carries a
+	 * `fallbackIdentifierField`, so reading it first would make the argument
+	 * unreachable whenever the target happens to be mapped — silently, and
+	 * only for some targets.
+	 */
 	const fallback =
-		mapping?.fallbackIdentifierField ??
 		args.fallbackIdentifierField ??
+		mapping?.fallbackIdentifierField ??
 		DEFAULT_IDENTIFIER_FIELD;
 
 	if (!mapping || args.locale === undefined) {

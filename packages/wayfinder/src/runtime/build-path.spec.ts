@@ -167,3 +167,40 @@ describe("buildPath fallbacks", () => {
 		]);
 	});
 });
+
+describe("buildPath with a missing value", () => {
+	const mappings = [map("articles", "/:section/:slug")];
+
+	/*
+	 * `compile` accepts an empty string and drops the segment, so a missing
+	 * value used to produce "//hello". That is protocol-relative: made
+	 * absolute for a sitemap or a feed it points at a different host, which is
+	 * a worse failure than the site root this returns instead.
+	 */
+	it("falls back to the root rather than building a protocol-relative path", () => {
+		expect(
+			buildPath({
+				mappings,
+				collection: "articles",
+				locale: "en",
+				values: ["", "hello-world"],
+			}),
+		).toBe("/");
+	});
+
+	it("names the parameter that had no value", () => {
+		const seen: Diagnostic<BuildDiagnosticReason>[] = [];
+
+		buildPath({
+			mappings,
+			collection: "articles",
+			locale: "en",
+			values: { slug: "hello-world" },
+			onDiagnostic: (it) => seen.push(it),
+		});
+
+		expect(seen).toEqual([
+			{ reason: "missing-param", collection: "articles", param: "section" },
+		]);
+	});
+});

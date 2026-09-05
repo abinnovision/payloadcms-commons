@@ -27,18 +27,18 @@ export const dynamic = "force-dynamic";
 const ROUTED = {
 	pages: {
 		select: { slug: true, updatedAt: true },
-		drafts: true,
+		hasVersions: true,
 		values: (it: Doc) => [str(it["slug"])],
 	},
 	sections: {
 		select: { slug: true, updatedAt: true },
 		// No `versions`, so there is no `_status` column to filter on.
-		drafts: false,
+		hasVersions: false,
 		values: (it: Doc) => [str(it["slug"])],
 	},
 	articles: {
 		select: { slug: true, section: true, updatedAt: true },
-		drafts: true,
+		hasVersions: true,
 		values: (it: Doc) => [sectionSlug(it["section"]), str(it["slug"])],
 	},
 } as const;
@@ -57,7 +57,21 @@ const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
 	const entries: MetadataRoute.Sitemap = [];
 
 	for (const locale of LOCALES) {
-		const router = createRouter(await routerArgs(locale));
+		/*
+		 * `path` never returns null: a collection with no pattern for this
+		 * locale, or a document missing a value the pattern needs, falls back
+		 * to the site root. That is the right answer for a feed and the wrong
+		 * one for a sitemap, where it would appear as one duplicate root per
+		 * document — and it cannot be told apart from the wildcard home page,
+		 * whose path legitimately is the root. The diagnostic is what
+		 * distinguishes them.
+		 */
+		const failures: string[] = [];
+
+		const router = createRouter({
+			...(await routerArgs(locale)),
+			onDiagnostic: (it) => void failures.push(it.reason),
+		});
 
 		for (const [collection, spec] of Object.entries(ROUTED)) {
 			const result = await payload.find({
@@ -72,15 +86,25 @@ const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
 				 * outright rather than coming back empty — the same asymmetry
 				 * the catch-all route leaves to the package.
 				 */
-				...(spec.drafts ? { where: { _status: { equals: "published" } } } : {}),
+				...(spec.hasVersions
+					? { where: { _status: { equals: "published" } } }
+					: {}),
 			});
 
 			for (const doc of result.docs) {
+				failures.length = 0;
+
+				const path = router.path(collection, spec.values(doc));
+
+				if (failures.length > 0) {
+					console.warn(
+						`[wayfinder] sitemap: skipped ${collection} in ${locale} (${failures.join(", ")})`,
+					);
+					continue;
+				}
+
 				entries.push({
-					url: new URL(
-						router.path(collection, spec.values(doc)),
-						serverURL,
-					).toString(),
+					url: new URL(path, serverURL).toString(),
 					lastModified: str((doc as Doc)["updatedAt"]) || undefined,
 				});
 			}

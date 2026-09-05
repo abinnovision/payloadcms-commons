@@ -71,11 +71,16 @@ export const GET = async (request: NextRequest): Promise<Response> => {
 
 	/*
 	 * A pattern is authored content and a slug is an editable field, so the
-	 * built path is not automatically a same-origin one: a slug beginning
-	 * `//` compiles into a protocol-relative URL that Next would treat as
-	 * external. Only a single-slash path is worth redirecting to.
+	 * built path is not automatically a same-origin one. Resolved against a
+	 * throwaway origin rather than pattern-matched: a slug beginning `//` is
+	 * the obvious protocol-relative case, but browsers also normalise
+	 * backslashes in the authority position, so `/\evil.com` is read as
+	 * `//evil.com` and would pass a check written against `//` alone.
 	 */
-	if (!href.startsWith("/") || href.startsWith("//")) {
+	if (
+		new URL(href, "http://wayfinder.invalid").origin !==
+		"http://wayfinder.invalid"
+	) {
 		return new Response("Refusing to redirect off-site", { status: 400 });
 	}
 

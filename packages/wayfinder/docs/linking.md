@@ -378,10 +378,9 @@ contribute. It is declared in the package rather than imported from a project's 
 the field definition does not depend on its own output. Every property is nullable, because that is
 how Payload emits optional fields; a mismatch there shows up at every call site.
 
-`ResolvedLink<E>` is `{ href, target?, rel? }` widened by whatever a variant returns. `E` defaults
-to `object` rather than `unknown`, because an intersection with an uninstantiated type parameter
-stays deferred and would force a cast at every built-in branch. `BaseResolvedLink` is the unwidened
-shape.
+`BaseResolvedLink` is the unwidened `{ href, target?, rel? }`, for naming what a link resolves to
+without a declaration in hand. Resolving through a router always produces `ResolvedLinkOf`, so
+there is no second widened shape on the public surface to choose between.
 
 ## The Lexical feature
 

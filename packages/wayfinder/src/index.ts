@@ -16,6 +16,7 @@ export { deriveLinkLabel } from "./pattern/derive-link-label.js";
 export type { CreateRouterArgs, Router } from "./runtime/create-router.js";
 export type { LinkableDocument } from "./runtime/build-href.js";
 export type { ResolveReference } from "./runtime/resolve-link.js";
+export type { ResolveRelationshipSlugArgs } from "./runtime/resolve-relationship-slug.js";
 export type {
 	PayloadDocument,
 	ResolvePathWhere,
@@ -45,5 +46,4 @@ export type {
 	LinkFieldData,
 	PayloadCollectionMapping,
 	PayloadCollectionMappingResolved,
-	ResolvedLink,
 } from "./pattern/types.js";
