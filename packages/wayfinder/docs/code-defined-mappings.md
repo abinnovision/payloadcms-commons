@@ -52,8 +52,10 @@ const mappings = defineMappings(rows, { fallbackIdentifierField: "permalink" });
 It belongs here rather than on a routing call because it does not vary per request: the same answer
 is right for every href, every path lookup and every preview URL in the process. Compiling it into
 the mappings is what lets it reach all three without being passed to any of them.
-`loadMappings({ payload, fallbackIdentifierField })` sets it the same way for mappings read from the
-global. Left unset, it is `DEFAULT_IDENTIFIER_FIELD` (`"slug"`).
+Mappings read from the global get it from the plugin instead:
+`wayfinderPlugin({ fallbackIdentifierField })` puts it on the global's config and `loadMappings`
+reads it back, so the pattern validator and the compiled mappings cannot be told different things.
+`loadMappings` takes the argument too, to override that. Left unset everywhere, it is `"slug"`.
 
 ## Why the runtime works this way
 

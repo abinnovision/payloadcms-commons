@@ -160,13 +160,10 @@ in one direction only. With `sections` at `/topic/:handle` and the fallback left
 `/insights/first-look` — a URL that leads nowhere, emitted without complaint.
 
 **Workaround.** Set `fallbackIdentifierField` to the field those targets are keyed by, so both
-directions agree:
+directions agree. Declare it on the plugin and the read side picks it up:
 
 ```ts
-const mappings = await loadMappings({
-  payload,
-  fallbackIdentifierField: "handle",
-});
+wayfinderPlugin({ fallbackIdentifierField: "handle" });
 ```
 
 One value covers a mapping set, so this works for a project keyed consistently by something other

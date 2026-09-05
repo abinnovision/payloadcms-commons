@@ -19,7 +19,10 @@ const fakePayload = (global: unknown): Payload =>
 	({
 		findGlobal: () => Promise.resolve(global),
 		collections: {},
-		config: { localization: { locales: [{ code: "en" }, { code: "de" }] } },
+		config: {
+			localization: { locales: [{ code: "en" }, { code: "de" }] },
+			globals: [{ slug: "collections-mapping" }],
+		},
 	}) as unknown as Payload;
 
 /** The same instance without a `localization` block. */
@@ -27,7 +30,7 @@ const unlocalizedPayload = (global: unknown): Payload =>
 	({
 		findGlobal: () => Promise.resolve(global),
 		collections: {},
-		config: { localization: false },
+		config: { localization: false, globals: [{ slug: "collections-mapping" }] },
 	}) as unknown as Payload;
 
 /** A fresh cache per call, so the module-level memo cannot leak across tests. */
@@ -268,5 +271,60 @@ describe("loadMappings localization", () => {
 		});
 
 		expect(mappings[0]?.path).toEqual({ en: "/:slug" });
+	});
+});
+
+describe("loadMappings identifier fallback", () => {
+	/*
+	 * The write side validates a pattern against this and the read side
+	 * compiles mappings with it. Stating it twice is what let them disagree:
+	 * a project keyed by `handle` that told only the read side found the
+	 * admin panel refusing to save the very pattern it had configured for.
+	 */
+	const withDeclared = (global: unknown, declared?: string): Payload =>
+		({
+			findGlobal: () => Promise.resolve(global),
+			collections: {},
+			config: {
+				localization: false,
+				globals: [
+					{
+						slug: "collections-mapping",
+						...(declared
+							? { custom: { wayfinder: { fallbackIdentifierField: declared } } }
+							: {}),
+					},
+				],
+			},
+		}) as unknown as Payload;
+
+	const rows = { collections: [{ collectionName: "pages", path: "/:slug" }] };
+
+	it("reads what the mapping global was declared with", async () => {
+		const mappings = await loadMappings({
+			payload: withDeclared(rows, "handle"),
+			cache: freshCache(),
+		});
+
+		expect(mappings[0]?.fallbackIdentifierField).toBe("handle");
+	});
+
+	it("falls back to the default when the global declares nothing", async () => {
+		const mappings = await loadMappings({
+			payload: withDeclared(rows),
+			cache: freshCache(),
+		});
+
+		expect(mappings[0]?.fallbackIdentifierField).toBe("slug");
+	});
+
+	it("lets an explicit argument override the declaration", async () => {
+		const mappings = await loadMappings({
+			payload: withDeclared(rows, "handle"),
+			fallbackIdentifierField: "permalink",
+			cache: freshCache(),
+		});
+
+		expect(mappings[0]?.fallbackIdentifierField).toBe("permalink");
 	});
 });

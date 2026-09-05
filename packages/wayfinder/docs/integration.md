@@ -44,9 +44,13 @@ field's own `relationTo`; this list only drives the boot-time warning below.
 explicitly overrides that derivation, and then it has to be set on both sides, because Payload
 returns a scalar for an unlocalized field and a per-locale record for a localized one.
 
-`fallbackIdentifierField` here is used for one thing: validating a pattern when it is saved. No
-mapping has been compiled at that point to carry the value. What the runtime falls back to is set
-where the mappings are built, on `loadMappings` or `defineMappings`.
+`fallbackIdentifierField` is needed on both sides: the global validates a pattern against it when
+an editor saves, and the compiled mappings carry it at run time. Set it here and both get it —
+`createMappingGlobal` puts it on the global's own config, and `loadMappings` reads it back off the
+running instance, so there is no second place to state it and nothing to keep in step.
+
+`defineMappings` takes it as its own argument, because a code-defined map has no global to read it
+from.
 
 If you do not want the plugin, `createMappingGlobal` takes the same mapping-global options and
 returns the `GlobalConfig` for you to place yourself. It does not register the admin translations;
@@ -68,7 +72,7 @@ const mappings = await loadMappings({ payload });
 | `payload`                 | required                                   | the Payload instance to read through                                                |
 | `globalSlug`              | `"collections-mapping"`                    | must match the plugin                                                               |
 | `localized`               | derived from `payload.config.localization` | whether patterns differ per locale                                                  |
-| `fallbackIdentifierField` | `"slug"`                                   | the field a relationship parameter falls back to, carried on every compiled mapping |
+| `fallbackIdentifierField` | what the plugin was given, else `"slug"`   | the field a relationship parameter falls back to, carried on every compiled mapping |
 | `cache`                   | an in-process memo                         | where compiled mappings are kept between reads                                      |
 
 It never throws. A global that has never been saved returns an empty list, which is the state every

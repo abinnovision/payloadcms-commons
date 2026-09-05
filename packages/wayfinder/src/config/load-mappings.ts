@@ -33,6 +33,26 @@ const createMemoryCache = (): MappingCache => {
 
 const defaultCache = createMemoryCache();
 
+/**
+ * Reads what {@link createMappingGlobal} was told, off the global's own config.
+ *
+ * The write side validates patterns against this and the read side compiles
+ * mappings with it, so the two have to agree. Carrying it on the config means
+ * a project states it where it declares the global and nowhere else.
+ */
+const declaredIdentifierField = (
+	payload: Payload,
+	slug: string,
+): string | undefined => {
+	const custom = payload.config.globals.find((it) => it.slug === slug)?.custom;
+
+	const declared = (
+		custom as { wayfinder?: { fallbackIdentifierField?: unknown } } | undefined
+	)?.wayfinder?.fallbackIdentifierField;
+
+	return typeof declared === "string" ? declared : undefined;
+};
+
 interface MappingRow {
 	collectionName?: unknown;
 	path?: unknown;
@@ -51,8 +71,12 @@ export interface LoadMappingsArgs {
 	localized?: boolean;
 	/**
 	 * The field a relationship parameter falls back to when the target
-	 * collection's own pattern cannot name one. Decided here, and carried on
-	 * every compiled mapping from here on.
+	 * collection's own pattern cannot name one.
+	 *
+	 * Read off the mapping global's own config when the plugin was given it,
+	 * so a project states it once, where the global is declared, and both the
+	 * save-time validation and the compiled mappings get the same answer. Set
+	 * it here only to override that.
 	 */
 	fallbackIdentifierField?: string;
 	/** Reuses compiled patterns across reads. @see MappingCache */
@@ -73,11 +97,15 @@ export interface LoadMappingsArgs {
 export const loadMappings = async (
 	args: LoadMappingsArgs,
 ): Promise<PayloadCollectionMappingResolved[]> => {
+	const slug = args.globalSlug ?? DEFAULT_MAPPING_GLOBAL_SLUG;
 	const localized = args.localized ?? Boolean(args.payload.config.localization);
 	const cache = args.cache ?? defaultCache;
 
+	const fallbackIdentifierField =
+		args.fallbackIdentifierField ?? declaredIdentifierField(args.payload, slug);
+
 	const global = (await args.payload.findGlobal({
-		slug: args.globalSlug ?? DEFAULT_MAPPING_GLOBAL_SLUG,
+		slug,
 		depth: 0,
 		overrideAccess: true,
 		...(localized ? { locale: "all" as const } : {}),
@@ -117,7 +145,7 @@ export const loadMappings = async (
 			: [];
 	});
 
-	const key = JSON.stringify([usable, args.fallbackIdentifierField]);
+	const key = JSON.stringify([usable, fallbackIdentifierField]);
 	const cached = cache.get(key);
 
 	if (cached) {
@@ -126,7 +154,7 @@ export const loadMappings = async (
 
 	const compiled = usable.flatMap((mapping) => {
 		try {
-			return [resolveCollectionMapping(mapping, args.fallbackIdentifierField)];
+			return [resolveCollectionMapping(mapping, fallbackIdentifierField)];
 		} catch {
 			// An unparseable pattern was saved before validation tightened.
 			return [];

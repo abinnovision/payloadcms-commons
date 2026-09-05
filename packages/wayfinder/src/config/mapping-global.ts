@@ -128,6 +128,23 @@ export const createMappingGlobal = (
 	return {
 		slug: args.globalSlug ?? DEFAULT_MAPPING_GLOBAL_SLUG,
 		label: args.label ?? "Collections Mapping",
+		/*
+		 * Parked on the global's own config so `loadMappings` can read it back
+		 * off the running instance. The value is needed on both sides — here
+		 * to validate a pattern at save time, there to compile the mappings —
+		 * and stating it twice is the drift this package removes elsewhere by
+		 * deriving. Payload documents `custom` as a server-only extension
+		 * point, which is exactly what this is.
+		 */
+		...(args.fallbackIdentifierField
+			? {
+					custom: {
+						wayfinder: {
+							fallbackIdentifierField: args.fallbackIdentifierField,
+						},
+					},
+				}
+			: {}),
 		...(args.access ? { access: args.access } : {}),
 		admin: {
 			group: args.adminGroup ?? "Settings",
