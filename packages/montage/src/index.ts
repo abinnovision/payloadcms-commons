@@ -11,8 +11,10 @@ export type {
 	BlockComponentOptions,
 	BlockRegistry,
 	BlockRenderArgs,
+	BlockWrapper,
 	Montage,
 	MontageSlots,
+	RequireGeneratedTypes,
 	Renderer,
 } from "./types.js";
 export type { ContextExtension } from "./context.js";
