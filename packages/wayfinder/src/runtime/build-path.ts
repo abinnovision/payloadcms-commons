@@ -69,6 +69,29 @@ export const buildPath = (args: BuildPathArgs): string => {
 		return root();
 	}
 
+	/*
+	 * A parameter with no value cannot be compiled into anything meaningful.
+	 * `compile` accepts the empty string and drops the segment, so
+	 * `/:section/:slug` missing its section becomes "//hello" — a
+	 * protocol-relative URL, which resolves against a different host entirely
+	 * once a feed or a sitemap makes it absolute. The root is the documented
+	 * worst case, and this is the more likely way to reach it than an unmapped
+	 * collection.
+	 */
+	const missing = resolvers.paramNames.find(
+		(_, index) => ordered[index] === "",
+	);
+
+	if (missing !== undefined) {
+		args.onDiagnostic?.({
+			reason: "missing-param",
+			collection: args.collection,
+			param: missing,
+		});
+
+		return root();
+	}
+
 	const params = Object.fromEntries(
 		resolvers.paramNames.map((name, index) => [name, ordered[index] ?? ""]),
 	);

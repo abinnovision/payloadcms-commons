@@ -50,7 +50,8 @@ identifier is derived from the target collection's own pattern rather than assum
 parameter of the pattern a collection is served at is, by definition, what identifies its
 documents. A project keyed by `permalink` or `handle` therefore needs no configuration, and cannot
 drift out of sync with its own routes. `DEFAULT_IDENTIFIER_FIELD` (`"slug"`) is the fallback when
-nothing can be derived, and `identifierField` overrides it.
+nothing can be derived, and `fallbackIdentifierField` overrides it. It is set once, where mappings
+are compiled, and rides every compiled mapping from there.
 
 A polymorphic relationship whose targets derive different identifier fields is rejected at save
 time. One query path cannot express two, and silently matching on whichever target came first would
@@ -74,12 +75,12 @@ additional condition ANDed onto it. Ordering follows the pattern's own parameter
 the params object, so the last parameter is reliably the identifying one no matter how the pattern
 was written.
 
-The same rule runs backwards. `buildHref` reads one value per parameter off the document, in
+The same rule runs backwards. `router.href` reads one value per parameter off the document, in
 pattern order, and compiles the pattern from them. A parameter pointing at a populated relationship
 yields the related document's identifier, which is exactly what the lookup matches on, so build and
 match agree by construction.
 
-`buildPath` uses the rule to accept values positionally. A sitemap can pass `["legal", "imprint"]`
+`router.path` uses the rule to accept values positionally. A sitemap can pass `["legal", "imprint"]`
 without knowing what the parameters are called, so renaming one in the CMS needs no code change.
 Values keyed by parameter name work too.
 
@@ -97,7 +98,7 @@ most-specific first:
 The final tiebreak exists because the order is otherwise decided by whichever row an editor
 happened to drag higher, and resolution has to stay deterministic.
 
-`resolvePathToDocument` walks the ordered candidates and returns the first one that actually has a
+`router.resolve` walks the ordered candidates and returns the first one that actually has a
 document. Without the fallback a nested page path would be claimed by a more specific pattern and
 404 even though the page exists.
 
@@ -121,34 +122,35 @@ Three consequences follow:
 - **Relationships to a wildcard collection.** A wildcard target is deliberately excluded from
   identifier derivation. Its stored value carries a leading slash while a value arriving from a
   match is a bare segment, so a query built from it would never match, and would fail as an empty
-  result rather than as an error. Such parameters fall back to `identifierField`.
+  result rather than as an error. Such parameters fall back to `fallbackIdentifierField`.
 - **Nothing normalises the shape for you.** A document whose path field holds `about/team` will not
   be found at `/about/team`.
 
 ## Diagnostics
 
-Every routing function returns `null` (or, for `buildPath`, the site root) on failure, so the happy
+Every routing call returns `null` (or, for `router.path`, the site root) on failure, so the happy
 path stays a plain value. That leaves no way to tell "this collection has no mapping" from "this
 relationship was never populated", which is exactly the distinction someone staring at a missing
 link needs. The `onDiagnostic` callback carries it out of band:
 
 ```ts
-buildHref({
+const router = createRouter({
   mappings,
-  collection: "articles",
-  document,
   locale: "en",
   onDiagnostic: (d) => console.warn("[routing]", d.reason, d.collection),
 });
+
+router.href("articles", document);
 ```
 
-| Reason                  | Reported by                                       |
-| ----------------------- | ------------------------------------------------- |
-| `no-mapping`            | `buildHref`, `buildPath`, `resolvePathToDocument` |
-| `no-locale-pattern`     | `buildHref`, `buildPath`                          |
-| `missing-param`         | `buildHref`                                       |
-| `unpopulated-reference` | `resolveLink`                                     |
-| `no-document`           | `resolvePathToDocument`                           |
+| Reason                  | Reported by                                    |
+| ----------------------- | ---------------------------------------------- |
+| `no-mapping`            | `router.href`, `router.path`, `router.resolve` |
+| `no-locale-pattern`     | `router.href`, `router.path`                   |
+| `missing-param`         | `router.href`                                  |
+| `unpopulated-reference` | `router.link`                                  |
+| `unknown-variant`       | `router.link`                                  |
+| `no-document`           | `router.resolve`                               |
 
 Diagnostics fire once per failed call. See
 [`limitations.md`](./limitations.md#diagnostics-are-not-deduplicated).

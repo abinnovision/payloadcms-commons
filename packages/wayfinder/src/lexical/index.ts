@@ -1,11 +1,14 @@
 import { createServerFeature, LinkFeature } from "@payloadcms/richtext-lexical";
 
 import { linkField } from "../config/link-field.js";
+import { normaliseLinkNodeFields } from "../pattern/link-node.js";
 import { resolveLink } from "../runtime/resolve-link.js";
 
 import type { LinkFieldArgs } from "../config/link-field.js";
-import type { LinkDeclaration } from "../pattern/define-links.js";
-import type { LinkFieldData } from "../pattern/types.js";
+import type {
+	LinkDeclaration,
+	ResolvedLinkOf,
+} from "../pattern/define-links.js";
 import type { ResolveLinkArgs } from "../runtime/resolve-link.js";
 
 /** Where the admin bundle finds the label plugin. */
@@ -40,57 +43,13 @@ export const wayfinderLinkFeature = <
 	LinkFeature({ fields: () => [linkField(args)] });
 
 /**
- * The two shapes a link node's fields arrive in.
- *
- * A node written by {@link wayfinderLinkFeature} nests the group under `link`.
- * A node written by Lexical's stock link feature stores `linkType` and `doc`
- * at the top level, which existing content will still hold.
- */
-interface SerializedLinkFields {
-	link?: LinkFieldData;
-	linkType?: "custom" | "internal";
-	url?: string | null;
-	newTab?: boolean | null;
-	doc?: { relationTo: string; value: string | { id: string } } | null;
-}
-
-/**
- * Normalises a link node's fields into the link field's own shape.
- *
- * @param fields The node's `fields` object.
- */
-const normaliseNodeFields = (
-	fields: SerializedLinkFields | undefined,
-): LinkFieldData | undefined => {
-	if (!fields) {
-		return undefined;
-	}
-
-	if (fields.link) {
-		return fields.link;
-	}
-
-	if (fields.linkType === "internal" && fields.doc) {
-		return {
-			type: "reference",
-			reference: fields.doc,
-			newTab: fields.newTab ?? null,
-		};
-	}
-
-	if (fields.url) {
-		return {
-			type: "custom",
-			url: fields.url,
-			newTab: fields.newTab ?? null,
-		};
-	}
-
-	return undefined;
-};
-
-/**
  * Resolves a rich-text link node to an href.
+ *
+ * Takes the node's `fields` as `unknown`, because Lexical types them as an
+ * open record and a narrower parameter would make every converter cast. The
+ * two shapes a node can hold are unwrapped by
+ * {@link normaliseLinkNodeFields}, so a link written in rich text and a link
+ * authored in a block resolve through exactly the same call.
  *
  * Returns null when the node points nowhere resolvable, so a converter can
  * render the text without an anchor rather than emitting a dead one.
@@ -98,17 +57,13 @@ const normaliseNodeFields = (
  * @param args The node's fields plus the usual link-resolution arguments.
  */
 export const resolveLinkNode = <
-	TExtra = object,
 	TDeclaration extends LinkDeclaration = LinkDeclaration,
 >(
-	args: Omit<ResolveLinkArgs<TExtra, TDeclaration>, "link"> & {
-		fields: SerializedLinkFields | undefined;
-	},
-) => {
-	const link = normaliseNodeFields(args.fields);
-
-	return resolveLink({
+	args: Omit<ResolveLinkArgs<TDeclaration>, "link"> & { fields: unknown },
+): ResolvedLinkOf<TDeclaration> | null =>
+	resolveLink({
 		...args,
-		link: link,
+		link: normaliseLinkNodeFields(
+			args.fields,
+		) as ResolveLinkArgs<TDeclaration>["link"],
 	});
-};

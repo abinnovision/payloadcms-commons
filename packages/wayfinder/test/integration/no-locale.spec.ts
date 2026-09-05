@@ -24,8 +24,8 @@ describe("wayfinder against a Payload instance with no localization", () => {
 
 	let payload: Payload;
 	let mappings: PayloadCollectionMappingResolved[];
-	let articleId: string;
-	let pageId: string;
+	let articleId: string | number;
+	let pageId: string | number;
 
 	beforeAll(async () => {
 		payload = await bootPayload({
@@ -42,13 +42,13 @@ describe("wayfinder against a Payload instance with no localization", () => {
 			collection: "articles",
 			data: { title: "Second Look", slug: "second-look", section: section.id },
 		});
-		articleId = String(article.id);
+		articleId = article.id;
 
 		const page = await payload.create({
 			collection: "pages",
 			data: { title: "Imprint", slug: "/legal/imprint", _status: "published" },
 		});
-		pageId = String(page.id);
+		pageId = page.id;
 
 		await payload.updateGlobal({
 			slug: DEFAULT_MAPPING_GLOBAL_SLUG,
@@ -82,7 +82,7 @@ describe("wayfinder against a Payload instance with no localization", () => {
 		});
 
 		expect(resolved?.collection).toBe("pages");
-		expect(String(resolved?.document.id)).toBe(pageId);
+		expect(resolved?.document.id).toBe(pageId);
 	});
 
 	it("resolves a section-scoped article path", async () => {
@@ -94,7 +94,7 @@ describe("wayfinder against a Payload instance with no localization", () => {
 		});
 
 		expect(resolved?.collection).toBe("articles");
-		expect(String(resolved?.document.id)).toBe(articleId);
+		expect(resolved?.document.id).toBe(articleId);
 	});
 
 	it("round-trips both collections back to the paths they were found at", async () => {

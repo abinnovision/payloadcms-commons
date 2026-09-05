@@ -54,12 +54,6 @@ export interface BuildHrefArgs {
 	document: LinkableDocument;
 	locale: string;
 	formatHref?: FormatHref;
-	/**
-	 * The field a populated relationship is identified by, when it cannot be
-	 * derived from the target's own pattern. Must match what
-	 * `resolveParamQueryPath` filters on, or build and match disagree.
-	 */
-	identifierField?: string;
 	onDiagnostic?: OnDiagnostic<BuildDiagnosticReason>;
 }
 
@@ -74,7 +68,6 @@ export interface BuildHrefArgs {
  */
 export const buildHref = (args: BuildHrefArgs): string | null => {
 	const format = args.formatHref ?? identityFormatHref;
-	const identifierField = args.identifierField ?? "slug";
 	const mapping = args.mappings.find((it) => it.collection === args.collection);
 
 	if (!mapping) {
@@ -101,7 +94,11 @@ export const buildHref = (args: BuildHrefArgs): string | null => {
 	const params: Record<string, string> = {};
 
 	for (const name of resolvers.paramNames) {
-		const value = readParam(args.document, name, identifierField);
+		const value = readParam(
+			args.document,
+			name,
+			mapping.fallbackIdentifierField,
+		);
 
 		if (value === undefined) {
 			args.onDiagnostic?.({

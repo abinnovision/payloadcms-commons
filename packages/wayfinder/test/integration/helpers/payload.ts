@@ -27,6 +27,12 @@ export interface FixtureArgs {
 	 * the read side has to be told which shape to expect.
 	 */
 	localized?: boolean;
+	/**
+	 * Declared on the plugin only. `loadMappings` has to find it on the
+	 * global's own config, which is what stops the write side validating
+	 * against one field while the read side compiles for another.
+	 */
+	fallbackIdentifierField?: string;
 }
 
 /**
@@ -105,7 +111,15 @@ export const buildFixtureConfig = (
 					},
 				}
 			: {}),
-		plugins: [wayfinderPlugin({ localized, quiet: true })],
+		plugins: [
+			wayfinderPlugin({
+				localized,
+				quiet: true,
+				...(args.fallbackIdentifierField
+					? { fallbackIdentifierField: args.fallbackIdentifierField }
+					: {}),
+			}),
+		],
 		typescript: { autoGenerate: false },
 		graphQL: { disable: true },
 	});

@@ -6,6 +6,7 @@ export default defineConfig({
 	publint: true,
 	entry: [
 		"src/index.ts",
+		"src/internal.ts",
 		"src/config/index.ts",
 		"src/lexical/index.ts",
 		"src/admin/index.ts",

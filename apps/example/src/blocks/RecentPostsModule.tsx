@@ -21,7 +21,16 @@ export const RecentPostsModule = defineBlockComponent("recent-posts-module", {
 			locale: ctx.locale,
 			depth: 0,
 			sort: "-createdAt",
-			where: { _status: { equals: "published" } },
+			/*
+			 * Both halves are needed, and for the same reason the catch-all
+			 * route hands `draft` to wayfinder rather than writing a filter.
+			 * `draft` decides whether the newest version is readable at all,
+			 * and `_status` is what keeps a never-published post out of the
+			 * public list — `find` returns the newest version either way. An
+			 * editor inside preview sees drafts; a visitor does not.
+			 */
+			draft: ctx.isPreview,
+			...(ctx.isPreview ? {} : { where: { _status: { equals: "published" } } }),
 		});
 
 		return { posts: result.docs };

@@ -6,10 +6,13 @@ import type { Config, Plugin } from "payload";
 
 export interface WayfinderPluginArgs extends CreateMappingGlobalArgs {
 	/**
-	 * Collections that can be linked to. Only used to warn about missing
-	 * `defaultPopulate`; linking itself is governed by the link field.
+	 * Collections to check for `defaultPopulate` at boot.
+	 *
+	 * Named for what it does. It grants nothing: which collections can be
+	 * linked to is decided by the link field's own `relationTo`, and an
+	 * earlier name implied this list governed that.
 	 */
-	linkableCollections?: string[];
+	checkDefaultPopulateOn?: string[];
 	/**
 	 * Set when the project resolves references through its own index rather
 	 * than a populated document. Suppresses the `defaultPopulate` warning,
@@ -33,9 +36,23 @@ export interface WayfinderPluginArgs extends CreateMappingGlobalArgs {
 export const wayfinderPlugin =
 	(args: WayfinderPluginArgs = {}): Plugin =>
 	(incoming: Config): Config => {
+		/*
+		 * Whether patterns are per-locale is not a decision a project makes
+		 * twice. It follows from the config having a `localization` block,
+		 * which this plugin is handed, and `loadMappings` derives the same
+		 * fact from the same authority on the read side. Letting the two get
+		 * out of step wrote one shape and read another, and the mismatch
+		 * surfaced as a mapping that silently matched nothing.
+		 */
 		const config: Config = {
 			...incoming,
-			globals: [...(incoming.globals ?? []), createMappingGlobal(args)],
+			globals: [
+				...(incoming.globals ?? []),
+				createMappingGlobal({
+					localized: Boolean(incoming.localization),
+					...args,
+				}),
+			],
 			i18n: {
 				...incoming.i18n,
 				translations: {
@@ -56,7 +73,7 @@ export const wayfinderPlugin =
 		 * boot is cheaper than finding it in a footer.
 		 */
 		if (!args.resolvesReferencesExternally) {
-			const missing = (args.linkableCollections ?? []).filter((slug) => {
+			const missing = (args.checkDefaultPopulateOn ?? []).filter((slug) => {
 				const collection = config.collections?.find((it) => it.slug === slug);
 
 				return collection && !collection.defaultPopulate;

@@ -63,9 +63,19 @@ type FieldData<F> = F extends { name: infer N extends string }
 								: { [K in N]?: unknown }
 	: object;
 
-/** Everything a variant's own fields contribute, as one object type. */
+/**
+ * Everything a variant's own fields contribute, as one object type.
+ *
+ * A variant declared without `fields`, or one whose fields were not captured
+ * as a literal tuple, arrives here as the bare `readonly Field[]`. Deriving
+ * from the whole `Field` union would intersect every field type into index
+ * signatures that reject ordinary link data, so such a variant contributes
+ * nothing rather than something wrong.
+ */
 export type DataOfFields<TFields extends readonly unknown[]> =
-	UnionToIntersection<FieldData<TFields[number]>>;
+	number extends TFields["length"]
+		? object
+		: UnionToIntersection<FieldData<TFields[number]>>;
 
 /** A variant that has had no resolver attached. */
 export interface LinkVariantSpec<TFields extends readonly Field[]> {
@@ -123,19 +133,24 @@ export interface LinkDeclaration<
 }
 
 /** The stored shape of a link field built from a declaration. */
+type FieldsData<V> = V extends { fields?: infer F extends readonly unknown[] }
+	? DataOfFields<F>
+	: object;
+
 /**
  * What one variant contributes.
  *
- * Read off `__data` rather than re-derived from `fields`, so a variant that
- * named its own shape with `.data<T>()` keeps it.
+ * `__data` is read first, so a variant that named its own shape with
+ * `.data<T>()` keeps it. Every object type structurally satisfies an optional
+ * property, so its absence shows up as `unknown` and falls through to the
+ * fields — which is what lets a variant with no resolver be written as a plain
+ * object literal and still be typed.
  */
 type DataOfVariant<V> = V extends { __data?: infer D }
 	? unknown extends D
-		? object
+		? FieldsData<V>
 		: D
-	: V extends { fields?: infer F extends readonly unknown[] }
-		? DataOfFields<F>
-		: object;
+	: FieldsData<V>;
 
 export type LinkDataOf<T> =
 	T extends LinkDeclaration<infer TVariants>

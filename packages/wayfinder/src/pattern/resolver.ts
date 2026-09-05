@@ -1,6 +1,6 @@
 import * as ptr from "path-to-regexp";
 
-import { DEFAULT_LOCALE_KEY } from "./types.js";
+import { DEFAULT_IDENTIFIER_FIELD, DEFAULT_LOCALE_KEY } from "./types.js";
 
 import type {
 	PayloadCollectionMapping,
@@ -170,14 +170,18 @@ export const resolversFor = (
  * Compiles a mapping's patterns into match and build functions.
  *
  * @param input The mapping as authored.
+ * @param fallbackIdentifierField The field a relationship parameter falls back
+ *   to when the target's own pattern cannot name one.
  */
 export const resolveCollectionMapping = (
 	input: PayloadCollectionMapping,
+	fallbackIdentifierField: string = DEFAULT_IDENTIFIER_FIELD,
 ): PayloadCollectionMappingResolved => {
 	const path = normalisePath(input.path);
 
 	return {
 		collection: input.collection,
+		fallbackIdentifierField,
 		path,
 		resolvers: Object.fromEntries(
 			Object.entries(path).map(([locale, pattern]) => [

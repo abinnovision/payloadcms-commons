@@ -11,6 +11,9 @@ import type { Field } from "payload";
  */
 export const DEFAULT_LOCALE_KEY = "__default";
 
+/** The field a relationship parameter matches on unless something says otherwise. */
+export const DEFAULT_IDENTIFIER_FIELD = "slug";
+
 /**
  * Maps one collection onto the URL patterns its documents live at.
  *
@@ -70,6 +73,24 @@ export interface PayloadCollectionMappingResolvers {
 
 export interface PayloadCollectionMappingResolved {
 	collection: string;
+	/**
+	 * The field a relationship parameter matches on when it cannot be derived
+	 * from the target collection's own pattern — a wildcard pattern, typically.
+	 *
+	 * Carried on the mapping rather than passed to each function that needs it.
+	 * It is decided once, where the mappings are compiled, and every caller
+	 * downstream already holds them; as an argument it had to be repeated at
+	 * four unrelated call sites, and forgetting one produced a query that
+	 * matched nothing rather than an error.
+	 *
+	 * The same value across a mapping set, because building an href is a pure
+	 * operation: it reads a populated relationship off a document without
+	 * knowing which collection that document came from, so it cannot look up
+	 * the target's own mapping the way a path lookup can. Where a target is
+	 * keyed by something the derivation cannot reach, this is what both sides
+	 * have to agree on.
+	 */
+	fallbackIdentifierField: string;
 	/** Always a record after normalisation, keyed by locale or by {@link DEFAULT_LOCALE_KEY}. */
 	path: Record<string, string>;
 	resolvers: Record<string, PayloadCollectionMappingResolvers>;
@@ -108,6 +129,15 @@ export type Contributed<T> = { [K in keyof T]?: T[K] | undefined };
 export type BuiltinLinkVariant = "none" | "reference" | "custom" | "same-page";
 
 /**
+ * How Payload identifies a document.
+ *
+ * Mongo keys by string, SQLite and serial Postgres by number. Every place a
+ * reference id crosses the package boundary accepts both, so a project is not
+ * forced to cast at the call site over its own choice of adapter.
+ */
+export type DocumentId = string | number;
+
+/**
  * Structural shape of the `link` field group.
  *
  * Declared here rather than imported from a project's generated types so the
@@ -123,13 +153,19 @@ export type LinkFieldData<TVariant extends string = never, TExtra = object> = {
 	type?: BuiltinLinkVariant | TVariant | null;
 	label?: string | null;
 	/*
-	 * No index signature: the generated per-collection interfaces do not have
-	 * one, and adding it here would make every populated reference fail to
+	 * No index signature at either level. Payload generates the per-collection
+	 * types as interfaces, and an interface gets no implicit index signature,
+	 * so requiring one here would make every populated reference fail to
 	 * assign.
+	 *
+	 * The id is `string | number` because that is what Payload's adapters
+	 * emit: Mongo keys documents by string, SQLite and serial Postgres by
+	 * number. Narrowing to `string` would be wrong for half of them, and a
+	 * wrong type gets believed.
 	 */
 	reference?: {
 		relationTo: string;
-		value: string | { id: string; [field: string]: unknown };
+		value: DocumentId | { id: DocumentId };
 	} | null;
 	url?: string | null;
 	samePageIdentifier?: string | null;

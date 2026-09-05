@@ -2,7 +2,7 @@ import type { FormatHref } from "@abinnovision/payloadcms-wayfinder";
 import type { TypedLocale } from "payload";
 
 /** Kept in step with `localization` in `payload.config.ts`. */
-const LOCALES = ["en", "de"] as const satisfies readonly TypedLocale[];
+export const LOCALES = ["en", "de"] as const satisfies readonly TypedLocale[];
 
 const DEFAULT_LOCALE: TypedLocale = "en";
 
@@ -23,7 +23,13 @@ export const splitLocale = (
 ): { locale: TypedLocale; path: string } => {
 	const [first, ...rest] = segments;
 
-	return first !== undefined && isLocale(first)
+	/*
+	 * The default locale is deliberately not a prefix it answers to. Emitting
+	 * `/about` and also serving `/en/about` would be two URLs for one
+	 * document, which is what the canonical tag exists to prevent — better not
+	 * to create the duplicate in the first place.
+	 */
+	return first !== undefined && first !== DEFAULT_LOCALE && isLocale(first)
 		? { locale: first, path: `/${rest.join("/")}` }
 		: { locale: DEFAULT_LOCALE, path: `/${segments.join("/")}` };
 };
@@ -31,9 +37,12 @@ export const splitLocale = (
 /**
  * Puts the prefix back on every path the site emits.
  *
- * Has to be handed to `buildHref`, `buildPath` **and** `resolveLink`, which
- * calls `buildHref` internally: a link resolved without it would send a
- * visitor from the German site into the English one on the first click.
+ * Handed to `createRouter` once per request, so every href, path and link that
+ * router produces carries the prefix. Passing it to each call separately was
+ * how a link ended up resolving into the wrong locale: the one call that
+ * forgot it sent a visitor from the German site into the English one.
+ *
+ * The inverse of {@link splitLocale}, and tested as such.
  */
 export const createFormatHref =
 	(): FormatHref =>

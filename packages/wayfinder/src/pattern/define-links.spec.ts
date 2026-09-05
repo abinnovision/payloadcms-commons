@@ -201,9 +201,14 @@ describe("inference at the call site", () => {
 			context: { filesBase: "/files" },
 		});
 
-		expectTypeOf(resolved).toExtend<
-			{ download?: boolean | undefined } | null | { href: string }
-		>();
+		/*
+		 * Asserted as a property access rather than against a union. An
+		 * earlier version of this allowed `{ href: string }` as an
+		 * alternative, which is satisfied by a return type carrying none of
+		 * the contributed properties — so it passed while `resolved.download`
+		 * did not compile for a consumer.
+		 */
+		expectTypeOf(resolved?.download).toEqualTypeOf<boolean | undefined>();
 		expect(resolved).toEqual({ href: "/files/report.pdf", download: true });
 	});
 

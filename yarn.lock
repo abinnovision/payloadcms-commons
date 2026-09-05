@@ -1849,6 +1849,7 @@ __metadata:
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
     typescript: "npm:^6.0.3"
+    vitest: "npm:^4.1.10"
   languageName: unknown
   linkType: soft
 

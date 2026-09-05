@@ -5,7 +5,7 @@ import {
 import { BlocksFeature, lexicalEditor } from "@payloadcms/richtext-lexical";
 
 import { calloutBlock } from "./callout";
-import { links } from "../links";
+import { linkTargets } from "../links";
 
 import type { Block } from "payload";
 
@@ -32,11 +32,7 @@ export const richTextBlock: Block = {
 				features: ({ defaultFeatures }) => [
 					...defaultFeatures.filter((feature) => feature.key !== "link"),
 					BlocksFeature({ blocks: [calloutBlock] }),
-					wayfinderLinkFeature({
-						relationTo: ["pages", "articles", "sections"],
-						withLabel: true,
-						links,
-					}),
+					wayfinderLinkFeature(linkTargets),
 					linkLabelFeature(),
 				],
 			}),

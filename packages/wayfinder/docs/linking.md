@@ -1,7 +1,7 @@
 # Linking
 
 A link authored in the CMS should follow its target when that target's URL pattern changes. That is
-what the link field and `resolveLink` are for: the stored value names a document, and the href is
+what the link field and `router.link` are for: the stored value names a document, and the href is
 derived from the mapping at render time rather than baked in at authoring time.
 
 ## `linkField`
@@ -43,12 +43,12 @@ would block saving whenever a different link type was selected.
 
 ## The built-in variants
 
-| `type`      | Fields shown         | Resolves to                                  |
-| ----------- | -------------------- | -------------------------------------------- |
-| `none`      | none                 | `null` (only offered when `required: false`) |
-| `reference` | `reference`          | `buildHref` of the populated target document |
-| `custom`    | `url`                | the URL verbatim                             |
-| `same-page` | `samePageIdentifier` | `#<identifier>`                              |
+| `type`      | Fields shown         | Resolves to                                      |
+| ----------- | -------------------- | ------------------------------------------------ |
+| `none`      | none                 | `null` (only offered when `required: false`)     |
+| `reference` | `reference`          | the mapped href of the populated target document |
+| `custom`    | `url`                | the URL verbatim                                 |
+| `same-page` | `samePageIdentifier` | `#<identifier>`                                  |
 
 `newTab` is available on every type and adds `target: "_blank"` and `rel: "noopener noreferrer"` to
 the resolved link. It is not applied to `same-page`, which is an in-page anchor.
@@ -97,19 +97,40 @@ wayfinderLinkFeature({ relationTo: ["pages", "articles"], links });
 ```
 
 ```ts
-resolveLink({ link, links, mappings, locale, context });
-isAvailableLink({ link, links, mappings, locale, context });
-resolveLinkNode({ fields: node.fields, links, mappings, locale, context });
+const wayfinder = createRouter({ mappings, locale, links, context });
+
+wayfinder.link(link);
+wayfinder.linkNode(node.fields);
+wayfinder.isAvailable(link);
 deriveLinkLabel(link, { links });
 ```
 
-Passing it to all of them is the point. A variant that reaches the field but not the resolver is a
+Passing it to all of them is the point. A variant that reaches the field but not the router is a
 type an editor can select and a link that renders nothing, which is what the
 [`unknown-variant` diagnostic](#the-unknown-variant-diagnostic) exists to name.
 
 A variant's `fields` are rendered under a condition on the variant's own value, so they appear only
 when that type is selected. `resolve` receives the link data and whatever you passed as `context`,
 untouched. A variant with no `resolve` resolves to `null`.
+
+Such a variant does not need the `variant(...)` builder either. A plain object literal in
+`variants` keeps the same derived field typing, because that typing is read off `fields` in both
+cases:
+
+```ts
+export const links = defineLinks()(() => ({
+  variants: {
+    anchor: {
+      label: "Anchor",
+      fields: [{ name: "offset", type: "number" }],
+    },
+  },
+}));
+```
+
+`link.offset` is still `number | null | undefined` wherever the declaration is read. The builder
+exists so that `.resolve()` and `.data<T>()` have somewhere to hang off, so it is only needed when
+one of them is attached.
 
 ### Field types are derived, not written
 
@@ -190,85 +211,88 @@ const links = defineLinks<AppLinkContext>()((variant) => ({
 It replaces the derived shape rather than adding to it, so name every field the resolver reads.
 See [`docs/limitations.md`](./limitations.md) for which types are derived.
 
-## `resolveLink`
+## `router.link`
 
 Synchronous. It reads a link field's value and returns `{ href, target?, rel? }` or `null`.
 
 ```ts
-import { resolveLink } from "@abinnovision/payloadcms-wayfinder";
+import { createRouter } from "@abinnovision/payloadcms-wayfinder";
 
-const resolved = resolveLink({ link: block.link, mappings, locale: "en" });
+const wayfinder = createRouter({ mappings, locale: "en" });
+const resolved = wayfinder.link(block.link);
 ```
 
-| Argument           | Default  | Purpose                                                                               |
-| ------------------ | -------- | ------------------------------------------------------------------------------------- |
-| `link`             | required | the link group's value; `undefined` resolves to `null`                                |
-| `mappings`         | required | compiled mappings                                                                     |
-| `locale`           | required | which locale's pattern to build with                                                  |
-| `links`            | unset    | the declaration built by `defineLinks`                                                |
-| `context`          | unset    | passed to a variant's `resolve` untouched                                             |
-| `formatHref`       | identity | rewrites the built path; see [`recipes.md`](./recipes.md#locale-prefixes-and-preview) |
-| `identifierField`  | `"slug"` | fallback identifier for relationship parameters                                       |
-| `resolveReference` | unset    | resolve a reference without a populated document                                      |
-| `onDiagnostic`     | unset    | why the link produced nothing                                                         |
+The link's value is the only per-call argument, and `undefined` resolves to `null`. Everything
+else is bound once, when the router is built:
 
-It returns `null` rather than degrading to the site root. A link that silently points somewhere
-plausible is harder to find than one that renders nothing.
+| `createRouter` argument | Default  | Purpose                                                                               |
+| ----------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `mappings`              | required | compiled mappings                                                                     |
+| `locale`                | required | which locale's pattern to build with                                                  |
+| `links`                 | unset    | the declaration built by `defineLinks`                                                |
+| `context`               | unset    | passed to a variant's `resolve` untouched                                             |
+| `formatHref`            | identity | rewrites the built path; see [`recipes.md`](./recipes.md#locale-prefixes-and-preview) |
+| `resolveReference`      | unset    | resolve a reference without a populated document                                      |
+| `onDiagnostic`          | unset    | why the link produced nothing                                                         |
+
+Binding them is what keeps them consistent. `formatHref` has to reach every call that builds a
+path, and the one easiest to forget is link resolution, which builds hrefs internally — omitting it
+there sends a visitor out of the locale, or out of preview, on the first click.
+
+Which field a relationship parameter matches on is not among them, because it does not vary per
+request. It rides the compiled mappings as `fallbackIdentifierField`, set once by
+[`loadMappings`](./integration.md) or `defineMappings`.
+
+Resolution returns `null` rather than degrading to the site root. A link that silently points
+somewhere plausible is harder to find than one that renders nothing.
 
 ### The `unknown-variant` diagnostic
 
 `onDiagnostic` reports `unknown-variant`, with the offending value in `variant`, when a link's
 `type` is neither a built-in nor a declared one. The usual cause is a declaration that reached
-`linkField` but not `resolveLink`, which would otherwise just make the link disappear:
+`linkField` but not the router, which would otherwise just make the link disappear:
 
 ```ts
-resolveLink({
-  link: block.link,
-  links,
+const wayfinder = createRouter({
   mappings,
   locale,
+  links,
   onDiagnostic: (d) => console.warn("[wayfinder]", d.reason, d.variant),
 });
 ```
 
 ### Resolving references without population
 
-An unpopulated reference is a bare id string, which cannot be routed. The usual answer is
+An unpopulated reference is a bare id, which cannot be routed. The usual answer is
 `defaultPopulate` ([`integration.md`](./integration.md#5-defaultpopulate-on-linkable-collections)).
 A project that deliberately caps depth and keeps its own id-to-path index supplies
 `resolveReference` instead:
 
 ```ts
-resolveLink({
-  link: block.link,
+const wayfinder = createRouter({
   mappings,
   locale,
   resolveReference: ({ relationTo, value }) =>
     myIndex.get(
-      `${relationTo}:${typeof value === "string" ? value : value.id}`,
+      `${relationTo}:${typeof value === "object" ? value.id : value}`,
     ) ?? null,
 });
 ```
+
+An id is `string | number`, so the populated document is told apart by being an object rather than
+by being anything else; a bare id of either type takes the other branch.
 
 When supplied it takes over the whole `reference` branch, populated or not. One injected function
 rather than a second built-in strategy: the package resolves from the populated document, and this
 is the documented way out.
 
-## `isAvailableLink`
+## `router.isAvailable`
 
-Takes the same arguments as `resolveLink`, plus `withLabel`, and returns a boolean. Use it to
-decide whether to render a link at all, rather than emitting a dead anchor:
+Takes the same link value as `router.link`, plus an options object, and returns a boolean. Use it
+to decide whether to render a link at all, rather than emitting a dead anchor:
 
 ```ts
-import { isAvailableLink } from "@abinnovision/payloadcms-wayfinder";
-
-const show = isAvailableLink({
-  link: block.link,
-  links,
-  mappings,
-  locale,
-  withLabel: true,
-});
+const show = wayfinder.isAvailable(block.link, { withLabel: true });
 ```
 
 With `withLabel: true`, a link whose `label` is empty counts as unavailable even if its href would
@@ -293,8 +317,11 @@ say about a link type whose fields it does not know.
 ## The two type extractors
 
 `LinkDataOf<typeof links>` is the stored shape of a link field built from a declaration, and
-`ResolvedLinkOf<typeof links>` is what resolving one can produce. Both are type-level extractors:
-the declaration is a plain value with no `$data` property to read them off.
+`ResolvedLinkOf<typeof links>` is what resolving one can produce. Both are type-level extractors.
+The declaration is plain data, and the one property `LinkDataOf` reads off a variant — `__data` —
+is declared and never assigned, so it exists in the type and not at runtime. It is what carries a
+[`.data<T>()`](#fields-this-cannot-type) override into the extracted shape instead of the derived
+fields, so removing it as unused would silently drop every such override.
 
 ```ts
 import type {
@@ -318,23 +345,27 @@ type AppResolvedLink = ResolvedLinkOf<typeof links>;
 optional on both, and for the same reason: each type is the union across all variants, and no
 single variant can supply the others' properties. A resolver returns its own and nothing else.
 
-Passing `links` carries the declaration's resolvers through to the return type, so a contributed
-property is readable without an annotation. `ResolvedLinkOf` is still there for the times you want
-to name the type, in a prop or a return signature:
+Passing `links` to `createRouter` carries the declaration's resolvers through to what `link` and
+`linkNode` return, which is `ResolvedLinkOf<typeof links> | null` and nothing wider. A contributed
+property is therefore readable without an annotation and without a cast:
 
 ```ts
-const resolved = resolveLink({
-  link: block.link,
-  links,
+const wayfinder = createRouter({
   mappings,
   locale,
+  links,
   context: { filesBase: "/files" },
 });
+
+const resolved = wayfinder.link(block.link);
 
 if (resolved?.download) {
   // ...
 }
 ```
+
+`ResolvedLinkOf` is still there for the times you want to name the type, in a prop or a return
+signature.
 
 ### The underlying types
 
@@ -347,10 +378,9 @@ contribute. It is declared in the package rather than imported from a project's 
 the field definition does not depend on its own output. Every property is nullable, because that is
 how Payload emits optional fields; a mismatch there shows up at every call site.
 
-`ResolvedLink<E>` is `{ href, target?, rel? }` widened by whatever a variant returns. `E` defaults
-to `object` rather than `unknown`, because an intersection with an uninstantiated type parameter
-stays deferred and would force a cast at every built-in branch. `BaseResolvedLink` is the unwidened
-shape.
+`BaseResolvedLink` is the unwidened `{ href, target?, rel? }`, for naming what a link resolves to
+without a declaration in hand. Resolving through a router always produces `ResolvedLinkOf`, so
+there is no second widened shape on the public surface to choose between.
 
 ## The Lexical feature
 
@@ -400,21 +430,12 @@ transform, so documents are never mutated merely by being opened.
 
 ### Rendering a link node
 
-`resolveLinkNode` takes a link node's `fields` and the usual link-resolution arguments:
+`router.linkNode` takes a link node's `fields`:
 
 ```tsx
-import { resolveLinkNode } from "@abinnovision/payloadcms-wayfinder/lexical";
-
-import { links } from "../links/index.js";
-
 const converters = {
   link: ({ node, nodesToJSX }) => {
-    const resolved = resolveLinkNode({
-      fields: node.fields,
-      links,
-      mappings,
-      locale,
-    });
+    const resolved = wayfinder.linkNode(node.fields);
     const children = nodesToJSX({ nodes: node.children });
 
     return resolved ? (
@@ -432,3 +453,8 @@ It accepts both shapes a link node can arrive in: the nested `link` group writte
 `wayfinderLinkFeature`, and the top-level `linkType` / `doc` / `url` that Lexical's stock link
 feature wrote and that existing content still holds. It returns `null` when the node points nowhere
 resolvable, so a converter can render the text without an anchor rather than emitting a dead one.
+
+The `fields` parameter is `unknown`, because Lexical types them as an open record and a narrower
+one would make every converter cast. That also keeps rendering off the
+`@payloadcms/richtext-lexical` peer: a frontend that renders rich text does not have to install the
+editor to resolve the links in it.

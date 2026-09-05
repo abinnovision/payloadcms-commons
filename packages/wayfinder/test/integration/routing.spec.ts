@@ -10,12 +10,14 @@ import {
 	loadMappings,
 } from "../../src/config/index.js";
 import { defineMappings } from "../../src/pattern/index.js";
+import { createRouter } from "../../src/runtime/create-router.js";
 import {
 	buildHref,
 	resolvePathToDocument,
 	resolveRelationshipSlug,
 } from "../../src/runtime/index.js";
 
+import type { Diagnostic, DiagnosticReason } from "../../src/index.js";
 import type { PayloadCollectionMappingResolved } from "../../src/pattern/index.js";
 import type { Payload } from "payload";
 
@@ -24,11 +26,17 @@ const PREVIEW_PREFIX = "/preview";
 describe("wayfinder against a real, localized Payload instance (sqlite)", () => {
 	let payload: Payload;
 	let mappings: PayloadCollectionMappingResolved[];
-	let sectionId: string;
-	let articleId: string;
-	let nestedPageId: string;
-	let collidingPageId: string;
-	let draftPageId: string;
+	/*
+	 * Left as the adapter returns them. These were stringified here once,
+	 * which meant every assertion compared strings and the numeric ids sqlite
+	 * actually produces were never exercised — the shape half the callers see
+	 * in production.
+	 */
+	let sectionId: string | number;
+	let articleId: string | number;
+	let nestedPageId: string | number;
+	let collidingPageId: string | number;
+	let draftPageId: string | number;
 
 	beforeAll(async () => {
 		payload = await bootPayload({ key: "wayfinder-routing", localized: true });
@@ -37,19 +45,19 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 			collection: "sections",
 			data: { title: "Insights", slug: "insights", handle: "insights-hub" },
 		});
-		sectionId = String(section.id);
+		sectionId = section.id;
 
 		const article = await payload.create({
 			collection: "articles",
 			data: { title: "First Look", slug: "first-look", section: section.id },
 		});
-		articleId = String(article.id);
+		articleId = article.id;
 
 		const nestedPage = await payload.create({
 			collection: "pages",
 			data: { title: "Team", slug: "/about/team", _status: "published" },
 		});
-		nestedPageId = String(nestedPage.id);
+		nestedPageId = nestedPage.id;
 
 		/*
 		 * Sits under an existing section slug, so its path is claimed by the
@@ -63,14 +71,14 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 				_status: "published",
 			},
 		});
-		collidingPageId = String(collidingPage.id);
+		collidingPageId = collidingPage.id;
 
 		const draftPage = await payload.create({
 			collection: "pages",
 			draft: true,
 			data: { title: "Hidden", slug: "/drafts/hidden", _status: "draft" },
 		});
-		draftPageId = String(draftPage.id);
+		draftPageId = draftPage.id;
 
 		await payload.create({
 			collection: "notes",
@@ -137,7 +145,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 			});
 
 			expect(resolved?.collection).toBe("pages");
-			expect(String(resolved?.document.id)).toBe(nestedPageId);
+			expect(resolved?.document.id).toBe(nestedPageId);
 		});
 
 		it("finds an article at its section-scoped path", async () => {
@@ -149,7 +157,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 			});
 
 			expect(resolved?.collection).toBe("articles");
-			expect(String(resolved?.document.id)).toBe(articleId);
+			expect(resolved?.document.id).toBe(articleId);
 			/*
 			 * The scope parameter survives onto the match, which is what a
 			 * caller needs to render breadcrumbs without a second lookup.
@@ -172,7 +180,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 			});
 
 			expect(resolved?.collection).toBe("pages");
-			expect(String(resolved?.document.id)).toBe(collidingPageId);
+			expect(resolved?.document.id).toBe(collidingPageId);
 		});
 
 		it("honours a `where` override that filters the document out", async () => {
@@ -258,7 +266,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 				draft: true,
 			});
 
-			expect(String(drafted?.document.id)).toBe(draftPageId);
+			expect(drafted?.document.id).toBe(draftPageId);
 		});
 
 		it("does not fail a draft read against a collection that keeps no versions", async () => {
@@ -307,7 +315,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 				draft: true,
 			});
 
-			expect(String(resolved?.document.id)).toBe(nestedPageId);
+			expect(resolved?.document.id).toBe(nestedPageId);
 		});
 	});
 
@@ -326,6 +334,57 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 			});
 
 			expect(value).toBe("insights");
+		});
+	});
+
+	describe("resolving a reference against real documents", () => {
+		/*
+		 * The link path had no integration coverage at all, which is how it
+		 * came to assume a reference id is a string. Sqlite numbers them, so
+		 * everything here is exercised against the ids the adapter actually
+		 * produced rather than against hand-written ones.
+		 */
+		it("routes a populated reference through its collection mapping", async () => {
+			const article = await payload.findByID({
+				collection: "articles",
+				id: articleId,
+				depth: 1,
+				locale: PRIMARY_LOCALE,
+			});
+
+			const resolved = createRouter({
+				mappings,
+				locale: PRIMARY_LOCALE,
+			}).link({
+				type: "reference",
+				reference: { relationTo: "articles", value: article },
+			});
+
+			expect(resolved?.href).toBe("/insights/first-look");
+		});
+
+		/*
+		 * The id an unpopulated relationship leaves behind is a number here,
+		 * and reporting it as unpopulated is the whole point: checking only
+		 * for a string sent it on to the href builder, which then blamed a
+		 * missing path parameter for a reference nobody had populated.
+		 */
+		it("reports a bare numeric id as an unpopulated reference", () => {
+			const seen: Diagnostic<DiagnosticReason>[] = [];
+
+			const resolved = createRouter({
+				mappings,
+				locale: PRIMARY_LOCALE,
+				onDiagnostic: (it) => seen.push(it),
+			}).link({
+				type: "reference",
+				reference: { relationTo: "articles", value: articleId },
+			});
+
+			expect(resolved).toBeNull();
+			expect(seen).toEqual([
+				{ reason: "unpopulated-reference", collection: "articles" },
+			]);
 		});
 	});
 
@@ -351,7 +410,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 			});
 
 			expect(resolved?.collection).toBe("articles");
-			expect(String(resolved?.document.id)).toBe(articleId);
+			expect(resolved?.document.id).toBe(articleId);
 		});
 
 		it("does not find the same path under the slug-keyed mapping", async () => {

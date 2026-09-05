@@ -129,7 +129,7 @@ describe("resolveParamQueryPath", () => {
 				config: articles,
 				param: "section",
 				collections: registered(articles, sections),
-				identifierField: "handle",
+				fallbackIdentifierField: "handle",
 			}),
 		).toEqual({ queryPath: "section.handle" });
 	});
