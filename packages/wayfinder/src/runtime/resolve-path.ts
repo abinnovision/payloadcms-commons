@@ -22,11 +22,31 @@ const DEFAULT_DOCUMENT_DEPTH = 10;
  */
 export type PayloadDocument = { id: string | number } & Record<string, unknown>;
 
-export interface ResolvedPath {
-	match: PayloadCollectionMatch;
-	collection: string;
-	document: PayloadDocument;
-}
+/**
+ * What a path resolved to: which collection claimed it, the document behind
+ * it, and the identifier and scope the pattern produced.
+ *
+ * Parameterised by a map of collection slug to document type, which is exactly
+ * the shape Payload generates as `Config["collections"]`. Supplying it turns
+ * the result into a discriminated union, so narrowing on `collection` types
+ * `document` and a consumer stops reading an open record defensively. The
+ * default reproduces the untyped shape, so this costs an existing caller
+ * nothing.
+ *
+ * The union is unsound by construction, and knowingly so: which collection
+ * wins is decided at request time by an editor-authored mapping, not by
+ * anything the compiler can see. It states what the mapping can produce, not
+ * what it will.
+ */
+export type ResolvedPath<
+	TDocs extends Record<string, object> = Record<string, PayloadDocument>,
+> = {
+	[K in keyof TDocs & string]: {
+		match: PayloadCollectionMatch;
+		collection: K;
+		document: TDocs[K];
+	};
+}[keyof TDocs & string];
 
 /** Extra conditions to AND into the lookup. */
 export type ResolvePathWhere =
@@ -126,9 +146,11 @@ const publishedOnly = (
  *
  * @param args The Payload instance, mappings, path and locale.
  */
-export const resolvePathToDocument = async (
+export const resolvePathToDocument = async <
+	TDocs extends Record<string, object> = Record<string, PayloadDocument>,
+>(
 	args: ResolvePathToDocumentArgs,
-): Promise<ResolvedPath | null> => {
+): Promise<ResolvedPath<TDocs> | null> => {
 	const draft = args.draft ?? false;
 
 	const matches = matchCollectionMappings({
@@ -177,7 +199,13 @@ export const resolvePathToDocument = async (
 		const document = response.docs[0] as unknown as PayloadDocument | undefined;
 
 		if (document) {
-			return { match, collection, document };
+			/*
+			 * Which collection won is decided here, by the mapping, so the
+			 * narrowed member of the union cannot be known statically.
+			 */
+			const resolved = { match, collection, document };
+
+			return resolved as unknown as ResolvedPath<TDocs>;
 		}
 	}
 

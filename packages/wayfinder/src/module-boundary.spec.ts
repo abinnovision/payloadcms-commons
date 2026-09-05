@@ -34,6 +34,17 @@ describe('the "." module boundary', () => {
 		expect([...bareSpecifiers].sort()).toEqual(["path-to-regexp"]);
 	});
 
+	/*
+	 * `./internal` carries no compatibility guarantee, but it must carry the
+	 * same runtime one: it is the same functions the router closes over, so a
+	 * dependency reachable through it would be reachable through `.` too.
+	 */
+	it("holds the unbound functions to the same bundle guarantee", () => {
+		const { bareSpecifiers } = walkModuleGraph(resolve(here, "internal.ts"));
+
+		expect([...bareSpecifiers].sort()).toEqual(["path-to-regexp"]);
+	});
+
 	it("actually walks the whole core (sanity check against a vacuous pass)", () => {
 		const { files } = walkModuleGraph(entry);
 		const names = [...files].map((file) => file.split("/").pop());
