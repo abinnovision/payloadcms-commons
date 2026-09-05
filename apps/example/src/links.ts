@@ -1,5 +1,7 @@
 import { defineLinks } from "@abinnovision/payloadcms-wayfinder";
 
+import type { LinkFieldArgs } from "@abinnovision/payloadcms-wayfinder/config";
+
 /** What a variant's resolver is handed at render time. */
 export interface LinkContext {
 	filesBase: string;
@@ -34,3 +36,16 @@ export const links = defineLinks<LinkContext>()((variant) => ({
 		}),
 	},
 }));
+
+/**
+ * What every link field in this app offers.
+ *
+ * Declared once because the field an editor fills in and the rich-text feature
+ * have to agree: a collection linkable in one and not the other is a link an
+ * editor can author in a block and not in prose, for no reason they can see.
+ */
+export const linkTargets = {
+	relationTo: ["pages", "articles", "sections"],
+	withLabel: true,
+	links,
+} satisfies LinkFieldArgs<typeof links>;

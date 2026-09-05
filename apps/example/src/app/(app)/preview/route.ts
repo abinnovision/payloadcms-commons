@@ -1,11 +1,10 @@
-import { buildHref } from "@abinnovision/payloadcms-wayfinder";
+import { createRouter } from "@abinnovision/payloadcms-wayfinder";
 import config from "@payload-config";
 import { draftMode } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPayload } from "payload";
 
-import { createFormatHref } from "../../../locales";
-import { getMappings } from "../../../wayfinder";
+import { routerArgs } from "../../../wayfinder";
 
 import type { NextRequest } from "next/server";
 import type { CollectionSlug, TypedLocale } from "payload";
@@ -56,18 +55,28 @@ export const GET = async (request: NextRequest): Promise<Response> => {
 		user,
 	});
 
-	const href = buildHref({
-		mappings: await getMappings(),
+	/*
+	 * The router carries the locale and the href formatter, so the redirect
+	 * cannot drop the prefix and land the editor on the default-locale copy of
+	 * the document they were previewing.
+	 */
+	const href = createRouter(await routerArgs(locale)).href(
 		collection,
-		document: document,
-		locale,
-		// Without it the redirect would drop the locale prefix and the
-		// catch-all would resolve the document in the default locale instead.
-		formatHref: createFormatHref(),
-	});
+		document,
+	);
 
 	if (!href) {
 		return new Response("No mapping for this collection", { status: 404 });
+	}
+
+	/*
+	 * A pattern is authored content and a slug is an editable field, so the
+	 * built path is not automatically a same-origin one: a slug beginning
+	 * `//` compiles into a protocol-relative URL that Next would treat as
+	 * external. Only a single-slash path is worth redirecting to.
+	 */
+	if (!href.startsWith("/") || href.startsWith("//")) {
+		return new Response("Refusing to redirect off-site", { status: 400 });
 	}
 
 	const draft = await draftMode();

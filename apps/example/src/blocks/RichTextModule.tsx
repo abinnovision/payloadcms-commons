@@ -4,7 +4,6 @@ import { RichText } from "@payloadcms/richtext-lexical/react";
 import { AppLink } from "../components/AppLink";
 import { defineBlockComponent } from "../montage";
 
-import type { LinkNodeFields } from "../components/AppLink";
 import type { ReactNode } from "react";
 
 /**
@@ -28,7 +27,7 @@ export const RichTextModule = defineBlockComponent("rich-text-module", {
 					...defaultConverters,
 					...lexicalConverters(renderer, ctx),
 					link: ({ node, nodesToJSX }) => (
-						<AppLink ctx={ctx} node={node.fields as LinkNodeFields}>
+						<AppLink ctx={ctx} node={node.fields}>
 							{nodesToJSX({ nodes: node.children }) as ReactNode}
 						</AppLink>
 					),

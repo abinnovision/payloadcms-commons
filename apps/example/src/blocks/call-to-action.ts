@@ -1,6 +1,6 @@
 import { linkField } from "@abinnovision/payloadcms-wayfinder/config";
 
-import { links } from "../links";
+import { linkTargets } from "../links";
 
 import type { Block } from "payload";
 
@@ -14,11 +14,6 @@ export const callToActionBlock: Block = {
 	interfaceName: "CallToActionModuleBlock",
 	fields: [
 		{ name: "heading", type: "text", required: true },
-		linkField({
-			relationTo: ["pages", "articles", "sections"],
-			required: false,
-			withLabel: true,
-			links,
-		}),
+		linkField({ ...linkTargets, required: false }),
 	],
 };

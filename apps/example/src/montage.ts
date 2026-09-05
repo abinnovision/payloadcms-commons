@@ -1,6 +1,5 @@
 import { createMontage } from "@abinnovision/payloadcms-montage";
 
-import type { FormatHref } from "@abinnovision/payloadcms-wayfinder";
 import type { TypedLocale } from "payload";
 import type { ComponentType, ReactNode } from "react";
 
@@ -16,17 +15,12 @@ export interface AppContext {
 	 */
 	isPreview: boolean;
 	/**
-	 * The locale the route resolved the path in. Blocks need it to turn a
-	 * wayfinder mapping into an href, since a mapping holds one pattern per
-	 * locale.
+	 * The locale the route resolved the path in, for the blocks that query
+	 * with it. Turning a mapping into an href does not need it here: the
+	 * wayfinder router on the context was built with the locale and the href
+	 * formatter already bound.
 	 */
 	locale: TypedLocale;
-	/**
-	 * Puts the locale prefix back on any path a block emits. Built once per
-	 * request and threaded alongside the mappings, since a link resolved
-	 * without it leaves the locale it was rendered in.
-	 */
-	formatHref: FormatHref;
 	Link: ComponentType<{ href: string; children: ReactNode }>;
 }
 

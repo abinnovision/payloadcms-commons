@@ -21,6 +21,7 @@ import { sections } from "./collections/sections";
 import { tags } from "./collections/tags";
 import { users } from "./collections/users";
 import { siteSettings } from "./globals/site-settings";
+import { linkTargets } from "./links";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -82,10 +83,16 @@ export default buildConfig({
 		 * mapping global holds one pattern per locale. The same flag has to be
 		 * passed to every read; `src/wayfinder.ts` keeps the two in step.
 		 */
-		wayfinderPlugin({
-			localized: true,
-			linkableCollections: ["pages", "articles", "sections"],
-		}),
+		/*
+		 * No `localized`: it is derived from the `localization` block above,
+		 * which is the same fact the read side derives it from, so the two
+		 * cannot fall out of step.
+		 *
+		 * The checked list is the one the link fields already offer, so a
+		 * collection cannot become linkable without also being checked for the
+		 * `defaultPopulate` that makes its links resolve.
+		 */
+		wayfinderPlugin({ checkDefaultPopulateOn: linkTargets.relationTo }),
 		/*
 		 * `pages` is the entity to reach for when trying out `publishDocument`.
 		 * `articles` and `posts` show the other side of the axis, where MCP
