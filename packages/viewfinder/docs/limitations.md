@@ -54,6 +54,22 @@ Payload upgrade that changes either convention touches one place. Both fail clos
 that has moved resolves to `undefined` and nothing happens, rather than the wrong row being
 revealed.
 
+The preview is inert until the admin says otherwise, and cannot be anything else: the setting is a
+Payload preference, which only the admin can read, and the preview announces itself with `ready`
+before it can be told anything. So a preview that mounts with the toggle on is briefly dead —
+between its own mount and the admin's reply — and a click in that window does whatever the page
+would normally do rather than selecting a block. The same gap reopens after every save, since
+`RefreshRouteOnSave` remounts the bridge. It is short and it fails towards the untouched page,
+which is the direction to fail in.
+
+An admin that predates the `enabled` message therefore leaves a current frontend permanently
+inert, rather than defaulting it on. Both halves ship from the same package and are expected to
+move together; a frontend deployed against an older admin should stay on the matching version.
+
+The toggle is one switch for both directions, not one per behaviour, and there is no way to keep
+click-to-locate while stopping the hover outline. That is a deliberate cut, on the grounds stated in
+`concepts.md`, not an oversight.
+
 Block-row DOM ids join path segments with `-`, which a slug containing a dash makes ambiguous to
 parse. The admin therefore generates candidate row ids from form state and matches by equality
 rather than parsing an id back into a path. Ids are also assumed unique; if two rows somehow carry

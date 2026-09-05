@@ -10,7 +10,8 @@ rendered block, resolves that identifier back to a path in the admin's own form 
 messages between the two windows. In the preview, hovering a block outlines and names it and
 clicking anywhere inside it scrolls the matching form row into view. In the admin, hovering anywhere
 in a block row outlines that block in the preview, and a button in the row header scrolls the
-preview to it.
+preview to it. All of it is off until an editor turns it on, from one toggle in the document
+controls.
 
 Inline editing is deliberately not part of it. A visual editor needs to know which DOM node belongs
 to which field before it can do anything else, and that layer is useful on its own.
@@ -88,6 +89,13 @@ visitors without a second code path. Inside the preview it outlines the block un
 names it, and a click anywhere inside that block selects it. The whole block is the target, so a
 plain click on a link inside a marked block selects rather than navigates while the page is framed.
 Modified and secondary clicks are left alone, so an editor can still open a link in a new tab.
+
+A crosshair toggle sits in the document controls, beside Payload's own live-preview button, on any
+document that has a live preview configured. It is greyed out until a preview is actually open, and
+**it starts off**: a previewed page behaves like the real site until an editor asks for the
+addressing, so no outline appears and a link inside a marked block navigates normally. Turning it
+on lights up both directions and the row buttons. The choice is a per-user Payload preference under
+the key `viewfinder`, so it follows the editor across documents and browsers.
 
 Finally, mark the blocks. Wrap each one in `<Marked>`, passing the Payload row `id` and your own
 preview flag:

@@ -23,6 +23,15 @@ describe("message construction round-trips through its own guard", () => {
 		expect(isAdminMessage(adminMessage.clear())).toBe(true);
 		expect(isAdminMessage(adminMessage.highlight({ id: "a" }))).toBe(true);
 		expect(isAdminMessage(adminMessage.scrollTo({ id: "a" }))).toBe(true);
+		expect(isAdminMessage(adminMessage.enabled(true))).toBe(true);
+		expect(isAdminMessage(adminMessage.enabled(false))).toBe(true);
+	});
+
+	it("carries the flag it was built with", () => {
+		expect(adminMessage.enabled(false)).toMatchObject({
+			type: "enabled",
+			enabled: false,
+		});
 	});
 });
 
@@ -65,6 +74,35 @@ describe("the guards reject anything else on the channel", () => {
 				...base,
 				type: "hover",
 				address: { id: "a", field: 1 },
+			}),
+		).toBe(false);
+	});
+
+	it("rejects a flagged type with no usable flag", () => {
+		const base = {
+			source: VIEWFINDER_SOURCE,
+			version: VIEWFINDER_PROTOCOL_VERSION,
+		};
+		expect(isAdminMessage({ ...base, type: "enabled" })).toBe(false);
+		expect(isAdminMessage({ ...base, type: "enabled", enabled: "yes" })).toBe(
+			false,
+		);
+		expect(isAdminMessage({ ...base, type: "enabled", enabled: 0 })).toBe(
+			false,
+		);
+	});
+
+	/*
+	 * `enabled` was added without bumping the version, on the grounds that a
+	 * receiver predating it drops it. This is that claim: an unrecognised type
+	 * is rejected rather than let through half-validated.
+	 */
+	it("rejects an unknown type outright", () => {
+		expect(
+			isAdminMessage({
+				source: VIEWFINDER_SOURCE,
+				version: VIEWFINDER_PROTOCOL_VERSION,
+				type: "someLaterAddition",
 			}),
 		).toBe(false);
 	});

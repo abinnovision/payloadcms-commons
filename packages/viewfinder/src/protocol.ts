@@ -9,6 +9,11 @@ export const VIEWFINDER_SOURCE = "viewfinder";
 /**
  * Bumped only on a breaking envelope change. A mismatched version is dropped
  * silently, so a stale frontend deployment cannot drive a newer admin.
+ *
+ * Adding a message type is not a breaking change and does not qualify: a
+ * receiver that predates the type does not have it in its own type set, so it
+ * drops the message and keeps behaving as it did. Bumping the version for that
+ * would instead break every existing pairing at once.
  */
 export const VIEWFINDER_PROTOCOL_VERSION = 1;
 
@@ -32,6 +37,10 @@ interface AddressedEnvelope<TType extends string> extends Envelope<TType> {
 	address: BlockAddress;
 }
 
+interface FlaggedEnvelope<TType extends string> extends Envelope<TType> {
+	enabled: boolean;
+}
+
 /** Sent by the rendered page, in the iframe, up to the admin. */
 export type PreviewMessage =
 	| AddressedEnvelope<"hover">
@@ -39,15 +48,21 @@ export type PreviewMessage =
 	| Envelope<"leave">
 	| Envelope<"ready">;
 
-/** Sent by the admin down into the preview iframe. */
+/**
+ * Sent by the admin down into the preview iframe. `enabled` is the admin
+ * answering for the whole feature: the admin owns the setting, and the preview
+ * is told what it is, on connect and on every change.
+ */
 export type AdminMessage =
 	| AddressedEnvelope<"highlight">
 	| AddressedEnvelope<"scrollTo">
-	| Envelope<"clear">;
+	| Envelope<"clear">
+	| FlaggedEnvelope<"enabled">;
 
 const PREVIEW_TYPES = new Set(["hover", "select", "leave", "ready"]);
-const ADMIN_TYPES = new Set(["highlight", "scrollTo", "clear"]);
+const ADMIN_TYPES = new Set(["highlight", "scrollTo", "clear", "enabled"]);
 const ADDRESSED_TYPES = new Set(["hover", "select", "highlight", "scrollTo"]);
+const FLAGGED_TYPES = new Set(["enabled"]);
 
 const isAddress = (value: unknown): value is BlockAddress => {
 	if (typeof value !== "object" || value === null) {
@@ -83,8 +98,16 @@ const isEnvelope = (
 		return false;
 	}
 
+	if (
+		ADDRESSED_TYPES.has(candidate["type"]) &&
+		!isAddress(candidate["address"])
+	) {
+		return false;
+	}
+
 	return (
-		!ADDRESSED_TYPES.has(candidate["type"]) || isAddress(candidate["address"])
+		!FLAGGED_TYPES.has(candidate["type"]) ||
+		typeof candidate["enabled"] === "boolean"
 	);
 };
 
@@ -117,6 +140,10 @@ export const previewMessage = {
 
 export const adminMessage = {
 	clear: (): AdminMessage => bare("clear"),
+	enabled: (enabled: boolean): AdminMessage => ({
+		...bare("enabled"),
+		enabled,
+	}),
 	highlight: (address: BlockAddress): AdminMessage =>
 		addressed("highlight", address),
 	scrollTo: (address: BlockAddress): AdminMessage =>
