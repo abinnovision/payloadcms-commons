@@ -21,13 +21,14 @@ you need without taking on the rest.
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server over the content model, with a fixed tool surface and per-API-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                                  |
 | [`@abinnovision/payloadcms-viewfinder`](./packages/viewfinder)             | Two-way block addressing between a rendered frontend and the Payload admin form.           |
+| [`@abinnovision/payloadcms-wayfinder`](./packages/wayfinder)               | Editor-authored URL routing: collection-to-path patterns, hrefs and a link field.          |
 
 ## How they fit together
 
 No package here depends on another. Each declares its own peers and installs on
 its own, in an app that uses none of the others.
 
-One seam exists today, and it is optional on both sides. Montage renders every
+Two seams exist today, and both are optional on both sides. Montage renders every
 block through a single dispatch point, and its registry exposes that point as
 `wrapBlock`. Passing viewfinder's marker through it makes an entire block tree
 addressable from the admin's live preview in one hook, at every nesting depth.
@@ -37,8 +38,16 @@ the hook is a plain wrapper either of them can live without. See
 for the two integration paths, and
 [`apps/montage-example`](./apps/montage-example) for the seam in a running app.
 
-mcpx and the Lettermint adapter have no seam with either of the other two. A
-site installs whichever of the four it needs.
+The second is wayfinder's `./montage` entrypoint, behind an optional peer. It
+parks compiled route mappings on montage's render context, so a page with dozens
+of links reads them once per request rather than once per link. Without montage
+the same glue is a short adapter over whatever context an app already has, and
+nothing else in wayfinder knows montage exists. See
+[`packages/wayfinder/docs/recipes.md`](./packages/wayfinder/docs/recipes.md) for
+both paths.
+
+mcpx and the Lettermint adapter have no seam with any of the others. A site
+installs whichever of the five it needs.
 
 ## Compatibility
 

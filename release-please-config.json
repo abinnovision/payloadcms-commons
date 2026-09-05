@@ -19,6 +19,10 @@
 		"packages/viewfinder": {
 			"package-name": "@abinnovision/payloadcms-viewfinder",
 			"component": "payloadcms-viewfinder"
+		},
+		"packages/wayfinder": {
+			"package-name": "@abinnovision/payloadcms-wayfinder",
+			"component": "payloadcms-wayfinder"
 		}
 	}
 }
