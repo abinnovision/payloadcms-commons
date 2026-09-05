@@ -14,8 +14,13 @@ import type {
  * tests — none of which should have to stand up a global first.
  *
  * @param mappings The collection-to-pattern map.
+ * @param options Where a relationship parameter falls back to when the target
+ *   collection's own pattern cannot name an identifier.
  */
 export const defineMappings = (
 	mappings: PayloadCollectionMapping[],
+	options: { fallbackIdentifierField?: string } = {},
 ): PayloadCollectionMappingResolved[] =>
-	mappings.map((mapping) => resolveCollectionMapping(mapping));
+	mappings.map((mapping) =>
+		resolveCollectionMapping(mapping, options.fallbackIdentifierField),
+	);

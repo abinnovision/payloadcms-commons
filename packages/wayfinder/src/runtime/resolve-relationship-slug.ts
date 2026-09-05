@@ -1,4 +1,5 @@
 import { resolversFor } from "../pattern/resolver.js";
+import { DEFAULT_IDENTIFIER_FIELD } from "../pattern/types.js";
 
 import type { PayloadCollectionMappingResolved } from "../pattern/types.js";
 import type { Payload, SanitizedCollectionConfig } from "payload";
@@ -13,7 +14,6 @@ export interface ResolveRelationshipSlugArgs {
 	value: unknown;
 	mappings?: PayloadCollectionMappingResolved[];
 	locale?: string;
-	identifierField?: string;
 }
 
 /**
@@ -30,14 +30,14 @@ const identifierFor = (
 	target: string,
 	args: ResolveRelationshipSlugArgs,
 ): string => {
-	const fallback = args.identifierField ?? "slug";
+	const mapping = args.mappings?.find((it) => it.collection === target);
+	const fallback = mapping?.fallbackIdentifierField ?? DEFAULT_IDENTIFIER_FIELD;
 
-	if (!args.mappings || args.locale === undefined) {
+	if (!mapping || args.locale === undefined) {
 		return fallback;
 	}
 
-	const mapping = args.mappings.find((it) => it.collection === target);
-	const resolvers = mapping ? resolversFor(mapping, args.locale) : undefined;
+	const resolvers = resolversFor(mapping, args.locale);
 
 	if (!resolvers || resolvers.specificity.hasWildcard) {
 		return fallback;

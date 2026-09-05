@@ -11,6 +11,9 @@ import type { Field } from "payload";
  */
 export const DEFAULT_LOCALE_KEY = "__default";
 
+/** The field a relationship parameter matches on unless something says otherwise. */
+export const DEFAULT_IDENTIFIER_FIELD = "slug";
+
 /**
  * Maps one collection onto the URL patterns its documents live at.
  *
@@ -70,6 +73,18 @@ export interface PayloadCollectionMappingResolvers {
 
 export interface PayloadCollectionMappingResolved {
 	collection: string;
+	/**
+	 * The field a relationship parameter pointing at this collection matches
+	 * on, when the collection's own pattern cannot name one — a wildcard
+	 * pattern, typically.
+	 *
+	 * Carried on the mapping rather than passed to each function that needs
+	 * it. It is decided once, where the mappings are compiled, and every
+	 * caller downstream already holds them; as an argument it had to be
+	 * repeated at four unrelated call sites and forgetting one produced a
+	 * query that matched nothing rather than an error.
+	 */
+	fallbackIdentifierField: string;
 	/** Always a record after normalisation, keyed by locale or by {@link DEFAULT_LOCALE_KEY}. */
 	path: Record<string, string>;
 	resolvers: Record<string, PayloadCollectionMappingResolvers>;

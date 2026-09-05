@@ -45,7 +45,6 @@ export interface ResolvePathToDocumentArgs {
 	/** Read drafts rather than only published documents. */
 	draft?: boolean;
 	depth?: number;
-	identifierField?: string;
 	/**
 	 * Access rules, tenancy and language visibility all narrow which document
 	 * a path may resolve to, and none of them belong to the package. Without
@@ -67,7 +66,6 @@ const buildScopeConditions = (args: {
 	scope: Record<string, string>;
 	mappings: PayloadCollectionMappingResolved[];
 	locale: string;
-	identifierField?: string;
 }): Where[] => {
 	const config = args.payload.collections[args.collection]?.config;
 
@@ -82,9 +80,6 @@ const buildScopeConditions = (args: {
 			collections: args.payload.collections,
 			mappings: args.mappings,
 			locale: args.locale,
-			...(args.identifierField
-				? { identifierField: args.identifierField }
-				: {}),
 		});
 
 		return "error" in resolved
@@ -172,9 +167,6 @@ export const resolvePathToDocument = async (
 						scope: match.scope,
 						mappings: args.mappings,
 						locale: args.locale,
-						...(args.identifierField
-							? { identifierField: args.identifierField }
-							: {}),
 					}),
 					...publishedOnly(args.payload, collection, draft),
 					...(extra ? [extra] : []),

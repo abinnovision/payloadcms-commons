@@ -1,10 +1,8 @@
 import { resolversFor } from "./resolver.js";
+import { DEFAULT_IDENTIFIER_FIELD } from "./types.js";
 
 import type { PayloadCollectionMappingResolved } from "./types.js";
 import type { SanitizedCollectionConfig } from "payload";
-
-/** The default field a relationship parameter matches on. */
-export const DEFAULT_IDENTIFIER_FIELD = "slug";
 
 export type RegisteredCollections = Record<
 	string,
@@ -26,8 +24,12 @@ export interface ResolveParamQueryPathArgs {
 	mappings?: PayloadCollectionMappingResolved[];
 	/** The locale to derive against; patterns may differ per locale. */
 	locale?: string;
-	/** Fallback when the target's identifier cannot be derived. */
-	identifierField?: string;
+	/**
+	 * Fallback when the target's identifier cannot be derived and the target
+	 * has no compiled mapping to read one off. Used at save time, where the
+	 * mappings do not exist yet.
+	 */
+	fallbackIdentifierField?: string;
 }
 
 /**
@@ -50,15 +52,13 @@ const deriveIdentifierField = (
 	target: string,
 	args: ResolveParamQueryPathArgs,
 ): string => {
-	const fallback = args.identifierField ?? DEFAULT_IDENTIFIER_FIELD;
+	const mapping = args.mappings?.find((it) => it.collection === target);
+	const fallback =
+		mapping?.fallbackIdentifierField ??
+		args.fallbackIdentifierField ??
+		DEFAULT_IDENTIFIER_FIELD;
 
-	if (!args.mappings || args.locale === undefined) {
-		return fallback;
-	}
-
-	const mapping = args.mappings.find((it) => it.collection === target);
-
-	if (!mapping) {
+	if (!mapping || args.locale === undefined) {
 		return fallback;
 	}
 
@@ -102,7 +102,7 @@ export const resolveParamQueryPath = (
 		: [field.relationTo];
 
 	const identifiers = new Set<string>();
-	let identifier = args.identifierField ?? DEFAULT_IDENTIFIER_FIELD;
+	let identifier = args.fallbackIdentifierField ?? DEFAULT_IDENTIFIER_FIELD;
 
 	for (const target of targets) {
 		const targetConfig = args.collections[target]?.config;

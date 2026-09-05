@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildHref, identityFormatHref } from "./build-href.js";
+import { defineMappings } from "../pattern/define-mappings.js";
 import { matchCollectionMappings } from "../pattern/matcher.js";
 import { resolveCollectionMapping } from "../pattern/resolver.js";
 
@@ -45,17 +46,19 @@ describe("buildHref", () => {
 	 * Build and match must agree on which field identifies a related document,
 	 * so the same override that `resolveParamQueryPath` filters on is read here.
 	 */
-	it("honours `identifierField` when reading a populated relationship", () => {
+	it("reads a populated relationship by the mapping's fallback identifier", () => {
 		expect(
 			buildHref({
-				mappings: [map("articles", "/:section/:slug")],
+				mappings: defineMappings(
+					[{ collection: "articles", path: "/:section/:slug" }],
+					{ fallbackIdentifierField: "handle" },
+				),
 				collection: "articles",
 				document: {
 					section: { id: "s1", handle: "guides" },
 					slug: "hello-world",
 				},
 				locale: "en",
-				identifierField: "handle",
 			}),
 		).toBe("/guides/hello-world");
 	});

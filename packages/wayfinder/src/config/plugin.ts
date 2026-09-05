@@ -33,9 +33,23 @@ export interface WayfinderPluginArgs extends CreateMappingGlobalArgs {
 export const wayfinderPlugin =
 	(args: WayfinderPluginArgs = {}): Plugin =>
 	(incoming: Config): Config => {
+		/*
+		 * Whether patterns are per-locale is not a decision a project makes
+		 * twice. It follows from the config having a `localization` block,
+		 * which this plugin is handed, and `loadMappings` derives the same
+		 * fact from the same authority on the read side. Letting the two get
+		 * out of step wrote one shape and read another, and the mismatch
+		 * surfaced as a mapping that silently matched nothing.
+		 */
 		const config: Config = {
 			...incoming,
-			globals: [...(incoming.globals ?? []), createMappingGlobal(args)],
+			globals: [
+				...(incoming.globals ?? []),
+				createMappingGlobal({
+					localized: Boolean(incoming.localization),
+					...args,
+				}),
+			],
 			i18n: {
 				...incoming.i18n,
 				translations: {

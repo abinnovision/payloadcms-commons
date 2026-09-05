@@ -15,13 +15,22 @@ export interface CreateMappingGlobalArgs {
 	/** Defaults to {@link DEFAULT_MAPPING_GLOBAL_SLUG}. */
 	globalSlug?: string;
 	/**
-	 * Whether path patterns differ per locale. Turn it off for a project with
-	 * no `localization` block — Payload would otherwise return a scalar where
-	 * a per-locale record is expected.
+	 * Whether path patterns differ per locale.
+	 *
+	 * Derived from the config's `localization` block by `wayfinderPlugin`, and
+	 * from the running instance by `loadMappings`, so a project normally never
+	 * sets it. Pass it only to override that — and then to both sides, because
+	 * Payload returns a scalar for an unlocalized field and a per-locale record
+	 * for a localized one, and the read has to expect the shape the write
+	 * produced.
 	 */
 	localized?: boolean;
-	/** Fallback identifier field for relationship parameters. */
-	identifierField?: string;
+	/**
+	 * The field a relationship parameter falls back to when the target
+	 * collection's pattern cannot name one. Used here to validate a pattern at
+	 * save time, before any mapping has been compiled to carry it.
+	 */
+	fallbackIdentifierField?: string;
 	label?: GlobalConfig["label"];
 	adminGroup?: string;
 	access?: GlobalConfig["access"];
@@ -102,8 +111,8 @@ export const createMappingGlobal = (
 					config: collection.config,
 					param: key.name,
 					collections: opts.req.payload.collections,
-					...(args.identifierField
-						? { identifierField: args.identifierField }
+					...(args.fallbackIdentifierField
+						? { fallbackIdentifierField: args.fallbackIdentifierField }
 						: {}),
 				});
 

@@ -41,8 +41,20 @@ interface MappingRow {
 export interface LoadMappingsArgs {
 	payload: Payload;
 	globalSlug?: string;
-	/** Must match what {@link createMappingGlobal} was given. */
+	/**
+	 * Whether patterns are per-locale.
+	 *
+	 * Derived from the instance's own `localization` config, which is the same
+	 * authority `wayfinderPlugin` derives it from, so the two sides cannot
+	 * disagree. Set it only to override that, and then on both sides.
+	 */
 	localized?: boolean;
+	/**
+	 * The field a relationship parameter falls back to when the target
+	 * collection's own pattern cannot name one. Decided here, and carried on
+	 * every compiled mapping from here on.
+	 */
+	fallbackIdentifierField?: string;
 	/** Reuses compiled patterns across reads. @see MappingCache */
 	cache?: MappingCache;
 }
@@ -61,7 +73,7 @@ export interface LoadMappingsArgs {
 export const loadMappings = async (
 	args: LoadMappingsArgs,
 ): Promise<PayloadCollectionMappingResolved[]> => {
-	const localized = args.localized ?? true;
+	const localized = args.localized ?? Boolean(args.payload.config.localization);
 	const cache = args.cache ?? defaultCache;
 
 	const global = (await args.payload.findGlobal({
@@ -105,7 +117,7 @@ export const loadMappings = async (
 			: [];
 	});
 
-	const key = JSON.stringify(usable);
+	const key = JSON.stringify([usable, args.fallbackIdentifierField]);
 	const cached = cache.get(key);
 
 	if (cached) {
@@ -114,7 +126,7 @@ export const loadMappings = async (
 
 	const compiled = usable.flatMap((mapping) => {
 		try {
-			return [resolveCollectionMapping(mapping)];
+			return [resolveCollectionMapping(mapping, args.fallbackIdentifierField)];
 		} catch {
 			// An unparseable pattern was saved before validation tightened.
 			return [];

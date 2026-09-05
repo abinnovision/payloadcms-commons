@@ -67,7 +67,6 @@ export interface ResolveLinkArgs<
 	 */
 	context?: LinkContextOf<TDeclaration>;
 	formatHref?: FormatHref;
-	identifierField?: string;
 	resolveReference?: ResolveReference;
 	onDiagnostic?: OnDiagnostic<ResolveLinkDiagnosticReason>;
 }
@@ -169,9 +168,6 @@ export const resolveLink = <
 			document: value,
 			locale: args.locale,
 			...(args.formatHref ? { formatHref: args.formatHref } : {}),
-			...(args.identifierField
-				? { identifierField: args.identifierField }
-				: {}),
 			...(args.onDiagnostic ? { onDiagnostic: args.onDiagnostic } : {}),
 		});
 
