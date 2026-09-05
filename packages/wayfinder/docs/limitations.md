@@ -146,6 +146,33 @@ const key = `${relationTo}:${String(id)}`;
 The same check tells a populated reference from a bare id, which is why the package tests for the
 object rather than for `string`.
 
+## Building an href cannot derive a target's identifier
+
+A path lookup derives which field a relationship parameter matches on from the target collection's
+own pattern: `sections` served at `/topic/:handle` moves the article lookup onto `section.handle`
+without any other change. Building an href does not, and cannot. It reads a populated relationship
+off a document that carries no record of which collection it came from, so there is no target
+mapping to consult. It uses `fallbackIdentifierField` instead.
+
+**Consequence.** A collection whose pattern is keyed by something other than the fallback resolves
+in one direction only. With `sections` at `/topic/:handle` and the fallback left at `"slug"`,
+`router.resolve` matches `/insights-hub/first-look` while `router.href` builds
+`/insights/first-look` — a URL that leads nowhere, emitted without complaint.
+
+**Workaround.** Set `fallbackIdentifierField` to the field those targets are keyed by, so both
+directions agree:
+
+```ts
+const mappings = await loadMappings({
+  payload,
+  fallbackIdentifierField: "handle",
+});
+```
+
+One value covers a mapping set, so this works for a project keyed consistently by something other
+than `slug`. A project with two link targets keyed differently from each other has no setting that
+satisfies both; key them the same, or link to them through a collection that is.
+
 ## A variant field can shadow a built-in one
 
 The derived link data is the built-in shape intersected with what the variants contribute, and the

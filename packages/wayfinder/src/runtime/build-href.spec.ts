@@ -46,6 +46,35 @@ describe("buildHref", () => {
 	 * Build and match must agree on which field identifies a related document,
 	 * so the same override that `resolveParamQueryPath` filters on is read here.
 	 */
+	/*
+	 * The asymmetry documented in limitations.md, pinned so it stays a known
+	 * boundary rather than becoming a surprise. A path lookup derives the
+	 * target's identifier from the target's own pattern; building an href
+	 * cannot, because a populated relationship carries no record of the
+	 * collection it came from. The two agree only when the fallback names the
+	 * field the target is actually keyed by.
+	 */
+	it("cannot derive a target's identifier, so build and match can disagree", () => {
+		const rows = [
+			{ collection: "articles", path: "/:section/:slug" },
+			{ collection: "sections", path: "/topic/:handle" },
+		];
+		const document = {
+			slug: "first-look",
+			section: { id: 1, slug: "insights", handle: "insights-hub" },
+		};
+		const href = (mappings: ReturnType<typeof defineMappings>) =>
+			buildHref({ mappings, collection: "articles", document, locale: "en" });
+
+		// `sections` is served at /topic/:handle, so a lookup matches on `handle`.
+		expect(href(defineMappings(rows))).toBe("/insights/first-look");
+
+		// Naming it is what makes the two directions agree.
+		expect(
+			href(defineMappings(rows, { fallbackIdentifierField: "handle" })),
+		).toBe("/insights-hub/first-look");
+	});
+
 	it("reads a populated relationship by the mapping's fallback identifier", () => {
 		expect(
 			buildHref({

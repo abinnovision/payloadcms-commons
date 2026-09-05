@@ -74,15 +74,21 @@ export interface PayloadCollectionMappingResolvers {
 export interface PayloadCollectionMappingResolved {
 	collection: string;
 	/**
-	 * The field a relationship parameter pointing at this collection matches
-	 * on, when the collection's own pattern cannot name one — a wildcard
-	 * pattern, typically.
+	 * The field a relationship parameter matches on when it cannot be derived
+	 * from the target collection's own pattern — a wildcard pattern, typically.
 	 *
-	 * Carried on the mapping rather than passed to each function that needs
-	 * it. It is decided once, where the mappings are compiled, and every
-	 * caller downstream already holds them; as an argument it had to be
-	 * repeated at four unrelated call sites and forgetting one produced a
-	 * query that matched nothing rather than an error.
+	 * Carried on the mapping rather than passed to each function that needs it.
+	 * It is decided once, where the mappings are compiled, and every caller
+	 * downstream already holds them; as an argument it had to be repeated at
+	 * four unrelated call sites, and forgetting one produced a query that
+	 * matched nothing rather than an error.
+	 *
+	 * The same value across a mapping set, because building an href is a pure
+	 * operation: it reads a populated relationship off a document without
+	 * knowing which collection that document came from, so it cannot look up
+	 * the target's own mapping the way a path lookup can. Where a target is
+	 * keyed by something the derivation cannot reach, this is what both sides
+	 * have to agree on.
 	 */
 	fallbackIdentifierField: string;
 	/** Always a record after normalisation, keyed by locale or by {@link DEFAULT_LOCALE_KEY}. */

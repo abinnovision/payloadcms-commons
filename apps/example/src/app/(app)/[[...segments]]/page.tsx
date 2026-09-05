@@ -6,6 +6,7 @@ import { draftMode } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPayload } from "payload";
+import { cache } from "react";
 
 import { blocks } from "../../../blocks/registry";
 import { LOCALES, splitLocale } from "../../../locales";
@@ -29,12 +30,16 @@ const renderer = createRenderer(blocks);
 /**
  * Resolves a request path to the document behind it.
  *
- * `routerArgs` reads the mapping through a request-scoped memo, so the
- * metadata pass and the render pass below share one read of the global rather
- * than one each.
+ * Memoised for the request because Next calls `generateMetadata` and the page
+ * itself separately, and both need the same document. Without this the page
+ * would be looked up twice — and so, through `routerArgs`, would the mapping.
+ *
+ * Keyed on the joined path rather than on the segments array: `cache` compares
+ * arguments by identity, and the two callers each await `params` for
+ * themselves, so two equal arrays would miss.
  */
-const resolveRequest = async (segments: string[] | undefined) => {
-	const { locale, path } = splitLocale(segments ?? []);
+const resolveRequest = cache(async (joined: string) => {
+	const { locale, path } = splitLocale(joined === "" ? [] : joined.split("/"));
 	const { isEnabled: isPreview } = await draftMode();
 
 	const payload = await getPayload({ config });
@@ -56,7 +61,7 @@ const resolveRequest = async (segments: string[] | undefined) => {
 	);
 
 	return { resolved, locale, isPreview, args };
-};
+});
 
 /**
  * The canonical URL and its translations, both built from the mapping the
@@ -67,7 +72,7 @@ export const generateMetadata = async ({
 	params,
 }: Params): Promise<Metadata> => {
 	const { segments } = await params;
-	const { resolved, args } = await resolveRequest(segments);
+	const { resolved, args } = await resolveRequest((segments ?? []).join("/"));
 
 	if (!resolved) {
 		return {};
@@ -106,7 +111,9 @@ export const generateMetadata = async ({
  */
 const Page = async ({ params }: Params) => {
 	const { segments } = await params;
-	const { resolved, locale, isPreview, args } = await resolveRequest(segments);
+	const { resolved, locale, isPreview, args } = await resolveRequest(
+		(segments ?? []).join("/"),
+	);
 
 	if (!resolved) {
 		notFound();
