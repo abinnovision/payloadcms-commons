@@ -99,6 +99,49 @@ explicit `adminOrigin` and checks both `event.origin` and `event.source`; the ad
 the window Payload itself put in the preview frame. A version mismatch is dropped silently, so a
 stale frontend deployment cannot drive a newer admin.
 
+## One switch, owned by the admin
+
+Both directions are turned on and off together, from a toggle in the document controls that renders
+on any document with a live preview configured and is greyed out until one is open. Off means no
+outline on either side, no row buttons, and no click interception in the preview, so an editor can
+click through the previewed site the way a visitor would. The setting is a per-user Payload
+preference under the key `viewfinder`.
+
+It defaults to off. Live preview's own job is showing the editor the page, and viewfinder changes
+how that page behaves: it swallows a click on a link, and it draws over whatever is under the
+pointer. That is worth having when you are looking for a block and an imposition when you are
+looking at the page, so it is opted into rather than out of. Both sides default off independently,
+so the preview is inert on mount rather than live for the moment before the admin answers.
+
+The toggle is Payload's own `Button`, not a styled `<button>` — the same element as the controls it
+sits between, so its hover, focus and disabled states are the admin's rather than an imitation of
+them, and survive a theme or an upgrade. It uses the `subtle` variant in both states, which
+resolves to the same tokens as the live-preview toggler beside it, and carries on and off in the
+icon rather than in the box, as that toggler does with its eye. `secondary` would be the obvious
+choice for an "off" outline and is the wrong one: its border is `--theme-elevation-800`, so an
+icon-only button drawn that way lands as a black square next to Payload's grey ones. The one thing
+`Button` does not give is a square: its sizes are shaped for a label, so the width and height are
+set from the same `--base` multiple the toggler uses.
+
+Whether a preview is open comes from `useLivePreviewContext`, not from sniffing for the iframe; the
+iframe lookup remains only for addressing the `postMessage`.
+
+There is one switch rather than one per behaviour because the behaviours are one feature. Splitting
+hover from click would make the editor reason about a matrix to answer the only question they
+actually have, which is whether the preview is linked to the form or not.
+
+The admin owns the state and the preview is told what it is. That direction is forced: the setting
+lives in Payload preferences, which only the admin can read, and the preview is a page that may be
+re-rendered out from under the channel at any time. `RefreshRouteOnSave` does exactly that after
+every save, remounting the frontend bridge with default state, which is why `ready` — previously a
+courtesy announcement the admin ignored — is now answered with the current setting.
+
+The `enabled` message was added without bumping `VIEWFINDER_PROTOCOL_VERSION`. Adding a type is
+additive: a frontend that predates it does not have `enabled` in its own admin-type set, so it
+drops the message and keeps behaving exactly as it did. Bumping the version to describe an additive
+change would instead break every existing pairing at once, which is the opposite of what the
+version is for.
+
 ## Entrypoints
 
 ```

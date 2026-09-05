@@ -220,7 +220,8 @@ generic hook; this is one use of it.
 
 ## Checking it works
 
-Open a document in the admin and switch to the Live Preview tab. Hovering a block in the preview
+Open a document in the admin, switch to the Live Preview tab, and turn on the crosshair toggle in
+the document controls — the feature starts off, so nothing below happens until you do. Hovering a block in the preview
 outlines it and names it; clicking anywhere inside it scrolls the matching form row into view,
 expanding whatever is collapsed around it, and flashes it. Going the other way, hovering anywhere
 in a block row outlines that block in the preview without moving it, and the button in the row
@@ -230,6 +231,16 @@ Nothing else in the form triggers anything: typing, collapsing rows or opening a
 the preview where it is. In the preview, a plain click inside a marked block selects it rather than
 following a link; hold a modifier, or click outside every marked block, to use the page normally.
 
-If nothing happens at all, check in this order: the import map was regenerated, the collection is
-in the plugin's `collections` list, `adminOrigin` matches the admin's real origin, and the blocks
-are actually marked (`data-vf-id` should be on the rendered elements when the preview flag is on).
+Turning the toggle back off restores all of that: the row buttons disappear, neither side outlines
+anything, and a link in the preview navigates normally again. It is a per-user preference, so the
+choice survives a reload and follows you to the next document. It also survives a save, which is
+the case worth checking — `RefreshRouteOnSave` remounts the frontend bridge, and the admin
+re-announces the setting when the fresh bridge says `ready`.
+
+The toggle is greyed out, in Payload's own disabled style, on a document whose live preview is
+closed. It disappears entirely only when the collection has no `admin.livePreview.url` at all.
+
+If nothing happens at all, check in this order: the toggle is on, the import map was regenerated,
+the collection is in the plugin's `collections` list, `adminOrigin` matches the admin's real
+origin, and the blocks are actually marked (`data-vf-id` should be on the rendered elements when
+the preview flag is on).

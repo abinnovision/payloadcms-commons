@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BLOCK_ID_ATTRIBUTE } from "../attributes.js";
 import { isAdminMessage, previewMessage } from "../protocol.js";
@@ -43,11 +43,26 @@ const labelFor = (address: BlockAddress): string =>
  *
  * Does nothing at all when the page is not framed, so the same tree can be
  * served to real visitors without a second code path.
+ *
+ * The admin owns the on/off setting and announces it. Until it does, and
+ * whenever it says off, this is an untouched page: no outline, and a link
+ * inside a marked block navigates the way it would for a visitor.
  */
 export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 	const { adminOrigin } = props;
 	const [active, setActive] = useState<Active | null>(null);
 	const [box, setBox] = useState<Box | undefined>(undefined);
+
+	/*
+	 * Off until the admin says otherwise, matching the default on that side.
+	 * Erring the other way would flash an outline onto every preview the moment
+	 * it mounts, including after each save, for the editors who have not asked
+	 * for the feature at all.
+	 *
+	 * Held in a ref because the listeners below are attached once, keyed on
+	 * `adminOrigin`, and must read the current value without being torn down.
+	 */
+	const enabled = useRef(false);
 
 	useEffect(() => {
 		if (window.parent === window) {
@@ -75,6 +90,10 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 		};
 
 		const onPointerOver = (event: PointerEvent): void => {
+			if (!enabled.current) {
+				return;
+			}
+
 			const resolved = resolveTarget(event.target as Element | null);
 			if (!resolved) {
 				setActive(null);
@@ -99,6 +118,11 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 		 * marked block are never touched.
 		 */
 		const onClick = (event: MouseEvent): void => {
+			/* Before `preventDefault`: switched off, the page keeps its own clicks. */
+			if (!enabled.current) {
+				return;
+			}
+
 			if (
 				event.button !== 0 ||
 				event.metaKey ||
@@ -129,7 +153,18 @@ export const ViewfinderBridge = (props: ViewfinderBridgeProps): ReactNode => {
 				return;
 			}
 
-			if (event.data.type === "clear") {
+			if (event.data.type === "enabled") {
+				enabled.current = event.data.enabled;
+				if (!event.data.enabled) {
+					setActive(null);
+					hovered = null;
+				}
+
+				return;
+			}
+
+			/* Everything below draws. The admin already gates it; this fails closed too. */
+			if (!enabled.current || event.data.type === "clear") {
 				setActive(null);
 
 				return;

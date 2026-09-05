@@ -1,6 +1,10 @@
 "use client";
 
-import { useAllFormFields } from "@payloadcms/ui";
+import {
+	useAllFormFields,
+	useLivePreviewContext,
+	usePreferences,
+} from "@payloadcms/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -15,6 +19,7 @@ import {
 	rowPathAt,
 	sameRows,
 } from "./rows.js";
+import { ViewfinderToggle } from "./toggle.js";
 
 import type { AdminMessage } from "../protocol.js";
 import type { FormStateLike } from "../resolve-path.js";
@@ -25,6 +30,16 @@ const PREVIEW_IFRAME_ID = "live-preview-iframe";
 
 /** Long enough to coalesce a burst of admin re-renders, short enough to feel instant. */
 const RESCAN_MS = 50;
+
+/**
+ * Payload preference key. Holds an object rather than a bare boolean so a
+ * later second setting fits without a new key or a migration.
+ */
+const PREFERENCE_KEY = "viewfinder";
+
+interface ViewfinderPreference {
+	enabled?: boolean;
+}
 
 const previewIframe = (): HTMLIFrameElement | null =>
 	document.getElementById(PREVIEW_IFRAME_ID) as HTMLIFrameElement | null;
@@ -57,10 +72,19 @@ const post = (message: AdminMessage): void => {
  * Only the button scrolls. Driving the scroll from focus or from an ordinary
  * click, as an earlier version did, moved the preview while an editor was
  * merely placing a caret.
+ *
+ * All of it stands down when the editor turns the toggle off. This side owns
+ * that setting and tells the preview what it is, both on change and whenever
+ * the preview announces itself.
  */
 export const ViewfinderFormBridge = (): ReactNode => {
 	const [fields] = useAllFormFields();
+	const { getPreference, setPreference } = usePreferences();
+	const { isLivePreviewing, url: livePreviewURL } = useLivePreviewContext();
 	const [rows, setRows] = useState<ReadonlyMap<string, HTMLElement>>(new Map());
+
+	/* `undefined` until the preference resolves, which is what greys the toggle out. */
+	const [enabled, setEnabled] = useState<boolean | undefined>(undefined);
 
 	/*
 	 * Form state changes on every keystroke. Held in a ref so the listeners
@@ -69,6 +93,48 @@ export const ViewfinderFormBridge = (): ReactNode => {
 	 */
 	const formState = useRef<FormStateLike>(fields);
 	formState.current = fields;
+
+	/*
+	 * Same reason, for the same listeners. Off until the preference says
+	 * otherwise, which is also the default, so nothing acts on a pointer before
+	 * the editor has asked for it.
+	 */
+	const enabledState = useRef(false);
+	enabledState.current = enabled ?? false;
+
+	const loaded = useRef(false);
+
+	useEffect(() => {
+		if (loaded.current) {
+			return;
+		}
+
+		loaded.current = true;
+		void getPreference<ViewfinderPreference | null>(PREFERENCE_KEY)
+			.then((preference) => {
+				setEnabled(preference?.enabled === true);
+			})
+			.catch(() => {
+				/* An unreachable preferences endpoint lands on the default. */
+				setEnabled(false);
+			});
+	}, [getPreference]);
+
+	/*
+	 * Announces the setting on every change, and on the first resolve. The
+	 * preview also asks for it by name when it mounts, which is what covers the
+	 * remount that `RefreshRouteOnSave` causes after each save.
+	 */
+	useEffect(() => {
+		if (enabled === undefined) {
+			return;
+		}
+
+		post(adminMessage.enabled(enabled));
+		if (!enabled) {
+			post(adminMessage.clear());
+		}
+	}, [enabled]);
 
 	/*
 	 * The same rows indexed by element, which is the direction the hover
@@ -94,7 +160,18 @@ export const ViewfinderFormBridge = (): ReactNode => {
 				return;
 			}
 
-			if (!isPreviewMessage(event.data) || event.data.type !== "select") {
+			if (!isPreviewMessage(event.data)) {
+				return;
+			}
+
+			/* The preview asks on mount; this side is the one that knows. */
+			if (event.data.type === "ready") {
+				post(adminMessage.enabled(enabledState.current));
+
+				return;
+			}
+
+			if (event.data.type !== "select" || !enabledState.current) {
 				return;
 			}
 
@@ -155,6 +232,16 @@ export const ViewfinderFormBridge = (): ReactNode => {
 		let hovered: string | undefined;
 
 		const highlight = (path: string | undefined): void => {
+			/*
+			 * Cleared rather than merely skipped, so the first hover after the
+			 * toggle comes back on is not deduped away against a stale path.
+			 */
+			if (!enabledState.current) {
+				hovered = undefined;
+
+				return;
+			}
+
 			if (path === hovered) {
 				return;
 			}
@@ -192,28 +279,48 @@ export const ViewfinderFormBridge = (): ReactNode => {
 
 	return (
 		<>
-			{[...rows].map(([path, row]) => {
-				const controls = rowControls(row);
+			{/*
+			 * Shown whenever the document has a live preview at all, and greyed
+			 * out until there is one open to link to. Hiding it instead would
+			 * make the feature discoverable only by accident.
+			 */}
+			{livePreviewURL ? (
+				<ViewfinderToggle
+					disabled={!isLivePreviewing || enabled === undefined}
+					enabled={enabled ?? false}
+					onToggle={(next) => {
+						setEnabled(next);
+						void setPreference<ViewfinderPreference>(PREFERENCE_KEY, {
+							enabled: next,
+						});
+					}}
+				/>
+			) : null}
+			{/* Not `!== false`: while the preference is still loading there are no buttons either. */}
+			{enabled !== true
+				? null
+				: [...rows].map(([path, row]) => {
+						const controls = rowControls(row);
 
-				return controls === null
-					? null
-					: createPortal(
-							<RowButton
-								label="Scroll the preview to this block"
-								onSelect={() => {
-									const address = resolveAddressForPath(
-										formState.current,
-										path,
-									);
-									if (address) {
-										post(adminMessage.scrollTo(address));
-									}
-								}}
-							/>,
-							controls,
-							path,
-						);
-			})}
+						return controls === null
+							? null
+							: createPortal(
+									<RowButton
+										label="Scroll the preview to this block"
+										onSelect={() => {
+											const address = resolveAddressForPath(
+												formState.current,
+												path,
+											);
+											if (address) {
+												post(adminMessage.scrollTo(address));
+											}
+										}}
+									/>,
+									controls,
+									path,
+								);
+					})}
 		</>
 	);
 };

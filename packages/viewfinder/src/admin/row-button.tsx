@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { Crosshair } from "./icons.js";
+
 import type { CSSProperties, ReactNode } from "react";
 
 /**
@@ -101,18 +103,7 @@ export const RowButton = (props: RowButtonProps): ReactNode => {
 			title={props.label}
 			type="button"
 		>
-			<svg
-				aria-hidden
-				fill="none"
-				height="14"
-				stroke="currentColor"
-				strokeWidth="1.6"
-				viewBox="0 0 16 16"
-				width="14"
-			>
-				<circle cx="8" cy="8" r="3.2" />
-				<path d="M8 1v2.2M8 12.8V15M1 8h2.2M12.8 8H15" strokeLinecap="round" />
-			</svg>
+			<Crosshair />
 		</button>
 	);
 };
