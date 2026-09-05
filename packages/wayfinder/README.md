@@ -1,5 +1,7 @@
 # @abinnovision/payloadcms-wayfinder
 
+![An editor-authored map of path patterns turns collections into URLs and URLs back into documents](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/wayfinder/assets/header.png)
+
 Editor-authored URL routing for [Payload CMS](https://payloadcms.com/).
 
 Wayfinder owns one thing: the map from collections to the URL patterns their documents are served
