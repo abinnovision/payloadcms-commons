@@ -1,0 +1,11 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"build": {
+			"inputs": ["src/**/*", "next.config.mjs", "tsconfig.json"],
+			"outputs": [".next/**", "!.next/cache/**"],
+			"env": ["PAYLOAD_SECRET", "DATABASE_URI", "PAYLOAD_URL"]
+		}
+	}
+}

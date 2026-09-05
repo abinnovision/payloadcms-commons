@@ -65,7 +65,7 @@ admin posts an update, so the page re-renders on the server with fresh data.
 If drafts are on, the preview URL usually points at a route of your own that turns draft mode on
 before handing off to the real page. That route is your app's concern, not viewfinder's, but it
 should be gated on the Payload session the admin already holds, so an unauthenticated visitor
-cannot enable draft mode for themselves. `apps/montage-example/src/app/(app)/preview/route.ts` in
+cannot enable draft mode for themselves. `apps/example/src/app/(app)/preview/route.ts` in
 this repository is a working example.
 
 Viewfinder itself only needs the page to be in an iframe. It does not read the preview URL, the

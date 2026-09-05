@@ -379,7 +379,7 @@ export const articles: CollectionConfig = {
         features: ({ defaultFeatures }) => [
           ...defaultFeatures,
           wayfinderLinkFeature({ relationTo: ["pages", "articles"], links }),
-          linkLabelFeature,
+          linkLabelFeature(),
         ],
       }),
     },

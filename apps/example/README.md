@@ -1,0 +1,155 @@
+# example
+
+One Payload CMS app mounting every package in this repo except the Lettermint
+adapter, which has no seam with the others and no frontend surface.
+
+Each package still installs on its own. This app exists to show what happens
+when a site takes several of them: where they touch, and what stays separate.
+
+| Package                                   | Where it shows up                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| [`montage`](../../packages/montage)       | `src/blocks/*`, the block tree rendered by the one route                             |
+| [`viewfinder`](../../packages/viewfinder) | one `wrapBlock` in `src/blocks/registry.tsx`, one `<ViewfinderBridge>` in the layout |
+| [`wayfinder`](../../packages/wayfinder)   | every URL on the site, plus the links inside blocks and rich text                    |
+| [`mcpx`](../../packages/mcpx)             | `POST /api/mcpx`, and the **MCP** group in the admin panel                           |
+
+## Setup
+
+```bash
+cp .env.example .env
+yarn install
+yarn workspace @internal/example generate:importmap
+yarn workspace @internal/example seed
+yarn workspace @internal/example dev
+```
+
+`generate:importmap` is required: three packages contribute admin components
+(viewfinder's form bridge, wayfinder's link-label plugin, mcpx's setup guide),
+and Payload resolves those through the generated import map. Re-run it whenever
+the set of plugins that contribute components changes.
+
+`seed` fills a fresh database and prints the sign-in it created
+(`editor@example.com` / `password`).
+
+Changing the content model means `yarn generate:types` too, and then `yarn fix`:
+Payload writes `src/payload-types.ts` with its own formatting, which is not this
+repo's.
+
+| Variable         | Required | Purpose                                                                           |
+| ---------------- | -------- | --------------------------------------------------------------------------------- |
+| `PAYLOAD_SECRET` | yes      | Signs JWTs, and the mcpx API key index derives from it. Rotating it orphans keys. |
+| `DATABASE_URI`   | no       | SQLite file. Defaults to `file:./.data/example.db`.                               |
+| `PAYLOAD_URL`    | no       | Base URL of this app. Defaults to `http://localhost:3000`.                        |
+
+`PAYLOAD_URL` does double duty: its origin is the `adminOrigin` the viewfinder
+bridge trusts, and it is what the mcpx setup guide prints as an absolute
+endpoint URL. Set it if you serve the admin from anywhere else.
+
+## What the seed leaves you
+
+| URL                        | Serves                                                |
+| -------------------------- | ----------------------------------------------------- |
+| `/`                        | the `pages` document whose slug is `/`                |
+| `/about/team`              | a page two levels deep, via the wildcard pattern      |
+| `/topic/journal`           | a `sections` document                                 |
+| `/journal/hello-world`     | an `articles` document, addressed through its section |
+| `/de`, `/de/thema/journal` | the same documents in German                          |
+
+There is one route file, `src/app/(app)/[[...segments]]/page.tsx`, and it names
+no collection and no URL shape.
+
+## Things to try
+
+**Move a URL without touching code.** Open **Settings → Collections Mapping**
+and change the `articles` row to `/writing/:section/:slug`. The article moves,
+and the call-to-action on `/about/team` moves with it, because links resolve
+through the same mapping the route matched.
+
+**Watch a block collapse.** `recent-posts-module` declares a resolver, and
+`canRender` reads its result. Delete every `posts` document and the module
+disappears; delete the hero next to it and the whole `section-wrapper`
+disappears, because it filters its children through `renderer.canRender` before
+rendering.
+
+**Address a block from live preview.** Open a page and switch to the Live
+Preview tab. Hover a block in the preview: it is outlined, with its slug in the
+corner. Click it: the matching row in the `layout` field expands, scrolls into
+view and flashes. Going the other way, hover a block row in the form and that
+block is outlined in the preview. It works on the `callout` inside the rich text
+too, at whatever depth it sits.
+
+**Write over MCP.** Create a key under **MCP → API Keys**, tick `pages` read,
+write and publish, then:
+
+```bash
+claude mcp add --transport http payload http://localhost:3000/api/mcpx \
+  --header "Authorization: Bearer <key>"
+```
+
+`describeSchema` on `pages` stops at `/layout` and names the block slugs;
+`/layout/section-wrapper/modules/hero-module` descends into one. `createDocument`
+leaves a draft, which 404s on the site, and `publishDocument` makes it routable
+at whatever URL the mapping says it lives at. Try `publishDocument` on `posts`
+and the tool is not there: `posts` is configured `write: "draft"`, so its drafts
+only go live through the admin panel.
+
+## The two seams
+
+Neither package knows about the other. Both hooks are plain wrappers either side
+can live without.
+
+**montage → viewfinder.** `src/blocks/registry.tsx` passes viewfinder's `Marked`
+through montage's `wrapBlock`. Montage has one dispatch point for every block at
+every depth, so that single hook makes the whole tree addressable — nested
+modules and richtext-embedded blocks included. Outside preview `Marked` renders
+its children untouched, so the tree served to visitors is the same tree.
+`packages/viewfinder/docs/integration.md` has the per-block version for an app
+without montage.
+
+**wayfinder → montage.** The route calls `initWayfinder` once, which parks the
+compiled mappings on the render context. `src/components/AppLink.tsx` reads them
+back with `getMappings(ctx)` and is the only file that does: it takes the whole
+context rather than a bag of props, so the mappings, the locale and the href
+formatter never have to be threaded down the tree. A page with dozens of links
+reads the mapping global once per request rather than once per link, and no
+block component imports wayfinder at all.
+
+Every link the site renders goes through that one component, including the ones
+typed into rich text — `resolveLinkNode` unwraps a Lexical node into the same
+link data and hands off to the same `resolveLink` call, so the two cannot
+disagree. `src/wayfinder.ts` keeps the standalone `loadMappings` wrapper next to
+it, which is what an app without montage would use, and what the preview route
+uses here.
+
+## Decisions worth knowing about
+
+**Live preview is server-side.** `livePreview.url` points at
+`src/app/(app)/preview/route.ts`, which enables Next's draft mode behind the
+Payload session the admin already holds and hands off to the real route.
+Client-side live preview would give the page a freshly deserialised document,
+and montage keys resolver results by object identity, so nothing resolved would
+survive the round trip.
+
+That route also computes where to send the browser with `buildHref` rather than
+taking a path as a parameter, so preview follows the pattern an editor authored
+instead of a second copy of it written into the collection config.
+
+**The locale prefix lives in `formatHref`, not in the patterns.** The German
+mapping rows carry translated segments (`/thema/:slug`), not a `/de` prefix.
+`src/locales.ts` strips the prefix off the incoming path and puts it back on
+every path the site emits. Authoring `/de/*slug` as a pattern would work for
+every URL but one: a wildcard cannot match an empty rest, so the German home
+page would be unreachable. `formatHref` has to reach `buildHref`, `buildPath`
+**and** `resolveLink` — it is threaded through the render context for that
+reason.
+
+**`payload.config.ts` never imports React.** Every plugin comes from an
+entrypoint that is free of it. Block components in turn never import Next:
+`Link` reaches them through the render context in `src/montage.ts`, injected
+once by the route.
+
+**Localization is on the document, not on block chrome.** `pages.title`,
+`posts.content` and `rich-text-module.content` are localized; a hero's title is
+not. Localizing a required field inside a shared blocks array means every
+locale has to fill it before the document will save, which is a real choice a
+site makes rather than a default worth demonstrating.
