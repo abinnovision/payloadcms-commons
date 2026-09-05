@@ -16,6 +16,16 @@ export interface ResolveRelationshipSlugArgs {
 	identifierField?: string;
 }
 
+/**
+ * Whether a raw value can stand in for a document identifier.
+ *
+ * Both branches matter: the id an editor picked follows the database adapter,
+ * so it is a string on Mongo and a number on SQLite and serial Postgres, and
+ * refusing numbers made every preview URL on those adapters resolve to null.
+ */
+const isIdentifier = (value: unknown): value is string | number =>
+	typeof value === "string" || typeof value === "number";
+
 const identifierFor = (
 	target: string,
 	args: ResolveRelationshipSlugArgs,
@@ -58,8 +68,15 @@ export const resolveRelationshipSlug = async (
 		(it) => it.name === args.param,
 	);
 
+	/*
+	 * A parameter naming a plain field is already the value the path wants,
+	 * so it is returned as-is and the same call stays safe for every
+	 * parameter in a pattern. Numbers are stringified rather than refused: a
+	 * pattern may well be keyed by a numeric field, and a path segment is
+	 * text either way.
+	 */
 	if (field?.type !== "relationship") {
-		return typeof args.value === "string" ? args.value : null;
+		return isIdentifier(args.value) ? String(args.value) : null;
 	}
 
 	const targets = Array.isArray(field.relationTo)
@@ -71,10 +88,10 @@ export const resolveRelationshipSlug = async (
 		const identifier = identifierFor(targets[0]!, args);
 		const held = (args.value as Record<string, unknown>)[identifier];
 
-		return typeof held === "string" ? held : null;
+		return isIdentifier(held) ? String(held) : null;
 	}
 
-	if (typeof args.value !== "string") {
+	if (!isIdentifier(args.value)) {
 		return null;
 	}
 
@@ -92,8 +109,8 @@ export const resolveRelationshipSlug = async (
 
 			const held = (related as Record<string, unknown>)[identifier];
 
-			if (typeof held === "string") {
-				return held;
+			if (isIdentifier(held)) {
+				return String(held);
 			}
 		} catch {
 			// Not a document of this collection; try the next target.

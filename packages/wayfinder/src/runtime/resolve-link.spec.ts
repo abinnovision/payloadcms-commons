@@ -100,6 +100,16 @@ describe("resolveLink", () => {
 });
 
 describe("resolveLink references", () => {
+	/*
+	 * A populated reference arrives as the related document, not as a literal
+	 * written at the call site. Declaring it as a value keeps these fixtures
+	 * the shape Payload actually hands over — `reference.value` is typed as
+	 * `{ id }` so that a generated collection interface assigns to it, and an
+	 * interface carries its other fields without declaring them here.
+	 */
+	const article = { id: "a1", slug: "hello-world" };
+	const note = { id: "n1", slug: "hello-world" };
+
 	it("routes a populated reference through its collection mapping", () => {
 		expect(
 			resolveLink({
@@ -107,7 +117,7 @@ describe("resolveLink references", () => {
 					type: "reference",
 					reference: {
 						relationTo: "articles",
-						value: { id: "a1", slug: "hello-world" },
+						value: article,
 					},
 				},
 				mappings,
@@ -143,7 +153,7 @@ describe("resolveLink references", () => {
 					type: "reference",
 					reference: {
 						relationTo: "notes",
-						value: { id: "n1", slug: "hello-world" },
+						value: note,
 					},
 				},
 				mappings,
@@ -163,7 +173,7 @@ describe("resolveLink references", () => {
 					type: "reference",
 					reference: {
 						relationTo: "articles",
-						value: { id: "a1", slug: "hello-world" },
+						value: article,
 					},
 					newTab: true,
 				},
@@ -185,7 +195,7 @@ describe("resolveLink references", () => {
 					type: "reference",
 					reference: {
 						relationTo: "articles",
-						value: { id: "a1", slug: "hello-world" },
+						value: article,
 					},
 				},
 				mappings,
@@ -460,9 +470,17 @@ describe("resolveLink with a declaration", () => {
 		 */
 		const seen: Diagnostic<ResolveLinkDiagnosticReason>[] = [];
 
+		/*
+		 * Stored data carrying a variant this call knows nothing about, which
+		 * is the situation the diagnostic exists for. Declared as a value
+		 * rather than written inline: with no declaration passed, `fileName`
+		 * is not part of the link shape, and that is the point.
+		 */
+		const link = { type: "download", fileName: "report.pdf" };
+
 		expect(
 			resolveLink({
-				link: { type: "download", fileName: "report.pdf" },
+				link,
 				mappings: [],
 				locale: "en",
 				onDiagnostic: (it) => seen.push(it),

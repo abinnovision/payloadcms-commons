@@ -7,16 +7,16 @@ import type {
 } from "./diagnostics.js";
 import type {
 	LinkContextOf,
+	LinkDataOf,
 	LinkDeclaration,
 	LinkVariantSource,
 	ResolvedLinkOf,
 } from "../pattern/define-links.js";
 import type {
 	BaseResolvedLink,
+	DocumentId,
 	FormatHref,
-	LinkFieldData,
 	PayloadCollectionMappingResolved,
-	ResolvedLink,
 } from "../pattern/types.js";
 
 /** Types the package resolves without a declaration. */
@@ -41,18 +41,23 @@ const newTabProps = (newTab: boolean | null | undefined) =>
  */
 export type ResolveReference = (args: {
 	relationTo: string;
-	value: string | { id: string };
+	value: DocumentId | { id: DocumentId };
 	locale: string;
 }) => string | null;
 
 export interface ResolveLinkArgs<
-	TExtra = object,
 	TDeclaration extends LinkDeclaration = LinkDeclaration,
 > extends LinkVariantSource<TDeclaration> {
-	link: LinkFieldData<string, TExtra> | undefined;
+	/**
+	 * The link group's value.
+	 *
+	 * Typed off the declaration rather than a second type parameter, so a
+	 * variant's own fields are accepted here without the caller naming them.
+	 * With no declaration this widens to the built-in shape.
+	 */
+	link: LinkDataOf<TDeclaration> | undefined;
 	mappings: PayloadCollectionMappingResolved[];
 	locale: string;
-	/** Passed through to a variant's resolver untouched. */
 	/**
 	 * Passed through to a variant's resolver untouched.
 	 *
@@ -80,15 +85,22 @@ export interface ResolveLinkArgs<
  * @param args The link value, mappings, locale and any app-declared variants.
  */
 export const resolveLink = <
-	TExtra = object,
 	TDeclaration extends LinkDeclaration = LinkDeclaration,
 >(
-	args: ResolveLinkArgs<TExtra, TDeclaration>,
-):
-	| BaseResolvedLink
-	| ResolvedLink<TExtra>
-	| ResolvedLinkOf<TDeclaration>
-	| null => {
+	args: ResolveLinkArgs<TDeclaration>,
+): ResolvedLinkOf<TDeclaration> | null => {
+	/*
+	 * The built-in branches below each build a `{ href, target?, rel? }`,
+	 * which is `ResolvedLinkOf` with none of its contributed properties set.
+	 * TypeScript cannot see that while the type parameter is uninstantiated,
+	 * so they are asserted through this one alias rather than at four call
+	 * sites. Returning the union instead would push the same assertion onto
+	 * every consumer reading a variant's own property, which is the whole
+	 * point of carrying the declaration.
+	 */
+	type Resolved = ResolvedLinkOf<TDeclaration>;
+	const builtin = (it: BaseResolvedLink): Resolved => it as Resolved;
+
 	const link = args.link;
 
 	if (!link?.type || link.type === "none") {
@@ -103,22 +115,22 @@ export const resolveLink = <
 	 * than the mapping, is still the same link type to an editor and should
 	 * not need a second one invented for it.
 	 */
-	const declared = variantsOf<LinkContextOf<TDeclaration>, TExtra>(args);
+	const declared = variantsOf<LinkContextOf<TDeclaration>, object>(args);
 	const variant = declared.find((it) => it.value === link.type);
 
 	if (variant?.resolve) {
 		return variant.resolve({
 			link,
 			context: args.context as LinkContextOf<TDeclaration>,
-		});
+		}) as Resolved | null;
 	}
 
 	if (link.type === "custom" && link.url) {
-		return { href: link.url, ...newTabProps(link.newTab) };
+		return builtin({ href: link.url, ...newTabProps(link.newTab) });
 	}
 
 	if (link.type === "same-page" && link.samePageIdentifier) {
-		return { href: `#${link.samePageIdentifier}` };
+		return builtin({ href: `#${link.samePageIdentifier}` });
 	}
 
 	if (link.type === "reference" && link.reference) {
@@ -131,11 +143,18 @@ export const resolveLink = <
 				locale: args.locale,
 			});
 
-			return href ? { href, ...newTabProps(link.newTab) } : null;
+			return href ? builtin({ href, ...newTabProps(link.newTab) }) : null;
 		}
 
-		// An unpopulated relationship is just an id, which cannot be routed.
-		if (typeof value === "string") {
+		/*
+		 * An unpopulated relationship is just an id, which cannot be routed.
+		 * Tested by what it is not, because the id's type follows the database
+		 * adapter — a string on Mongo, a number on SQLite and serial Postgres.
+		 * Checking for `string` alone let a numeric id fall through to
+		 * `buildHref`, which then reported a missing path parameter instead of
+		 * the unpopulated reference actually behind it.
+		 */
+		if (!value || typeof value !== "object") {
 			args.onDiagnostic?.({
 				reason: "unpopulated-reference",
 				collection: relationTo,
@@ -156,7 +175,7 @@ export const resolveLink = <
 			...(args.onDiagnostic ? { onDiagnostic: args.onDiagnostic } : {}),
 		});
 
-		return href ? { href, ...newTabProps(link.newTab) } : null;
+		return href ? builtin({ href, ...newTabProps(link.newTab) }) : null;
 	}
 
 	/*
@@ -179,10 +198,9 @@ export const resolveLink = <
  *   is required for the link to be worth rendering.
  */
 export const isAvailableLink = <
-	TExtra = object,
 	TDeclaration extends LinkDeclaration = LinkDeclaration,
 >(
-	args: ResolveLinkArgs<TExtra, TDeclaration> & { withLabel?: boolean },
+	args: ResolveLinkArgs<TDeclaration> & { withLabel?: boolean },
 ): boolean => {
 	if (args.withLabel && !args.link?.label) {
 		return false;

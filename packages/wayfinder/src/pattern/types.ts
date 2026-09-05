@@ -108,6 +108,15 @@ export type Contributed<T> = { [K in keyof T]?: T[K] | undefined };
 export type BuiltinLinkVariant = "none" | "reference" | "custom" | "same-page";
 
 /**
+ * How Payload identifies a document.
+ *
+ * Mongo keys by string, SQLite and serial Postgres by number. Every place a
+ * reference id crosses the package boundary accepts both, so a project is not
+ * forced to cast at the call site over its own choice of adapter.
+ */
+export type DocumentId = string | number;
+
+/**
  * Structural shape of the `link` field group.
  *
  * Declared here rather than imported from a project's generated types so the
@@ -123,13 +132,19 @@ export type LinkFieldData<TVariant extends string = never, TExtra = object> = {
 	type?: BuiltinLinkVariant | TVariant | null;
 	label?: string | null;
 	/*
-	 * No index signature: the generated per-collection interfaces do not have
-	 * one, and adding it here would make every populated reference fail to
+	 * No index signature at either level. Payload generates the per-collection
+	 * types as interfaces, and an interface gets no implicit index signature,
+	 * so requiring one here would make every populated reference fail to
 	 * assign.
+	 *
+	 * The id is `string | number` because that is what Payload's adapters
+	 * emit: Mongo keys documents by string, SQLite and serial Postgres by
+	 * number. Narrowing to `string` would be wrong for half of them, and a
+	 * wrong type gets believed.
 	 */
 	reference?: {
 		relationTo: string;
-		value: string | { id: string; [field: string]: unknown };
+		value: DocumentId | { id: DocumentId };
 	} | null;
 	url?: string | null;
 	samePageIdentifier?: string | null;

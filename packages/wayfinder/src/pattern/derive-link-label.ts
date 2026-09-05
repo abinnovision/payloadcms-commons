@@ -37,7 +37,7 @@ export const deriveLinkLabel = <TExtra>(
 			const { relationTo, value } = link.reference;
 			const id = typeof value === "object" ? value.id : value;
 
-			return `${relationTo}/${id}`;
+			return `${relationTo}/${String(id)}`;
 		}
 
 		case "same-page":
