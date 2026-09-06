@@ -1,6 +1,7 @@
 import { lexicalConverters } from "@abinnovision/payloadcms-montage/lexical";
 import { RichText } from "@payloadcms/richtext-lexical/react";
 
+import { mark } from "./mark";
 import { AppLink } from "../components/AppLink";
 import { defineBlockComponent } from "../montage";
 
@@ -22,17 +23,25 @@ export const RichTextModule = defineBlockComponent("rich-text-module", {
 	canRender: ({ block }) => Boolean(block.content),
 	component: ({ block, ctx, renderer }) =>
 		block.content ? (
-			<RichText
-				converters={({ defaultConverters }) => ({
-					...defaultConverters,
-					...lexicalConverters(renderer, ctx),
-					link: ({ node, nodesToJSX }) => (
-						<AppLink ctx={ctx} node={node.fields}>
-							{nodesToJSX({ nodes: node.children }) as ReactNode}
-						</AppLink>
-					),
-				})}
-				data={block.content}
-			/>
+			/*
+			 * The only block here that renders no element of its own:
+			 * `RichText` is a third-party component and will not forward
+			 * `data-*` to whatever it renders. The address needs an element to
+			 * sit on, so this block owns one.
+			 */
+			<div {...mark(block, ctx)}>
+				<RichText
+					converters={({ defaultConverters }) => ({
+						...defaultConverters,
+						...lexicalConverters(renderer, ctx),
+						link: ({ node, nodesToJSX }) => (
+							<AppLink ctx={ctx} node={node.fields}>
+								{nodesToJSX({ nodes: node.children }) as ReactNode}
+							</AppLink>
+						),
+					})}
+					data={block.content}
+				/>
+			</div>
 		) : null,
 });

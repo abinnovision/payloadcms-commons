@@ -28,14 +28,15 @@ you need without taking on the rest.
 No package here depends on another. Each declares its own peers and installs on
 its own, in an app that uses none of the others.
 
-Two seams exist today, and both are optional on both sides. Montage renders every
-block through a single dispatch point, and its registry exposes that point as
-`wrapBlock`. Passing viewfinder's marker through it makes an entire block tree
-addressable from the admin's live preview in one hook, at every nesting depth.
-Montage does not depend on viewfinder and viewfinder does not depend on montage;
-the hook is a plain wrapper either of them can live without. See
+Two seams exist today, and both are optional on both sides. A montage block
+component spreads viewfinder's `markBlock()` onto the element it already renders,
+which makes it addressable from the admin's live preview. Because montage
+dispatches every block through the same registry entry, marking the component
+covers every nesting depth and every route into it. Montage does not depend on
+viewfinder and viewfinder does not depend on montage; neither knows the other
+exists. See
 [`packages/viewfinder/docs/integration.md`](./packages/viewfinder/docs/integration.md)
-for the two integration paths.
+for the wiring, with montage and without.
 
 The second is wayfinder's `./montage` entrypoint, behind an optional peer. It
 parks compiled route mappings on montage's render context, so a page with dozens

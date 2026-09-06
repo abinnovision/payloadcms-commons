@@ -18,9 +18,9 @@ to which field before it can do anything else, and that layer is useful on its o
 [`docs/concepts.md`](./docs/concepts.md) describes the addressing model;
 [`docs/limitations.md`](./docs/limitations.md) states what is out of scope and why.
 
-Viewfinder works in any Payload app. [`@abinnovision/payloadcms-montage`](../montage) is not
-required, but when it is present its `wrapBlock` registry option makes the whole block tree
-addressable in one hook. See [`docs/integration.md`](./docs/integration.md) for both paths.
+Viewfinder works in any Payload app and takes no view on how blocks are rendered.
+[`@abinnovision/payloadcms-montage`](../montage) is not required; a block marks itself the same way
+either way. See [`docs/integration.md`](./docs/integration.md) for the wiring.
 
 ## Install
 
@@ -97,35 +97,36 @@ addressing, so no outline appears and a link inside a marked block navigates nor
 on lights up both directions and the row buttons. The choice is a per-user Payload preference under
 the key `viewfinder`, so it follows the editor across documents and browsers.
 
-Finally, mark the blocks. Wrap each one in `<Marked>`, passing the Payload row `id` and your own
-preview flag:
+Finally, mark the blocks. A block addresses itself by spreading `markBlock()` onto its own root
+element, passing the Payload row `id`:
 
 ```tsx
-import { Marked } from "@abinnovision/payloadcms-viewfinder/client";
+import { markBlock, markField } from "@abinnovision/payloadcms-viewfinder";
 
-<Marked id={block.id} blockType={block.blockType} enabled={isPreview}>
-  <HeroModule block={block} />
-</Marked>;
+export const HeroModule = ({ block }) => (
+  <section {...markBlock(block.id, block.blockType)}>
+    <h2 {...markField("heading")}>{block.heading}</h2>
+  </section>
+);
 ```
 
-With `enabled={false}` the children render untouched, with no wrapper and no attributes, so
-production output is unaffected by having viewfinder installed.
+Import from the package root, not `./client`. `markBlock` is a pure function that returns a plain
+object, so a server component can spread it without crossing a client boundary.
 
-`Marked` adds nothing to the tree when its child is a DOM element: the attributes go onto that
-element. Only a component element, a fragment, an array, text or a promise gets a
-`display: contents` wrapper, since a component may not forward unknown props to any DOM node. A
-block can settle it either way by spreading `markBlock()` onto its own element:
+Call it only when your own preview flag is on, and only for a row that has an `id`. Nothing in the
+package enforces either: an unsaved row would emit an address that resolves to nothing, and an
+empty `data-vf-id` still matches, shadowing the nearest real ancestor. A one-line helper is the
+usual answer:
 
 ```tsx
-import {
-  markBlock,
-  markField,
-} from "@abinnovision/payloadcms-viewfinder/client";
-
-<section {...markBlock(block.id, block.blockType)}>
-  <h2 {...markField("heading")}>{block.heading}</h2>
-</section>;
+const mark = (block, isPreview) =>
+  isPreview && block.id ? markBlock(block.id, block.blockType) : {};
 ```
+
+A block that renders no element of its own — because it returns a fragment, an array, or a
+third-party component that will not forward `data-*` — needs to grow one to be addressable. Add
+that element deliberately rather than reaching for `display: contents`: a real element has a real
+box, which is what the overlay measures.
 
 `markField` is optional and opt-in. Its argument is relative to the enclosing block (`"heading"`,
 or `"items.0.label"` for something nested), never an absolute document path, which is what lets the
@@ -135,7 +136,7 @@ address survive the block moving to a different index.
 
 ```
 "."        attributes, protocol, path resolution. Imports nothing.
-"./client" ViewfinderBridge, Marked, markBlock, markField
+"./client" ViewfinderBridge, markBlock, markField
 "./config" viewfinderPlugin, loaded from payload.config.ts
 "./admin"  ViewfinderFormBridge, mounted by the plugin through the import map
 ```

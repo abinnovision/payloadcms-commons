@@ -22,11 +22,13 @@ export interface FieldMarkerAttributes {
 }
 
 /**
- * Attributes identifying one block in the rendered output. Spread onto a
- * block's own root element to skip the `<Marked>` wrapper, which is worth
- * doing wherever the block already renders a stable element: a real element
- * has a real box, so the highlight overlay does not have to infer geometry
- * from children.
+ * Attributes identifying one block in the rendered output. Spread onto the
+ * block's own root element, and only when the page is a preview: an address
+ * is a preview affordance, not something a visitor's markup needs.
+ *
+ * A block with no root element of its own has to grow one to be addressable.
+ * That element is worth adding deliberately, since a real element has a real
+ * box and the highlight overlay measures it directly.
  */
 export const markBlock = (
 	id: string,

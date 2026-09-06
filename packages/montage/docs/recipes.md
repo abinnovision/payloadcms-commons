@@ -203,50 +203,45 @@ slug union with `import type`. Type-only imports are erased, so no component rea
 
 ## Addressable blocks for live preview
 
-Making every rendered block point back at its own row in the admin form is one `wrapBlock` away.
-This is the example app's real registry:
+Making a rendered block point back at its own row in the admin form takes nothing from the registry.
+A block addresses itself, on the root element it already renders. This is the example app's real
+callout module:
 
 ```tsx
-import { Marked } from "@abinnovision/payloadcms-viewfinder/client";
+import { markBlock } from "@abinnovision/payloadcms-viewfinder";
 
-import { HeroModule } from "./HeroModule";
-import { RecentPostsModule } from "./RecentPostsModule";
-import { SectionWrapper } from "./SectionWrapper";
-import { defineBlockRegistry } from "../montage";
+import { defineBlockComponent } from "../montage";
 
-import type { ReactNode } from "react";
-
-export const blocks = defineBlockRegistry(
-  {
-    "hero-module": HeroModule,
-    "recent-posts-module": RecentPostsModule,
-    "section-wrapper": SectionWrapper,
-  },
-  {
-    require: ["hero-module", "recent-posts-module"],
-    wrapBlock: ({ block, ctx, children }) => (
-      <Marked
-        blockType={block.blockType}
-        enabled={ctx.isPreview}
-        id={(block as { id?: string | null }).id ?? ""}
-      >
-        {children as ReactNode}
-      </Marked>
-    ),
-  },
-);
+export const CalloutModule = defineBlockComponent("callout", {
+  component: ({ block, ctx }) => (
+    <aside
+      {...(ctx.isPreview && block.id
+        ? markBlock(block.id, block.blockType)
+        : {})}
+    >
+      {block.body}
+    </aside>
+  ),
+});
 ```
 
-Because `wrapBlock` sits at montage's one dispatch point, this alone makes the whole tree
-addressable: nested modules, inline blocks and richtext-embedded blocks included. Because it runs
-after gating, a collapsed block leaves no marker behind. `ctx.isPreview` is the app's own context
-field, not something montage knows about; outside preview `Marked` renders its children untouched.
+A block component receives the fully typed `block`, so `block.id` needs no cast, and `ctx`, which is
+where the preview flag rides. `ctx.isPreview` is the app's own context field, not something montage
+knows about. Gating on it and on a non-empty `id` is the app's job: outside preview nothing is
+emitted, and an unsaved row emits no address.
 
-The `id` cast is needed because `wrapBlock` sees a block as `{ blockType?: string }`. The value is
-Payload's row id, which every saved block row carries.
+This covers the whole tree without a registry hook, because every route into a block goes through
+the same registry entry: a parent calling `renderer.Block`, an inline block, a richtext-embedded
+block. Gating still applies too — a block `canRender` collapses never runs its component, so it
+leaves no marker behind. The one case needing care is a block that renders no element of its own; it
+has to grow one, since attributes need somewhere to go.
+
+`wrapBlock` is not involved. It is a general-purpose hook (see [rendering.md](./rendering.md)), but
+it receives an already-rendered `ReactNode` rather than an element, so it is the wrong seam for
+attributes.
 
 [`@abinnovision/payloadcms-viewfinder`](../../viewfinder/README.md) is a separate, optional
-package. Montage does not depend on it, it does not depend on montage, and `wrapBlock` is a generic
-hook that happens to suit it. It does require server-side live preview, for the identity-keying
-reason described under [Resolving data](./rendering.md#resolving-data): a client-side live preview
-hands the page a freshly deserialised document, and no resolved data survives that.
+package. Montage does not depend on it and it does not depend on montage. It does require
+server-side live preview, for the identity-keying reason described under
+[Resolving data](./rendering.md#resolving-data): a client-side live preview hands the page a freshly
+deserialised document, and no resolved data survives that.

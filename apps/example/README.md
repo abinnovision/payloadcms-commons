@@ -6,12 +6,12 @@ adapter, which has no seam with the others and no frontend surface.
 Each package still installs on its own. This app exists to show what happens
 when a site takes several of them: where they touch, and what stays separate.
 
-| Package                                   | Where it shows up                                                                    |
-| ----------------------------------------- | ------------------------------------------------------------------------------------ |
-| [`montage`](../../packages/montage)       | `src/blocks/*`, the block tree rendered by the one route                             |
-| [`viewfinder`](../../packages/viewfinder) | one `wrapBlock` in `src/blocks/registry.tsx`, one `<ViewfinderBridge>` in the layout |
-| [`wayfinder`](../../packages/wayfinder)   | every URL on the site, plus the links inside blocks and rich text                    |
-| [`mcpx`](../../packages/mcpx)             | `POST /api/mcpx`, and the **MCP** group in the admin panel                           |
+| Package                                   | Where it shows up                                                                                   |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| [`montage`](../../packages/montage)       | `src/blocks/*`, the block tree rendered by the one route                                            |
+| [`viewfinder`](../../packages/viewfinder) | `markBlock()` on each block's root via `src/blocks/mark.ts`, one `<ViewfinderBridge>` in the layout |
+| [`wayfinder`](../../packages/wayfinder)   | every URL on the site, plus the links inside blocks and rich text                                   |
+| [`mcpx`](../../packages/mcpx)             | `POST /api/mcpx`, and the **MCP** group in the admin panel                                          |
 
 ## Setup
 
@@ -104,16 +104,18 @@ only go live through the admin panel.
 
 ## The two seams
 
-Neither package knows about the other. Both hooks are plain wrappers either side
-can live without.
+Neither package knows about the other. Both seams are thin, and either side can
+live without them.
 
-**montage → viewfinder.** `src/blocks/registry.tsx` passes viewfinder's `Marked`
-through montage's `wrapBlock`. Montage has one dispatch point for every block at
-every depth, so that single hook makes the whole tree addressable — nested
-modules and richtext-embedded blocks included. Outside preview `Marked` renders
-its children untouched, so the tree served to visitors is the same tree.
-`packages/viewfinder/docs/integration.md` has the per-block version for an app
-without montage.
+**montage → viewfinder.** Each block spreads viewfinder's `markBlock()` onto its
+own root element, through the `mark` helper in `src/blocks/mark.ts`. Because
+montage dispatches every block through the same registry entry, marking the
+component covers every route into it — nested modules and richtext-embedded
+blocks included. The helper emits nothing outside preview, so the tree served to
+visitors is the same tree, and it imports from the package root rather than
+`/client`, so the blocks stay server components. `RichTextModule` is the one
+block that renders no element of its own and owns a `<div>` for the address.
+`packages/viewfinder/docs/integration.md` covers the same wiring without montage.
 
 **wayfinder → montage.** The route calls `initWayfinder` once, which parks a
 wayfinder router on the render context with the mappings, the locale and the

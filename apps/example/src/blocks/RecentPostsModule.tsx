@@ -1,6 +1,7 @@
 import config from "@payload-config";
 import { getPayload } from "payload";
 
+import { mark } from "./mark";
 import { defineBlockComponent } from "../montage";
 
 /**
@@ -36,8 +37,8 @@ export const RecentPostsModule = defineBlockComponent("recent-posts-module", {
 		return { posts: result.docs };
 	},
 	canRender: ({ data }) => data.posts.length > 0,
-	component: ({ data }) => (
-		<section>
+	component: ({ block, ctx, data }) => (
+		<section {...mark(block, ctx)}>
 			<h2>Recent posts</h2>
 			<ul>
 				{data.posts.map((post) => (
