@@ -21,20 +21,27 @@ block resolves to that block. Field-level addressing exists but is opt-in, one `
 element you care about, and it only reaches values you chose to annotate. A block you never marked
 is invisible: clicking it resolves to the nearest marked ancestor instead.
 
-The `display: contents` fallback is a trade-off, not a free win. `<Marked>` marks its child
-directly when that child is a DOM element, and only wraps when it is not: a component element, a
-fragment, an array, text, or a promise, which is what an async block renders to. `display: contents`
-keeps that wrapper out of layout, but not out of the tree. It still matches `>` and `:nth-child()`
-selectors aimed at the block, and the HTML parser reparents it out of a table or a paragraph, where
-no CSS can help.
+A block has to render an element to be addressable. `markBlock()` returns attributes, and attributes
+need somewhere to go, so a block that returns a fragment, an array, or a third-party component that
+does not forward `data-*` has to grow an element of its own before it can be addressed. The package
+does not synthesize one. It could — a `display: contents` wrapper would keep layout untouched — but
+such a wrapper stays out of layout without staying out of the tree: it still matches `>` and
+`:nth-child()` selectors aimed at the block, and the HTML parser reparents it out of a table or a
+paragraph, where no CSS can help. Choosing the element is the block's call, not the package's.
 
-It also generates no box of its own, so its `getBoundingClientRect()` is all zeroes and the overlay
-measures a `Range` over its contents instead. That covers element and text children alike, but it
-is an inference: a child that is absolutely positioned or transformed contributes its own rect to
-the range, so the resulting box can be larger, offset, or both. Scrolling has the same shape, which
-is why the measured box is scrolled to rather than `Element.scrollIntoView`. A block that renders a
-stable root element can spread `markBlock()` onto it and be certain of all of this rather than
-relying on what `Marked` can infer.
+Gating is likewise the consumer's. `markBlock()` always returns attributes, and nothing checks
+whether the page is a preview or whether the row has been saved. Both matter: emitting addresses
+outside preview puts markup in front of visitors that is only useful to editors, and an empty
+`data-vf-id` is worse than none, because `closest("[data-vf-id]")` matches it and it shadows the
+nearest real ancestor. [`integration.md`](./integration.md#gate-it-yourself) has the helper.
+
+The overlay still copes with a marked element that generates no box — one that is itself
+`display: contents`, or `display: none`, or empty. Its `getBoundingClientRect()` is all zeroes, so a
+`Range` over its contents is measured instead, covering element and text children alike. That is an
+inference: a child that is absolutely positioned or transformed contributes its own rect to the
+range, so the resulting box can be larger, offset, or both. Scrolling has the same shape, which is
+why the measured box is scrolled to rather than `Element.scrollIntoView`. Marking an element that
+has a box of its own avoids all of it.
 
 Client-side live preview is unsupported when montage renders the tree. Montage keys resolver
 results by object identity (`packages/montage/src/resolver/execute.ts`), and `useLivePreview` hands

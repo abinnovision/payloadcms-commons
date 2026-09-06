@@ -1,3 +1,4 @@
+import { mark } from "./mark";
 import { AppLink } from "../components/AppLink";
 import { defineBlockComponent } from "../montage";
 
@@ -12,7 +13,7 @@ import { defineBlockComponent } from "../montage";
  */
 export const CallToAction = defineBlockComponent("call-to-action-module", {
 	component: ({ block, ctx }) => (
-		<section>
+		<section {...mark(block, ctx)}>
 			<h2>{block.heading}</h2>
 			<AppLink ctx={ctx} link={block.link} />
 		</section>

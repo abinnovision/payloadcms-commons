@@ -1,3 +1,4 @@
+import { mark } from "./mark";
 import { defineInlineBlockComponent } from "../montage";
 
 /**
@@ -25,7 +26,7 @@ export const SectionWrapper = defineInlineBlockComponent<SectionWrapperBlock>()(
 			}
 
 			return (
-				<div id={block.identifier ?? undefined}>
+				<div id={block.identifier ?? undefined} {...mark(block, ctx)}>
 					{visible.map((m) => (
 						<renderer.Block key={m.id} block={m} ctx={ctx} />
 					))}

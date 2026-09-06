@@ -146,7 +146,7 @@ version is for.
 
 ```
 "."        attributes, protocol, path resolution
-"./client" ViewfinderBridge, Marked, markBlock, markField
+"./client" ViewfinderBridge, markBlock, markField
 "./config" viewfinderPlugin, loaded from payload.config.ts
 "./admin"  ViewfinderFormBridge, mounted by the plugin through the import map
 ```

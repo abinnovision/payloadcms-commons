@@ -112,47 +112,12 @@ keep in step.
 | ------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
 | `adminOrigin` | yes      | Origin of the Payload admin. Required rather than defaulting to `"*"`: this window posts the ids it renders. |
 
-## 5a. Mark the blocks, without montage
+## 5. Mark the blocks
 
-Wrap each block where you render it:
-
-```tsx
-import { Marked } from "@abinnovision/payloadcms-viewfinder/client";
-
-{
-  page.layout.map((block) => (
-    <Marked
-      key={block.id}
-      id={block.id ?? ""}
-      blockType={block.blockType}
-      enabled={isPreview}
-    >
-      <BlockComponent block={block} />
-    </Marked>
-  ));
-}
-```
-
-`enabled` is your own preview flag. When it is false, `Marked` returns its children untouched, with
-no wrapper and no attributes. An empty `id` is treated the same way, so an unsaved row cannot emit
-an address that resolves to nothing.
-
-`Marked` only wraps when it has to. If its child is a DOM element, the attributes go straight onto
-that element and nothing is added to the tree. A component element, a fragment, an array, text or a
-promise gets the `display: contents` wrapper instead, because there is no way to know whether a
-component forwards unknown props to a DOM node.
-
-That distinction is worth understanding, because the wrapper is a real element even though it has
-no box: it breaks `>` and `:nth-child()` selectors aimed at the block, the HTML parser reparents it
-out of a table or a paragraph, and the overlay has to measure a range over its children rather than
-a rect (see [`limitations.md`](./limitations.md#known-gaps)). A block can put the question beyond
-doubt by spreading `markBlock()` onto its own element and skipping `Marked` altogether.
+A block addresses itself, by spreading `markBlock()` onto the root element it already renders:
 
 ```tsx
-import {
-  markBlock,
-  markField,
-} from "@abinnovision/payloadcms-viewfinder/client";
+import { markBlock, markField } from "@abinnovision/payloadcms-viewfinder";
 
 export const HeroModule = ({ block }) => (
   <section {...markBlock(block.id, block.blockType)}>
@@ -161,62 +126,74 @@ export const HeroModule = ({ block }) => (
 );
 ```
 
-Whichever you use, do it at every nesting level you want addressable. A block that is not marked is
-simply invisible to viewfinder; clicking it resolves to the nearest marked ancestor instead.
+Import from the package root rather than `./client`. `markBlock` is a pure function returning a
+plain object, and the root entrypoint carries no `"use client"`, so the block stays a server
+component.
 
-## 5b. Mark the blocks, with montage
+### Gate it yourself
 
-Montage has one dispatch choke point, and its registry exposes it as `wrapBlock`. One hook
-instruments the entire tree:
+`markBlock` always returns attributes. Two conditions are yours to enforce, and a small helper is
+the tidiest place for both:
+
+```tsx
+const mark = (block, isPreview) =>
+  isPreview && block.id ? markBlock(block.id, block.blockType) : {};
+```
+
+Outside preview, emit nothing, so the tree served to visitors is unaffected by having viewfinder
+installed. And skip a row with no `id`: an unsaved row would emit an address that resolves to
+nothing, and an empty `data-vf-id` is worse than none, because `closest("[data-vf-id]")` still
+matches it and it shadows the nearest real ancestor.
+
+### Blocks with no root element
+
+Not every block renders one. A block that returns a fragment, an array, or a third-party component
+that will not forward `data-*` has nowhere to put the address, and has to grow an element:
+
+```tsx
+export const RichTextModule = ({ block, isPreview }) => (
+  <div {...mark(block, isPreview)}>
+    <RichText data={block.content} />
+  </div>
+);
+```
+
+Add that element deliberately rather than reaching for a `display: contents` wrapper. Such a wrapper
+stays out of layout but not out of the tree: it still matches `>` and `:nth-child()` selectors aimed
+at the block, and the HTML parser reparents it out of a table or a paragraph. It also generates no
+box, so the overlay has to infer one from a range over its children rather than measure it. See
+[`limitations.md`](./limitations.md#known-gaps).
+
+### With montage
+
+Nothing changes. Montage renders block components, so a block that marks itself is addressable
+however it was reached — nested under another block, inline, or embedded in rich text — because all
+three go through the same registry entry.
 
 ```tsx
 // blocks/registry.tsx
-import { Marked } from "@abinnovision/payloadcms-viewfinder/client";
-
 import { HeroModule } from "./HeroModule";
 import { RecentPostsModule } from "./RecentPostsModule";
 import { SectionWrapper } from "./SectionWrapper";
 import { defineBlockRegistry } from "../montage";
 
-import type { ReactNode } from "react";
-
-export const blocks = defineBlockRegistry(
-  {
-    "hero-module": HeroModule,
-    "recent-posts-module": RecentPostsModule,
-    "section-wrapper": SectionWrapper,
-  },
-  {
-    wrapBlock: ({ block, ctx, children }) => (
-      <Marked
-        blockType={block.blockType}
-        enabled={ctx.isPreview}
-        id={(block as { id?: string | null }).id ?? ""}
-      >
-        {children as ReactNode}
-      </Marked>
-    ),
-  },
-);
+export const blocks = defineBlockRegistry({
+  "hero-module": HeroModule,
+  "recent-posts-module": RecentPostsModule,
+  "section-wrapper": SectionWrapper,
+});
 ```
 
-Three things make this a single line of wiring rather than a per-block chore.
+A montage block component receives both the fully typed `block` — so `block.id` needs no cast — and
+`ctx`, which is where the preview flag travels. Montage knows nothing about preview and viewfinder
+knows nothing about montage; the flag is the app's own context field.
 
-`wrapBlock` runs at montage's one dispatch point, so it covers every nesting depth and every route
-into the tree: a parent calling `renderer.Block`, an inline block, a richtext-embedded block. It
-runs after all of montage's gating, so a block that renders nothing is never wrapped and no empty
-marker is left behind.
+Montage's `wrapBlock` is not involved. It remains a general-purpose hook
+([`packages/montage/docs/rendering.md`](../../montage/docs/rendering.md)), but it hands the wrapper
+an already-rendered `ReactNode` with no element to mark, so addressing belongs in the block instead.
 
-`ctx.isPreview` is your own context field. Montage knows nothing about preview, and viewfinder
-knows nothing about montage; the flag travels through the app's context like anything else.
-
-The `id` cast is needed because montage's wrapper sees a block as `{ blockType?: string }`. The
-value is Payload's row id and is present on every saved row.
-[`packages/montage/docs/rendering.md`](../../montage/docs/rendering.md) documents `wrapBlock` in
-full.
-
-Montage does not depend on viewfinder, and viewfinder does not depend on montage. `wrapBlock` is a
-generic hook; this is one use of it.
+Do this at every nesting level you want addressable. A block that is not marked is simply invisible
+to viewfinder; clicking it resolves to the nearest marked ancestor instead.
 
 ## Checking it works
 

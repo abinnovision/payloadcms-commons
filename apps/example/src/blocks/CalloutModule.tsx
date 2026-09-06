@@ -1,3 +1,4 @@
+import { mark } from "./mark";
 import { defineBlockComponent } from "../montage";
 
 /**
@@ -6,8 +7,9 @@ import { defineBlockComponent } from "../montage";
  * the rich text case.
  */
 export const CalloutModule = defineBlockComponent("callout", {
-	component: ({ block }) => (
+	component: ({ block, ctx }) => (
 		<aside
+			{...mark(block, ctx)}
 			style={{
 				borderLeft: `4px solid ${block.tone === "warning" ? "#c60" : "#06c"}`,
 				padding: "0.5rem 1rem",
