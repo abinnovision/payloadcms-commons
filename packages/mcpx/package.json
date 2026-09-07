@@ -59,7 +59,7 @@
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.30.0",
 		"rfc6902": "^5.3.0",
-		"zod": "^4.4.3"
+		"zod": "^4.5.4"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
