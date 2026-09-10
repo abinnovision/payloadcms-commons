@@ -44,7 +44,7 @@
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
-		"@types/node": "^26.3.0",
+		"@types/node": "^26.4.1",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.5",
 		"eslint": "^10.9.1",
