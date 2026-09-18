@@ -31,6 +31,38 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@abinnovision/payloadcms-colophon@workspace:*, @abinnovision/payloadcms-colophon@workspace:packages/colophon":
+  version: 0.0.0-use.local
+  resolution: "@abinnovision/payloadcms-colophon@workspace:packages/colophon"
+  dependencies:
+    "@abinnovision/eslint-config-base": "npm:^3.4.2"
+    "@abinnovision/prettier-config": "npm:^2.2.0"
+    "@arethetypeswrong/core": "npm:^0.18.5"
+    "@payloadcms/ui": "npm:3.88.0"
+    "@swc/core": "npm:^1.16.1"
+    "@types/node": "npm:^26.3.0"
+    "@types/react": "npm:^19.2.18"
+    "@vitest/coverage-v8": "npm:^4.1.10"
+    eslint: "npm:^10.9.1"
+    payload: "npm:3.88.0"
+    prettier: "npm:^3.9.5"
+    publint: "npm:^0.3.24"
+    react: "npm:^19.2.8"
+    react-dom: "npm:^19.2.8"
+    tsdown: "npm:^0.22.14"
+    typescript: "npm:^6.0.3"
+    unplugin-swc: "npm:^1.5.11"
+    vitest: "npm:^4.1.10"
+  peerDependencies:
+    "@payloadcms/ui": ">=3.88.0 <4"
+    payload: ">=3.88.0 <4"
+    react: ^19
+  peerDependenciesMeta:
+    "@payloadcms/ui":
+      optional: true
+  languageName: unknown
+  linkType: soft
+
 "@abinnovision/payloadcms-email-lettermint@workspace:packages/email-lettermint":
   version: 0.0.0-use.local
   resolution: "@abinnovision/payloadcms-email-lettermint@workspace:packages/email-lettermint"
@@ -1829,6 +1861,7 @@ __metadata:
   resolution: "@internal/example@workspace:apps/example"
   dependencies:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
+    "@abinnovision/payloadcms-colophon": "workspace:*"
     "@abinnovision/payloadcms-mcpx": "workspace:*"
     "@abinnovision/payloadcms-montage": "workspace:*"
     "@abinnovision/payloadcms-viewfinder": "workspace:*"

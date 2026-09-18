@@ -17,6 +17,7 @@ you need without taking on the rest.
 
 | Package                                                                    | Description                                                                                |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [`@abinnovision/payloadcms-colophon`](./packages/colophon)                 | System metadata in the admin sidebar, read from the environment at request time.           |
 | [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.                       |
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server over the content model, with a fixed tool surface and per-API-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                                  |
@@ -46,10 +47,10 @@ nothing else in wayfinder knows montage exists. See
 [`packages/wayfinder/docs/recipes.md`](./packages/wayfinder/docs/recipes.md) for
 both paths.
 
-mcpx and the Lettermint adapter have no seam with any of the others. A site
-installs whichever of the five it needs.
+mcpx, the Lettermint adapter and colophon have no seam with any of the others.
+A site installs whichever of the six it needs.
 
-[`apps/example`](./apps/example) is one app mounting four of the five, with both
+[`apps/example`](./apps/example) is one app mounting five of the six, with both
 seams wired and a seed that leaves a routed, localized site to click through.
 
 ## Compatibility

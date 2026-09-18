@@ -5,7 +5,14 @@
 		"build": {
 			"inputs": ["src/**/*", "next.config.mjs", "tsconfig.json"],
 			"outputs": [".next/**", "!.next/cache/**"],
-			"env": ["PAYLOAD_SECRET", "DATABASE_URI", "PAYLOAD_URL"]
+			"env": [
+				"PAYLOAD_SECRET",
+				"DATABASE_URI",
+				"PAYLOAD_URL",
+				"APP_VERSION",
+				"APP_COMMIT",
+				"APP_ENVIRONMENT"
+			]
 		}
 	}
 }

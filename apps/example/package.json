@@ -27,6 +27,7 @@
 	},
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
+		"@abinnovision/payloadcms-colophon": "workspace:*",
 		"@abinnovision/payloadcms-mcpx": "workspace:*",
 		"@abinnovision/payloadcms-montage": "workspace:*",
 		"@abinnovision/payloadcms-viewfinder": "workspace:*",
