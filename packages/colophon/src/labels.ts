@@ -1,8 +1,5 @@
 /**
  * A label that is either one string or a per-language record.
- *
- * The record form is keyed by Payload language code (`en`, `de`, ...), the
- * same shape the rest of this repo uses for editor-facing labels.
  */
 export type LabelLike = string | Record<string, string>;
 

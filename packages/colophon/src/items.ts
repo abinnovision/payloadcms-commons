@@ -2,19 +2,30 @@ import { shortSha } from "./format.js";
 
 import type { LabelLike } from "./labels.js";
 
-/** One row in the sidebar group. */
+/**
+ * One row in the sidebar group.
+ */
 export interface ColophonItem {
-	/** Stable key. Identifies the row in React and in the duplicate-key error. */
+	/**
+	 * Stable key. Identifies the row in React and in the duplicate-key error.
+	 */
 	key: string;
-	/** Row label. A record is resolved against the admin language. Defaults to `key`. */
+	/**
+	 * Row label. A record is resolved against the admin language. Defaults to `key`.
+	 */
 	label?: LabelLike | undefined;
+
 	/**
 	 * Environment variable names, tried in order. The first one that is set to
 	 * a non-empty value wins.
 	 */
 	env?: string[] | undefined;
-	/** Used when no name in `env` is set. A row that resolves to nothing is dropped. */
+
+	/**
+	 * Used when no name in `env` is set. A row that resolves to nothing is dropped.
+	 */
 	fallback?: string | undefined;
+
 	/**
 	 * Computes the value outright, ahead of `env` and `fallback`.
 	 *
@@ -23,38 +34,35 @@ export interface ColophonItem {
 	 * where the Payload config is built.
 	 */
 	value?: (() => string | undefined) | undefined;
-	/** Last transform before display, e.g. shortening a commit sha. */
+
+	/**
+	 * Last transform before display, e.g. shortening a commit sha.
+	 */
 	format?: ((value: string) => string) | undefined;
 }
 
-/** A row that resolved to something worth rendering. */
+/**
+ * A row that resolved to something worth rendering.
+ */
 export interface ResolvedColophonItem {
 	key: string;
+
 	label: LabelLike;
-	/** What the row shows, after `format`. */
+
+	/**
+	 *  What the row shows, after `format`.
+	 */
 	display: string;
-	/** What `format` was given, kept for the row's tooltip. */
+
+	/**
+	 * What `format` was given, kept for the row's tooltip.
+	 */
 	full: string;
 }
 
 /**
  * The rows a project gets without configuring any.
- *
- * `APP_*` is the name this package documents. `BUILD_*` follows it so an app
- * that already sets those from its CI keeps working without touching its
- * deployment.
- *
- * Every name here has to be one somebody set on purpose. `NODE_ENV` and
- * `npm_package_version` are deliberately absent for that reason: the runtime
- * sets both no matter what, so including them would put an "Environment:
- * production" and a version nobody deployed into the sidebar of every app
- * that installed this plugin and configured nothing. In a monorepo
- * `npm_package_version` is the workspace's own version, which is not the
- * build either.
- *
- * Deliberately no CI-provider detection. Every provider names these
- * differently, the list would never be complete, and adding one is a single
- * entry in `env` for the project that needs it.
+ * This is an opinionated set of items, which can be overridden.
  */
 export const defaultColophonItems: ColophonItem[] = [
 	{
@@ -129,7 +137,9 @@ const readValue = (item: ColophonItem): string | undefined => {
 		: undefined;
 };
 
-/** Reported when a row's own functions throw, so one bad row is diagnosable. */
+/**
+ * Reported when a row's own functions throw, so one bad row is diagnosable.
+ */
 export type ColophonWarn = (message: string, error: unknown) => void;
 
 /**

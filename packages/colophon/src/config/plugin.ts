@@ -14,20 +14,6 @@ import type {
 } from "../index.js";
 import type { Config, Plugin } from "payload";
 
-export interface ColophonPluginArgs {
-	/**
-	 * Replaces the default rows. Spread `defaultColophonItems` to keep them:
-	 * `items: [...defaultColophonItems, { key: "region", env: ["APP_REGION"] }]`.
-	 */
-	items?: ColophonItem[] | undefined;
-	/** Group label. Defaults to `"System"`. */
-	label?: LabelLike | undefined;
-	/** Start the group expanded. Defaults to collapsed, as a footer should be. */
-	open?: boolean | undefined;
-	/** Hides the whole group when it returns false. Defaults to always visible. */
-	condition?: ((args: ColophonConditionArgs) => boolean) | undefined;
-}
-
 const append = (existing: unknown[] | undefined): string[] | undefined => {
 	const components = (existing ?? []) as string[];
 
@@ -35,6 +21,29 @@ const append = (existing: unknown[] | undefined): string[] | undefined => {
 		? undefined
 		: [...components, COLOPHON_COMPONENT];
 };
+
+export interface ColophonPluginArgs {
+	/**
+	 * Replaces the default rows. Spread `defaultColophonItems` to keep them:
+	 * `items: [...defaultColophonItems, { key: "region", env: ["APP_REGION"] }]`.
+	 */
+	items?: ColophonItem[] | undefined;
+
+	/**
+	 * Group label. Defaults to `"System"`.
+	 */
+	label?: LabelLike | undefined;
+
+	/**
+	 * Start the group expanded. Defaults to collapsed, as a footer should be.
+	 */
+	open?: boolean | undefined;
+
+	/**
+	 * Hides the whole group when it returns false. Defaults to always visible.
+	 */
+	condition?: ((args: ColophonConditionArgs) => boolean) | undefined;
+}
 
 /**
  * Shows system metadata at the foot of the admin sidebar.
