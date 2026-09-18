@@ -23,6 +23,7 @@ import { BlockquoteFeatureClient as BlockquoteFeatureClient_e70f5e05f09f93e00b99
 import { UploadFeatureClient as UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { HorizontalRuleFeatureClient as HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { InlineToolbarFeatureClient as InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { McpxCapabilityMatrix as McpxCapabilityMatrix_517fab9069cb9a39a67cc949432c587a } from '@abinnovision/payloadcms-mcpx/client'
 import { McpxSetupGuide as McpxSetupGuide_517fab9069cb9a39a67cc949432c587a } from '@abinnovision/payloadcms-mcpx/client'
 import { LinkLabelFeatureClient as LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56 } from '@abinnovision/payloadcms-wayfinder/admin'
 import { Colophon as Colophon_373ed9accf0c93deb4bab0eb3b75ccda } from '@abinnovision/payloadcms-colophon/admin'
@@ -55,6 +56,7 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UploadFeatureClient": UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#HorizontalRuleFeatureClient": HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#InlineToolbarFeatureClient": InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "@abinnovision/payloadcms-mcpx/client#McpxCapabilityMatrix": McpxCapabilityMatrix_517fab9069cb9a39a67cc949432c587a,
   "@abinnovision/payloadcms-mcpx/client#McpxSetupGuide": McpxSetupGuide_517fab9069cb9a39a67cc949432c587a,
   "@abinnovision/payloadcms-wayfinder/admin#LinkLabelFeatureClient": LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56,
   "@abinnovision/payloadcms-colophon/admin#Colophon": Colophon_373ed9accf0c93deb4bab0eb3b75ccda,

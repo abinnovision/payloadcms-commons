@@ -90,6 +90,50 @@ describe("api keys collection", () => {
 		expect(fieldNames(tools)).toEqual(["echo", "whichCollection"]);
 	});
 
+	/*
+	 * The matrix draws its rows from the same descriptor that generated the
+	 * fields. Asserting the wiring here is what keeps the two from drifting.
+	 */
+	it("renders the capabilities group as the matrix component", () => {
+		expect(findField(collection.fields, "capabilities")).toMatchObject({
+			admin: {
+				components: {
+					Field: {
+						path: "@abinnovision/payloadcms-mcpx/client",
+						exportName: "McpxCapabilityMatrix",
+						clientProps: {
+							withinTab: true,
+							matrix: {
+								collections: [
+									{
+										fieldName: "pages",
+										label: "pages",
+										read: true,
+										write: true,
+									},
+									{
+										fieldName: "posts",
+										label: "posts",
+										read: true,
+										write: true,
+									},
+									{
+										fieldName: "tags",
+										label: "tags",
+										read: true,
+										write: false,
+										publish: false,
+									},
+								],
+								tools: [{ name: "echo" }, { name: "whichCollection" }],
+							},
+						},
+					},
+				},
+			},
+		});
+	});
+
 	it("installs the key hook", () => {
 		expect(collection.hooks.beforeChange).toContain(keyBeforeChange);
 	});

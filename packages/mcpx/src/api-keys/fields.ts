@@ -1,10 +1,11 @@
 import {
-	canCreate,
-	canPublish,
-	canWrite,
-	CAPABILITIES_FIELD,
-} from "../capabilities.js";
+	CAPABILITIES_DESCRIPTION,
+	CAPABILITY_OPERATIONS,
+	createCapabilityMatrix,
+} from "./capability-matrix.js";
+import { CAPABILITIES_FIELD } from "../capabilities.js";
 
+import type { CapabilityRow } from "./capability-matrix.js";
 import type { NormalizedOptions } from "../options.js";
 import type {
 	CheckboxField,
@@ -148,12 +149,11 @@ export const withSetupGuideTab = (
 	];
 };
 
-const PUBLISH_DESCRIPTION =
-	"Publish the current draft. Changes what the public sees.";
-
 /**
  * One checkbox per exposed operation, grouped per collection, per global and
- * per custom tool. Only operations the plugin config exposes get a checkbox, so
+ * per custom tool, generated from the same {@link createCapabilityMatrix}
+ * descriptor the admin component draws, so a cell can never appear without a
+ * field behind it. Only operations the plugin config exposes get a checkbox, so
  * a key can never enable more than the config allows. Everything defaults to
  * off, which is why a key issued before a capability existed stays closed to it.
  *
@@ -161,61 +161,28 @@ const PUBLISH_DESCRIPTION =
  * `write: "live"`: there is no draft to promote there, the write itself is the
  * live change, and a second checkbox would only make `write` a dead setting.
  *
- * An upload collection gets the same checkboxes as any other, only worded for
- * what `write` reaches there: a document's own fields, never `createDocument`,
- * because the file comes from the admin panel.
+ * The group renders as a matrix rather than as nested boxes; see
+ * `src/client/capability-matrix.tsx`. The descriptions below therefore reach
+ * the screen on the matrix column headers, and survive here for a consumer who
+ * replaces the component through `apiKeys.overrideCollection`.
  */
 export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
-	const collectionGroups: GroupField[] = options.collections.map(
-		(collection) => ({
-			name: collection.fieldName,
+	const matrix = createCapabilityMatrix(options);
+
+	const entityGroups = (rows: CapabilityRow[]): GroupField[] =>
+		rows.map((row) => ({
+			name: row.fieldName,
 			type: "group",
-			label: collection.slug,
-			fields: [
-				...(collection.read
-					? [checkbox("read", "Describe, find and read documents.")]
-					: []),
-				...(canWrite(collection)
-					? [
-							checkbox(
-								"write",
-								canCreate(collection)
-									? "Create, patch and validate drafts."
-									: "Patch and validate drafts. The file itself is uploaded in the admin panel.",
-							),
-						]
-					: []),
-				...(canPublish(collection)
-					? [checkbox("publish", PUBLISH_DESCRIPTION)]
-					: []),
-			],
-		}),
-	);
+			label: row.label,
+			fields: CAPABILITY_OPERATIONS.filter(
+				(operation) => row[operation.id],
+			).map((operation) => checkbox(operation.id, operation.description)),
+		}));
 
-	const globalGroups: GroupField[] = options.globals.map((global) => ({
-		name: global.fieldName,
-		type: "group",
-		label: global.slug,
-		fields: [
-			...(global.read
-				? [checkbox("read", "Describe and read this global.")]
-				: []),
-			...(canWrite(global)
-				? [checkbox("write", "Patch and validate this global's draft.")]
-				: []),
-			...(canPublish(global) ? [checkbox("publish", PUBLISH_DESCRIPTION)] : []),
-		],
-	}));
-
-	/*
-	 * A description built per request has no scope here, at config time, so the
-	 * checkbox falls back to the tool's name.
-	 */
-	const toolCheckboxes: CheckboxField[] = options.tools.map((tool) =>
-		checkbox(
-			tool.name,
-			typeof tool.description === "string" ? tool.description : tool.name,
-		),
+	const collectionGroups = entityGroups(matrix.collections);
+	const globalGroups = entityGroups(matrix.globals);
+	const toolCheckboxes: CheckboxField[] = matrix.tools.map((tool) =>
+		checkbox(tool.name, tool.description),
 	);
 
 	const groups: GroupField[] = [
@@ -251,8 +218,22 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 			name: CAPABILITIES_FIELD,
 			type: "group",
 			admin: {
-				description:
-					"What this key may do. Unchecked means refused, whatever the plugin config allows.",
+				description: CAPABILITIES_DESCRIPTION,
+				/*
+				 * Replaces the group's own rendering only: Payload still builds form
+				 * state for every nested checkbox, so the stored shape is unchanged.
+				 */
+				components: {
+					Field: {
+						path: "@abinnovision/payloadcms-mcpx/client",
+						exportName: "McpxCapabilityMatrix",
+						/*
+						 * The tabs decide whether Payload's group chrome drops its outer
+						 * border, which it only does for a group at a tab's edge.
+						 */
+						clientProps: { matrix, withinTab: options.setupGuide },
+					},
+				},
 			},
 			fields: groups,
 		},
