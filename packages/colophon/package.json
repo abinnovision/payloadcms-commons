@@ -63,7 +63,7 @@
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@arethetypeswrong/core": "^0.18.5",
-		"@payloadcms/ui": "3.89.0",
+		"@payloadcms/ui": "3.88.0",
 		"@swc/core": "^1.16.2",
 		"@types/node": "^26.5.1",
 		"@types/react": "^19.2.18",
