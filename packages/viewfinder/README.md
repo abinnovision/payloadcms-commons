@@ -5,6 +5,11 @@
 Two-way block addressing between a rendered frontend and the [Payload CMS](https://payloadcms.com/)
 admin form.
 
+A viewfinder is the window that tells the operator what is actually in frame, so the person
+working the camera and the person watching the take are arguing about the same picture. This one
+does that across two browser windows: it puts a stable address on each rendered block so the
+admin form and the live preview can point at the same one.
+
 Viewfinder owns addressing and transport, and nothing else. It puts a stable identifier on each
 rendered block, resolves that identifier back to a path in the admin's own form state, and carries
 messages between the two windows. In the preview, hovering a block outlines and names it and

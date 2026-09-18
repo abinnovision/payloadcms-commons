@@ -4,6 +4,11 @@
 
 Editor-authored URL routing for [Payload CMS](https://payloadcms.com/).
 
+On a shoot, the route to set is marked by a trail of small signs, one arrow per junction, put
+up by someone who walked it first. Nobody has to be told the address. Wayfinder is that trail for
+URLs: editors author which collection is served at which path pattern, and everything that needs
+a link follows the signs instead of hard-coding the route.
+
 Wayfinder owns one thing: the map from collections to the URL patterns their documents are served
 at. That map is authored in the CMS, so adding a page type is an editorial act rather than a code
 change. Everything else in the package falls out of it. `createRouter` binds the mapping, the

@@ -4,10 +4,11 @@
 
 System metadata at the foot of the [Payload CMS](https://payloadcms.com/) admin sidebar.
 
-A colophon is the note that records how a thing was produced. This one states which build
-of your app the admin is running: its version, the commit it came from, the environment it
-is deployed to, and anything else worth naming. It sits in a collapsed group under the
-navigation, out of the way until somebody needs to say which build they were looking at.
+A colophon is the note at the back of a book recording how it was made: the press, the type,
+the paper, the date. This one states which build of your app the admin is running: its version,
+the commit it came from, the environment it is deployed to, and anything else worth naming. It
+sits in a collapsed group under the navigation, out of the way until somebody needs to say which
+build they were looking at.
 
 Values are read from the environment of the running process, on each admin render. That is
 the whole design: the same image redeployed with a new `APP_VERSION` reports the new

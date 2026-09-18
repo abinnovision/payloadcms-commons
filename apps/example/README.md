@@ -12,6 +12,7 @@ when a site takes several of them: where they touch, and what stays separate.
 | [`viewfinder`](../../packages/viewfinder) | `markBlock()` on each block's root via `src/blocks/mark.ts`, one `<ViewfinderBridge>` in the layout |
 | [`wayfinder`](../../packages/wayfinder)   | every URL on the site, plus the links inside blocks and rich text                                   |
 | [`mcpx`](../../packages/mcpx)             | `POST /api/mcpx`, and the **MCP** group in the admin panel                                          |
+| [`colophon`](../../packages/colophon)     | `colophonPlugin()` in `src/payload.config.ts`, the build group under the admin navigation           |
 
 ## Setup
 
