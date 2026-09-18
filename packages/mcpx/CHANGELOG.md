@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v1.0.0...payloadcms-mcpx-v1.0.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deps:** bump the production-dependencies group with 2 updates ([#49](https://github.com/abinnovision/payloadcms-commons/issues/49)) ([8f079ec](https://github.com/abinnovision/payloadcms-commons/commit/8f079ecfc3b675318b4501a6b0073d8f3f2f36b5))
+* **deps:** keep @payloadcms/ui aligned with the rest of the Payload family ([#61](https://github.com/abinnovision/payloadcms-commons/issues/61)) ([e77c0b9](https://github.com/abinnovision/payloadcms-commons/commit/e77c0b94fcb696e2e9165d76b33945bf98d5a4ba))
+
 ## 1.0.0 (2026-09-03)
 
 
