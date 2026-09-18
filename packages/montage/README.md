@@ -4,6 +4,11 @@
 
 Typed block registry and RSC renderer for [Payload CMS](https://payloadcms.com/).
 
+Montage is the cut: separate takes laid end to end in an order until they read as one
+continuous thing. Payload hands you a flat list of blocks, and this is the assembly step that
+turns that list into a page. It does the assembly and nothing else, the same way an edit does
+not decide what gets shot.
+
 Montage knows about Payload blocks and nothing else. Pages, sections, templates and reusable
 blocks stay yours to model with Payload's own primitives, and montage renders whatever you built.
 [`docs/concepts.md`](./docs/concepts.md) describes where that boundary sits;

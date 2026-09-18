@@ -1,17 +1,14 @@
 # abinnovision/payloadcms-commons
 
-![Five interchangeable building blocks, the three a project needs composed into one Payload site](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/assets/header.png)
+![Interchangeable building blocks, the ones a project needs composed into one Payload site](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/assets/header.png)
 
 [![Build](https://github.com/abinnovision/payloadcms-commons/actions/workflows/build.yaml/badge.svg)](https://github.com/abinnovision/payloadcms-commons/actions/workflows/build.yaml)
 
 Building blocks for production [Payload CMS](https://payloadcms.com/) sites.
 
-Every package here started as code inside a Payload site running in production.
-It gets pulled out into this repo once the same problem has come up on a second
-site, with a boundary drawn around it on the way out.
-
-That is why each package covers one concern and no more. You can take the one
-you need without taking on the rest.
+Plugins built to be used together on the same site, each covering one concern and
+each installing on its own. Take the one you need or take all of them. Nothing
+here requires anything else here.
 
 ## Packages
 
@@ -24,34 +21,33 @@ you need without taking on the rest.
 | [`@abinnovision/payloadcms-viewfinder`](./packages/viewfinder)             | Two-way block addressing between a rendered frontend and the Payload admin form.           |
 | [`@abinnovision/payloadcms-wayfinder`](./packages/wayfinder)               | Editor-authored URL routing: collection-to-path patterns, hrefs and a link field.          |
 
+## Names
+
+Packages publish as `@abinnovision/payloadcms-<name>`. A package that wraps
+something already named keeps that name: `mcpx` for the MCP protocol,
+`email-lettermint` for the Lettermint API. The others take a word from film and
+printing for the job they do, and each README opens by saying what the word
+means.
+
 ## How they fit together
 
-No package here depends on another. Each declares its own peers and installs on
-its own, in an app that uses none of the others.
+They are built for the same site, so where two of them meet the seam is already
+there. A montage block component spreads viewfinder's `markBlock()` onto the
+element it already renders, which makes every block addressable from live preview
+at every nesting depth. Wayfinder's `./montage` entrypoint parks compiled route
+mappings on montage's render context, so a page reads them once per request
+rather than once per link.
 
-Two seams exist today, and both are optional on both sides. A montage block
-component spreads viewfinder's `markBlock()` onto the element it already renders,
-which makes it addressable from the admin's live preview. Because montage
-dispatches every block through the same registry entry, marking the component
-covers every nesting depth and every route into it. Montage does not depend on
-viewfinder and viewfinder does not depend on montage; neither knows the other
-exists. See
-[`packages/viewfinder/docs/integration.md`](./packages/viewfinder/docs/integration.md)
-for the wiring, with montage and without.
+Those are the only seams, and each is optional from either side. Neither package
+knows the other exists: a block marks itself the same way without montage
+([wiring](./packages/viewfinder/docs/integration.md)), and without montage
+wayfinder's glue is a short adapter over whatever context the app already has
+([both paths](./packages/wayfinder/docs/recipes.md)). colophon, mcpx and the
+Lettermint adapter touch nothing else at all.
 
-The second is wayfinder's `./montage` entrypoint, behind an optional peer. It
-parks compiled route mappings on montage's render context, so a page with dozens
-of links reads them once per request rather than once per link. Without montage
-the same glue is a short adapter over whatever context an app already has, and
-nothing else in wayfinder knows montage exists. See
-[`packages/wayfinder/docs/recipes.md`](./packages/wayfinder/docs/recipes.md) for
-both paths.
-
-mcpx, the Lettermint adapter and colophon have no seam with any of the others.
-A site installs whichever of the six it needs.
-
-[`apps/example`](./apps/example) is one app mounting five of the six, with both
-seams wired and a seed that leaves a routed, localized site to click through.
+[`apps/example`](./apps/example) mounts every package but the Lettermint adapter,
+with the seams wired and a seed that leaves a routed, localized site to click
+through.
 
 ## Compatibility
 
