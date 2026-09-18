@@ -330,6 +330,25 @@ to anyone who may read the key document (own keys only, by default). Each key:
   is configured `write: "live"`, and it counts only alongside `write`, since
   publishing is an extension of writing.
 
+### The capabilities matrix
+
+The checkboxes render as one table per namespace: a row per collection, global
+or tool, a column per operation, and a bulk toggle in each column header that
+grants or clears the whole column at once. Clicking a row's name does the same
+for that entity.
+
+A cell the plugin config does not expose shows a dash instead of an empty box,
+so a `write: false` collection reads as a refusal by config rather than a
+capability someone forgot to tick. A column no row exposes is left out
+altogether. Ticking `publish` ticks `write` with it, and clearing `write` clears
+`publish`, because a publish without a write resolves to nothing.
+
+Each operation is explained on its column header rather than beside every
+checkbox, so the same sentence is never repeated down the table.
+
+The matrix renders an admin component, so it has to be in the import map; see
+[Admin components](#admin-components).
+
 Keys authenticate only the MCP endpoint. They are deliberately not a Payload
 auth strategy, so a key can never authenticate the REST or GraphQL API. The
 reverse also holds: an admin session or JWT is ignored by the MCP endpoint.
@@ -345,15 +364,22 @@ behind a copy button. The tab only exists once the key does, so the create form
 stays free of it. Turn it off with `apiKeys.setupGuide: false`, which also drops
 the tabs and restores the flat form.
 
-The tab renders an admin component, so it has to be in the import map:
+The URL comes from `serverURL` when the config sets one and from the browser's
+origin otherwise.
+
+### Admin components
+
+The key form renders two components of its own, the capabilities matrix and the
+setup guide, so both have to be in the import map:
 
 ```bash
 payload generate:importmap
 ```
 
-Without that entry Payload logs a missing-component error and renders nothing
-else; the rest of the plugin is unaffected. The URL comes from `serverURL` when
-the config sets one and from the browser's origin otherwise.
+Without those entries Payload logs a missing-component error and renders nothing
+in their place. For the setup guide that costs a tab; for the matrix it costs
+the whole capabilities editor, leaving no way to grant a key anything from the
+admin. The rest of the plugin is unaffected either way.
 
 ## Drafts and publishing
 
