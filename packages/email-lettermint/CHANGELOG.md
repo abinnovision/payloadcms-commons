@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-email-lettermint-v1.0.0...payloadcms-email-lettermint-v1.0.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deps:** bump lettermint from 2.4.1 to 2.6.0 in the production-dependencies group ([#53](https://github.com/abinnovision/payloadcms-commons/issues/53)) ([97cb7c2](https://github.com/abinnovision/payloadcms-commons/commit/97cb7c229803ed766e0452f9e7ff381e269ff019))
+
 ## 1.0.0 (2026-08-30)
 
 
