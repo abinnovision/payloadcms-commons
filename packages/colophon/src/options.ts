@@ -16,9 +16,13 @@ export interface ColophonOptions {
 	condition?: ((args: ColophonConditionArgs) => boolean) | undefined;
 }
 
-/** What `condition` gets to decide on. */
+/**
+ *  What `condition` gets to decide on.
+ */
 export interface ColophonConditionArgs {
-	/** The signed-in admin user, absent only before login. */
+	/**
+	 *  The signed-in admin user, absent only before login.
+	 */
 	user?: { [key: string]: unknown } | undefined;
 }
 
@@ -43,9 +47,6 @@ export const DEFAULT_COLOPHON_LABEL = "System";
 
 /**
  * Reads the options back off a running Payload config.
- *
- * Typed as `unknown` in, because `custom` is `Record<string, any>` on Payload's
- * side and the component has no way to prove what a project put there.
  */
 export const readColophonOptions = (
 	custom: unknown,
