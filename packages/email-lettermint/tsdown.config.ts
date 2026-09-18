@@ -8,6 +8,6 @@ export default defineConfig({
 	unbundle: true,
 	format: ["esm"],
 	clean: true,
-	deps: { skipNodeModulesBundle: true },
+	deps: { neverBundle: true },
 	plugins: [swc.rolldown()],
 });
