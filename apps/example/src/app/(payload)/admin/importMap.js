@@ -25,6 +25,7 @@ import { HorizontalRuleFeatureClient as HorizontalRuleFeatureClient_e70f5e05f09f
 import { InlineToolbarFeatureClient as InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { McpxSetupGuide as McpxSetupGuide_517fab9069cb9a39a67cc949432c587a } from '@abinnovision/payloadcms-mcpx/client'
 import { LinkLabelFeatureClient as LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56 } from '@abinnovision/payloadcms-wayfinder/admin'
+import { Colophon as Colophon_373ed9accf0c93deb4bab0eb3b75ccda } from '@abinnovision/payloadcms-colophon/admin'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
 /** @type import('payload').ImportMap */
@@ -56,5 +57,6 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#InlineToolbarFeatureClient": InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@abinnovision/payloadcms-mcpx/client#McpxSetupGuide": McpxSetupGuide_517fab9069cb9a39a67cc949432c587a,
   "@abinnovision/payloadcms-wayfinder/admin#LinkLabelFeatureClient": LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56,
+  "@abinnovision/payloadcms-colophon/admin#Colophon": Colophon_373ed9accf0c93deb4bab0eb3b75ccda,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

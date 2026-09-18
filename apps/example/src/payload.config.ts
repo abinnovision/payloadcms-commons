@@ -1,3 +1,4 @@
+import { colophonPlugin } from "@abinnovision/payloadcms-colophon/config";
 import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
 import { montagePlugin } from "@abinnovision/payloadcms-montage/config";
 import { viewfinderPlugin } from "@abinnovision/payloadcms-viewfinder/config";
@@ -109,6 +110,12 @@ export default buildConfig({
 			globals: { "site-settings": { read: true, write: "live" } },
 			limits: { maxLimit: 25, maxDepth: 1 },
 		}),
+		/*
+		 * Default rows, so the group only appears once `APP_VERSION` and
+		 * friends are exported. Starting `yarn dev` without them is the
+		 * "nothing configured, nothing rendered" case.
+		 */
+		colophonPlugin(),
 	],
 	graphQL: { disable: true },
 	typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },
