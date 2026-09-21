@@ -45,12 +45,12 @@
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
-		"@types/node": "^26.5.1",
+		"@types/node": "^26.6.1",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.5",
 		"eslint": "^10.10.0",
-		"prettier": "^3.9.5",
+		"prettier": "^3.9.7",
 		"typescript": "^6.0.3",
-		"vitest": "^5.0.0"
+		"vitest": "^5.0.1"
 	}
 }
