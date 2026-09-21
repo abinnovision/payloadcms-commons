@@ -53,19 +53,19 @@
 	},
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
-		"lettermint": "^2.6.0"
+		"lettermint": "^2.7.0"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@arethetypeswrong/core": "^0.18.5",
-		"@payloadcms/db-sqlite": "3.88.0",
+		"@payloadcms/db-sqlite": "3.89.0",
 		"@swc/core": "^1.16.2",
 		"@types/node": "^26.5.1",
 		"@types/nodemailer": "^8.0.0",
 		"@vitest/coverage-v8": "^5.0.0",
 		"eslint": "^10.10.0",
-		"payload": "3.88.0",
+		"payload": "3.89.0",
 		"prettier": "^3.9.5",
 		"publint": "^0.3.24",
 		"tsdown": "^0.23.0",
