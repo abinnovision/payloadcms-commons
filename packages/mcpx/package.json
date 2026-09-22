@@ -67,7 +67,7 @@
 		"@arethetypeswrong/core": "^0.18.5",
 		"@payloadcms/db-sqlite": "3.89.0",
 		"@payloadcms/richtext-lexical": "3.89.0",
-		"@payloadcms/ui": "3.88.0",
+		"@payloadcms/ui": "3.89.0",
 		"@swc/core": "^1.16.2",
 		"@types/node": "^26.5.1",
 		"@types/react": "^19.3.0",
