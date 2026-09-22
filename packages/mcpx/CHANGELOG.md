@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v1.0.0...payloadcms-mcpx-v1.1.0) (2026-09-22)
+
+
+### Features
+
+* **mcpx:** render API key capabilities as a permission matrix ([#67](https://github.com/abinnovision/payloadcms-commons/issues/67)) ([fce9644](https://github.com/abinnovision/payloadcms-commons/commit/fce96445007b7bee1dfa463acfd6a388df151e60))
+
+
+### Bug Fixes
+
+* **deps:** align @payloadcms/ui with payload 3.89.0 ([#70](https://github.com/abinnovision/payloadcms-commons/issues/70)) ([7f083e3](https://github.com/abinnovision/payloadcms-commons/commit/7f083e3e040ffa99cd66347965c3a492c46e7f12))
+* **deps:** bump the production-dependencies group with 10 updates ([#68](https://github.com/abinnovision/payloadcms-commons/issues/68)) ([786b528](https://github.com/abinnovision/payloadcms-commons/commit/786b528e7929376c5e6ea570d94d58bb0b4298cc))
+* **deps:** bump the production-dependencies group with 2 updates ([#49](https://github.com/abinnovision/payloadcms-commons/issues/49)) ([8f079ec](https://github.com/abinnovision/payloadcms-commons/commit/8f079ecfc3b675318b4501a6b0073d8f3f2f36b5))
+* **deps:** keep @payloadcms/ui aligned with the rest of the Payload family ([#61](https://github.com/abinnovision/payloadcms-commons/issues/61)) ([e77c0b9](https://github.com/abinnovision/payloadcms-commons/commit/e77c0b94fcb696e2e9165d76b33945bf98d5a4ba))
+
 ## 1.0.0 (2026-09-03)
 
 
