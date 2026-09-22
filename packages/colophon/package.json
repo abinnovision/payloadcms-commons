@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json.schemastore.org/package.json",
 	"name": "@abinnovision/payloadcms-colophon",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "System metadata in the Payload CMS admin sidebar, read from the environment at request time.",
 	"keywords": [
 		"payload",
