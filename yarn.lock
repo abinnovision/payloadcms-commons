@@ -169,7 +169,7 @@ __metadata:
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@arethetypeswrong/core": "npm:^0.18.5"
     "@payloadcms/db-sqlite": "npm:3.89.0"
-    "@payloadcms/ui": "npm:3.88.0"
+    "@payloadcms/ui": "npm:3.89.0"
     "@swc/core": "npm:^1.16.2"
     "@types/node": "npm:^26.5.1"
     "@types/react": "npm:^19.3.0"
