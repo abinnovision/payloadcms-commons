@@ -4,5 +4,6 @@
 	"packages/montage": "1.0.0",
 	"packages/viewfinder": "1.0.0",
 	"packages/wayfinder": "0.0.0",
-	"packages/colophon": "1.0.0"
+	"packages/colophon": "1.0.0",
+	"packages/tags": "0.0.0"
 }
