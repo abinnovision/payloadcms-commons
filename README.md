@@ -18,6 +18,7 @@ here requires anything else here.
 | [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.                       |
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server over the content model, with a fixed tool surface and per-API-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                                  |
+| [`@abinnovision/payloadcms-tags`](./packages/tags)                         | Flat, colored tags with inline creation, adopted onto an existing collection or generated. |
 | [`@abinnovision/payloadcms-viewfinder`](./packages/viewfinder)             | Two-way block addressing between a rendered frontend and the Payload admin form.           |
 | [`@abinnovision/payloadcms-wayfinder`](./packages/wayfinder)               | Editor-authored URL routing: collection-to-path patterns, hrefs and a link field.          |
 
@@ -27,7 +28,7 @@ Packages publish as `@abinnovision/payloadcms-<name>`. A package that wraps
 something already named keeps that name: `mcpx` for the MCP protocol,
 `email-lettermint` for the Lettermint API. The others take a word from film and
 printing for the job they do, and each README opens by saying what the word
-means.
+means. `tags` keeps the plain name of the pattern it builds on.
 
 ## How they fit together
 

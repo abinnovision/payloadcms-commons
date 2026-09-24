@@ -20,6 +20,10 @@
 			"package-name": "@abinnovision/payloadcms-montage",
 			"component": "payloadcms-montage"
 		},
+		"packages/tags": {
+			"package-name": "@abinnovision/payloadcms-tags",
+			"component": "payloadcms-tags"
+		},
 		"packages/viewfinder": {
 			"package-name": "@abinnovision/payloadcms-viewfinder",
 			"component": "payloadcms-viewfinder"

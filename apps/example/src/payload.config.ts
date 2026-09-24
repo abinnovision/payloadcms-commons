@@ -1,6 +1,7 @@
 import { colophonPlugin } from "@abinnovision/payloadcms-colophon/config";
 import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
 import { montagePlugin } from "@abinnovision/payloadcms-montage/config";
+import { tagsPlugin } from "@abinnovision/payloadcms-tags/config";
 import { viewfinderPlugin } from "@abinnovision/payloadcms-viewfinder/config";
 import { wayfinderPlugin } from "@abinnovision/payloadcms-wayfinder/config";
 import { sqliteAdapter } from "@payloadcms/db-sqlite";
@@ -116,6 +117,11 @@ export default buildConfig({
 		 * "nothing configured, nothing rendered" case.
 		 */
 		colophonPlugin(),
+		/*
+		 * Last: wayfinder replaces each language's translations wholesale, which
+		 * would drop the `tags:*` strings merged in before it.
+		 */
+		tagsPlugin({ collections: ["posts", "pages"] }),
 	],
 	graphQL: { disable: true },
 	typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },

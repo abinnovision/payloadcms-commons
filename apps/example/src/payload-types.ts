@@ -257,9 +257,21 @@ export interface Page {
 	meta?: {
 		title?: string | null;
 	};
+	tags?: (number | Tag)[] | null;
 	updatedAt: string;
 	createdAt: string;
 	_status?: ("draft" | "published") | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tags".
+ */
+export interface Tag {
+	id: number;
+	name: string;
+	color?: string | null;
+	updatedAt: string;
+	createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -367,16 +379,6 @@ export interface Post {
 	_status?: ("draft" | "published") | null;
 }
 /**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tags".
- */
-export interface Tag {
-	id: number;
-	name: string;
-	updatedAt: string;
-	createdAt: string;
-}
-/**
  * Keys for MCP clients. Each key acts as its user and may only do what its capabilities allow.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -402,13 +404,13 @@ export interface McpxApiKey {
 	apiKey?: string | null;
 	apiKeyIndex?: string | null;
 	/**
-	 * What this key may do. Unchecked means refused, whatever the plugin config allows.
+	 * What this key may do. An unticked box is a refusal, and a dash means the plugin config does not expose that operation at all.
 	 */
 	capabilities?: {
 		collections?: {
 			pages?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
@@ -416,13 +418,13 @@ export interface McpxApiKey {
 				 */
 				write?: boolean | null;
 				/**
-				 * Publish the current draft. Changes what the public sees.
+				 * Promote the current draft to what the public sees.
 				 */
 				publish?: boolean | null;
 			};
 			articles?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
@@ -432,7 +434,7 @@ export interface McpxApiKey {
 			};
 			posts?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
@@ -442,7 +444,7 @@ export interface McpxApiKey {
 			};
 			sections?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
@@ -452,7 +454,7 @@ export interface McpxApiKey {
 			};
 			tags?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 			};
@@ -460,15 +462,15 @@ export interface McpxApiKey {
 		globals?: {
 			siteSettings?: {
 				/**
-				 * Describe and read this global.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
-				 * Patch and validate this global's draft.
+				 * Create, patch and validate drafts.
 				 */
 				write?: boolean | null;
 				/**
-				 * Publish the current draft. Changes what the public sees.
+				 * Promote the current draft to what the public sees.
 				 */
 				publish?: boolean | null;
 			};
@@ -617,6 +619,7 @@ export interface PagesSelect<T extends boolean = true> {
 		| {
 				title?: T;
 		  };
+	tags?: T;
 	updatedAt?: T;
 	createdAt?: T;
 	_status?: T;
@@ -674,6 +677,7 @@ export interface PostsSelect<T extends boolean = true> {
  */
 export interface TagsSelect<T extends boolean = true> {
 	name?: T;
+	color?: T;
 	updatedAt?: T;
 	createdAt?: T;
 }

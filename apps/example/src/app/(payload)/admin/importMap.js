@@ -1,3 +1,5 @@
+import { TagsCell as TagsCell_d646fe29c26d59e0f73d47e819c05f36 } from '@abinnovision/payloadcms-tags/admin'
+import { TagsField as TagsField_d646fe29c26d59e0f73d47e819c05f36 } from '@abinnovision/payloadcms-tags/admin'
 import { ViewfinderFormBridge as ViewfinderFormBridge_b833a0af6d27cd5001b342ca3b0ec3f4 } from '@abinnovision/payloadcms-viewfinder/admin'
 import { RscEntryLexicalCell as RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { RscEntryLexicalField as RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
@@ -23,6 +25,8 @@ import { BlockquoteFeatureClient as BlockquoteFeatureClient_e70f5e05f09f93e00b99
 import { UploadFeatureClient as UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { HorizontalRuleFeatureClient as HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { InlineToolbarFeatureClient as InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { TagTitleCell as TagTitleCell_d646fe29c26d59e0f73d47e819c05f36 } from '@abinnovision/payloadcms-tags/admin'
+import { ColorField as ColorField_d646fe29c26d59e0f73d47e819c05f36 } from '@abinnovision/payloadcms-tags/admin'
 import { McpxCapabilityMatrix as McpxCapabilityMatrix_517fab9069cb9a39a67cc949432c587a } from '@abinnovision/payloadcms-mcpx/client'
 import { McpxSetupGuide as McpxSetupGuide_517fab9069cb9a39a67cc949432c587a } from '@abinnovision/payloadcms-mcpx/client'
 import { LinkLabelFeatureClient as LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56 } from '@abinnovision/payloadcms-wayfinder/admin'
@@ -31,6 +35,8 @@ import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } f
 
 /** @type import('payload').ImportMap */
 export const importMap = {
+  "@abinnovision/payloadcms-tags/admin#TagsCell": TagsCell_d646fe29c26d59e0f73d47e819c05f36,
+  "@abinnovision/payloadcms-tags/admin#TagsField": TagsField_d646fe29c26d59e0f73d47e819c05f36,
   "@abinnovision/payloadcms-viewfinder/admin#ViewfinderFormBridge": ViewfinderFormBridge_b833a0af6d27cd5001b342ca3b0ec3f4,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalField": RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e,
@@ -56,6 +62,8 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UploadFeatureClient": UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#HorizontalRuleFeatureClient": HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#InlineToolbarFeatureClient": InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "@abinnovision/payloadcms-tags/admin#TagTitleCell": TagTitleCell_d646fe29c26d59e0f73d47e819c05f36,
+  "@abinnovision/payloadcms-tags/admin#ColorField": ColorField_d646fe29c26d59e0f73d47e819c05f36,
   "@abinnovision/payloadcms-mcpx/client#McpxCapabilityMatrix": McpxCapabilityMatrix_517fab9069cb9a39a67cc949432c587a,
   "@abinnovision/payloadcms-mcpx/client#McpxSetupGuide": McpxSetupGuide_517fab9069cb9a39a67cc949432c587a,
   "@abinnovision/payloadcms-wayfinder/admin#LinkLabelFeatureClient": LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56,
