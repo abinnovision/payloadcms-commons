@@ -16,6 +16,7 @@ describe("./admin module boundary", () => {
 	it("reaches only React and the admin UI package", () => {
 		expect([...walkModuleGraph(entry).bareSpecifiers].sort()).toEqual([
 			"@payloadcms/ui",
+			"@payloadcms/ui/shared",
 			"react",
 		]);
 	});

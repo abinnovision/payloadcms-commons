@@ -13,6 +13,7 @@ import {
 	useLocale,
 	useTranslation,
 } from "@payloadcms/ui";
+import { formatAdminURL, requests } from "@payloadcms/ui/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -102,7 +103,6 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 	const {
 		config: {
 			routes: { api },
-			serverURL,
 		},
 	} = useConfig();
 	const { permissions } = useAuth();
@@ -127,7 +127,11 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 	const [tags, setTags] = useState<LoadedTag[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 
-	const collectionURL = `${serverURL}${api}/${tagsSlug}`;
+	/*
+	 * Relative like Payload's own relationship field, so the request stays on the
+	 * admin's origin even when `serverURL` points elsewhere.
+	 */
+	const collectionURL = formatAdminURL({ apiRoute: api, path: `/${tagsSlug}` });
 	const headers = useMemo(
 		() => ({ "Accept-Language": i18n.language }),
 		[i18n.language],
@@ -138,18 +142,15 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 	 * itself, so searching happens client-side against this list.
 	 */
 	const fetchTags = useCallback(async (): Promise<LoadedTag[]> => {
-		const params = new URLSearchParams({
-			pagination: "false",
-			depth: "0",
-			sort: titleField,
-			[`select[${titleField}]`]: "true",
-			"select[color]": "true",
-			"select[createdAt]": "true",
-			...(locale ? { locale } : {}),
-		});
-		const response = await fetch(`${collectionURL}?${params.toString()}`, {
-			credentials: "include",
+		const response = await requests.get(collectionURL, {
 			headers,
+			params: {
+				depth: 0,
+				locale,
+				pagination: false,
+				select: { [titleField]: true, color: true, createdAt: true },
+				sort: titleField,
+			},
 		});
 		if (!response.ok) {
 			return [];
@@ -177,16 +178,17 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 	}, [fetchTags]);
 
 	const createTag = async (title: string): Promise<string | number | null> => {
-		const params = new URLSearchParams({
+		const query = new URLSearchParams({
 			depth: "0",
 			...(locale ? { locale } : {}),
 		});
-		const response = await fetch(`${collectionURL}?${params.toString()}`, {
-			method: "POST",
-			credentials: "include",
-			headers: { ...headers, "Content-Type": "application/json" },
-			body: JSON.stringify({ [titleField]: title }),
-		});
+		const response = await requests.post(
+			`${collectionURL}?${query.toString()}`,
+			{
+				body: JSON.stringify({ [titleField]: title }),
+				headers: { ...headers, "Content-Type": "application/json" },
+			},
+		);
 
 		if (response.ok) {
 			const json = (await response.json()) as { doc: Record<string, unknown> };
