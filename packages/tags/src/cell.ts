@@ -1,3 +1,5 @@
+import { COLOR_FIELD, TITLE_FIELD } from "./options.js";
+
 /**
  * One tag as it reaches a list cell: either the bare relationship id (depth 0,
  * or a document the read access denied) or the populated document.
@@ -21,25 +23,23 @@ export interface NormalizedCell {
 /** How many pills a cell shows before collapsing the rest into "+N". */
 const VISIBLE_LIMIT = 3;
 
-const toTag = (value: CellRelationshipValue, titleField: string): CellTag => {
-	if (typeof value === "string" || typeof value === "number") {
-		return {
-			id: value,
-			label: `#${String(value)}`,
-			color: null,
-			readable: false,
-		};
-	}
+/** A tag's display label: its title, or a `#id` fallback when it has none. */
+export const tagLabel = (title: unknown, id: string | number): string =>
+	typeof title === "string" && title !== "" ? title : `#${String(id)}`;
 
-	const title = value[titleField];
-	const color = value["color"];
+/**
+ * Normalizes a populated tag document into the shape the admin components
+ * render, reading the title and color by the fields the plugin generates.
+ */
+export const toTag = (doc: {
+	[key: string]: unknown;
+	id: string | number;
+}): CellTag => {
+	const color = doc[COLOR_FIELD];
 
 	return {
-		id: value.id,
-		label:
-			typeof title === "string" && title !== ""
-				? title
-				: `#${String(value.id)}`,
+		id: doc.id,
+		label: tagLabel(doc[TITLE_FIELD], doc.id),
 		color: typeof color === "string" ? color : null,
 		readable: true,
 	};
@@ -52,9 +52,12 @@ const toTag = (value: CellRelationshipValue, titleField: string): CellTag => {
  */
 export const normalizeCellValues = (
 	values: readonly CellRelationshipValue[] | null | undefined,
-	titleField: string,
 ): NormalizedCell => {
-	const tags = (values ?? []).map((value) => toTag(value, titleField));
+	const tags = (values ?? []).map((value) =>
+		typeof value === "string" || typeof value === "number"
+			? { id: value, label: `#${String(value)}`, color: null, readable: false }
+			: toTag(value),
+	);
 
 	return {
 		visible: tags.slice(0, VISIBLE_LIMIT),

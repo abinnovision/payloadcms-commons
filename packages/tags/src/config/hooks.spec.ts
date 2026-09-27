@@ -1,49 +1,50 @@
 import { describe, expect, it } from "vitest";
 
-import { createColorFillHook } from "./hooks.js";
+import { colorFillHook } from "./hooks.js";
+import { colorForName } from "../index.js";
 
-import type { CollectionBeforeChangeHook } from "payload";
+type HookArgs = Parameters<typeof colorFillHook>[0];
 
-const collection = {
-	slug: "tags",
-} as unknown as Parameters<CollectionBeforeChangeHook>[0]["collection"];
+/** The hook reads only `data` and `originalDoc`; the rest of its args stay empty. */
+const run = (
+	data: Record<string, unknown>,
+	originalDoc?: NonNullable<HookArgs["originalDoc"]>,
+) => {
+	const args: Partial<HookArgs> = originalDoc
+		? { data, originalDoc, operation: "update" }
+		: { data, operation: "create" };
 
-describe("createColorFillHook", () => {
-	const hook = createColorFillHook("name");
-	const run = (
-		data: Record<string, unknown>,
-		originalDoc?: Record<string, unknown>,
-	) =>
-		hook({
-			collection,
-			context: {},
-			data,
-			operation: originalDoc ? "update" : "create",
-			originalDoc,
-			req: {} as unknown as Parameters<CollectionBeforeChangeHook>[0]["req"],
-		} as unknown as Parameters<CollectionBeforeChangeHook>[0]);
+	return colorFillHook(args as HookArgs) as Record<string, unknown>;
+};
 
-	it("fills a missing color from the title", () => {
-		const result = run({ name: "News" });
-
-		expect(result["color"]).toBeTypeOf("string");
+describe("colorFillHook", () => {
+	it("fills a missing color from the name", () => {
+		expect(run({ name: "News" })["color"]).toBe(colorForName("News"));
 	});
 
 	it("leaves an explicit color untouched", () => {
-		const result = run({ name: "News", color: "#123456" });
-
-		expect(result["color"]).toBe("#123456");
+		expect(run({ name: "News", color: "#123456" })["color"]).toBe("#123456");
 	});
 
-	it("does nothing when the title is missing", () => {
-		const result = run({});
+	it("does nothing when the name is missing", () => {
+		expect(run({})["color"]).toBeUndefined();
+	});
+
+	it("keeps the original color on a partial update that omits it", () => {
+		const result = run(
+			{ name: "News" },
+			{ id: 1, name: "News", color: "#123456" },
+		);
 
 		expect(result["color"]).toBeUndefined();
 	});
 
-	it("does not overwrite the original document's color on a partial update that omits it", () => {
-		const result = run({ name: "News" }, { name: "News", color: "#123456" });
+	it("refills the color from the original name on a partial update without a name", () => {
+		const result = run(
+			{ color: null },
+			{ id: 1, name: "News", color: "#123456" },
+		);
 
-		expect(result["color"]).toBeUndefined();
+		expect(result["color"]).toBe(colorForName("News"));
 	});
 });

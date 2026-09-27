@@ -19,20 +19,15 @@ export interface TagsPermissions {
 }
 
 /**
- * Whether `TagsField` may offer inline creation: the plugin option has to
- * allow it, and the signed-in user has to be allowed to create a document in
- * the tags collection. Without the second check, an editor without create
- * access would see a Create option that a 403 from the server refuses.
+ * Whether `TagsField` may offer inline creation: the signed-in user has to be
+ * allowed to create a document in the tags collection. Without this check, an
+ * editor without create access would see a Create option that a 403 from the
+ * server refuses.
  */
 export const canInlineCreate = (
 	permissions: TagsPermissions | undefined,
 	tagsSlug: string,
-	allowInlineCreate: boolean,
 ): boolean => {
-	if (!allowInlineCreate) {
-		return false;
-	}
-
 	const create = permissions?.collections?.[tagsSlug]?.create;
 
 	return create === true || create?.permission === true;

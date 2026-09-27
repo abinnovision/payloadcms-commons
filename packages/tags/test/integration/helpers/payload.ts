@@ -1,18 +1,15 @@
 import { getPayload } from "payload";
 
-import { buildFixtureConfig } from "../fixtures/config.js";
+import { buildFixtureConfig } from "../../fixtures/config.js";
 
 import type { Payload } from "payload";
 
 /**
- * `getPayload` caches by `key`, and this fixture's sqlite database is
- * in-memory, so a distinct key per spec file yields a genuinely separate
- * instance and a clean database.
+ * `getPayload` caches by `key`; vitest isolates modules per spec file, so this
+ * fixed key still yields a separate instance and a clean database per file.
  */
-export const bootPayload = (key: string): Promise<Payload> => {
+export const bootPayload = async (): Promise<Payload> => {
 	const config = buildFixtureConfig();
 
-	return getPayload({ config, key });
+	return await getPayload({ config, key: "tags-integration" });
 };
-
-export const USER = { email: "tags@example.com", password: "tags-secret" };

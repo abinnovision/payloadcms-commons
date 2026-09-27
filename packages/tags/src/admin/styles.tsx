@@ -71,6 +71,10 @@ const SHEET = `
 	outline: 2px solid var(--theme-text);
 	outline-offset: 2px;
 }
+.tags-color-field__swatch:focus-visible {
+	outline: var(--accessibility-outline);
+	outline-offset: var(--accessibility-outline-offset);
+}
 .tags-color-field__swatch:disabled { cursor: default; }
 .tags-color-field__custom {
 	width: calc(var(--base) * 2);

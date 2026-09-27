@@ -1,11 +1,7 @@
 "use client";
 
 import {
-	FieldDescription,
-	FieldError,
-	FieldLabel,
 	ReactSelect,
-	fieldBaseClass,
 	toast,
 	useAuth,
 	useConfig,
@@ -17,11 +13,14 @@ import { formatAdminURL, requests } from "@payloadcms/ui/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+	COLOR_FIELD,
+	TITLE_FIELD,
 	canInlineCreate,
-	isHexColor,
 	matchesTag,
 	resolveSelection,
+	toTag,
 } from "../index.js";
+import { FieldShell } from "./field-shell.js";
 import { TagPill } from "./tag-pill.js";
 
 import type { TagOption, TagsFieldClientProps } from "../index.js";
@@ -31,6 +30,12 @@ import type { ReactNode } from "react";
 
 interface LoadedTag extends TagOption {
 	color: string | null;
+}
+
+/** A tags-collection document as it arrives over the JSON API. */
+interface TagDoc {
+	id: string | number;
+	[key: string]: unknown;
 }
 
 /** What react-select holds per option. `value` is the id as a string. */
@@ -45,18 +50,14 @@ interface TagSelectOption {
 export type TagsFieldProps = RelationshipFieldClientProps &
 	TagsFieldClientProps;
 
-const toLoadedTag = (
-	doc: Record<string, unknown>,
-	titleField: string,
-): LoadedTag => {
-	const id = doc["id"] as string | number;
-	const title = doc[titleField];
+const toLoadedTag = (doc: TagDoc): LoadedTag => {
+	const tag = toTag(doc);
 	const createdAt = doc["createdAt"];
 
 	return {
-		id,
-		label: typeof title === "string" && title !== "" ? title : `#${String(id)}`,
-		color: isHexColor(doc["color"]) ? doc["color"] : null,
+		id: tag.id,
+		label: tag.label,
+		color: tag.color,
 		...(typeof createdAt === "string" ? { createdAt } : {}),
 	};
 };
@@ -97,8 +98,8 @@ const TagMultiValueLabel = (props: { data: TagSelectOption }): ReactNode => (
  * the arrow keys reach the existing ones. Values stay plain relationship ids.
  */
 export const TagsField = (props: TagsFieldProps): ReactNode => {
-	const { field, path: pathFromProps, readOnly, tagsSlug, titleField } = props;
-	const { admin, label, localized, maxRows, required } = field;
+	const { field, path: pathFromProps, readOnly, tagsSlug } = props;
+	const { admin, maxRows, required } = field;
 
 	const {
 		config: {
@@ -107,7 +108,7 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 	} = useConfig();
 	const { permissions } = useAuth();
 	const { code: locale } = useLocale();
-	const { i18n, t } = useTranslation<object, "tags:create">();
+	const { i18n, t } = useTranslation();
 
 	const { validate } = props;
 	const memoizedValidate: NonNullable<typeof validate> = useCallback(
@@ -118,11 +119,12 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 		[validate, required],
 	);
 
-	const { disabled, path, setValue, showError, value } = useField<unknown>({
-		potentiallyStalePath: pathFromProps,
-		// Payload's field-level and form-level validate types disagree on options.
-		validate: memoizedValidate as Validate,
-	});
+	const { customComponents, disabled, path, setValue, showError, value } =
+		useField<unknown>({
+			potentiallyStalePath: pathFromProps,
+			// Payload's field-level and form-level validate types disagree on options.
+			validate: memoizedValidate as Validate,
+		});
 
 	const [tags, setTags] = useState<LoadedTag[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -148,20 +150,18 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 				depth: 0,
 				locale,
 				pagination: false,
-				select: { [titleField]: true, color: true, createdAt: true },
-				sort: titleField,
+				select: { [TITLE_FIELD]: true, [COLOR_FIELD]: true, createdAt: true },
+				sort: TITLE_FIELD,
 			},
 		});
 		if (!response.ok) {
 			return [];
 		}
 
-		const json = (await response.json()) as {
-			docs: Record<string, unknown>[];
-		};
+		const json = (await response.json()) as { docs: TagDoc[] };
 
-		return json.docs.map((doc) => toLoadedTag(doc, titleField));
-	}, [collectionURL, headers, locale, titleField]);
+		return json.docs.map(toLoadedTag);
+	}, [collectionURL, headers, locale]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -185,14 +185,14 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 		const response = await requests.post(
 			`${collectionURL}?${query.toString()}`,
 			{
-				body: JSON.stringify({ [titleField]: title }),
+				body: JSON.stringify({ [TITLE_FIELD]: title }),
 				headers: { ...headers, "Content-Type": "application/json" },
 			},
 		);
 
 		if (response.ok) {
-			const json = (await response.json()) as { doc: Record<string, unknown> };
-			const created = toLoadedTag(json.doc, titleField);
+			const json = (await response.json()) as { doc: TagDoc };
+			const created = toLoadedTag(json.doc);
 			setTags((current) => [...current, created]);
 
 			return created.id;
@@ -266,13 +266,8 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 	});
 
 	const atMaxRows = maxRows !== undefined && selectedIds.length >= maxRows;
-	const isCreatable =
-		!atMaxRows && canInlineCreate(permissions, tagsSlug, true);
-
-	const style: Record<string, unknown> = {
-		...admin?.style,
-		...(admin?.width ? { "--field-width": admin.width } : { flex: "1 1 auto" }),
-	};
+	const isCreatable = !atMaxRows && canInlineCreate(permissions, tagsSlug);
+	const isDisabled = readOnly === true || disabled;
 
 	/*
 	 * Props Payload's `ReactSelect` passes through to react-select without
@@ -281,66 +276,46 @@ export const TagsField = (props: TagsFieldProps): ReactNode => {
 	 */
 	const passThrough: Record<string, unknown> = {
 		createOptionPosition: "first",
-		formatCreateLabel: (input: string) => `${t("tags:create")} "${input}"`,
+		formatCreateLabel: (input: string) => `${t("general:create")} "${input}"`,
 	};
 
 	return (
-		<div
-			className={[
-				fieldBaseClass,
-				"tags-field",
-				admin?.className,
-				showError && "error",
-			]
-				.filter(Boolean)
-				.join(" ")}
-			id={`field-${path.replace(/\./g, "__")}`}
-			style={style}
+		<FieldShell
+			className="tags-field"
+			customComponents={customComponents}
+			field={field}
+			path={path}
+			readOnly={isDisabled}
+			showError={showError}
 		>
-			<FieldLabel
-				{...(label === undefined ? {} : { label })}
-				localized={localized === true}
-				path={path}
-				required={required === true}
+			<ReactSelect
+				{...passThrough}
+				components={{ MultiValueLabel: TagMultiValueLabel }}
+				disabled={isDisabled}
+				/*
+				 * `null` is how Payload's creatable branch asks whether to create
+				 * on Enter from the raw input. Answering no leaves Enter to
+				 * react-select, which then acts on the focused option.
+				 */
+				filterOption={(
+					option: { data: ReactSelectOption; label: string } | null,
+					input: string,
+				) =>
+					option !== null &&
+					(option.data["__isNew__"] === true || matchesTag(option.label, input))
+				}
+				isClearable
+				isCreatable={isCreatable}
+				isLoading={isLoading}
+				isMulti
+				isSortable={admin?.isSortable ?? true}
+				onChange={(next) => {
+					void handleChange(next as unknown as TagSelectOption[] | null);
+				}}
+				options={options}
+				showError={showError}
+				value={selected}
 			/>
-			<div className={`${fieldBaseClass}__wrap`}>
-				<FieldError path={path} showError={showError} />
-				<ReactSelect
-					{...passThrough}
-					components={{ MultiValueLabel: TagMultiValueLabel }}
-					disabled={readOnly === true || disabled}
-					/*
-					 * `null` is how Payload's creatable branch asks whether to create
-					 * on Enter from the raw input. Answering no leaves Enter to
-					 * react-select, which then acts on the focused option.
-					 */
-					filterOption={(
-						option: { data: ReactSelectOption; label: string } | null,
-						input: string,
-					) =>
-						option !== null &&
-						(option.data["__isNew__"] === true ||
-							matchesTag(option.label, input))
-					}
-					isClearable
-					isCreatable={isCreatable}
-					isLoading={isLoading}
-					isMulti
-					isSortable={admin?.isSortable ?? true}
-					onChange={(next) => {
-						void handleChange(next as unknown as TagSelectOption[] | null);
-					}}
-					options={options}
-					showError={showError}
-					value={selected}
-				/>
-				<FieldDescription
-					{...(admin?.description === undefined
-						? {}
-						: { description: admin.description })}
-					path={path}
-				/>
-			</div>
-		</div>
+		</FieldShell>
 	);
 };

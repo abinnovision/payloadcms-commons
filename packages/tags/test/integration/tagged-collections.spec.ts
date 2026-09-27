@@ -4,48 +4,59 @@ import { bootPayload } from "./helpers/payload.js";
 
 import type { Payload } from "payload";
 
+type Id = number | string;
+
 describe("tagged collections", () => {
 	let payload: Payload;
-	let tagId: number | string;
+
+	const createTag = async (name: string): Promise<Id> =>
+		(
+			await payload.create({
+				collection: "tags",
+				data: { name },
+				overrideAccess: true,
+			})
+		).id;
+
+	const deleteTag = (id: Id) =>
+		payload.delete({ collection: "tags", id, overrideAccess: true });
 
 	beforeAll(async () => {
-		payload = await bootPayload("tags-tagged-collections");
-
-		const tag = await payload.create({
-			collection: "tags",
-			data: { title: "Cascade" },
-			overrideAccess: true,
-		});
-
-		tagId = tag.id;
+		payload = await bootPayload();
 	});
 
 	afterAll(async () => {
 		await payload.destroy();
 	});
 
-	it("appends a sidebar tags field to a collection that had none", () => {
-		const pages = payload.collections["pages"]!.config;
-		const field = pages.fields.find(
-			(candidate) => "name" in candidate && candidate.name === "tags",
-		) as { type?: string; relationTo?: string; hasMany?: boolean } | undefined;
+	it.each(["posts", "pages"])(
+		"appends a sidebar hasMany relationship to %s",
+		(slug) => {
+			const field = payload.collections[slug]!.config.fields.find(
+				(candidate) => "name" in candidate && candidate.name === "tags",
+			);
 
-		expect(field?.type).toBe("relationship");
-		expect(field?.relationTo).toBe("tags");
-		expect(field?.hasMany).toBe(true);
-	});
+			expect(field).toMatchObject({
+				type: "relationship",
+				relationTo: "tags",
+				hasMany: true,
+				admin: { position: "sidebar" },
+			});
+		},
+	);
 
-	it("lets a document on the appended field carry and filter by tags", async () => {
-		const page = await payload.create({
+	it("filters documents with `where: { tags: { in } }`", async () => {
+		const tagId = await createTag("Filter");
+		const tagged = await payload.create({
 			collection: "pages",
-			data: { title: "Landing", tags: [tagId] },
+			data: { title: "Tagged", tags: [tagId] },
 			overrideAccess: true,
-			depth: 0,
 		});
-
-		expect((page["tags"] as (number | string)[]).map(String)).toContain(
-			String(tagId),
-		);
+		await payload.create({
+			collection: "pages",
+			data: { title: "Untagged" },
+			overrideAccess: true,
+		});
 
 		const found = await payload.find({
 			collection: "pages",
@@ -53,65 +64,40 @@ describe("tagged collections", () => {
 			overrideAccess: true,
 		});
 
-		expect(found.docs.some((doc) => doc.id === page.id)).toBe(true);
+		expect(found.docs.map((doc) => doc.id)).toEqual([tagged.id]);
 	});
 
-	it("removes a deleted tag from a published document's relationship", async () => {
-		const doomed = await payload.create({
-			collection: "tags",
-			data: { title: "Doomed" },
-			overrideAccess: true,
-		});
-
+	it("removes a deleted tag from a published document", async () => {
+		const tagId = await createTag("Doomed");
 		const post = await payload.create({
 			collection: "posts",
-			data: {
-				title: "Published post",
-				tags: [doomed.id],
-				_status: "published",
-			},
+			data: { title: "Published post", tags: [tagId], _status: "published" },
 			overrideAccess: true,
 			draft: false,
 		});
 
-		await payload.delete({
-			collection: "tags",
-			id: doomed.id,
-			overrideAccess: true,
-		});
+		await deleteTag(tagId);
 
 		const refreshed = await payload.findByID({
 			collection: "posts",
 			id: post.id,
-			draft: false,
 			overrideAccess: true,
 			depth: 0,
 		});
 
-		expect(
-			(refreshed["tags"] as (number | string)[] | undefined) ?? [],
-		).not.toContain(doomed.id);
+		expect(refreshed["tags"] ?? []).not.toContain(tagId);
 	});
 
-	it("removes a deleted tag from a draft version's relationship", async () => {
-		const doomed = await payload.create({
-			collection: "tags",
-			data: { title: "Doomed Draft" },
-			overrideAccess: true,
-		});
-
+	it("removes a deleted tag from a draft version (`_posts_v_rels`)", async () => {
+		const tagId = await createTag("Doomed Draft");
 		const post = await payload.create({
 			collection: "posts",
-			data: { title: "Draft post", tags: [doomed.id] },
+			data: { title: "Draft post", tags: [tagId] },
 			draft: true,
 			overrideAccess: true,
 		});
 
-		await payload.delete({
-			collection: "tags",
-			id: doomed.id,
-			overrideAccess: true,
-		});
+		await deleteTag(tagId);
 
 		const refreshed = await payload.findByID({
 			collection: "posts",
@@ -121,8 +107,6 @@ describe("tagged collections", () => {
 			depth: 0,
 		});
 
-		expect(
-			(refreshed["tags"] as (number | string)[] | undefined) ?? [],
-		).not.toContain(doomed.id);
+		expect(refreshed["tags"] ?? []).not.toContain(tagId);
 	});
 });

@@ -11,12 +11,14 @@ export { PRESETS, colorForName, isHexColor } from "./color.js";
 export { matchesTag } from "./search.js";
 export { resolveSelection } from "./selection.js";
 export { canInlineCreate } from "./permissions.js";
-export { normalizeCellValues } from "./cell.js";
+export { normalizeCellValues, tagLabel, toTag } from "./cell.js";
 export {
+	COLOR_FIELD,
 	COLOR_FIELD_COMPONENT,
 	TAGS_CELL_COMPONENT,
 	TAGS_FIELD_COMPONENT,
 	TAG_TITLE_CELL_COMPONENT,
+	TITLE_FIELD,
 } from "./options.js";
 
 export type { CellRelationshipValue, CellTag, NormalizedCell } from "./cell.js";

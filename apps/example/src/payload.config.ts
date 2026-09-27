@@ -20,7 +20,6 @@ import { articles } from "./collections/articles";
 import { pages } from "./collections/pages";
 import { posts } from "./collections/posts";
 import { sections } from "./collections/sections";
-import { tags } from "./collections/tags";
 import { users } from "./collections/users";
 import { siteSettings } from "./globals/site-settings";
 import { linkTargets } from "./links";
@@ -52,7 +51,7 @@ export default buildConfig({
 	editor: lexicalEditor(),
 	admin: { user: users.slug },
 	localization: { locales: ["en", "de"], defaultLocale: "en" },
-	collections: [users, pages, articles, sections, posts, tags],
+	collections: [users, pages, articles, sections, posts],
 	globals: [siteSettings],
 	/*
 	 * This file never imports React. Every plugin here comes from an
@@ -96,6 +95,11 @@ export default buildConfig({
 		 */
 		wayfinderPlugin({ checkDefaultPopulateOn: linkTargets.relationTo }),
 		/*
+		 * Generates the `tags` collection and adds the field to both
+		 * collections. Before mcpx, which exposes `tags` and requires it to exist.
+		 */
+		tagsPlugin({ collections: ["posts", "pages"] }),
+		/*
 		 * `pages` is the entity to reach for when trying out `publishDocument`.
 		 * `articles` and `posts` show the other side of the axis, where MCP
 		 * writes stay drafts and a human publishes.
@@ -117,11 +121,6 @@ export default buildConfig({
 		 * "nothing configured, nothing rendered" case.
 		 */
 		colophonPlugin(),
-		/*
-		 * Last: wayfinder replaces each language's translations wholesale, which
-		 * would drop the `tags:*` strings merged in before it.
-		 */
-		tagsPlugin({ collections: ["posts", "pages"] }),
 	],
 	graphQL: { disable: true },
 	typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },

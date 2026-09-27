@@ -7,9 +7,17 @@ import {
 	vitest,
 } from "@abinnovision/eslint-config-base";
 
+/** Nothing in this package may reach for Next. Tags is loaded from payload.config.ts and from Payload's own admin bundle, neither of which is Next-specific. */
+const noNext = {
+	group: ["next", "next/*"],
+	message:
+		"payloadcms-tags takes no dependency on Next. It is loaded from the Payload config graph and from Payload's own admin bundle, so it needs nothing from the framework around either.",
+};
+
 /**
- * The item model and the pure helpers are shared by the config graph and the
- * admin bundle, so `.` must stay free of both React and the Payload runtime.
+ * The shared layer, color handling, client-side search and selection, the
+ * permission check and the list-cell model, is reached by both halves of the
+ * package, so `.` must stay free of both React and the Payload runtime.
  */
 const coreIsPlatformFree = {
 	group: [
@@ -34,6 +42,10 @@ export default defineConfig([
 			// Symbols are exported inline on their declaration, so exports are
 			// interleaved with the private helpers they sit next to.
 			"import/exports-last": "off",
+			"@typescript-eslint/no-restricted-imports": [
+				"error",
+				{ patterns: [noNext] },
+			],
 		},
 	},
 	{
@@ -41,7 +53,7 @@ export default defineConfig([
 		rules: {
 			"@typescript-eslint/no-restricted-imports": [
 				"error",
-				{ patterns: [coreIsPlatformFree] },
+				{ patterns: [noNext, coreIsPlatformFree] },
 			],
 		},
 	},
@@ -52,6 +64,7 @@ export default defineConfig([
 				"error",
 				{
 					patterns: [
+						noNext,
 						{
 							group: [
 								"react",

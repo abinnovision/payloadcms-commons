@@ -23,7 +23,7 @@ export type TagsCellProps = DefaultCellComponentProps<RelationshipFieldClient> &
  * every row. A tag that cannot be read stays a gray `#id` pill.
  */
 export const TagsCell = (props: TagsCellProps): ReactNode => {
-	const { cellData, field, tagsSlug, titleField } = props;
+	const { cellData, field, tagsSlug } = props;
 	const { documents, getRelationships } = useListRelationships();
 	const { t } = useTranslation();
 
@@ -44,7 +44,7 @@ export const TagsCell = (props: TagsCellProps): ReactNode => {
 
 		return doc;
 	});
-	const { visible, overflow } = normalizeCellValues(resolved, titleField);
+	const { visible, overflow } = normalizeCellValues(resolved);
 
 	/* Only the visible ids, and each once: `null` marks one as requested. */
 	const unrequested = visible

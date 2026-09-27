@@ -43,6 +43,5 @@ export const posts: CollectionConfig = {
 				],
 			}),
 		},
-		{ name: "tags", type: "relationship", relationTo: "tags", hasMany: true },
 	],
 };

@@ -18,7 +18,7 @@ here requires anything else here.
 | [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.                       |
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server over the content model, with a fixed tool surface and per-API-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                                  |
-| [`@abinnovision/payloadcms-tags`](./packages/tags)                         | Flat, colored tags with inline creation, adopted onto an existing collection or generated. |
+| [`@abinnovision/payloadcms-tags`](./packages/tags)                         | Flat, colored tags with inline creation, as a lighter alternative to folders.              |
 | [`@abinnovision/payloadcms-viewfinder`](./packages/viewfinder)             | Two-way block addressing between a rendered frontend and the Payload admin form.           |
 | [`@abinnovision/payloadcms-wayfinder`](./packages/wayfinder)               | Editor-authored URL routing: collection-to-path patterns, hrefs and a link field.          |
 

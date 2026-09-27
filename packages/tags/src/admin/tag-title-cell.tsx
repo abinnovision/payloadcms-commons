@@ -1,7 +1,9 @@
 "use client";
 
 import { Link, useConfig } from "@payloadcms/ui";
+import { formatAdminURL } from "@payloadcms/ui/shared";
 
+import { COLOR_FIELD, tagLabel } from "../index.js";
 import { TagPill } from "./tag-pill.js";
 
 import type { DefaultCellComponentProps, TextFieldClient } from "payload";
@@ -23,10 +25,9 @@ export const TagTitleCell = (props: TagTitleCellProps): ReactNode => {
 	} = useConfig();
 
 	const id = String(rowData["id"]);
-	const label =
-		typeof cellData === "string" && cellData !== "" ? cellData : `#${id}`;
+	const label = tagLabel(cellData, id);
 	const pill = (
-		<TagPill color={rowData["color"] as string | null} label={label} />
+		<TagPill color={rowData[COLOR_FIELD] as unknown} label={label} />
 	);
 
 	if (typeof onClick === "function") {
@@ -47,7 +48,10 @@ export const TagTitleCell = (props: TagTitleCellProps): ReactNode => {
 		const trash = props.viewType === "trash" ? "/trash" : "";
 		const href =
 			linkURL ??
-			`${adminRoute}/collections/${collectionSlug}${trash}/${encodeURIComponent(id)}`;
+			formatAdminURL({
+				adminRoute,
+				path: `/collections/${collectionSlug}${trash}/${encodeURIComponent(id)}`,
+			});
 
 		return (
 			<Link className="tags-title-cell" href={href} prefetch={false}>
