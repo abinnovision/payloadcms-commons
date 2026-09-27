@@ -188,7 +188,6 @@ __metadata:
     "@payloadcms/ui": ">=3.88.0 <4"
     payload: ">=3.88.0 <4"
     react: ^19
-    react-dom: ^19
   peerDependenciesMeta:
     "@payloadcms/ui":
       optional: true
