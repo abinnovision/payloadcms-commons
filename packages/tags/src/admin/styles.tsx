@@ -50,6 +50,8 @@ const SHEET = `
 	cursor: pointer;
 	text-decoration: none;
 }
+/* Payload's layered nowrap loses to react-select's unlayered wrap; keeps the indicators on the first row. */
+.tags-field .rs__control { flex-wrap: nowrap; }
 .tags-field .rs__multi-value,
 .tags-field .rs__multi-value:hover {
 	background: none;
