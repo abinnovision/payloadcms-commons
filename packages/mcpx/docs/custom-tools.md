@@ -40,12 +40,14 @@ mcpxPlugin({
 
 `handler` receives `args`, `scope`, `req` and `extra`. `req` is the request of the MCP call, with
 `req.user` set to the key's user and `req.context.mcpx` holding the key id and its resolved
-capabilities. It is the same object as `scope.req`. `extra` is the MCP SDK's request context.
+capabilities. It is the same object as `scope.req`. `extra` is the MCP SDK's request context. The
+key id is a `McpxDocumentId`, which is `number | string` because it follows the database adapter.
 
-`scope` describes what the key may touch: the slugs it may read, write and publish
-(`readable`, `writable`, `publishable`, `readableGlobals`, `writableGlobals`,
-`publishableGlobals`), the full resolved `capabilities`, the configured `locales` and
-`defaultLocale`, the `limits` in force, and the exposed collections and globals under `exposure`.
+`scope` describes what the key may touch: the slugs it may read, write and publish, for
+`collections` and for `globals` (`readable`, `writable`, `publishable` in each), the full resolved
+`capabilities`, the configured `localization` (`locales` and `defaultLocale`, or `null` when
+localization is off), the `limits` in force, and the exposed collections and globals under
+`exposure`.
 
 A custom tool is trusted code. Pass `overrideAccess: false` and `req` to every Local API call, as
 above: Payload's Local API skips access control by default, and the draft guard only recognises
@@ -66,9 +68,9 @@ export const whichCollection = defineMcpxTool({
   description: "Echoes back one of the collections this key may read.",
   isEnabled: (scope) =>
     scope.capabilities.tools["whichCollection"] === true &&
-    scope.readable.length > 0,
+    scope.collections.readable.length > 0,
   inputSchema: (scope) => ({
-    collection: z.enum(scope.readable as [string, ...string[]]),
+    collection: z.enum(scope.collections.readable as [string, ...string[]]),
   }),
   handler: ({ args }) => ({
     content: [{ type: "text", text: args.collection }],

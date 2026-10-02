@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCreate, resolveCapabilities, slugsWith } from "./capabilities.js";
+import { canCreate, resolveCapabilities, scopeSlugs } from "./capabilities.js";
 import { entity } from "../test/builders/scope.js";
 
 import type { NormalizedOptions } from "./options.js";
@@ -54,11 +54,11 @@ describe("resolveCapabilities", () => {
 			"site-settings": { read: true, write: true, publish: false },
 			banner: { read: true, write: false, publish: false },
 		});
-		expect(slugsWith(resolved.globals, "read")).toEqual([
+		expect(scopeSlugs(resolved.globals).readable).toEqual([
 			"site-settings",
 			"banner",
 		]);
-		expect(slugsWith(resolved.globals, "write")).toEqual(["site-settings"]);
+		expect(scopeSlugs(resolved.globals).writable).toEqual(["site-settings"]);
 	});
 
 	it("closes every global on a key issued before globals existed", () => {
@@ -71,8 +71,8 @@ describe("resolveCapabilities", () => {
 			"site-settings": { read: false, write: false, publish: false },
 			banner: { read: false, write: false, publish: false },
 		});
-		expect(slugsWith(resolved.globals, "read")).toEqual([]);
-		expect(slugsWith(resolved.globals, "write")).toEqual([]);
+		expect(scopeSlugs(resolved.globals).readable).toEqual([]);
+		expect(scopeSlugs(resolved.globals).writable).toEqual([]);
 	});
 
 	it("ands the plugin config with the key checkboxes", () => {
@@ -89,11 +89,11 @@ describe("resolveCapabilities", () => {
 			"my-tags": { read: true, write: false, publish: false },
 		});
 		expect(resolved.tools).toEqual({ echo: true, other: false });
-		expect(slugsWith(resolved.collections, "read")).toEqual([
+		expect(scopeSlugs(resolved.collections).readable).toEqual([
 			"pages",
 			"my-tags",
 		]);
-		expect(slugsWith(resolved.collections, "write")).toEqual(["pages"]);
+		expect(scopeSlugs(resolved.collections).writable).toEqual(["pages"]);
 	});
 
 	it("treats a missing checkbox as refused", () => {
@@ -120,9 +120,9 @@ describe("resolveCapabilities", () => {
 			globals: { siteSettings: { read: true, write: true, publish: true } },
 		});
 
-		expect(slugsWith(ticked.collections, "publish")).toEqual(["pages"]);
+		expect(scopeSlugs(ticked.collections).publishable).toEqual(["pages"]);
 		// site-settings is write: "draft", so the config never offers publish.
-		expect(slugsWith(ticked.globals, "publish")).toEqual([]);
+		expect(scopeSlugs(ticked.globals).publishable).toEqual([]);
 	});
 
 	it("refuses publish to a key that may not write", () => {
@@ -130,7 +130,7 @@ describe("resolveCapabilities", () => {
 			collections: { pages: { read: true, publish: true } },
 		});
 
-		expect(slugsWith(resolved.collections, "publish")).toEqual([]);
+		expect(scopeSlugs(resolved.collections).publishable).toEqual([]);
 	});
 
 	it("closes publish on a key issued before the checkbox existed", () => {
@@ -139,15 +139,15 @@ describe("resolveCapabilities", () => {
 		});
 
 		expect(resolved.collections["pages"]).toMatchObject({ publish: false });
-		expect(slugsWith(resolved.collections, "publish")).toEqual([]);
+		expect(scopeSlugs(resolved.collections).publishable).toEqual([]);
 	});
 
 	it("survives keys without any capabilities", () => {
 		expect(
-			slugsWith(resolveCapabilities(options, undefined).collections, "read"),
+			scopeSlugs(resolveCapabilities(options, undefined).collections).readable,
 		).toEqual([]);
 		expect(
-			slugsWith(resolveCapabilities(options, "garbage").collections, "read"),
+			scopeSlugs(resolveCapabilities(options, "garbage").collections).readable,
 		).toEqual([]);
 	});
 

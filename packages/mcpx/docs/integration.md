@@ -147,3 +147,20 @@ The admin components moved from `@abinnovision/payloadcms-mcpx/client` to
 - Rerun `payload generate:importmap` and commit the result.
 - Change direct imports of `McpxCapabilityMatrix` or `McpxSetupGuide` to
   `@abinnovision/payloadcms-mcpx/admin`.
+
+`McpxToolScope` groups its slugs and its locale settings. Rename the fields in custom tools:
+
+```ts
+// before
+scope.readable;
+scope.writableGlobals;
+scope.locales;
+scope.defaultLocale;
+// after
+scope.collections.readable;
+scope.globals.writable;
+scope.localization?.locales;
+scope.localization?.defaultLocale;
+```
+
+`PublishBlocker` is no longer exported.

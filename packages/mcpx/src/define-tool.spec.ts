@@ -29,7 +29,7 @@ describe("defineMcpxTool", () => {
 			name: "whichCollection",
 			description: "Echoes back a collection this key may read.",
 			inputSchema: (scope) => ({
-				collection: z.enum(scope.readable as [string, ...string[]]),
+				collection: z.enum(scope.collections.readable as [string, ...string[]]),
 				depth: z.number().optional(),
 			}),
 			handler: ({ args }) => {
@@ -67,9 +67,9 @@ describe("defineMcpxTool", () => {
 		const dynamic = defineMcpxTool<{ collection: string }>({
 			name: "dynamic",
 			description: "A tool whose shape depends on the key.",
-			isEnabled: (scope) => scope.readable.length > 0,
+			isEnabled: (scope) => scope.collections.readable.length > 0,
 			inputSchema: (scope) => ({
-				collection: z.enum(scope.readable as [string, ...string[]]),
+				collection: z.enum(scope.collections.readable as [string, ...string[]]),
 			}),
 			handler: ({ args }) => ({
 				content: [{ type: "text", text: args.collection }],

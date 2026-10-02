@@ -30,7 +30,7 @@ export const publishDocument = defineMcpxTool({
 	description: DESCRIPTION,
 	annotations: { destructiveHint: true, openWorldHint: false },
 	isEnabled: (scope) =>
-		scope.publishable.length + scope.publishableGlobals.length > 0,
+		scope.collections.publishable.length + scope.globals.publishable.length > 0,
 	inputSchema: (scope) => ({
 		...entityShape(scope, "publish", {
 			collection: "Collection holding the document.",

@@ -145,7 +145,7 @@ export const patchDocument = defineMcpxTool({
 		openWorldHint: false,
 	},
 	isEnabled: (scope) =>
-		scope.writable.length + scope.writableGlobals.length > 0,
+		scope.collections.writable.length + scope.globals.writable.length > 0,
 	inputSchema: (scope) => ({
 		...entityShape(scope, "write", {
 			collection: "Collection holding the document.",

@@ -56,9 +56,9 @@ const whichCollectionTool = defineMcpxTool({
 	description: "Echoes back one of the collections this key may read.",
 	isEnabled: (scope) =>
 		scope.capabilities.tools["whichCollection"] === true &&
-		scope.readable.length > 0,
+		scope.collections.readable.length > 0,
 	inputSchema: (scope) => ({
-		collection: z.enum(scope.readable as [string, ...string[]]),
+		collection: z.enum(scope.collections.readable as [string, ...string[]]),
 	}),
 	handler: ({ args }) => ({
 		content: [{ type: "text", text: JSON.stringify(args) }],

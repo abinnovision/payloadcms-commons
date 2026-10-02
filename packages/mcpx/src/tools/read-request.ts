@@ -52,7 +52,8 @@ export const readRequest = (scope: McpxToolScope): PayloadRequest => {
 		const parts = JSON.parse(key) as unknown[];
 		const collection = parts[LOADER_KEY.slug];
 
-		return typeof collection === "string" && scope.readable.includes(collection)
+		return typeof collection === "string" &&
+			scope.collections.readable.includes(collection)
 			? load(key)
 			: Promise.resolve(parts[LOADER_KEY.id] as TypeWithID);
 	};

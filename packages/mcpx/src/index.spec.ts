@@ -8,16 +8,17 @@ import type {
 	McpxAuthResult,
 	McpxCollectionCapabilities,
 	McpxCollectionOptions,
+	McpxDocumentId,
 	McpxExposedEntity,
 	McpxGlobalOptions,
 	McpxPluginOptions,
 	McpxRequestContext,
 	McpxResolvedCapabilities,
+	McpxScopeSlugs,
 	McpxTool,
 	McpxToolExtra,
 	McpxToolScope,
 	McpxWriteMode,
-	PublishBlocker,
 } from "./index.js";
 
 describe('the "." entrypoint', () => {
@@ -41,16 +42,17 @@ describe('the "." entrypoint', () => {
 		expectTypeOf<McpxAuthResult>().not.toBeAny();
 		expectTypeOf<McpxCollectionCapabilities>().not.toBeAny();
 		expectTypeOf<McpxCollectionOptions>().not.toBeAny();
+		expectTypeOf<McpxDocumentId>().toEqualTypeOf<number | string>();
 		expectTypeOf<McpxExposedEntity>().not.toBeAny();
 		expectTypeOf<McpxGlobalOptions>().not.toBeAny();
 		expectTypeOf<McpxPluginOptions>().not.toBeAny();
 		expectTypeOf<McpxRequestContext>().not.toBeAny();
 		expectTypeOf<McpxResolvedCapabilities>().not.toBeAny();
+		expectTypeOf<McpxScopeSlugs>().not.toBeAny();
 		expectTypeOf<McpxTool>().not.toBeAny();
 		expectTypeOf<McpxToolExtra>().not.toBeAny();
 		expectTypeOf<McpxToolScope>().not.toBeAny();
 		expectTypeOf<McpxWriteMode>().toEqualTypeOf<"draft" | "live" | false>();
-		expectTypeOf<PublishBlocker>().toHaveProperty("message");
 	});
 });
 

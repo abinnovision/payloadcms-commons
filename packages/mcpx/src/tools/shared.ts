@@ -3,7 +3,11 @@ import { z } from "zod";
 import { canCreate, canPublish, isLiveWrite } from "../capabilities.js";
 
 import type { DocumentId } from "../entity.js";
-import type { McpxExposedEntity, McpxToolScope } from "../types.js";
+import type {
+	McpxExposedEntity,
+	McpxScopeSlugs,
+	McpxToolScope,
+} from "../types.js";
 import type { TypedLocale } from "payload";
 
 export type Operation = "create" | "publish" | "read" | "versions" | "write";
@@ -21,6 +25,14 @@ export const idSchema: z.ZodType<DocumentId> = z
 	.describe("Document id.");
 
 type SlugEnum = z.ZodEnum<Record<string, string>>;
+
+const slugsOf = (
+	scope: McpxToolScope,
+	key: keyof McpxScopeSlugs,
+): { collections: string[]; globals: string[] } => ({
+	collections: scope.collections[key],
+	globals: scope.globals[key],
+});
 
 const slugsWhere = (
 	scope: McpxToolScope,
@@ -44,10 +56,7 @@ const slugsWhere = (
  * write live. Empty for a key that can only write drafts.
  */
 const liveWriteSlugs = (scope: McpxToolScope): string[] =>
-	slugsWhere(scope, isLiveWrite, {
-		collections: scope.writable,
-		globals: scope.writableGlobals,
-	});
+	slugsWhere(scope, isLiveWrite, slugsOf(scope, "writable"));
 
 /**
  * Slugs this key may write but never create in, because their documents are
@@ -55,16 +64,13 @@ const liveWriteSlugs = (scope: McpxToolScope): string[] =>
  */
 export const patchOnlySlugs = (scope: McpxToolScope): string[] =>
 	slugsWhere(scope, (entity) => !canCreate(entity), {
-		collections: scope.writable,
+		collections: scope.collections.writable,
 		globals: [],
 	});
 
 // Slugs this key may write and, separately, publish.
 const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
-	slugsWhere(scope, canPublish, {
-		collections: scope.publishable,
-		globals: scope.publishableGlobals,
-	});
+	slugsWhere(scope, canPublish, slugsOf(scope, "publishable"));
 
 /** The rule every tool addressing one document by id states. */
 export const ONE_DOCUMENT_RULE = `Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
@@ -136,33 +142,30 @@ export const slugsFor = (
 		case "create":
 			return {
 				collections: slugsWhere(scope, canCreate, {
-					collections: scope.writable,
+					collections: scope.collections.writable,
 					globals: [],
 				}),
 				// A global always exists, so nothing creates one.
 				globals: [],
 			};
 		case "publish":
-			return {
-				collections: scope.publishable,
-				globals: scope.publishableGlobals,
-			};
+			return slugsOf(scope, "publishable");
 		case "read":
-			return { collections: scope.readable, globals: scope.readableGlobals };
+			return slugsOf(scope, "readable");
 		case "versions":
 			// Version history is a read, of entities that keep one.
 			return {
 				collections: slugsWhere(scope, (entity) => entity.hasVersions, {
-					collections: scope.readable,
+					collections: scope.collections.readable,
 					globals: [],
 				}),
 				globals: slugsWhere(scope, (entity) => entity.hasVersions, {
 					collections: [],
-					globals: scope.readableGlobals,
+					globals: scope.globals.readable,
 				}),
 			};
 		case "write":
-			return { collections: scope.writable, globals: scope.writableGlobals };
+			return slugsOf(scope, "writable");
 	}
 };
 
@@ -229,11 +232,11 @@ export const localeShape = (
 	scope: McpxToolScope,
 	options: { required: boolean; description: string },
 ): LocaleShape => {
-	if (!scope.locales) {
+	if (!scope.localization) {
 		return widen<LocaleShape>({});
 	}
 
-	const locale = z.enum(scope.locales as [string, ...string[]]);
+	const locale = z.enum(scope.localization.locales as [string, ...string[]]);
 
 	return widen<LocaleShape>({
 		locale: (options.required ? locale : locale.optional()).describe(
@@ -266,15 +269,12 @@ export const localeOf = (
 	scope: McpxToolScope,
 	locale: string | undefined,
 ): TypedLocale | undefined => {
-	if (!scope.locales) {
+	if (!scope.localization) {
 		return undefined;
 	}
 
+	const { locales, defaultLocale } = scope.localization;
 	const requested = locale ?? scope.req.locale;
-	const chosen =
-		requested && scope.locales.includes(requested)
-			? requested
-			: scope.defaultLocale;
 
-	return chosen ?? undefined;
+	return requested && locales.includes(requested) ? requested : defaultLocale;
 };

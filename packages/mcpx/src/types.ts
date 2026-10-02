@@ -1,3 +1,4 @@
+import type { DocumentId } from "./entity.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type {
 	CallToolResult,
@@ -78,19 +79,21 @@ export interface McpxExposedEntity {
 	fieldName: string;
 }
 
+/** The slugs a key may read, write and publish. */
+export interface McpxScopeSlugs {
+	readable: string[];
+	writable: string[];
+	publishable: string[];
+}
+
 /** What a tool knows about the current request. */
 export interface McpxToolScope {
 	req: PayloadRequest;
 	capabilities: McpxResolvedCapabilities;
-	readable: string[];
-	writable: string[];
-	publishable: string[];
-	readableGlobals: string[];
-	writableGlobals: string[];
-	publishableGlobals: string[];
+	collections: McpxScopeSlugs;
+	globals: McpxScopeSlugs;
 	/** `null` when localization is off. */
-	locales: null | string[];
-	defaultLocale: null | string;
+	localization: null | { locales: string[]; defaultLocale: string };
 	limits: { maxLimit: number; maxDepth: number };
 	exposure: {
 		collections: McpxExposedEntity[];
@@ -144,7 +147,7 @@ export type McpxAnyTool = McpxTool<z.ZodRawShape, never>;
 export interface McpxAuthResult {
 	/** Must carry `collection`. */
 	user: TypedUser;
-	apiKeyId: number | string;
+	apiKeyId: DocumentId;
 	/** The `capabilities` group as stored on the key document. */
 	capabilities: unknown;
 }
@@ -216,6 +219,6 @@ export interface McpxResolvedCapabilities {
 
 /** Stamped on `req.context.mcpx`; see {@link isMcpxRequest}. */
 export interface McpxRequestContext {
-	apiKeyId: number | string;
+	apiKeyId: DocumentId;
 	capabilities: McpxResolvedCapabilities;
 }

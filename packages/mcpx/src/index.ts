@@ -3,6 +3,7 @@ export { mcpxPlugin } from "./plugin.js";
 export { isMcpxRequest } from "./request.js";
 export { errorResult, jsonResult } from "./result.js";
 
+export type { DocumentId as McpxDocumentId } from "./entity.js";
 export type {
 	McpxAnyTool,
 	McpxAuthResult,
@@ -13,9 +14,9 @@ export type {
 	McpxPluginOptions,
 	McpxRequestContext,
 	McpxResolvedCapabilities,
+	McpxScopeSlugs,
 	McpxTool,
 	McpxToolExtra,
 	McpxToolScope,
 	McpxWriteMode,
 } from "./types.js";
-export type { PublishBlocker } from "./write/publish-blockers.js";

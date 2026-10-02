@@ -22,9 +22,11 @@ export const findDocuments = defineMcpxTool({
 	name: "findDocuments",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
-	isEnabled: (scope) => scope.readable.length > 0,
+	isEnabled: (scope) => scope.collections.readable.length > 0,
 	inputSchema: (scope) => ({
-		collection: slugEnum(scope.readable).describe("Collection to search."),
+		collection: slugEnum(scope.collections.readable).describe(
+			"Collection to search.",
+		),
 		where: z
 			.record(z.string(), z.unknown())
 			.optional()

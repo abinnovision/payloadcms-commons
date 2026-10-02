@@ -5,6 +5,7 @@ import type {
 	McpxCollectionCapabilities as McpxEntityCapabilities,
 	McpxExposedEntity,
 	McpxResolvedCapabilities,
+	McpxScopeSlugs,
 } from "./types.js";
 
 /** Group field holding the capability checkboxes on an API key document. */
@@ -94,10 +95,17 @@ export const resolveCapabilities = (
  * The slugs tools use to narrow their enums. Taken from the output of
  * {@link resolveCapabilities}, so config and checkbox are already applied.
  */
-export const slugsWith = (
+export const scopeSlugs = (
 	entries: Record<string, McpxEntityCapabilities>,
-	operation: "publish" | "read" | "write",
-): string[] =>
-	Object.entries(entries)
-		.filter(([, value]) => value[operation])
-		.map(([slug]) => slug);
+): McpxScopeSlugs => {
+	const slugsWith = (operation: "publish" | "read" | "write"): string[] =>
+		Object.entries(entries)
+			.filter(([, value]) => value[operation])
+			.map(([slug]) => slug);
+
+	return {
+		readable: slugsWith("read"),
+		writable: slugsWith("write"),
+		publishable: slugsWith("publish"),
+	};
+};

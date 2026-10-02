@@ -114,8 +114,11 @@ export const listCapabilities = defineMcpxTool({
 		return jsonResult({
 			collections,
 			...(globals.length > 0 ? { globals } : {}),
-			locales: scope.locales
-				? { codes: scope.locales, default: scope.defaultLocale }
+			locales: scope.localization
+				? {
+						codes: scope.localization.locales,
+						default: scope.localization.defaultLocale,
+					}
 				: null,
 			limits: scope.limits,
 			tools: Object.entries(scope.capabilities.tools)

@@ -119,7 +119,7 @@ export const getDocument = defineMcpxTool({
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
 	isEnabled: (scope) =>
-		scope.readable.length + scope.readableGlobals.length > 0,
+		scope.collections.readable.length + scope.globals.readable.length > 0,
 	inputSchema: (scope) => ({
 		...entityShape(scope, "read", {
 			collection: "Collection holding the document.",
