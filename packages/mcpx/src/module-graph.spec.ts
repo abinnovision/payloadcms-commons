@@ -7,6 +7,8 @@ import { walkModuleGraph } from "../test/module-graph.js";
 
 import type { WalkOptions } from "../test/module-graph.js";
 
+// Tests test/module-graph.ts, kept in src/ where the unit runner collects specs.
+
 /** The bare specifiers walked out of one file holding `lines`. */
 const specifiersIn = (lines: string[], options?: WalkOptions): string[] => {
 	const dir = mkdtempSync(join(tmpdir(), "mcpx-graph-"));

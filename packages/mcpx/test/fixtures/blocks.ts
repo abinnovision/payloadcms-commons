@@ -10,7 +10,7 @@ import type { Block } from "payload";
  * Inline block whose title editor only knows paragraphs, so the Lexical node
  * gate has something to refuse.
  */
-export const heroBlock: Block = {
+const heroBlock: Block = {
 	slug: "hero",
 	fields: [
 		{

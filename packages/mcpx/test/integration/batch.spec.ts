@@ -67,20 +67,6 @@ describe("json-rpc batches", () => {
 			})) as unknown as { title?: unknown }
 		).title;
 
-	it("refuses a batch of 50 tool calls", async () => {
-		const messages = Array.from({ length: 50 }, (_, index) => ({
-			jsonrpc: "2.0",
-			id: index + 1,
-			method: "tools/call",
-			params: { name: "listCapabilities", arguments: {} },
-		}));
-
-		const response = await mcpPost(booted, { key, body: messages });
-		const body = (await response.json()) as unknown;
-
-		expect(response.status >= 400 || !Array.isArray(body)).toBe(true);
-	});
-
 	it("refuses a batch of 11 messages and creates nothing", async () => {
 		const before = await booted.payload.count({
 			collection: "ledgers" as never,

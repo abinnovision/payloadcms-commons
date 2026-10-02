@@ -31,7 +31,7 @@ const DOC = {
 	title: "Home",
 };
 
-describe("pointer helpers", () => {
+describe("isReservedPointer, isElementPointer and droppedPointer", () => {
 	it("recognises pointers at fields Payload maintains", () => {
 		expect(isReservedPointer("/_status")).toBe(true);
 		expect(isReservedPointer("/layout/sections/0/id")).toBe(true);

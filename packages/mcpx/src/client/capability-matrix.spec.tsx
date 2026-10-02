@@ -162,7 +162,9 @@ describe("the McpxCapabilityMatrix component", () => {
 	it("marks a partly granted column indeterminate", () => {
 		grant("capabilities.collections.pages.read");
 
-		expect(render()).toContain('data-state="mixed"');
+		expect(box(render(), "Read every collections entry")).toContain(
+			'data-state="mixed"',
+		);
 	});
 
 	it("marks a fully granted column on, ignoring dashes", () => {
@@ -171,7 +173,9 @@ describe("the McpxCapabilityMatrix component", () => {
 			"capabilities.collections.media.write",
 		);
 
-		expect(render()).toContain('data-state="on"');
+		expect(box(render(), "Write every collections entry")).toContain(
+			'data-state="on"',
+		);
 	});
 
 	it("disables every input when the field is read-only", () => {

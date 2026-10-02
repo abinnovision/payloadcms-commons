@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { joinPath, splitPath } from "./path.js";
 
-describe("path helpers", () => {
+describe("joinPath and splitPath", () => {
 	it("round-trips array markers", () => {
 		expect(joinPath(["items", "*", "title"])).toBe("/items/*/title");
 		expect(splitPath("/items/*/title")).toEqual(["items", "*", "title"]);

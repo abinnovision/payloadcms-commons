@@ -199,6 +199,9 @@ describe("version history", () => {
 		});
 
 		expect(result.isError).toBe(true);
+		expect(result.data["error"]).toBe(
+			'Pass either "versionId" or "draft", not both.',
+		);
 	});
 
 	it("offers only readable slugs that keep versions", async () => {
@@ -222,6 +225,9 @@ describe("version history", () => {
 		});
 
 		expect(refused.isError).toBe(true);
+		expect(refused.text).toContain(
+			'Invalid input: expected "posts" at collection',
+		);
 	});
 
 	it("refuses versionId on an entity that keeps none", async () => {
@@ -304,7 +310,9 @@ describe("version history", () => {
 		});
 
 		expect(listed.isError).toBe(true);
+		expect(listed.data["error"]).toBe("Not Found");
 		expect(read.isError).toBe(true);
+		expect(read.data["error"]).toBe("Not Found");
 	});
 
 	it("lists and diffs a global's versions", async () => {

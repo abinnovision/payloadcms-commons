@@ -82,6 +82,9 @@ describe("read tools", () => {
 		});
 
 		expect(result.isError).toBe(true);
+		expect(result.text).toContain(
+			"Too big: expected number to be <=25 at limit",
+		);
 	});
 
 	it("applies where, select and sort", async () => {
@@ -147,6 +150,9 @@ describe("read tools", () => {
 		});
 
 		expect(result.isError).toBe(true);
+		expect(result.text).toMatch(
+			/Invalid string: must match pattern .+ at path$/,
+		);
 	});
 
 	it("refuses a depth above the configured cap", async () => {
@@ -157,6 +163,9 @@ describe("read tools", () => {
 		});
 
 		expect(result.isError).toBe(true);
+		expect(result.text).toContain(
+			"Too big: expected number to be <=1 at depth",
+		);
 	});
 
 	describe("outlining a rich text field", () => {

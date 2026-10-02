@@ -1,4 +1,5 @@
-import { resolveCapabilities, slugsWith } from "../../src/capabilities.js";
+import { resolveCapabilities } from "../../src/capabilities.js";
+import { buildScope } from "../../src/endpoint/handler.js";
 
 import type { NormalizedOptions } from "../../src/options.js";
 import type { McpxExposedEntity, McpxToolScope } from "../../src/types.js";
@@ -35,24 +36,14 @@ export const scopeFor = (
 		limits: { maxLimit: 25, maxDepth: 1 },
 		...options,
 	};
-	const capabilities = resolveCapabilities(
-		resolved as NormalizedOptions,
-		keyCapabilities,
-	);
-	const localization = config?.localization;
+	const normalized = resolved as NormalizedOptions;
+	const req = {
+		payload: { config: config ?? {} },
+	} as unknown as PayloadRequest;
 
-	return {
-		req: { payload: { config } } as unknown as PayloadRequest,
-		capabilities,
-		readable: slugsWith(capabilities.collections, "read"),
-		writable: slugsWith(capabilities.collections, "write"),
-		publishable: slugsWith(capabilities.collections, "publish"),
-		readableGlobals: slugsWith(capabilities.globals, "read"),
-		writableGlobals: slugsWith(capabilities.globals, "write"),
-		publishableGlobals: slugsWith(capabilities.globals, "publish"),
-		locales: localization ? localization.localeCodes : null,
-		defaultLocale: localization ? localization.defaultLocale : null,
-		limits: resolved.limits,
-		exposure: { collections: resolved.collections, globals: resolved.globals },
-	};
+	return buildScope(
+		req,
+		normalized,
+		resolveCapabilities(normalized, keyCapabilities),
+	);
 };

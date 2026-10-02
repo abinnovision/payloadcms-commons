@@ -102,6 +102,6 @@ describe("old versions under a filtered read access", () => {
 		});
 
 		expect(result.isError).toBe(true);
-		expect(responseText(result)).not.toContain(EMBARGOED);
+		expect(result.data).not.toHaveProperty("patch");
 	});
 });

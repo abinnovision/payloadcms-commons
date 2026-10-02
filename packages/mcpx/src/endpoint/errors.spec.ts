@@ -2,11 +2,15 @@ import { APIError, Forbidden, ValidationError } from "payload";
 import { describe, expect, it, vi } from "vitest";
 
 import { jsonRpcError, toToolError } from "./errors.js";
-import { parseResult } from "../../test/result.js";
 
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Payload } from "payload";
 
 const createLogger = () => ({ error: vi.fn() });
+
+// The JSON a tool result carries as its text content.
+const parseResult = (result: CallToolResult): unknown =>
+	JSON.parse((result.content[0] as { text: string }).text);
 
 const toError = (error: unknown, logger = createLogger()) =>
 	toToolError(error, logger as unknown as Payload["logger"]);

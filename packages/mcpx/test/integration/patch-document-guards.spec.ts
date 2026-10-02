@@ -60,6 +60,9 @@ describe("patchDocument against concurrent and out-of-band writes", () => {
 		});
 
 		expect(result.isError).toBe(true);
+		expect(result.data["problems"]).toEqual([
+			expect.stringContaining('"/_status" addresses a field Payload maintains'),
+		]);
 		expect((await readPage(page.id))._status).toBe("draft");
 	});
 

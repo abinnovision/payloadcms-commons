@@ -14,6 +14,7 @@ const SECRET = "stored ledger secret";
 describe("notApplied on a field closed to the key's user", () => {
 	let booted: Booted;
 	let mcp: McpClient;
+	let ledgerId: number | string;
 
 	beforeAll(async () => {
 		booted = await bootPayload({
@@ -27,6 +28,13 @@ describe("notApplied on a field closed to the key's user", () => {
 		});
 
 		mcp = createMcpClient(booted, keys.ledger);
+
+		const ledger = await booted.payload.create({
+			collection: "ledgers" as never,
+			data: { title: "Ledger", secret: SECRET },
+		});
+
+		ledgerId = ledger.id;
 	});
 
 	afterAll(async () => {
@@ -46,15 +54,10 @@ describe("notApplied on a field closed to the key's user", () => {
 	it.fails(
 		"tells whether a guess equals the stored value of an unreadable field",
 		async () => {
-			const ledger = await booted.payload.create({
-				collection: "ledgers" as never,
-				data: { title: "Ledger", secret: SECRET },
-			});
-
 			const patch = async (value: string) => {
 				const result = await mcp.call("patchDocument", {
 					collection: "ledgers",
-					id: ledger.id,
+					id: ledgerId,
 					locale: "en",
 					patches: [{ op: "replace", path: "/secret", value }],
 				});
@@ -66,7 +69,7 @@ describe("notApplied on a field closed to the key's user", () => {
 			const right = await patch(SECRET);
 			const wrong = await patch("a wrong guess");
 
-			expect(await storedSecret(ledger.id)).toBe(SECRET);
+			expect(await storedSecret(ledgerId)).toBe(SECRET);
 			expect(right).toEqual(wrong);
 		},
 	);

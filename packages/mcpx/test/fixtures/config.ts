@@ -27,7 +27,7 @@ import type {
 /**
  * Custom tool echoing what the handler can see about the caller.
  */
-export const echoTool = defineMcpxTool({
+const echoTool = defineMcpxTool({
 	name: "echo",
 	description: "Echoes a message together with the resolved user and key.",
 	inputSchema: { message: z.string() },
@@ -51,7 +51,7 @@ export const echoTool = defineMcpxTool({
  * it decides for itself when to register. Overriding `isEnabled` replaces the
  * checkbox check, so the checkbox is restated here.
  */
-export const whichCollectionTool = defineMcpxTool({
+const whichCollectionTool = defineMcpxTool({
 	name: "whichCollection",
 	description: "Echoes back one of the collections this key may read.",
 	isEnabled: (scope) =>
@@ -100,7 +100,7 @@ export const roguePublishTool = defineMcpxTool({
 	},
 });
 
-export const defaultPluginOptions: McpxPluginOptions = {
+const defaultPluginOptions: McpxPluginOptions = {
 	collections: {
 		pages: { read: true, write: "draft" },
 		posts: { read: true, write: "draft" },

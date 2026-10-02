@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { keyBeforeChange } from "./collection.js";
@@ -208,6 +209,9 @@ describe("api keys collection", () => {
 describe("keyBeforeChange", () => {
 	const req = { payload: { secret: "secret" } };
 
+	const indexOf = (key: unknown): string =>
+		crypto.createHmac("sha256", "secret").update(String(key)).digest("hex");
+
 	const run = (
 		data: Record<string, unknown>,
 		operation: "create" | "update",
@@ -221,7 +225,7 @@ describe("keyBeforeChange", () => {
 		const data = run({ label: "ci" }, "create");
 
 		expect(data["apiKey"]).toMatch(/^[A-Za-z0-9_-]{43}$/);
-		expect(data["apiKeyIndex"]).toMatch(/^[a-f0-9]{64}$/);
+		expect(data["apiKeyIndex"]).toBe(indexOf(data["apiKey"]));
 	});
 
 	/*
@@ -232,7 +236,7 @@ describe("keyBeforeChange", () => {
 		const data = run({ apiKey: "given" }, "create");
 
 		expect(data["apiKey"]).toBe("given");
-		expect(typeof data["apiKeyIndex"]).toBe("string");
+		expect(data["apiKeyIndex"]).toBe(indexOf("given"));
 	});
 
 	it("does not mint a key on update", () => {

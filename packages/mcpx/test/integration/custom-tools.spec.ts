@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
 import {
+	API_KEYS_SLUG,
 	bootPayload,
 	createKey,
 	FULL_CAPABILITIES,
@@ -44,18 +45,38 @@ describe("custom tools", () => {
 			{ message: "hi" },
 		);
 
+		const { docs } = await booted.payload.find({
+			collection: API_KEYS_SLUG as never,
+			where: { label: { equals: "full" } },
+			overrideAccess: true,
+		});
+
 		expect(result.isError).toBe(false);
 		expect(result.data["message"]).toBe("hi");
 		expect(result.data["userId"]).toBe(seeded.userId);
-		expect(result.data["apiKeyId"]).toBeDefined();
+		expect(result.data["apiKeyId"]).toBe(docs[0]?.id);
 	});
 
 	it("narrows a scope-built enum to what the key may read", async () => {
+		const tagsReader = await createKey(booted.payload, {
+			userId: seeded.userId,
+			label: "tags-reader",
+			capabilities: {
+				collections: { tags: { read: true } },
+				tools: { whichCollection: true },
+			},
+		});
 		const full = await createMcpClient(booted, seeded.keys.full).list();
+		const narrowed = await createMcpClient(booted, tagsReader).list();
 
 		expect(
 			collectionEnumOf(full.find((tool) => tool.name === "whichCollection")),
 		).toEqual(["pages", "posts", "tags"]);
+		expect(
+			collectionEnumOf(
+				narrowed.find((tool) => tool.name === "whichCollection"),
+			),
+		).toEqual(["tags"]);
 		/*
 		 * The tags-only key has no `whichCollection` checkbox, so the tool is
 		 * absent rather than narrowed: the checkbox and the scope both gate it.

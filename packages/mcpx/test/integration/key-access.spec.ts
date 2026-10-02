@@ -1,3 +1,4 @@
+import { Forbidden, NotFound } from "payload";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { API_KEYS_SLUG, bootPayload, createKey } from "./helpers/payload.js";
@@ -80,7 +81,7 @@ describe("api key collection isolation", () => {
 				overrideAccess: false,
 				user: alice,
 			}),
-		).rejects.toThrow();
+		).rejects.toThrow(NotFound);
 
 		const listed = await payload.find({
 			collection: API_KEYS_SLUG as never,
@@ -89,6 +90,21 @@ describe("api key collection isolation", () => {
 		});
 
 		expect(listed.docs.map((doc) => doc.id)).not.toContain(key.id);
+
+		const own = (await payload.findByID({
+			collection: API_KEYS_SLUG as never,
+			id: key.id,
+			overrideAccess: false,
+			user: bob,
+		})) as unknown as KeyDoc;
+		const ownListed = await payload.find({
+			collection: API_KEYS_SLUG as never,
+			overrideAccess: false,
+			user: bob,
+		});
+
+		expect(own.id).toBe(key.id);
+		expect(ownListed.docs.map((doc) => doc.id)).toContain(key.id);
 	});
 
 	it("does not update another user's key", async () => {
@@ -102,12 +118,22 @@ describe("api key collection isolation", () => {
 				overrideAccess: false,
 				user: alice,
 			}),
-		).rejects.toThrow();
+		).rejects.toThrow(Forbidden);
 
 		const stored = await storedKey(key.id);
 
 		expect(stored?.label).toBe(key.label);
 		expect(stored && ownerOf(stored)).toBe(bob.id);
+
+		await payload.update({
+			collection: API_KEYS_SLUG as never,
+			id: key.id,
+			data: { label: "renamed" },
+			overrideAccess: false,
+			user: bob,
+		});
+
+		expect((await storedKey(key.id))?.label).toBe("renamed");
 	});
 
 	it("does not update another user's key through a bulk where", async () => {
@@ -123,6 +149,17 @@ describe("api key collection isolation", () => {
 
 		expect(result.docs).toHaveLength(0);
 		expect((await storedKey(key.id))?.label).toBe(key.label);
+
+		const own = await payload.update({
+			collection: API_KEYS_SLUG as never,
+			where: { id: { equals: key.id } },
+			data: { label: "renamed" },
+			overrideAccess: false,
+			user: bob,
+		});
+
+		expect(own.docs).toHaveLength(1);
+		expect((await storedKey(key.id))?.label).toBe("renamed");
 	});
 
 	it("does not delete another user's key", async () => {
@@ -135,7 +172,7 @@ describe("api key collection isolation", () => {
 				overrideAccess: false,
 				user: alice,
 			}),
-		).rejects.toThrow();
+		).rejects.toThrow(Forbidden);
 
 		const bulk = await payload.delete({
 			collection: API_KEYS_SLUG as never,
@@ -146,6 +183,15 @@ describe("api key collection isolation", () => {
 
 		expect(bulk.docs).toHaveLength(0);
 		expect(await storedKey(key.id)).not.toBeNull();
+
+		await payload.delete({
+			collection: API_KEYS_SLUG as never,
+			id: key.id,
+			overrideAccess: false,
+			user: bob,
+		});
+
+		expect(await storedKey(key.id)).toBeNull();
 	});
 
 	it("does not create a key bound to another user", async () => {

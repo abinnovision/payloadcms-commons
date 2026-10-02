@@ -258,7 +258,7 @@ describe("describeFields", () => {
 	});
 });
 
-describe("blocks helpers", () => {
+describe("findBlocksField, blockSlugsOf and blockOf", () => {
 	const sectionsField = () =>
 		findBlocksField(pagesFields(), ["layout", "sections"])!;
 

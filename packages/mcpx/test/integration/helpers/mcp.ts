@@ -57,7 +57,7 @@ interface RpcResponse {
 	};
 }
 
-export interface ListedTool {
+interface ListedTool {
 	name: string;
 	description?: string;
 	annotations?: Record<string, unknown>;

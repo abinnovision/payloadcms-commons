@@ -6,6 +6,7 @@ import {
 	createDraft,
 	readDraft,
 	seedKeys,
+	storedState,
 } from "./helpers/payload.js";
 import { bulletList, node, state, text } from "../builders/lexical.js";
 
@@ -14,6 +15,7 @@ import type { Booted } from "./helpers/payload.js";
 
 interface PostDoc {
 	id: number | string;
+	updatedAt: string;
 	content?: { root: { children: Record<string, unknown>[] } };
 }
 
@@ -45,6 +47,9 @@ describe("patchDocument on rich text", () => {
 	const readPost = (id: number | string, locale = "en") =>
 		readDraft<PostDoc>(booted.payload, "posts", id, locale);
 
+	const storedPosts = () =>
+		storedState(booted.payload, { collections: ["posts"] });
+
 	/** Writes `value` over a whole rich text field of the post. */
 	const replaceField = (
 		id: number | string,
@@ -60,11 +65,13 @@ describe("patchDocument on rich text", () => {
 
 	it("refuses a heading size the field's editor does not enable", async () => {
 		const post = await createPost({});
+		const before = await storedPosts();
 
 		const refused = await replaceField(post.id, "/summary", headingState("h3"));
 
 		expect(refused.isError).toBe(true);
 		expect(refused.text).toContain("h4");
+		expect(await storedPosts()).toEqual(before);
 		expect(
 			(await replaceField(post.id, "/summary", headingState("h4"))).isError,
 		).toBe(false);
@@ -72,6 +79,7 @@ describe("patchDocument on rich text", () => {
 
 	it("refuses a Lexical link field the editor does not declare", async () => {
 		const post = await createPost({});
+		const before = await storedPosts();
 		const result = await replaceField(
 			post.id,
 			"/content",
@@ -82,10 +90,12 @@ describe("patchDocument on rich text", () => {
 		expect(JSON.stringify(result.data)).toContain(
 			"/content/root/children/0/fields/relation: no such field",
 		);
+		expect(await storedPosts()).toEqual(before);
 	});
 
 	it("refuses a list node missing what the editor hydrates it from", async () => {
 		const post = await createPost({});
+		const before = await storedPosts();
 
 		const refused = await replaceField(
 			post.id,
@@ -98,9 +108,7 @@ describe("patchDocument on rich text", () => {
 			'a \\"listitem\\" node is missing \\"indent\\"',
 		);
 
-		const saved = await readPost(post.id);
-
-		expect(saved.content ?? null).toBeNull();
+		expect(await storedPosts()).toEqual(before);
 		expect(
 			(await replaceField(post.id, "/content", bulletList("One"))).isError,
 		).toBe(false);
@@ -180,6 +188,7 @@ describe("patchDocument on rich text", () => {
 			const post = await createPost({
 				content: state([paragraphNode("First")]),
 			});
+			const before = await storedPosts();
 			const result = await patchPost(post.id, [
 				{
 					op: "add",
@@ -196,18 +205,21 @@ describe("patchDocument on rich text", () => {
 					),
 				],
 			});
+			expect(await storedPosts()).toEqual(before);
 		});
 
 		it("refuses a node type the editor does not have", async () => {
 			const post = await createPost({
 				summary: headingState("h4", [text("Summary")]),
 			});
+			const before = await storedPosts();
 			const result = await patchPost(post.id, [
 				{ op: "add", path: "/summary/root/children/-", value: node("quote") },
 			]);
 
 			expect(result.isError).toBe(true);
 			expect(result.text).toContain("is not available in this field's editor");
+			expect(await storedPosts()).toEqual(before);
 		});
 
 		it("checks a narrowed property written on its own", async () => {
@@ -219,10 +231,12 @@ describe("patchDocument on rich text", () => {
 					{ op: "replace", path: "/summary/root/children/0/tag", value: tag },
 				]);
 
+			const before = await storedPosts();
 			const refused = await write("h3");
 
 			expect(refused.isError).toBe(true);
 			expect(refused.text).toContain("h4");
+			expect(await storedPosts()).toEqual(before);
 			expect((await write("h4")).isError).toBe(false);
 		});
 
@@ -241,6 +255,7 @@ describe("patchDocument on rich text", () => {
 				rel: "sponsored",
 			});
 
+			const before = await storedPosts();
 			const refused = await patchPost(post.id, [
 				{
 					op: "replace",
@@ -257,6 +272,7 @@ describe("patchDocument on rich text", () => {
 					),
 				],
 			});
+			expect(await storedPosts()).toEqual(before);
 		});
 
 		it("removes a node and shifts the ones after it", async () => {
@@ -309,6 +325,7 @@ describe("patchDocument on rich text", () => {
 			const post = await createPost({
 				content: state([paragraphNode("First")]),
 			});
+			const before = await storedPosts();
 			const result = await mcp.call("patchDocument", {
 				collection: "posts",
 				id: post.id,
@@ -316,23 +333,27 @@ describe("patchDocument on rich text", () => {
 				expectedUpdatedAt: "2020-01-01T00:00:00.000Z",
 				patches: [
 					{
-						op: "replace",
-						path: "/content/root/children/0/children/0/text",
-						value: "Edited",
+						op: "add",
+						path: "/content/root/children/-",
+						value: { children: [], type: "paragraph" },
 					},
 				],
 			});
 
 			expect(result.isError).toBe(true);
-			expect(nodesOf(await readPost(post.id))[0]).toEqual(
-				paragraphNode("First"),
-			);
+			expect(result.data).toEqual({
+				error:
+					"The document changed since you read it. Read it again and re-apply the patch.",
+				updatedAt: post.updatedAt,
+			});
+			expect(await storedPosts()).toEqual(before);
 		});
 
 		it("refuses emptying the state, which Lexical cannot hydrate", async () => {
 			const post = await createPost({
 				content: state([paragraphNode("Only")]),
 			});
+			const before = await storedPosts();
 			const emptied = await patchPost(post.id, [
 				{ op: "replace", path: "/content/root/children", value: [] },
 			]);
@@ -347,7 +368,7 @@ describe("patchDocument on rich text", () => {
 				);
 			}
 
-			expect(nodesOf(await readPost(post.id))).toHaveLength(1);
+			expect(await storedPosts()).toEqual(before);
 		});
 
 		it("writes one locale's state without touching another", async () => {

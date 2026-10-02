@@ -182,6 +182,56 @@ export const readDraft = <Doc>(
 		fallbackLocale: false,
 	}) as Promise<Doc>;
 
+/**
+ * Every document and version of the named collections and globals, in all
+ * locales and past access control. A refusal leaves it unchanged.
+ */
+export const storedState = async (
+	payload: Payload,
+	slugs: { collections?: string[]; globals?: string[] },
+): Promise<Record<string, unknown>> => {
+	const read = { locale: "all", depth: 0, overrideAccess: true } as const;
+
+	const collections = (slugs.collections ?? []).map(async (slug) => {
+		const collection = slug as never;
+		const { docs } = await payload.find({
+			...read,
+			collection,
+			draft: true,
+			pagination: false,
+		});
+		const versions = payload.collections[collection]?.config.versions
+			? (await payload.findVersions({ ...read, collection, pagination: false }))
+					.docs
+			: undefined;
+
+		return [slug, { docs, versions }] as const;
+	});
+
+	const globals = (slugs.globals ?? []).map(async (slug) => {
+		const global = slug as never;
+		const doc = await payload.findGlobal({
+			...read,
+			slug: global,
+			draft: true,
+		});
+		const versions = payload.globals.config.find((entry) => entry.slug === slug)
+			?.versions
+			? (
+					await payload.findGlobalVersions({
+						...read,
+						slug: global,
+						pagination: false,
+					})
+				).docs
+			: undefined;
+
+		return [slug, { doc, versions }] as const;
+	});
+
+	return Object.fromEntries(await Promise.all([...collections, ...globals]));
+};
+
 /** A one-pixel PNG, so a real file lands on disk without needing sharp. */
 const PIXEL = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",

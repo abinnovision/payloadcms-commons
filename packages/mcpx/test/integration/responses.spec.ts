@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createMcpClient } from "./helpers/mcp.js";
-import { bootPayload, createKey, seedKeysFor } from "./helpers/payload.js";
+import {
+	bootPayload,
+	createKey,
+	seedKeysFor,
+	storedState,
+} from "./helpers/payload.js";
 
 import type { CallResult } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
@@ -96,6 +101,9 @@ describe("tool responses", () => {
 		args: Record<string, unknown>,
 		key = full,
 	) => reply(await createMcpClient(booted, key).call(name, args));
+
+	const stored = (collection: string) =>
+		storedState(booted.payload, { collections: [collection] });
 
 	const seedTag = (name: string) =>
 		booted.payload.create({ collection: "tags", data: { name } });
@@ -363,6 +371,7 @@ describe("tool responses", () => {
 
 		it("refuses a patch that addresses no field", async () => {
 			const tag = await seedTag("patch-refused");
+			const before = await stored("tags");
 
 			expect(
 				await call("patchDocument", {
@@ -381,6 +390,7 @@ describe("tool responses", () => {
 					],
 				},
 			});
+			expect(await stored("tags")).toEqual(before);
 		});
 	});
 
@@ -400,6 +410,8 @@ describe("tool responses", () => {
 		});
 
 		it("refuses a document missing a required field", async () => {
+			const before = await stored("tags");
+
 			expect(
 				await call("createDocument", {
 					collection: "tags",
@@ -421,6 +433,7 @@ describe("tool responses", () => {
 					],
 				},
 			});
+			expect(await stored("tags")).toEqual(before);
 		});
 	});
 
@@ -496,6 +509,7 @@ describe("tool responses", () => {
 				draft: true,
 				locale: "en",
 			});
+			const before = await stored("pages");
 
 			expect(
 				await call("publishDocument", { collection: "pages", id: page.id }),
@@ -520,6 +534,7 @@ describe("tool responses", () => {
 					],
 				},
 			});
+			expect(await stored("pages")).toEqual(before);
 		});
 	});
 });

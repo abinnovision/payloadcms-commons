@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
-import { bootPayload, seedKeysFor } from "./helpers/payload.js";
+import { bootPayload, seedKeysFor, storedState } from "./helpers/payload.js";
 import { roguePublishTool } from "../fixtures/config.js";
 
 import type { McpClient } from "./helpers/mcp.js";
@@ -45,6 +45,9 @@ describe("publishDocument", () => {
 			locale: "en",
 			overrideAccess: true,
 		});
+
+	const storedPages = () =>
+		storedState(booted.payload, { collections: ["pages"] });
 
 	beforeAll(async () => {
 		booted = await bootPayload({
@@ -227,6 +230,7 @@ describe("publishDocument", () => {
 
 	it("refuses a document that would not validate, and leaves it a draft", async () => {
 		const id = await createPage({ title: "Incomplete" });
+		const before = await storedPages();
 
 		const result = await publisher.call("publishDocument", {
 			collection: "pages",
@@ -234,12 +238,18 @@ describe("publishDocument", () => {
 		});
 
 		expect(result.isError).toBe(true);
-		expect(result.data["validationErrors"]).toBeDefined();
+		expect(
+			(result.data["validationErrors"] as { path: string }[]).map(
+				(error) => error.path,
+			),
+		).toEqual(["/slug", "/layout/sections"]);
 		expect((await readPage(id, true))["_status"]).toBe("draft");
+		expect(await storedPages()).toEqual(before);
 	});
 
 	it("refuses a stale expectedUpdatedAt", async () => {
 		const id = await createPage(completePage("Concurrent"));
+		const before = await storedPages();
 
 		const result = await publisher.call("publishDocument", {
 			collection: "pages",
@@ -249,18 +259,7 @@ describe("publishDocument", () => {
 
 		expect(result.isError).toBe(true);
 		expect((await readPage(id, true))["_status"]).toBe("draft");
-	});
-
-	it("refuses a key that may write but not publish", async () => {
-		const id = await createPage(completePage("Forbidden"));
-
-		const result = await writer.call("publishDocument", {
-			collection: "pages",
-			id,
-		});
-
-		expect(result.isError).toBe(true);
-		expect((await readPage(id, true))["_status"]).toBe("draft");
+		expect(await storedPages()).toEqual(before);
 	});
 
 	it("keeps a publish that did not come through the tool from landing", async () => {
@@ -283,11 +282,17 @@ describe("publishDocument", () => {
 		 * A global cannot be corrected, because updateGlobal reads `draft` before
 		 * the hook runs, so the alarm is what stops it and it throws.
 		 */
+		const settingsBefore = await storedState(booted.payload, {
+			globals: ["site-settings"],
+		});
 		const guarded = await publisher.call("roguePublish", {
 			global: "site-settings",
 		});
 
 		expect(guarded.isError).toBe(true);
+		expect(
+			await storedState(booted.payload, { globals: ["site-settings"] }),
+		).toEqual(settingsBefore);
 	});
 
 	/*

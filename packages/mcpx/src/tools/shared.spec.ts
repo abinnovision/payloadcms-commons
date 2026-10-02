@@ -75,7 +75,7 @@ describe("draftSentence", () => {
 	});
 });
 
-describe("create slugs", () => {
+describe("slugsFor and patchOnlySlugs", () => {
 	const scope = scopeFor(
 		{
 			collections: [

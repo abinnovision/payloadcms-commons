@@ -51,7 +51,7 @@ describe("configured key resolution", () => {
 		});
 		const text = await response.text();
 
-		expect(response.status).toBeGreaterThanOrEqual(400);
+		expect(response.status).toBe(500);
 		expect(text).not.toContain(THROWN);
 		expect(text).not.toMatch(/\bat .+:\d+:\d+/);
 	});

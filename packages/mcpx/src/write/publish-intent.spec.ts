@@ -6,7 +6,7 @@ import {
 	withPublishIntent,
 } from "./publish-intent.js";
 
-describe("publish intent", () => {
+describe("withPublishIntent, hasPublishIntent and takePublishIntent", () => {
 	it("is absent from an ordinary write", () => {
 		expect(hasPublishIntent({ title: "Probe" })).toBe(false);
 		expect(hasPublishIntent(undefined)).toBe(false);

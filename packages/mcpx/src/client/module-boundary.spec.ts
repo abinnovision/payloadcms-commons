@@ -53,7 +53,7 @@ describe("./client module boundary", () => {
 		expect([...bareSpecifiers]).toContain("@payloadcms/ui");
 	});
 
-	it("would flag a disallowed value import if one were introduced", () => {
+	it("flags a disallowed value import", () => {
 		const dir = mkdtempSync(join(tmpdir(), "mcpx-boundary-"));
 		const file = join(dir, "bad.ts");
 

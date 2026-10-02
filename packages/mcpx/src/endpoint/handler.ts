@@ -48,7 +48,11 @@ const readBody = async (
 	return text + decoder.decode();
 };
 
-const buildScope = (
+/**
+ * The scope the tools of one request see: the key's resolved capabilities, the
+ * slugs they reach, and the locales and limits of the config.
+ */
+export const buildScope = (
 	req: PayloadRequest,
 	options: NormalizedOptions,
 	capabilities: McpxToolScope["capabilities"],

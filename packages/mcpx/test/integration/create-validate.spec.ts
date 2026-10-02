@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
-import { bootPayload, seedKeys } from "./helpers/payload.js";
+import { bootPayload, seedKeys, storedState } from "./helpers/payload.js";
 import { hero, section } from "../builders/blocks.js";
 import { bulletList } from "../builders/lexical.js";
 
@@ -21,7 +21,11 @@ describe("createDocument and validateDocument", () => {
 		await booted.payload.destroy();
 	});
 
+	const storedPages = () =>
+		storedState(booted.payload, { collections: ["pages"] });
+
 	it("refuses a seed with an unknown field, listing the valid ones", async () => {
+		const before = await storedPages();
 		const result = await mcp.call("createDocument", {
 			collection: "pages",
 			locale: "en",
@@ -33,6 +37,7 @@ describe("createDocument and validateDocument", () => {
 
 		expect(problems).toContain("titel");
 		expect(problems).toContain("title");
+		expect(await storedPages()).toEqual(before);
 	});
 
 	it("refuses a list node missing what the editor hydrates it from", async () => {
@@ -77,7 +82,7 @@ describe("createDocument and validateDocument", () => {
 	});
 
 	it("refuses a seed carrying a top-level id and creates nothing", async () => {
-		const before = await booted.payload.count({ collection: "pages" });
+		const before = await storedPages();
 
 		const result = await mcp.call("createDocument", {
 			collection: "pages",
@@ -87,10 +92,7 @@ describe("createDocument and validateDocument", () => {
 
 		expect(result.isError).toBe(true);
 		expect(JSON.stringify(result.data["problems"])).toContain("/id");
-
-		const after = await booted.payload.count({ collection: "pages" });
-
-		expect(after.totalDocs).toBe(before.totalDocs);
+		expect(await storedPages()).toEqual(before);
 	});
 
 	it("creates a draft from a minimal seed and reports the blockers", async () => {

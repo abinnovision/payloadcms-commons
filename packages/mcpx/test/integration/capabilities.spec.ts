@@ -111,18 +111,4 @@ describe("capabilities", () => {
 		expect(result.isError).toBe(true);
 		expect(result.text).toMatch(/validation|invalid/i);
 	});
-
-	it("refuses a write tool for a key without write capability", async () => {
-		const result = await createMcpClient(booted, seeded.keys.readOnly).call(
-			"patchDocument",
-			{
-				collection: "pages",
-				id: 1,
-				locale: "en",
-				patches: [{ op: "replace", path: "/title", value: "x" }],
-			},
-		);
-
-		expect(result.isError).toBe(true);
-	});
 });

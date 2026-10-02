@@ -207,7 +207,10 @@ describe("endpoint limits", () => {
 			paths: Array.from({ length: 400 }, () => ""),
 		});
 
+		// The node vocabulary of the rich text fields follows the described nodes.
+		const nodes = result.data as unknown as Record<string, unknown>[];
+
 		expect(result.isError).toBe(false);
-		expect(Array.isArray(result.data)).toBe(true);
+		expect(nodes.filter((node) => "schemaPath" in node)).toHaveLength(400);
 	});
 });
