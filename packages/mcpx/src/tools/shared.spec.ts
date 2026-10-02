@@ -14,6 +14,7 @@ const entity = (
 	read: true,
 	write,
 	hasDrafts,
+	hasVersions: hasDrafts,
 	isUpload,
 	fieldName: slug,
 });

@@ -188,6 +188,7 @@ describe("builtin tool shapes", () => {
 			"describeSchema",
 			"findDocuments",
 			"getDocument",
+			"findVersions",
 			"patchDocument",
 			"createDocument",
 			"validateDocument",
@@ -197,6 +198,7 @@ describe("builtin tool shapes", () => {
 			"describeSchema",
 			"findDocuments",
 			"getDocument",
+			"findVersions",
 		]);
 		expect(enabled(scopeFor({}))).toEqual(["listCapabilities"]);
 	});
@@ -294,6 +296,7 @@ describe("builtin tool shapes with globals", () => {
 			"listCapabilities",
 			"describeSchema",
 			"getDocument",
+			"findVersions",
 			"patchDocument",
 			"validateDocument",
 		]);

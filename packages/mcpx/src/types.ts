@@ -70,6 +70,8 @@ export interface McpxExposedEntity {
 	read: boolean;
 	write: McpxWriteMode;
 	hasDrafts: boolean;
+	/** Payload keeps a version history, with or without drafts. */
+	hasVersions: boolean;
 	/** An upload document is a file, and no tool here can supply one. */
 	isUpload: boolean;
 	/** Name of the capability group on the key document. */

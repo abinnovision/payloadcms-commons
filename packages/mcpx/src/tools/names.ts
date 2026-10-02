@@ -6,6 +6,7 @@ export const BUILTIN_TOOL_NAMES = [
 	"describeSchema",
 	"findDocuments",
 	"getDocument",
+	"findVersions",
 	"patchDocument",
 	"createDocument",
 	"validateDocument",
