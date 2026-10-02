@@ -1,15 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
 import { resolveApiKeyAuth } from "../auth/resolve.js";
-import {
-	publishableGlobalSlugs,
-	publishableSlugs,
-	readableGlobalSlugs,
-	readableSlugs,
-	resolveCapabilities,
-	writableGlobalSlugs,
-	writableSlugs,
-} from "../capabilities.js";
+import { resolveCapabilities, slugsWith } from "../capabilities.js";
 import { jsonRpcError } from "./errors.js";
 import { createMcpServer } from "./server.js";
 
@@ -27,12 +19,12 @@ const buildScope = (
 	return {
 		req,
 		capabilities,
-		readable: readableSlugs(capabilities),
-		writable: writableSlugs(capabilities),
-		publishable: publishableSlugs(capabilities),
-		readableGlobals: readableGlobalSlugs(capabilities),
-		writableGlobals: writableGlobalSlugs(capabilities),
-		publishableGlobals: publishableGlobalSlugs(capabilities),
+		readable: slugsWith(capabilities.collections, "read"),
+		writable: slugsWith(capabilities.collections, "write"),
+		publishable: slugsWith(capabilities.collections, "publish"),
+		readableGlobals: slugsWith(capabilities.globals, "read"),
+		writableGlobals: slugsWith(capabilities.globals, "write"),
+		publishableGlobals: slugsWith(capabilities.globals, "publish"),
 		locales: localization ? localization.localeCodes : null,
 		defaultLocale: localization ? localization.defaultLocale : null,
 		limits: options.limits,

@@ -326,7 +326,7 @@ export const nodePropertiesFor = (
  * A property that is absent, and one that is present but cannot be what the
  * node class does with it.
  */
-export interface PropertyProblems {
+interface PropertyProblems {
 	missing: string[];
 	rejected: { needs: string; property: string }[];
 }

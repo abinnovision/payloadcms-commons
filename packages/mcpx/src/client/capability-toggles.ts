@@ -16,7 +16,7 @@ export type CapabilityValues = Record<string, boolean>;
 
 export type ColumnState = "mixed" | "off" | "on";
 
-export interface CapabilityAction {
+interface CapabilityAction {
 	type: "UPDATE";
 	path: string;
 	value: boolean;

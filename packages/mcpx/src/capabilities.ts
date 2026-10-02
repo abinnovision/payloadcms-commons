@@ -100,39 +100,15 @@ export const resolveCapabilities = (
 	return { collections, globals, tools };
 };
 
-const pick = (
+/**
+ * The slugs tools read to narrow their enums. Derived from
+ * {@link resolveCapabilities}, so config and checkbox have both been applied
+ * by the time a slug appears in one.
+ */
+export const slugsWith = (
 	entries: Record<string, McpxEntityCapabilities>,
 	operation: "publish" | "read" | "write",
 ): string[] =>
 	Object.entries(entries)
 		.filter(([, value]) => value[operation])
 		.map(([slug]) => slug);
-
-/*
- * The lists tools read to narrow their enums. Derived from
- * {@link resolveCapabilities}, so config and checkbox have both been applied
- * by the time a slug appears in one.
- */
-export const readableSlugs = (
-	capabilities: McpxResolvedCapabilities,
-): string[] => pick(capabilities.collections, "read");
-
-export const writableSlugs = (
-	capabilities: McpxResolvedCapabilities,
-): string[] => pick(capabilities.collections, "write");
-
-export const publishableSlugs = (
-	capabilities: McpxResolvedCapabilities,
-): string[] => pick(capabilities.collections, "publish");
-
-export const readableGlobalSlugs = (
-	capabilities: McpxResolvedCapabilities,
-): string[] => pick(capabilities.globals, "read");
-
-export const writableGlobalSlugs = (
-	capabilities: McpxResolvedCapabilities,
-): string[] => pick(capabilities.globals, "write");
-
-export const publishableGlobalSlugs = (
-	capabilities: McpxResolvedCapabilities,
-): string[] => pick(capabilities.globals, "publish");

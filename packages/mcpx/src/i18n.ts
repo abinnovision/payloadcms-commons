@@ -4,7 +4,7 @@ import type { PayloadRequest } from "payload";
  * Payload has already folded `config.i18n.fallbackLanguage` into the request,
  * so no config lookup is needed.
  */
-export type RequestLanguage = Pick<
+type RequestLanguage = Pick<
 	PayloadRequest["i18n"],
 	"fallbackLanguage" | "language"
 >;

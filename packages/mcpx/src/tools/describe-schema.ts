@@ -106,6 +106,6 @@ export const describeSchema = defineMcpxTool({
 			});
 		}
 
-		return Promise.resolve(jsonResult(nodes));
+		return jsonResult(nodes);
 	},
 });

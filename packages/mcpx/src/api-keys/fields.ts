@@ -44,7 +44,7 @@ const checkbox = (name: string, description: string): CheckboxField => ({
 });
 
 /** Name of the `ui` field the "Connect a client" tab renders. */
-export const SETUP_GUIDE_FIELD = "setupGuide";
+const SETUP_GUIDE_FIELD = "setupGuide";
 
 /**
  * Fields every key carries. Key generation and the HMAC index live in the

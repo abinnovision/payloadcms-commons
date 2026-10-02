@@ -8,7 +8,7 @@ import type { PaginatedDocs, SelectType, TypedLocale, Where } from "payload";
 import type { Operation } from "rfc6902";
 
 /** A stored version: its metadata plus the document body under `version`. */
-export type StoredVersion = Record<string, unknown> & {
+type StoredVersion = Record<string, unknown> & {
 	id: DocumentId;
 	version: Record<string, unknown>;
 };

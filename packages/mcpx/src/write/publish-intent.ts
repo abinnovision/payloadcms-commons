@@ -23,16 +23,16 @@ export const withPublishIntent = <T extends object>(data: T): T => ({
 	[PUBLISH_INTENT]: TOKEN,
 });
 
-const carries = (data: unknown): data is Record<string, unknown> =>
+export const hasPublishIntent = (
+	data: unknown,
+): data is Record<string, unknown> =>
 	typeof data === "object" &&
 	data !== null &&
 	(data as Record<string, unknown>)[PUBLISH_INTENT] === TOKEN;
 
-export const hasPublishIntent = (data: unknown): boolean => carries(data);
-
 /** Asked by the last hook that needs it, so it takes the marker off. */
 export const takePublishIntent = (data: unknown): boolean => {
-	if (!carries(data)) {
+	if (!hasPublishIntent(data)) {
 		return false;
 	}
 

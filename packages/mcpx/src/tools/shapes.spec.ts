@@ -11,15 +11,7 @@ import {
 } from "../../test/fixtures/collections.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { banner, siteSettings } from "../../test/fixtures/globals.js";
-import {
-	publishableGlobalSlugs,
-	publishableSlugs,
-	readableGlobalSlugs,
-	readableSlugs,
-	resolveCapabilities,
-	writableGlobalSlugs,
-	writableSlugs,
-} from "../capabilities.js";
+import { resolveCapabilities, slugsWith } from "../capabilities.js";
 import { isToolEnabled, toolInputSchema } from "../endpoint/server.js";
 import { normalizeOptions } from "../options.js";
 
@@ -58,12 +50,12 @@ const scopeFor = (
 	return {
 		req: { payload: { config } } as unknown as PayloadRequest,
 		capabilities,
-		readable: readableSlugs(capabilities),
-		writable: writableSlugs(capabilities),
-		publishable: publishableSlugs(capabilities),
-		readableGlobals: readableGlobalSlugs(capabilities),
-		writableGlobals: writableGlobalSlugs(capabilities),
-		publishableGlobals: publishableGlobalSlugs(capabilities),
+		readable: slugsWith(capabilities.collections, "read"),
+		writable: slugsWith(capabilities.collections, "write"),
+		publishable: slugsWith(capabilities.collections, "publish"),
+		readableGlobals: slugsWith(capabilities.globals, "read"),
+		writableGlobals: slugsWith(capabilities.globals, "write"),
+		publishableGlobals: slugsWith(capabilities.globals, "publish"),
 		locales: localization === "on" ? ["en", "de"] : null,
 		defaultLocale: localization === "on" ? "en" : null,
 		limits: resolved.limits,

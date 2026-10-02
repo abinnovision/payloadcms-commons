@@ -8,7 +8,7 @@ import type { RichTextField } from "payload";
  * One node in a rich text field's editor state, positioned so it can be
  * patched without re-reading the whole field first.
  */
-export interface LexicalOutlineEntry {
+interface LexicalOutlineEntry {
 	children?: number;
 	/** Narrowed properties actually set, e.g. { tag: "h2" }. */
 	options?: Record<string, string>;

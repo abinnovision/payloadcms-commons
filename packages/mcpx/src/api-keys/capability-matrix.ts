@@ -56,7 +56,7 @@ export interface CapabilityRow {
 	hint?: string;
 }
 
-export interface CapabilityTool {
+interface CapabilityTool {
 	name: string;
 	description: string;
 }

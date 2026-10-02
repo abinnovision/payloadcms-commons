@@ -18,13 +18,6 @@ const DEFAULT_MAX_LIMIT = 25;
 const DEFAULT_MAX_DEPTH = 1;
 const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
-/*
- * An exposed collection or global, resolved against the config. The two carry
- * the same settings; only the validation that produced them differs.
- */
-type NormalizedCollection = McpxExposedEntity;
-type NormalizedGlobal = McpxExposedEntity;
-
 /**
  * The plugin options after validation and defaulting, which is the only shape
  * the rest of the plugin reads. Every shorthand in {@link McpxPluginOptions}
@@ -32,8 +25,8 @@ type NormalizedGlobal = McpxExposedEntity;
  * downstream has to handle a missing collection or an implicit default.
  */
 export interface NormalizedOptions {
-	collections: NormalizedCollection[];
-	globals: NormalizedGlobal[];
+	collections: McpxExposedEntity[];
+	globals: McpxExposedEntity[];
 	userCollection: string;
 	apiKeysSlug: string;
 	endpointPath: string;
@@ -172,12 +165,12 @@ const normalizeCollections = (
 	config: Config,
 	options: McpxPluginOptions,
 	apiKeysSlug: string,
-): NormalizedCollection[] => {
+): McpxExposedEntity[] => {
 	const collections = config.collections ?? [];
 	const fieldNames = new Set<string>();
 
 	return Object.entries(options.collections).flatMap(
-		([slug, raw]): NormalizedCollection[] => {
+		([slug, raw]): McpxExposedEntity[] => {
 			if (raw === undefined) {
 				return [];
 			}
@@ -194,7 +187,7 @@ const normalizeCollections = (
 
 			const settings = raw === true ? {} : raw;
 			const hasDrafts = hasDraftsEnabled(collection);
-			const normalized: NormalizedCollection = {
+			const normalized: McpxExposedEntity = {
 				slug,
 				read: settings.read ?? true,
 				write: normalizeWriteMode("Collection", slug, settings.write),
@@ -224,7 +217,7 @@ const normalizeCollections = (
 const normalizeGlobals = (
 	config: Config,
 	options: McpxPluginOptions,
-): NormalizedGlobal[] => {
+): McpxExposedEntity[] => {
 	const globals = config.globals ?? [];
 	/*
 	 * Scoped to globals on purpose: a global and a collection may share a
@@ -233,7 +226,7 @@ const normalizeGlobals = (
 	const fieldNames = new Set<string>();
 
 	return Object.entries(options.globals ?? {}).flatMap(
-		([slug, raw]): NormalizedGlobal[] => {
+		([slug, raw]): McpxExposedEntity[] => {
 			if (raw === undefined) {
 				return [];
 			}
@@ -248,7 +241,7 @@ const normalizeGlobals = (
 
 			const settings = raw === true ? {} : raw;
 			const hasDrafts = hasDraftsEnabled(global);
-			const normalized: NormalizedGlobal = {
+			const normalized: McpxExposedEntity = {
 				slug,
 				read: settings.read ?? true,
 				write: normalizeWriteMode("Global", slug, settings.write),

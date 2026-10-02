@@ -111,18 +111,16 @@ export const listCapabilities = defineMcpxTool({
 			];
 		});
 
-		return Promise.resolve(
-			jsonResult({
-				collections,
-				...(globals.length > 0 ? { globals } : {}),
-				locales: scope.locales
-					? { codes: scope.locales, default: scope.defaultLocale }
-					: null,
-				limits: scope.limits,
-				tools: Object.entries(scope.capabilities.tools)
-					.filter(([, enabled]) => enabled)
-					.map(([name]) => name),
-			}),
-		);
+		return jsonResult({
+			collections,
+			...(globals.length > 0 ? { globals } : {}),
+			locales: scope.locales
+				? { codes: scope.locales, default: scope.defaultLocale }
+				: null,
+			limits: scope.limits,
+			tools: Object.entries(scope.capabilities.tools)
+				.filter(([, enabled]) => enabled)
+				.map(([name]) => name),
+		});
 	},
 });

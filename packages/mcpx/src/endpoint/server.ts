@@ -21,10 +21,7 @@ export const toolInputSchema = (
 	);
 
 /** May be built from the scope, to name the targets this key writes live. */
-export const toolDescription = (
-	tool: McpxAnyTool,
-	scope: McpxToolScope,
-): string =>
+const toolDescription = (tool: McpxAnyTool, scope: McpxToolScope): string =>
 	typeof tool.description === "function"
 		? tool.description(scope)
 		: tool.description;
@@ -57,16 +54,6 @@ export const createMcpServer = (
 		},
 	);
 
-	const guarded =
-		(run: () => CallToolResult | Promise<CallToolResult>) =>
-		async (): Promise<CallToolResult> => {
-			try {
-				return await run();
-			} catch (error) {
-				return toToolError(error, logger);
-			}
-		};
-
 	for (const tool of [...BUILTIN_TOOLS, ...options.tools]) {
 		if (!isToolEnabled(tool, scope)) {
 			continue;
@@ -79,10 +66,13 @@ export const createMcpServer = (
 				inputSchema: toolInputSchema(tool, scope),
 				...(tool.annotations ? { annotations: tool.annotations } : {}),
 			},
-			(args, extra) =>
-				guarded(() =>
-					tool.handler({ args: args as never, scope, req, extra }),
-				)(),
+			async (args, extra): Promise<CallToolResult> => {
+				try {
+					return await tool.handler({ args: args as never, scope, req, extra });
+				} catch (error) {
+					return toToolError(error, logger);
+				}
+			},
 		);
 	}
 

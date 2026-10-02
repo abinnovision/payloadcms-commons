@@ -5,7 +5,7 @@
 export const KEY_PLACEHOLDER = "<your-key>";
 
 /** What the guide needs to know about one key to write its snippets. */
-export interface SetupGuideInput {
+interface SetupGuideInput {
 	/** Absolute MCP endpoint URL. */
 	endpointUrl: string;
 	/** Plaintext key, absent on an unsaved document or a failed decrypt. */
@@ -15,7 +15,7 @@ export interface SetupGuideInput {
 }
 
 /** One instruction block, rendered behind its own copy button. */
-export interface SetupGuideSection {
+interface SetupGuideSection {
 	/** Stable key for rendering and for tests. */
 	id: string;
 	title: string;
