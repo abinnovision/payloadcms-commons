@@ -48,6 +48,8 @@ A successful write may come back with "publishBlockers": everything still wrong 
 
 const POINTER = z.string().regex(JSON_POINTER_PATTERN);
 
+const PATCHES_LIMIT = 500;
+
 /** Discriminated on `op`, so an operation carries only its own members. */
 export const PATCH_OPERATION_SCHEMA = z
 	.discriminatedUnion("op", [
@@ -158,6 +160,7 @@ export const patchDocument = defineMcpxTool({
 		patches: z
 			.array(PATCH_OPERATION_SCHEMA)
 			.min(1)
+			.max(PATCHES_LIMIT)
 			.describe("Operations, applied in order."),
 		expectedUpdatedAt: z
 			.string()

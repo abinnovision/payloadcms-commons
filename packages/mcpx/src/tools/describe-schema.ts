@@ -31,6 +31,8 @@ Paths here use the same JSON Pointer syntax as getDocument and patchDocument, an
 
 Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;
 
+const PATHS_LIMIT = 400;
+
 /**
  * Describes each requested path independently and returns a per
  * path error object instead of failing the call, so a client exploring several
@@ -51,6 +53,7 @@ export const describeSchema = defineMcpxTool({
 		}),
 		paths: z
 			.array(z.string())
+			.max(PATHS_LIMIT)
 			.optional()
 			.describe(
 				'Schema paths to describe, e.g. "/layout/sections/sectionWrapper". Omit for the collection root.',

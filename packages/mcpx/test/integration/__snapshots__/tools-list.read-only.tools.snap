@@ -45,6 +45,7 @@
         },
         "paths": {
           "description": "Schema paths to describe, e.g. \"/layout/sections/sectionWrapper\". Omit for the collection root.",
+          "maxItems": 400,
           "type": "array",
           "items": {
             "type": "string"

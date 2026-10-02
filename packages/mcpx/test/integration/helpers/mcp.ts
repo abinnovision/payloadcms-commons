@@ -15,7 +15,8 @@ interface PostArgs {
 	body?: unknown;
 	method?: string;
 	headers?: Record<string, string>;
-	rawBody?: string;
+	/** A stream is sent chunked, without a Content-Length. */
+	rawBody?: string | ReadableStream<Uint8Array>;
 }
 
 /**
@@ -35,7 +36,7 @@ export const mcpPost = (
 	};
 	const body =
 		method === "POST"
-			? { body: args.rawBody ?? JSON.stringify(args.body) }
+			? { body: args.rawBody ?? JSON.stringify(args.body), duplex: "half" }
 			: {};
 
 	return handleEndpoints({

@@ -69,7 +69,7 @@ describe("json-rpc batches", () => {
 			})) as unknown as { title?: unknown }
 		).title;
 
-	it.fails("accepts a batch of 50 tool calls", async () => {
+	it("refuses a batch of 50 tool calls", async () => {
 		const messages = Array.from({ length: 50 }, (_, index) => ({
 			jsonrpc: "2.0",
 			id: index + 1,
@@ -85,6 +85,57 @@ describe("json-rpc batches", () => {
 		const body = (await response.json()) as unknown;
 
 		expect(response.status >= 400 || !Array.isArray(body)).toBe(true);
+	});
+
+	it("refuses a batch of 11 messages and creates nothing", async () => {
+		const before = await booted.payload.count({
+			collection: "ledgers" as never,
+		});
+		const messages = Array.from({ length: 11 }, (_, index) => ({
+			jsonrpc: "2.0",
+			id: index + 1,
+			method: "tools/call",
+			params: {
+				name: "createDocument",
+				arguments: {
+					collection: "ledgers",
+					locale: "en",
+					data: { title: `Batched ${String(index)}` },
+				},
+			},
+		}));
+
+		const response = await mcpPost(booted.config, {
+			cacheKey: CACHE_KEY,
+			key,
+			body: messages,
+		});
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({
+			jsonrpc: "2.0",
+			id: null,
+			error: {
+				code: -32600,
+				message: "Invalid request: a batch may hold at most 10 messages.",
+			},
+		});
+		expect(
+			await booted.payload.count({ collection: "ledgers" as never }),
+		).toEqual(before);
+	});
+
+	it("answers a batch of 10 messages", async () => {
+		const results = await callToolBatch(
+			booted.config,
+			key,
+			Array.from({ length: 10 }, () => ({ name: "listCapabilities" })),
+			CACHE_KEY,
+		);
+
+		expect(results.map((result) => result.isError)).toEqual(
+			Array.from({ length: 10 }, () => false),
+		);
 	});
 
 	it("keeps the first write of a batch when the second one fails", async () => {

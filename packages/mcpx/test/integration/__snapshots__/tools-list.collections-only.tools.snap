@@ -37,6 +37,7 @@
         },
         "paths": {
           "description": "Schema paths to describe, e.g. \"/layout/sections/sectionWrapper\". Omit for the collection root.",
+          "maxItems": 400,
           "type": "array",
           "items": {
             "type": "string"
@@ -328,6 +329,7 @@
         },
         "patches": {
           "minItems": 1,
+          "maxItems": 500,
           "type": "array",
           "items": {
             "oneOf": [

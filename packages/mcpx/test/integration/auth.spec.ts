@@ -102,4 +102,15 @@ describe("mcp endpoint authentication", () => {
 		expect(response.status).toBe(400);
 		expect(body.error?.code).toBe(-32700);
 	});
+
+	it("answers a POST without a body with an invalid request error", async () => {
+		const before = await booted.payload.count({ collection: "posts" });
+
+		const response = await mcpPost(booted.config, { key: seeded.keys.full });
+		const body = (await response.json()) as { error?: { code: number } };
+
+		expect(response.status).toBe(400);
+		expect(body.error?.code).toBe(-32600);
+		expect(await booted.payload.count({ collection: "posts" })).toEqual(before);
+	});
 });
