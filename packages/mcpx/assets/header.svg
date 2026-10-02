@@ -38,40 +38,43 @@
     <rect x="665" y="241" width="44" height="11" rx="3" fill="#33373E"/>
   </g>
   <g fill="none" stroke="#3A3E45" stroke-width="1.25">
-    <path d="M712 76.0C747 76.0 747 111.0 782 111.0"/>
-    <path d="M712 100.3C747 100.3 747 125.0 782 125.0"/>
-    <path d="M712 124.6C747 124.6 747 139.0 782 139.0"/>
-    <path d="M712 148.9C747 148.9 747 153.0 782 153.0"/>
-    <path d="M712 173.1C747 173.1 747 167.0 782 167.0"/>
-    <path d="M712 197.4C747 197.4 747 181.0 782 181.0"/>
-    <path d="M712 221.7C747 221.7 747 195.0 782 195.0"/>
-    <path d="M712 246.0C747 246.0 747 209.0 782 209.0"/>
+    <path d="M712 76.0C747 76.0 747 104.0 782 104.0"/>
+    <path d="M712 97.2C747 97.2 747 118.0 782 118.0"/>
+    <path d="M712 118.5C747 118.5 747 132.0 782 132.0"/>
+    <path d="M712 139.8C747 139.8 747 146.0 782 146.0"/>
+    <path d="M712 161.0C747 161.0 747 160.0 782 160.0"/>
+    <path d="M712 182.2C747 182.2 747 174.0 782 174.0"/>
+    <path d="M712 203.5C747 203.5 747 188.0 782 188.0"/>
+    <path d="M712 224.8C747 224.8 747 202.0 782 202.0"/>
+    <path d="M712 246.0C747 246.0 747 216.0 782 216.0"/>
   </g>
   <g>
-    <rect x="788" y="108" width="60" height="6" rx="3" fill="#D98E3D"/>
-    <rect x="788" y="122" width="60" height="6" rx="3" fill="#D98E3D"/>
-    <rect x="788" y="136" width="60" height="6" rx="3" fill="#D98E3D"/>
-    <rect x="788" y="150" width="60" height="6" rx="3" fill="#D98E3D"/>
-    <rect x="788" y="164" width="60" height="6" rx="3" fill="#D98E3D"/>
-    <rect x="788" y="178" width="60" height="6" rx="3" fill="#D98E3D"/>
-    <rect x="788" y="192" width="60" height="6" rx="3" fill="#D98E3D"/>
-    <rect x="788" y="206" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="101" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="115" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="129" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="143" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="157" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="171" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="185" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="199" width="60" height="6" rx="3" fill="#D98E3D"/>
+    <rect x="788" y="213" width="60" height="6" rx="3" fill="#D98E3D"/>
   </g>
   <g fill="none" stroke="#D98E3D" stroke-width="1.25" opacity="0.55">
-    <path d="M854 111.0C894 111.0 904 160 944 160"/>
-    <path d="M854 125.0C894 125.0 904 160 944 160"/>
-    <path d="M854 139.0C894 139.0 904 160 944 160"/>
-    <path d="M854 153.0C894 153.0 904 160 944 160"/>
-    <path d="M854 167.0C894 167.0 904 160 944 160"/>
-    <path d="M854 181.0C894 181.0 904 160 944 160"/>
-    <path d="M854 195.0C894 195.0 904 160 944 160"/>
-    <path d="M854 209.0C894 209.0 904 160 944 160"/>
+    <path d="M854 104.0C894 104.0 904 160 944 160"/>
+    <path d="M854 118.0C894 118.0 904 160 944 160"/>
+    <path d="M854 132.0C894 132.0 904 160 944 160"/>
+    <path d="M854 146.0C894 146.0 904 160 944 160"/>
+    <path d="M854 160.0C894 160.0 904 160 944 160"/>
+    <path d="M854 174.0C894 174.0 904 160 944 160"/>
+    <path d="M854 188.0C894 188.0 904 160 944 160"/>
+    <path d="M854 202.0C894 202.0 904 160 944 160"/>
+    <path d="M854 216.0C894 216.0 904 160 944 160"/>
   </g>
   <path d="M944 160H1066" stroke="#D98E3D" stroke-width="2"/>
   <path d="M1066 142H1080V178H1066" fill="none" stroke="#D98E3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   <g font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="11" letter-spacing="1.4" text-anchor="middle">
     <text x="588" y="286" fill="#6B7079">CONTENT MODEL</text>
-    <text x="818" y="286" fill="#D98E3D">8 TOOLS</text>
+    <text x="818" y="286" fill="#D98E3D">9 TOOLS</text>
     <text x="1012" y="286" fill="#6B7079">CLIENT</text>
   </g>
 </svg>
