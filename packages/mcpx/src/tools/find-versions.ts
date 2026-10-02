@@ -18,9 +18,7 @@ import { jsonResult } from "../result.js";
 
 import type { McpxToolScope } from "../types.js";
 
-const DESCRIPTION = `Lists the version history of one document or global, newest first. Returns metadata only; read a version's body with getDocument and "versionId", or what changed with "diffFrom".
-
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global". Autosave versions are listed too, marked "autosave".`;
+const DESCRIPTION = `Lists the versions of one document or global, newest first, autosaves included. Returns per version "versionId", "createdAt", "updatedAt", "status", "latest", "autosave" and, where set, "publishedLocale", without the content. Read a version with getDocument "versionId", or compare it with "diffFrom".`;
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type StatusShape = {
@@ -39,10 +37,7 @@ const statusShape = (scope: McpxToolScope): StatusShape => {
 	}
 
 	return widen<StatusShape>({
-		status: z
-			.enum(["published", "draft"])
-			.optional()
-			.describe("Only versions with this status."),
+		status: z.enum(["published", "draft"]).optional(),
 	});
 };
 
@@ -62,10 +57,7 @@ export const findVersions = defineMcpxTool({
 		return collections.length + globals.length > 0;
 	},
 	inputSchema: (scope) => ({
-		...entityShape(scope, "versions", {
-			collection: "Collection holding the document.",
-			global: "Global whose history to list.",
-		}),
+		...entityShape(scope, "versions"),
 		...idShape(scope, "versions"),
 		limit: z
 			.number()
@@ -73,15 +65,13 @@ export const findVersions = defineMcpxTool({
 			.min(1)
 			.max(scope.limits.maxLimit)
 			.optional()
-			.describe(
-				`Versions per page. Default 10, at most ${String(scope.limits.maxLimit)}.`,
-			),
-		page: z.number().int().min(1).optional().describe("Page number, from 1."),
+			.describe("Default 10."),
+		page: z.number().int().min(1).optional(),
 		...statusShape(scope),
 		...localeShape(scope, {
 			required: false,
 			description:
-				"Locale whose status to report. Defaults to the default locale.",
+				'Locale whose "status" is reported. Defaults to the default locale.',
 		}),
 	}),
 	handler: async ({ args, scope }) => {

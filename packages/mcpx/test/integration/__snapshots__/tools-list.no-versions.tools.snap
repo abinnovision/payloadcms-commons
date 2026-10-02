@@ -26,12 +26,15 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
             "tags",
-            "notes",
-            "snippets",
-            "media"
+            "notes"
+          ]
+        },
+        "global": {
+          "description": "Instead of \"collection\".",
+          "type": "string",
+          "enum": [
+            "banner"
           ]
         },
         "paths": {
@@ -47,9 +50,6 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "collection"
-      ],
       "additionalProperties": false
     },
     "annotations": {
@@ -70,12 +70,8 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
             "tags",
-            "notes",
-            "snippets",
-            "media"
+            "notes"
           ]
         },
         "where": {
@@ -142,7 +138,7 @@
   },
   {
     "name": "getDocument",
-    "description": "Reads one document or global, or with \"path\" only the value at that pointer. Returns the latest draft by default, with the \"updatedAt\" a write takes as \"expectedUpdatedAt\".\n\n\"versionId\" and \"diffFrom\" work where findVersions does. To revert, call getDocument with the old version as \"versionId\", the version findVersions marks \"latest\" as \"diffFrom\" and the locale you will write, then apply the returned \"patch\" with patchDocument.",
+    "description": "Reads one document or global, or with \"path\" only the value at that pointer. Returns the latest draft by default, with the \"updatedAt\" a write takes as \"expectedUpdatedAt\".",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -150,15 +146,18 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
             "tags",
-            "notes",
-            "snippets",
-            "media"
+            "notes"
+          ]
+        },
+        "global": {
+          "type": "string",
+          "enum": [
+            "banner"
           ]
         },
         "id": {
+          "description": "Required with \"collection\", omitted with \"global\".",
           "type": [
             "string",
             "number"
@@ -190,87 +189,8 @@
         "outline": {
           "description": "With \"path\" at a rich text field: list each node's pointer, type, \"version\" and text.",
           "type": "boolean"
-        },
-        "versionId": {
-          "description": "From findVersions. Not with \"draft\".",
-          "type": [
-            "string",
-            "number"
-          ]
-        },
-        "diffFrom": {
-          "description": "Version id, or \"published\" for the newest version published in any locale. Returns {from, to, patch}, the JSON Patch from that version to what is read.",
-          "type": [
-            "string",
-            "number"
-          ]
         }
       },
-      "required": [
-        "collection",
-        "id"
-      ],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "findVersions",
-    "description": "Lists the versions of one document or global, newest first, autosaves included. Returns per version \"versionId\", \"createdAt\", \"updatedAt\", \"status\", \"latest\", \"autosave\" and, where set, \"publishedLocale\", without the content. Read a version with getDocument \"versionId\", or compare it with \"diffFrom\".",
-    "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "enum": [
-            "pages",
-            "snippets"
-          ]
-        },
-        "id": {
-          "type": [
-            "string",
-            "number"
-          ]
-        },
-        "limit": {
-          "description": "Default 10.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 25
-        },
-        "page": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 9007199254740991
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "published",
-            "draft"
-          ]
-        },
-        "locale": {
-          "description": "Locale whose \"status\" is reported. Defaults to the default locale.",
-          "type": "string",
-          "enum": [
-            "en",
-            "de"
-          ]
-        }
-      },
-      "required": [
-        "collection",
-        "id"
-      ],
       "additionalProperties": false
     },
     "annotations": {
@@ -283,7 +203,7 @@
   },
   {
     "name": "patchDocument",
-    "description": "Applies JSON Patch operations to one document or global, e.g. {\"op\":\"replace\",\"path\":\"/title\",\"value\":\"Home\"}. If any operation fails, nothing is written and the response lists the problems.\n\nWrites to tags, snippets go live immediately. Every other write is saved as a draft.\n\nRead the document with getDocument right before patching. Append to a list with \"/-\". A new block needs \"blockType\". To clear a field, \"replace\" it with null, or with [] for an array or blocks field. \"remove\" only removes list elements. Indices shift with every add or remove, so remove from the last index to the first.\n\nIn a rich text field a pointer continues into the rich text state: \"/content/root/children/2\" is a node, \"/content/root/children/2/tag\" one of its properties and \"/content/root/children/3/fields/tone\" a field of a block node. getDocument \"outline\" lists each node's pointer and \"version\". Build nodes from describeSchema \"nodeProperties\". Check a position before writing to it, e.g. {\"op\":\"test\",\"path\":\"/content/root/children/2/type\",\"value\":\"heading\"}.\n\nThe response carries \"updatedAt\" and, if any, \"publishBlockers\": what must be fixed before publishing. \"publishBlockersUnavailable\" means that check failed. The write stands either way. \"notApplied\" lists pointers whose value did not change or cannot be read back, for example where field access denies the update.",
+    "description": "Applies JSON Patch operations to one document or global, e.g. {\"op\":\"replace\",\"path\":\"/title\",\"value\":\"Home\"}. If any operation fails, nothing is written and the response lists the problems.\n\nWrites to tags, banner go live immediately. Every other write is saved as a draft.\n\nRead the document with getDocument right before patching. Append to a list with \"/-\". A new block needs \"blockType\". To clear a field, \"replace\" it with null, or with [] for an array or blocks field. \"remove\" only removes list elements. Indices shift with every add or remove, so remove from the last index to the first.\n\nIn a rich text field a pointer continues into the rich text state: \"/content/root/children/2\" is a node, \"/content/root/children/2/tag\" one of its properties and \"/content/root/children/3/fields/tone\" a field of a block node. getDocument \"outline\" lists each node's pointer and \"version\". Build nodes from describeSchema \"nodeProperties\". Check a position before writing to it, e.g. {\"op\":\"test\",\"path\":\"/content/root/children/2/type\",\"value\":\"heading\"}.\n\nThe response carries \"updatedAt\" and, if any, \"publishBlockers\": what must be fixed before publishing. \"publishBlockersUnavailable\" means that check failed. The write stands either way. \"notApplied\" lists pointers whose value did not change or cannot be read back, for example where field access denies the update.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -291,14 +211,18 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
             "tags",
-            "notes",
-            "snippets"
+            "notes"
+          ]
+        },
+        "global": {
+          "type": "string",
+          "enum": [
+            "banner"
           ]
         },
         "id": {
+          "description": "Required with \"collection\", omitted with \"global\".",
           "type": [
             "string",
             "number"
@@ -451,8 +375,6 @@
         }
       },
       "required": [
-        "collection",
-        "id",
         "locale",
         "patches"
       ],
@@ -470,7 +392,7 @@
   },
   {
     "name": "createDocument",
-    "description": "Creates a document in a collection. Use it only when the document does not exist yet. Returns \"id\", \"status\", \"updatedAt\" and, if any, \"publishBlockers\". \"publishBlockersUnavailable\" means that check failed. \"data\" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has \"draftValidation\" true or \"drafts\" false. A field describeSchema does not list is refused, and \"id\" is always assigned.\n\nWrites to tags, snippets go live immediately. Every other write is saved as a draft.",
+    "description": "Creates a document in a collection. Use it only when the document does not exist yet. Returns \"id\", \"status\", \"updatedAt\" and, if any, \"publishBlockers\". \"publishBlockersUnavailable\" means that check failed. \"data\" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has \"draftValidation\" true or \"drafts\" false. A field describeSchema does not list is refused, and \"id\" is always assigned.\n\nWrites to tags go live immediately. Every other write is saved as a draft.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -478,11 +400,8 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
             "tags",
-            "notes",
-            "snippets"
+            "notes"
           ]
         },
         "locale": {
@@ -529,14 +448,18 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
             "tags",
-            "notes",
-            "snippets"
+            "notes"
+          ]
+        },
+        "global": {
+          "type": "string",
+          "enum": [
+            "banner"
           ]
         },
         "id": {
+          "description": "Required with \"collection\", omitted with \"global\".",
           "type": [
             "string",
             "number"
@@ -551,8 +474,6 @@
         }
       },
       "required": [
-        "collection",
-        "id",
         "locale"
       ],
       "additionalProperties": false
@@ -574,7 +495,6 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages",
             "notes"
           ]
         },

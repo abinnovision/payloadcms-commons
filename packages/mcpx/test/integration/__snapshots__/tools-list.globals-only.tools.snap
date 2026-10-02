@@ -23,15 +23,11 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
       "properties": {
-        "collection": {
+        "global": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets",
-            "media"
+            "site-settings",
+            "banner"
           ]
         },
         "paths": {
@@ -48,87 +44,7 @@
         }
       },
       "required": [
-        "collection"
-      ],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "findDocuments",
-    "description": "Finds documents in a collection. Returns one page of \"docs\" with paging totals. \"where\" is a Payload query, e.g. {\"title\":{\"contains\":\"home\"}}, with dots for nested fields, e.g. \"items.heading\". A \"where\" or \"sort\" on a hidden field, or through a relationship into a collection this key cannot read, is refused.",
-    "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "enum": [
-            "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets",
-            "media"
-          ]
-        },
-        "where": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        },
-        "sort": {
-          "description": "e.g. \"-updatedAt\" for descending.",
-          "type": "string"
-        },
-        "limit": {
-          "description": "Default 10.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 25
-        },
-        "page": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 9007199254740991
-        },
-        "depth": {
-          "description": "Default 0. A relationship into a collection this key cannot read stays an id.",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 1
-        },
-        "select": {
-          "description": "Fields to return, e.g. {\"title\":true}.",
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        },
-        "locale": {
-          "description": "Default: the default locale. A value missing in this locale is shown from the default locale.",
-          "type": "string",
-          "enum": [
-            "en",
-            "de"
-          ]
-        },
-        "draft": {
-          "description": "Default true: latest drafts.",
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "collection"
+        "global"
       ],
       "additionalProperties": false
     },
@@ -147,21 +63,11 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
       "properties": {
-        "collection": {
+        "global": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets",
-            "media"
-          ]
-        },
-        "id": {
-          "type": [
-            "string",
-            "number"
+            "site-settings",
+            "banner"
           ]
         },
         "path": {
@@ -207,8 +113,7 @@
         }
       },
       "required": [
-        "collection",
-        "id"
+        "global"
       ],
       "additionalProperties": false
     },
@@ -227,17 +132,10 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
       "properties": {
-        "collection": {
+        "global": {
           "type": "string",
           "enum": [
-            "pages",
-            "snippets"
-          ]
-        },
-        "id": {
-          "type": [
-            "string",
-            "number"
+            "site-settings"
           ]
         },
         "limit": {
@@ -268,8 +166,7 @@
         }
       },
       "required": [
-        "collection",
-        "id"
+        "global"
       ],
       "additionalProperties": false
     },
@@ -283,25 +180,16 @@
   },
   {
     "name": "patchDocument",
-    "description": "Applies JSON Patch operations to one document or global, e.g. {\"op\":\"replace\",\"path\":\"/title\",\"value\":\"Home\"}. If any operation fails, nothing is written and the response lists the problems.\n\nWrites to tags, snippets go live immediately. Every other write is saved as a draft.\n\nRead the document with getDocument right before patching. Append to a list with \"/-\". A new block needs \"blockType\". To clear a field, \"replace\" it with null, or with [] for an array or blocks field. \"remove\" only removes list elements. Indices shift with every add or remove, so remove from the last index to the first.\n\nIn a rich text field a pointer continues into the rich text state: \"/content/root/children/2\" is a node, \"/content/root/children/2/tag\" one of its properties and \"/content/root/children/3/fields/tone\" a field of a block node. getDocument \"outline\" lists each node's pointer and \"version\". Build nodes from describeSchema \"nodeProperties\". Check a position before writing to it, e.g. {\"op\":\"test\",\"path\":\"/content/root/children/2/type\",\"value\":\"heading\"}.\n\nThe response carries \"updatedAt\" and, if any, \"publishBlockers\": what must be fixed before publishing. \"publishBlockersUnavailable\" means that check failed. The write stands either way. \"notApplied\" lists pointers whose value did not change or cannot be read back, for example where field access denies the update.",
+    "description": "Applies JSON Patch operations to one document or global, e.g. {\"op\":\"replace\",\"path\":\"/title\",\"value\":\"Home\"}. If any operation fails, nothing is written and the response lists the problems.\n\nWrites to banner go live immediately. Every other write is saved as a draft.\n\nRead the document with getDocument right before patching. Append to a list with \"/-\". A new block needs \"blockType\". To clear a field, \"replace\" it with null, or with [] for an array or blocks field. \"remove\" only removes list elements. Indices shift with every add or remove, so remove from the last index to the first.\n\nIn a rich text field a pointer continues into the rich text state: \"/content/root/children/2\" is a node, \"/content/root/children/2/tag\" one of its properties and \"/content/root/children/3/fields/tone\" a field of a block node. getDocument \"outline\" lists each node's pointer and \"version\". Build nodes from describeSchema \"nodeProperties\". Check a position before writing to it, e.g. {\"op\":\"test\",\"path\":\"/content/root/children/2/type\",\"value\":\"heading\"}.\n\nThe response carries \"updatedAt\" and, if any, \"publishBlockers\": what must be fixed before publishing. \"publishBlockersUnavailable\" means that check failed. The write stands either way. \"notApplied\" lists pointers whose value did not change or cannot be read back, for example where field access denies the update.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
       "properties": {
-        "collection": {
+        "global": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets"
-          ]
-        },
-        "id": {
-          "type": [
-            "string",
-            "number"
+            "site-settings",
+            "banner"
           ]
         },
         "locale": {
@@ -451,8 +339,7 @@
         }
       },
       "required": [
-        "collection",
-        "id",
+        "global",
         "locale",
         "patches"
       ],
@@ -469,77 +356,17 @@
     }
   },
   {
-    "name": "createDocument",
-    "description": "Creates a document in a collection. Use it only when the document does not exist yet. Returns \"id\", \"status\", \"updatedAt\" and, if any, \"publishBlockers\". \"publishBlockersUnavailable\" means that check failed. \"data\" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has \"draftValidation\" true or \"drafts\" false. A field describeSchema does not list is refused, and \"id\" is always assigned.\n\nWrites to tags, snippets go live immediately. Every other write is saved as a draft.",
-    "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "enum": [
-            "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets"
-          ]
-        },
-        "locale": {
-          "type": "string",
-          "enum": [
-            "en",
-            "de"
-          ],
-          "description": "Locale of the localized fields in \"data\"."
-        },
-        "data": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {},
-          "description": "Field values by name, e.g. {\"title\":\"Home\",\"slug\":\"home\"}."
-        }
-      },
-      "required": [
-        "collection",
-        "locale",
-        "data"
-      ],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "idempotentHint": false,
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
     "name": "validateDocument",
     "description": "Lists what still blocks publishing one document or global, without saving. Returns \"publishBlockers\", each with a pointer and a message. An empty list means it can be published, unless \"publishBlockersUnavailable\" is true: then the check itself failed. The check runs the field hooks a save runs.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
       "properties": {
-        "collection": {
+        "global": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets"
-          ]
-        },
-        "id": {
-          "type": [
-            "string",
-            "number"
+            "site-settings",
+            "banner"
           ]
         },
         "locale": {
@@ -551,8 +378,7 @@
         }
       },
       "required": [
-        "collection",
-        "id",
+        "global",
         "locale"
       ],
       "additionalProperties": false
@@ -571,17 +397,10 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
       "properties": {
-        "collection": {
+        "global": {
           "type": "string",
           "enum": [
-            "pages",
-            "notes"
-          ]
-        },
-        "id": {
-          "type": [
-            "string",
-            "number"
+            "site-settings"
           ]
         },
         "expectedUpdatedAt": {
@@ -590,8 +409,7 @@
         }
       },
       "required": [
-        "collection",
-        "id"
+        "global"
       ],
       "additionalProperties": false
     },

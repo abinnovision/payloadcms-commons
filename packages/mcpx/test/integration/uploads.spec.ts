@@ -83,7 +83,7 @@ describe("upload collections", () => {
 		expect(collectionEnumOf(find("patchDocument"))).toContain("media");
 		expect(collectionEnumOf(find("createDocument"))).not.toContain("media");
 		expect(find("createDocument")?.description).toContain(
-			'Left out of "collection" on purpose: media.',
+			"Documents in media are files and cannot be created here.",
 		);
 	});
 

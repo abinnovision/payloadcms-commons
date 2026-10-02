@@ -57,6 +57,25 @@ const KEYS: Record<string, KeyCapabilities> = {
 			media: { read: true, write: true },
 		},
 	},
+	/* No collection: createDocument, findDocuments and findVersions are left out. */
+	"globals-only": {
+		globals: {
+			siteSettings: { read: true, write: true, publish: true },
+			banner: { read: true, write: true },
+		},
+	},
+	/* Reaches no entity with exposed versions. */
+	"no-versions": {
+		collections: {
+			tags: { read: true, write: true },
+			notes: { read: true, write: true, publish: true },
+		},
+		globals: { banner: { read: true, write: true } },
+	},
+	/* Writes without read access: no describeSchema, so no schema paths. */
+	"write-only": {
+		collections: { posts: { write: true } },
+	},
 	/* Every write lands as a draft: no live-write slug. */
 	"drafts-only": {
 		collections: {
@@ -64,6 +83,38 @@ const KEYS: Record<string, KeyCapabilities> = {
 			pages: { read: true },
 		},
 	},
+};
+
+/*
+ * Characters a model reads per tool: the description plus every parameter
+ * description, as the largest of all keys.
+ */
+const BUDGET: Record<string, number> = {
+	describeSchema: 1700,
+	patchDocument: 1700,
+	getDocument: 1100,
+	createDocument: 800,
+};
+
+const DEFAULT_BUDGET = 600;
+
+const INSTRUCTIONS_BUDGET = 1000;
+
+// Every `description` string anywhere in a JSON Schema.
+const descriptionsIn = (schema: unknown): string[] => {
+	if (Array.isArray(schema)) {
+		return schema.flatMap(descriptionsIn);
+	}
+
+	if (typeof schema !== "object" || schema === null) {
+		return [];
+	}
+
+	return Object.entries(schema).flatMap(([key, value]) =>
+		key === "description" && typeof value === "string"
+			? [value]
+			: descriptionsIn(value),
+	);
 };
 
 describe("tools/list and initialize", () => {
@@ -104,6 +155,42 @@ describe("tools/list and initialize", () => {
 			`${SNAPSHOTS}.${label}.tools.snap`,
 		);
 	});
+
+	it("keeps the text of each tool of every key within its budget", async () => {
+		const overBudget: string[] = [];
+
+		for (const label of Object.keys(KEYS)) {
+			const mcp = createMcpClient(booted, keys[label]);
+
+			for (const tool of await mcp.list()) {
+				const length = [
+					tool.description ?? "",
+					...descriptionsIn(tool.inputSchema),
+				].join("").length;
+
+				if (length > (BUDGET[tool.name] ?? DEFAULT_BUDGET)) {
+					overBudget.push(`${label}: ${tool.name}`);
+				}
+			}
+
+			if ((await mcp.instructions()).length > INSTRUCTIONS_BUDGET) {
+				overBudget.push(`${label}: instructions`);
+			}
+		}
+
+		expect(overBudget).toEqual([]);
+	});
+
+	it.each(Object.keys(KEYS))(
+		"uses no em-dash in what a %s key reads",
+		async (label) => {
+			const mcp = createMcpClient(booted, keys[label]);
+			const text =
+				JSON.stringify(await mcp.list()) + (await mcp.instructions());
+
+			expect(text).not.toContain("\u2014");
+		},
+	);
 
 	it.each(Object.keys(KEYS))(
 		"states the instructions a %s key receives",

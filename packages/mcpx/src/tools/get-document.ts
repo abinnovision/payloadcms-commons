@@ -9,10 +9,10 @@ import {
 	idShape,
 	localeOf,
 	localeShape,
+	READ_LOCALE_DESCRIPTION,
 	slugsFor,
 	entityShape,
 	widen,
-	ONE_DOCUMENT_RULE,
 } from "./shared.js";
 import {
 	diffDocuments,
@@ -42,13 +42,9 @@ const OUTLINE_ERROR =
 
 const VERSION_PARAGRAPH = `
 
-On an entity that exposes versions, "versionId" (from findVersions) reads that version instead. "diffFrom" returns the RFC 6902 operations turning a version, or "published" (the newest version with published status, regardless of locale), into the document read, in the pointer syntax patchDocument takes and limited to "path" when given. To revert, pass the old version as "versionId" and the latest one from findVersions as "diffFrom", then apply the patch with patchDocument.`;
+"versionId" and "diffFrom" work where findVersions does. To revert, call getDocument with the old version as "versionId", the version findVersions marks "latest" as "diffFrom" and the locale you will write, then apply the returned "patch" with patchDocument.`;
 
-const DESCRIPTION = `Reads one document, or one subtree of it when "path" is given as a JSON pointer such as "/layout/sections/2". Returns the latest draft by default. Read before patching: the response carries "updatedAt" for expectedUpdatedAt and the indices pointers need.
-
-${ONE_DOCUMENT_RULE}
-
-Set "outline" on a rich text "path" to get a compact positional listing of its nodes instead of the raw editor state.`;
+const DESCRIPTION = `Reads one document or global, or with "path" only the value at that pointer. Returns the latest draft by default, with the "updatedAt" a write takes as "expectedUpdatedAt".`;
 
 // Whether the key reaches any entity whose version history the config exposes.
 const exposesVersions = (scope: McpxToolScope): boolean => {
@@ -140,13 +136,11 @@ const versionShape = (scope: McpxToolScope): VersionShape => {
 	return widen<VersionShape>({
 		versionId: idSchema
 			.optional()
-			.describe(
-				'Version to read instead of the document, from findVersions. Only for entities that expose versions; not with "draft".',
-			),
+			.describe('From findVersions. Not with "draft".'),
 		diffFrom: idSchema
 			.optional()
 			.describe(
-				'Version id, or "published" for the newest published version in any locale, to diff from. Returns {from, to, patch} instead of the document. Only for entities that expose versions.',
+				'Version id, or "published" for the newest version published in any locale. Returns {from, to, patch}, the JSON Patch from that version to what is read.',
 			),
 	});
 };
@@ -164,32 +158,27 @@ export const getDocument = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.collections.readable.length + scope.globals.readable.length > 0,
 	inputSchema: (scope) => ({
-		...entityShape(scope, "read", {
-			collection: "Collection holding the document.",
-			global: "Global to read.",
-		}),
+		...entityShape(scope, "read"),
 		...idShape(scope, "read"),
 		path: z
 			.string()
 			.regex(JSON_POINTER_PATTERN)
 			.optional()
-			.describe(
-				'JSON pointer to return only a subtree, e.g. "/layout/sections/0".',
-			),
+			.describe('e.g. "/layout/sections/0".'),
 		...depthShape(scope),
 		...localeShape(scope, {
 			required: false,
-			description: "Locale to read. Defaults to the default locale.",
+			description: READ_LOCALE_DESCRIPTION,
 		}),
 		draft: z
 			.boolean()
 			.optional()
-			.describe("Return the latest draft. Default true."),
+			.describe("Default true. false reads the published version."),
 		outline: z
 			.boolean()
 			.optional()
 			.describe(
-				'For a rich text field, return a compact positional outline instead of the editor state. Requires "path".',
+				'With "path" at a rich text field: list each node\'s pointer, type, "version" and text.',
 			),
 		...versionShape(scope),
 	}),

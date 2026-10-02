@@ -6,19 +6,13 @@ import {
 	resolveDocument,
 	staleReadResult,
 } from "./document.js";
-import { idShape, localeOf, entityShape, ONE_DOCUMENT_RULE } from "./shared.js";
+import { idShape, localeOf, entityShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { withPublishIntent } from "../write/publish-intent.js";
 import { withTransaction } from "../write/transaction.js";
 
-const DESCRIPTION = `Publishes the current draft, which changes what the public sees. This is the only tool that does; every other write lands as a draft, except on slugs without drafts, where it goes live at once. Call validateDocument first: a document that still has publish blockers is refused, and nothing is written.
-
-${ONE_DOCUMENT_RULE}
-
-The whole document is published, but Payload only validates the locale the publish runs in (the request's locale, which is the default locale unless the request sets one), so a required field left empty in another locale goes live empty. That is how the admin panel behaves too. Publishing is refused while a human holds the document open in the admin panel, and republishing an unchanged document is accepted but writes another version.
-
-There is no unpublish: reverting to a draft stays a human action in the admin panel.`;
+const DESCRIPTION = `Makes the current draft of one document or global public. A draft with publish blockers is refused, so call validateDocument first. Publishing validates one locale only, normally the default, so a required field left empty in another locale goes live empty. Run validateDocument for each locale. There is no unpublish. A person takes content offline in the admin panel.`;
 
 /**
  * Publishes a draft. Available where the config sets
@@ -32,16 +26,13 @@ export const publishDocument = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.collections.publishable.length + scope.globals.publishable.length > 0,
 	inputSchema: (scope) => ({
-		...entityShape(scope, "publish", {
-			collection: "Collection holding the document.",
-			global: "Global to publish.",
-		}),
+		...entityShape(scope, "publish"),
 		...idShape(scope, "publish"),
 		expectedUpdatedAt: z
 			.string()
 			.optional()
 			.describe(
-				"The updatedAt read before publishing. Best effort: the publish is refused if the document has changed since, but a write landing between the check and the publish is not.",
+				'"updatedAt" from your last read. Refused if the document changed since.',
 			),
 	}),
 	handler: async ({ args, scope }) => {

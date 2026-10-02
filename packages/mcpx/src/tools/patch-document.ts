@@ -9,12 +9,11 @@ import {
 	staleReadResult,
 } from "./document.js";
 import {
-	draftSentence,
 	idShape,
+	liveWriteSentence,
 	localeOf,
 	localeShape,
 	entityShape,
-	ONE_DOCUMENT_RULE,
 } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { isPlainObject } from "../guards.js";
@@ -30,45 +29,37 @@ import type { PatchOperation } from "../write/patch.js";
 
 const DESCRIPTION = (
 	scope: McpxToolScope,
-): string => `Applies RFC 6902 JSON Patch operations to one document.
+): string => `Applies JSON Patch operations to one document or global, e.g. {"op":"replace","path":"/title","value":"Home"}. If any operation fails, nothing is written and the response lists the problems.
 
-${ONE_DOCUMENT_RULE}
+${liveWriteSentence(scope, "write")}
 
-${draftSentence(scope)}
+Read the document with getDocument right before patching. Append to a list with "/-". A new block needs "blockType". To clear a field, "replace" it with null, or with [] for an array or blocks field. "remove" only removes list elements. Indices shift with every add or remove, so remove from the last index to the first.
 
-Only the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. describeSchema reports field paths in this same pointer syntax; a path becomes a pointer into a document by replacing each "*" and each block slug with its 0-based index. Inside a rich text field that substitution does not apply: a path there names the node type, and a block node its slug, where a pointer enters the stored state at "root" and walks "children" by an index counted over every child at that level, not over the blocks among them, with the node's own fields under "fields". So "/content/block/callout/tone" is written at "/content/root/children/7/fields/tone".
+In a rich text field a pointer continues into the rich text state: "/content/root/children/2" is a node, "/content/root/children/2/tag" one of its properties and "/content/root/children/3/fields/tone" a field of a block node. getDocument "outline" lists each node's pointer and "version". Build nodes from describeSchema "nodeProperties". Check a position before writing to it, e.g. {"op":"test","path":"/content/root/children/2/type","value":"heading"}.
 
-Adding a block requires "blockType" on the value. Append with "/-" as the last segment. To clear a field use "replace" with null; an array or blocks field refuses null and is emptied with [] instead. "remove" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its "updatedAt" as expectedUpdatedAt so an edit made since that read is refused rather than overwritten.
-
-Inside a rich text field a pointer keeps going: "/content/root/children/2" is a node, "/content/root/children/2/tag" one of its properties, and "/content/root/children/2/fields/url" a field it carries. A node written at a position must carry everything Lexical serializes, "version" included, exactly as one written inside a whole state must; getDocument with "outline" returns each node's pointer and version, which is the cheapest way to get both right. A node's "type" cannot be replaced on its own, and neither can the root.
-
-Node positions shift as soon as anything is added or removed, so read immediately before patching, order removals from the last index to the first, and use a "test" operation on "/content/root/children/2/type" to assert a position is what you think it is before writing to it.
-
-A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but the document cannot be published until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged or cannot be read back, which happens when field-level access denies the update. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing about whether the document is publishable.`;
+The response carries "updatedAt" and, if any, "publishBlockers": what must be fixed before publishing. "publishBlockersUnavailable" means that check failed. The write stands either way. "notApplied" lists pointers whose value did not change or cannot be read back, for example where field access denies the update.`;
 
 const POINTER = z.string().regex(JSON_POINTER_PATTERN);
 
 const PATCHES_LIMIT = 500;
 
 /** Discriminated on `op`, so an operation carries only its own members. */
-export const PATCH_OPERATION_SCHEMA = z
-	.discriminatedUnion("op", [
-		z.strictObject({ op: z.literal("add"), path: POINTER, value: z.unknown() }),
-		z.strictObject({ op: z.literal("remove"), path: POINTER }),
-		z.strictObject({
-			op: z.literal("replace"),
-			path: POINTER,
-			value: z.unknown(),
-		}),
-		z.strictObject({ from: POINTER, op: z.literal("move"), path: POINTER }),
-		z.strictObject({ from: POINTER, op: z.literal("copy"), path: POINTER }),
-		z.strictObject({
-			op: z.literal("test"),
-			path: POINTER,
-			value: z.unknown(),
-		}),
-	])
-	.describe("An RFC 6902 operation.");
+export const PATCH_OPERATION_SCHEMA = z.discriminatedUnion("op", [
+	z.strictObject({ op: z.literal("add"), path: POINTER, value: z.unknown() }),
+	z.strictObject({ op: z.literal("remove"), path: POINTER }),
+	z.strictObject({
+		op: z.literal("replace"),
+		path: POINTER,
+		value: z.unknown(),
+	}),
+	z.strictObject({ from: POINTER, op: z.literal("move"), path: POINTER }),
+	z.strictObject({ from: POINTER, op: z.literal("copy"), path: POINTER }),
+	z.strictObject({
+		op: z.literal("test"),
+		path: POINTER,
+		value: z.unknown(),
+	}),
+]);
 
 /*
  * Whether the intended value survived the write. The saved document may carry
@@ -147,26 +138,18 @@ export const patchDocument = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.collections.writable.length + scope.globals.writable.length > 0,
 	inputSchema: (scope) => ({
-		...entityShape(scope, "write", {
-			collection: "Collection holding the document.",
-			global: "Global to patch.",
-		}),
+		...entityShape(scope, "write"),
 		...idShape(scope, "write"),
 		...localeShape(scope, {
 			required: true,
-			description:
-				"Locale the patch applies to. Localized fields write here only.",
+			description: "Localized fields are written in this locale only.",
 		}),
-		patches: z
-			.array(PATCH_OPERATION_SCHEMA)
-			.min(1)
-			.max(PATCHES_LIMIT)
-			.describe("Operations, applied in order."),
+		patches: z.array(PATCH_OPERATION_SCHEMA).min(1).max(PATCHES_LIMIT),
 		expectedUpdatedAt: z
 			.string()
 			.optional()
 			.describe(
-				"The updatedAt read before patching. Best effort: the write is refused if the document changed before the check, but not if it changes between the check and the write.",
+				'"updatedAt" from your last read. Refused if the document changed since.',
 			),
 	}),
 	handler: async ({ args, scope }) => {

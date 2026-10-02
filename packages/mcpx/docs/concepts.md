@@ -37,14 +37,14 @@ Every input schema is strict. An unknown argument is refused by name.
 Every path the plugin accepts or reports is a JSON Pointer. A schema path, as `describeSchema`
 uses it, and a pointer into a document differ only in element positions: a schema path writes `*`
 for an array element and names a block by its slug, where a document pointer uses a 0-based
-index. The schema path `/items/*/title` is written at `/items/0/title`, and
-`/layout/sections/hero` at `/layout/sections/0`.
+index. The schema path `/items/*/heading` is written at `/items/0/heading`, and
+`/layout/sections/sectionWrapper/identifier` at `/layout/sections/0/identifier`.
 
 Rich text works differently, because an editor state is a tree rather than a list per type. A
 schema path there names the node type, and for a block node its slug. A document pointer enters
 the state at `root` and walks `children` by index, counting every child at that level, with the
-node's own fields under `fields`. The schema path `/content/block/callout/variant` might be
-written at `/content/root/children/7/fields/variant`; only the stored state says which index it
+node's own fields under `fields`. The schema path `/content/block/callout/tone` might be
+written at `/content/root/children/3/fields/tone`; only the stored state says which index it
 is. `getDocument` with `outline` answers that.
 
 ## Describing the schema
@@ -59,7 +59,7 @@ root in one response. `expand` stops after 400 nodes and says so.
   children elsewhere.
 - Constraints travel with the field: `minRows` and `maxRows` on arrays and blocks fields,
   `minLength` and `maxLength` on text, `min` and `max` on numbers. An array is described as a
-  node of its own, so the `*` in `/items/*/title` has something to describe. A group or named tab
+  node of its own, so the `*` in `/items/*/heading` has something to describe. A group or named tab
   is described only when it has a description or a constraint of its own.
 - Field and collection `admin.description` values are included, so guidance written for editors
   reaches the client. A locale-keyed description resolves to the request's language, then the
@@ -183,9 +183,9 @@ and says why in its description; see [limitations.md](./limitations.md#not-inclu
 | `"draft"` | writes land as drafts, nothing is published             | refused at startup: there is no draft to write |
 | `"live"`  | writes land as drafts, and `publishDocument` is exposed | writes change the live document                |
 
-`"live"` is the only setting that lets an MCP write reach live content. Where it is set, the server
-instructions and the `patchDocument` and `createDocument` descriptions name those slugs for the
-key in question, so a client is not told its writes are drafts when they are not.
+`"live"` is the only setting that lets an MCP write reach live content. Where it is set, the
+`patchDocument` and `createDocument` descriptions name those slugs for the key in question, so a
+client is not told its writes are drafts when they are not.
 
 A draft guard enforces this on the Payload operation rather than in the tools, so custom tools
 that pass the MCP `req` are covered too. [security.md](./security.md#the-draft-guard) describes it

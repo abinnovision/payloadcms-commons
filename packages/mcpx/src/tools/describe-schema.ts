@@ -15,21 +15,13 @@ import {
 
 import type { FieldDescriptor } from "../schema/index.js";
 
-const DESCRIPTION = `Describes the shape of a document, one node at a time.
+const DESCRIPTION = `Describes the fields of a collection or global, one node at a time. Use it before a query or a write.
 
-Pass exactly one of "collection" and "global". A global is a singleton: it has no id, is not listed by findDocuments and cannot be created.
+Without "paths" it returns the top-level node. A node has a "schemaPath", its "fields" and "next". Each field has a "path" relative to its node, a "type" and constraints such as "required", "localized", "readOnly", "options" and "relationTo". A "blocks" field lists the block slugs it accepts, and a "richText" field lists its node types in "nodes". "next" holds the schema paths of the blocks and rich text node types with fields below the node, e.g. "/layout/sections/sectionWrapper" or "/content/block/callout". Pass them as "paths" to describe those nodes. A block can accept different children at another position, so describe it at the schema path where it is used.
 
-Call it with no "paths" to get the own fields of the collection or global. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; each node's "next" lists the ready-to-use paths for those blocks, so pass any entry of "next" as a "paths" element to descend, e.g. "/layout/sections/sectionWrapper" and then "/layout/sections/sectionWrapper/modules/hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
+When the response contains a rich text field, the response also carries a "nodeProperties" entry: the properties each node type must carry. Build every rich text node from it. Upload nodes have no schema path.
 
-A "richText" field stops there too. It lists the Lexical node types it accepts in "nodes", and "next" carries a path for every node type that holds fields of its own: "/content/link" for a link node, "/content/block/callout" and "/content/inlineBlock/badge" for the block nodes. Descend to get the real field list instead of guessing what a node carries. Upload nodes are not addressable, because their fields depend on the collection the node points at.
-
-Write each Lexical node the way Lexical serializes it, with every property its type carries rather than a trimmed subset, and with the value Lexical would have written there. Those requirements are stated rather than left to be discovered: the response carries one final "nodeProperties" entry keyed by node type, naming each property and what belongs there in the same words a refused write uses, so a node can be built from this response alone. A field's own "nodes" says which of those types it accepts. The root takes exactly "children", "direction", "format", "indent", "type" and "version" and refuses anything else. The admin editor rehydrates nodes through their classes, so a list item whose "indent" is missing, null or a string is stored and then throws on open, and a heading whose "tag" is a number is stored untagged. A write naming a property means exactly that. A state whose root holds no children is refused however it is written, because Lexical reads it as empty and throws; clear a field with null instead.
-
-A rich text field's value is addressable too, so an edit does not have to rewrite the whole state: "/content/root/children/0" is the first top-level node, "/content/root/children/0/children/1" a node inside it, "/content/root/children/0/tag" one property of a node, and "/content/root/children/0/fields/url" a field of a node, described at the "next" path for that node type. Append a node with "/-". Which node sits at an index is only knowable from what is stored, so read it first: getDocument with "outline" answers with the pointer, type, "version" and a text excerpt for every node, which is far cheaper than reading the whole state.
-
-Paths here use the same JSON Pointer syntax as getDocument and patchDocument, and are already resolved through anything that does not nest in the stored document. The difference is only what stands in an element position: a path names an array element "*" and a block by its slug, where a pointer into a document carries a 0-based index. So "/items/*/title" is written at "/items/0/title", and "/layout/sections/hero" at "/layout/sections/0". Inside a rich text field that substitution does not apply: a path there names the node type, and a block node its slug, where a pointer enters the stored state at "root" and walks "children" by an index counted over every child at that level, not over the blocks among them, with the node's own fields under "fields". So "/content/block/callout/tone" is written at "/content/root/children/7/fields/tone".
-
-Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;
+id, _status, createdAt and updatedAt are not listed and cannot be written. A field marked "readOnly" cannot be written either.`;
 
 const PATHS_LIMIT = 400;
 
@@ -47,22 +39,17 @@ export const describeSchema = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.collections.readable.length + scope.globals.readable.length > 0,
 	inputSchema: (scope) => ({
-		...entityShape(scope, "read", {
-			collection: "Collection to describe.",
-			global: "Global to describe.",
-		}),
+		...entityShape(scope, "read", 'Instead of "collection".'),
 		paths: z
 			.array(z.string())
 			.max(PATHS_LIMIT)
 			.optional()
-			.describe(
-				'Schema paths to describe, e.g. "/layout/sections/sectionWrapper". Omit for the root.',
-			),
+			.describe('Schema paths from "next". Omit for the top-level node.'),
 		expand: z
 			.boolean()
 			.optional()
 			.describe(
-				"Return every node reachable from the root in one response. Ignores paths.",
+				'Return the top-level node and every node below it in one response, instead of "paths".',
 			),
 	}),
 	handler: ({ args, scope }) => {

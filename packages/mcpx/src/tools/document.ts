@@ -62,8 +62,7 @@ export const resolveEntity = (
 /**
  * Resolves the entity and checks `id` against it. A collection document needs
  * one; a global is a singleton and must not carry one. The schema cannot
- * express that, so it is checked here and stated in every affected tool
- * description.
+ * express that, so it is checked here and stated on the `id` parameter.
  */
 export const resolveDocument = (
 	scope: McpxToolScope,

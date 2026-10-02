@@ -1,8 +1,8 @@
 Call the tools in this order:
 1. listCapabilities: what this key may access.
 2. describeSchema: the fields.
-3. findDocuments or getDocument: the content and its "updatedAt".
-4. patchDocument or createDocument: the write.
+3. getDocument: the content and its "updatedAt".
+4. patchDocument: the write.
 5. validateDocument: what blocks publishing.
 6. publishDocument: make the draft public.
 

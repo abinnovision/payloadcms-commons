@@ -1,20 +1,10 @@
 import { identityOf, readDraft, resolveDocument } from "./document.js";
-import {
-	idShape,
-	localeOf,
-	localeShape,
-	entityShape,
-	ONE_DOCUMENT_RULE,
-} from "./shared.js";
+import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
-const DESCRIPTION = `Reports what still prevents publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
-
-${ONE_DOCUMENT_RULE}
-
-Nothing is written, but the check runs the same field-level beforeValidate and beforeChange hooks a save would, so a hook with side effects fires. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing.`;
+const DESCRIPTION = `Lists what still blocks publishing one document or global, without saving. Returns "publishBlockers", each with a pointer and a message. An empty list means it can be published, unless "publishBlockersUnavailable" is true: then the check itself failed. The check runs the field hooks a save runs.`;
 
 /**
  * Gated on write rather than read, because publish blockers only mean something
@@ -32,15 +22,9 @@ export const validateDocument = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.collections.writable.length + scope.globals.writable.length > 0,
 	inputSchema: (scope) => ({
-		...entityShape(scope, "write", {
-			collection: "Collection holding the document.",
-			global: "Global to validate.",
-		}),
+		...entityShape(scope, "write"),
 		...idShape(scope, "write"),
-		...localeShape(scope, {
-			required: true,
-			description: "Locale to validate.",
-		}),
+		...localeShape(scope, { required: true }),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "write");

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { readDraft, resolveEntity } from "./document.js";
 import {
-	draftSentence,
+	liveWriteSentence,
 	localeOf,
 	localeShape,
 	patchOnlySlugs,
@@ -24,13 +24,13 @@ const uploadSentence = (scope: McpxToolScope): string => {
 
 	return slugs.length === 0
 		? ""
-		: `\n\nLeft out of "collection" on purpose: ${slugs.join(", ")}. Those documents are files, and no tool here carries one. Upload the file in the admin panel, then edit its fields with patchDocument.`;
+		: ` Documents in ${slugs.join(", ")} are files and cannot be created here. Upload the file in the admin panel, then edit its fields with patchDocument.`;
 };
 
 const DESCRIPTION = (scope: McpxToolScope): string =>
-	`Creates a new document from a minimal seed. Only the fields describeSchema lists may appear in "data"; unknown keys are refused with the valid siblings, and "id" is Payload's to assign. The document may be incomplete: the response lists "publishBlockers", which patchDocument can then work through, and "publishBlockersUnavailable" when that check itself failed. Use this when no document exists yet; prefer patching an existing draft otherwise.
+	`Creates a document in a collection. Use it only when the document does not exist yet. Returns "id", "status", "updatedAt" and, if any, "publishBlockers". "publishBlockersUnavailable" means that check failed. "data" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has "draftValidation" true or "drafts" false. A field describeSchema does not list is refused, and "id" is always assigned.
 
-${draftSentence(scope)}${uploadSentence(scope)}`;
+${liveWriteSentence(scope, "create")}${uploadSentence(scope)}`;
 
 /**
  * Collection-only, because a global always exists. Upload collections are
@@ -53,16 +53,14 @@ export const createDocument = defineMcpxTool({
 	},
 	isEnabled: (scope) => slugsFor(scope, "create").collections.length > 0,
 	inputSchema: (scope) => ({
-		collection: slugEnum(slugsFor(scope, "create").collections).describe(
-			"Collection to create the document in.",
-		),
+		collection: slugEnum(slugsFor(scope, "create").collections),
 		...localeShape(scope, {
 			required: true,
-			description: "Locale the localized fields of the seed belong to.",
+			description: 'Locale of the localized fields in "data".',
 		}),
 		data: z
 			.record(z.string(), z.unknown())
-			.describe("Initial field values, as describeSchema lists them."),
+			.describe('Field values by name, e.g. {"title":"Home","slug":"home"}.'),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveEntity(

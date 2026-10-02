@@ -47,38 +47,23 @@ describe("live writes", () => {
 	const descriptionOf = async (name: string, mcp: McpClient): Promise<string> =>
 		(await mcp.list()).find((tool) => tool.name === name)?.description ?? "";
 
-	it("names the targets that write live in the server instructions", async () => {
-		const instructions = await live.instructions();
-
-		expect(instructions).toContain("tags");
-		expect(instructions).toContain("banner");
-	});
-
-	it("keeps the draft-only promise for a key that cannot write live", async () => {
-		const instructions = await draftsOnly.instructions();
-
-		expect(instructions).toContain("lands as a draft");
-		expect(instructions).not.toContain("tags");
-		expect(instructions).not.toContain("banner");
-	});
-
-	const writeDescriptions = (mcp: McpClient): Promise<string[]> =>
-		Promise.all(
-			["patchDocument", "createDocument"].map((name) =>
-				descriptionOf(name, mcp),
-			),
-		);
-
 	it("names the targets that write live in the write tool descriptions", async () => {
-		for (const description of await writeDescriptions(live)) {
-			expect(description).toContain("tags");
-			expect(description).toContain("banner");
-		}
+		const patch = await descriptionOf("patchDocument", live);
+		const create = await descriptionOf("createDocument", live);
+
+		expect(patch).toContain("Writes to tags, banner go live immediately.");
+		expect(create).toContain("Writes to tags go live immediately.");
 	});
 
 	it("leaves the write tool descriptions draft-only for every other key", async () => {
-		for (const description of await writeDescriptions(draftsOnly)) {
-			expect(description).toContain("lands as a draft");
+		const descriptions = await Promise.all(
+			["patchDocument", "createDocument"].map((name) =>
+				descriptionOf(name, draftsOnly),
+			),
+		);
+
+		for (const description of descriptions) {
+			expect(description).toContain("Every write is saved as a draft.");
 			expect(description).not.toContain("banner");
 		}
 	});

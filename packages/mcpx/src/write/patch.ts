@@ -194,7 +194,7 @@ const findOperationProblems = (
 
 	if (reserved !== undefined) {
 		return [
-			`"${reserved}" addresses a field Payload maintains. This tool only ever writes drafts, and id, _status, createdAt and updatedAt are not writable; use publishDocument to publish.`,
+			`"${reserved}" addresses a field Payload maintains. id, _status, createdAt and updatedAt are not writable, and "_status" changes only when a draft is published.`,
 		];
 	}
 

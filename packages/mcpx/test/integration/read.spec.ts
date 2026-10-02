@@ -113,6 +113,30 @@ describe("read tools", () => {
 		expect(docs[0]?.["title"]).toBe("Veröffentlicht");
 	});
 
+	it("shows a value missing in the requested locale from the default locale", async () => {
+		const page = await booted.payload.create({
+			collection: "pages",
+			locale: "en",
+			draft: true,
+			data: { title: "Only English", slug: "only-english" },
+		});
+		const found = await mcp.call("findDocuments", {
+			collection: "pages",
+			where: { slug: { equals: "only-english" } },
+			locale: "de",
+		});
+		const got = await mcp.call("getDocument", {
+			collection: "pages",
+			id: page.id,
+			locale: "de",
+		});
+
+		expect(
+			(found.data["docs"] as Record<string, unknown>[])[0]?.["title"],
+		).toBe("Only English");
+		expect(got.data["title"]).toBe("Only English");
+	});
+
 	it("returns the pending draft by default and the live document on request", async () => {
 		const draft = await mcp.call("getDocument", {
 			collection: "pages",

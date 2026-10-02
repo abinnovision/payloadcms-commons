@@ -22,14 +22,7 @@ interface Node {
 /** Collections the examples are written against, in the order they are tried. */
 const EXAMPLE_COLLECTIONS = ["pages", "posts"];
 
-/**
- * Quoted examples that do not resolve on the fixture, so the spec stays green
- * only for these. They illustrate path syntax with names the fixture does not
- * carry.
- */
-const UNRESOLVED = ["/items/*/title", "/layout/sections/hero"];
-
-describe("schema paths quoted in tool descriptions", () => {
+describe("schema paths quoted in tool descriptions and instructions", () => {
 	let booted: Booted;
 	let mcp: McpClient;
 	let examples: string[];
@@ -38,11 +31,12 @@ describe("schema paths quoted in tool descriptions", () => {
 		booted = await bootPayload();
 		mcp = createMcpClient(booted, (await seedKeys(booted.payload)).keys.full);
 
-		const descriptions = (await mcp.list()).map((tool) => tool.description);
-		const quoted = descriptions.flatMap((description) =>
-			[...(description ?? "").matchAll(/"(\/[^"\s]*)"/g)].map(
-				(match) => match[1] as string,
-			),
+		const texts = [
+			...(await mcp.list()).map((tool) => tool.description ?? ""),
+			await mcp.instructions(),
+		];
+		const quoted = texts.flatMap((text) =>
+			[...text.matchAll(/"(\/[^"\s]*)"/g)].map((match) => match[1] as string),
 		);
 
 		examples = [...new Set(quoted)].filter((path) => !isDocumentPointer(path));
@@ -66,23 +60,28 @@ describe("schema paths quoted in tool descriptions", () => {
 	};
 
 	/*
-	 * A node path resolves when described. A quoted field path resolves when the
-	 * node it sits in lists it, relative to that node.
+	 * A node path resolves when described. A quoted field path resolves when a
+	 * node above it lists it, relative to that node.
 	 */
 	const resolves = async (path: string): Promise<boolean> => {
-		const parent = path.slice(0, path.lastIndexOf("/"));
+		const segments = path.split("/");
 
 		for (const collection of EXAMPLE_COLLECTIONS) {
 			if (await describeAt(collection, path)) {
 				return true;
 			}
 
-			const node = await describeAt(collection, parent);
+			for (let end = segments.length - 1; end > 0; end--) {
+				const parent = segments.slice(0, end).join("/");
+				const node = await describeAt(collection, parent);
 
-			if (
-				node?.fields?.some((field) => field.path === path.slice(parent.length))
-			) {
-				return true;
+				if (
+					node?.fields?.some(
+						(field) => field.path === path.slice(parent.length),
+					)
+				) {
+					return true;
+				}
 			}
 		}
 
@@ -102,6 +101,6 @@ describe("schema paths quoted in tool descriptions", () => {
 			}
 		}
 
-		expect(unresolved).toEqual(UNRESOLVED);
+		expect(unresolved).toEqual([]);
 	});
 });
