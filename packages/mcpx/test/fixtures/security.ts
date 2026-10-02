@@ -1,4 +1,4 @@
-import type { Access, CollectionConfig } from "payload";
+import type { Access, CollectionConfig, FieldAccess } from "payload";
 
 /*
  * Collections for the security specs. None of them is part of the default
@@ -94,6 +94,25 @@ export const ledgers: CollectionConfig = {
 			access: { read: () => false, update: () => false },
 		},
 		{ name: "frozen", type: "checkbox" },
+	],
+};
+
+/** The one user the `vaults` code field is open to. */
+export const KEEPER_EMAIL = "keeper@example.com";
+
+const keeperOnly: FieldAccess = ({ req }) => req.user?.email === KEEPER_EMAIL;
+
+/** `code` is open for read and update to the keeper and closed to everyone else. */
+export const vaults: CollectionConfig = {
+	slug: "vaults",
+	versions: { drafts: true },
+	fields: [
+		{ name: "title", type: "text" },
+		{
+			name: "code",
+			type: "text",
+			access: { read: keeperOnly, update: keeperOnly },
+		},
 	],
 };
 

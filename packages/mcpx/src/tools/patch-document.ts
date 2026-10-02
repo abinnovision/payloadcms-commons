@@ -1,3 +1,4 @@
+import { Forbidden, NotFound } from "payload";
 import { Pointer } from "rfc6902";
 import { z } from "zod";
 
@@ -43,7 +44,7 @@ Inside a rich text field a pointer keeps going: "/content/root/children/2" is a 
 
 Node positions shift as soon as anything is added or removed, so read immediately before patching, order removals from the last index to the first, and use a "test" operation on "/content/root/children/2/type" to assert a position is what you think it is before writing to it.
 
-A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but the document cannot be published until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing about whether the document is publishable.`;
+A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but the document cannot be published until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged or cannot be read back, which happens when field-level access denies the update. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing about whether the document is publishable.`;
 
 const POINTER = z.string().regex(JSON_POINTER_PATTERN);
 
@@ -238,7 +239,24 @@ export const patchDocument = defineMcpxTool({
 				privileged: true,
 			});
 
-			const notApplied = notAppliedPointers(patches, applied.next, saved);
+			/*
+			 * `notApplied` compares against what the user can read, so a closed field
+			 * answers the same whether or not the guess matched. A patch that leaves
+			 * the document unreadable to the user omits it instead of failing the
+			 * write.
+			 */
+			const readable = await readDraft(scope, { target, locale }).catch(
+				(error: unknown) => {
+					if (error instanceof NotFound || error instanceof Forbidden) {
+						return undefined;
+					}
+
+					throw error;
+				},
+			);
+			const notApplied = readable
+				? notAppliedPointers(patches, applied.next, readable)
+				: [];
 			const validation = await collectPublishBlockers(scope.req, {
 				doc: saved,
 				entity: target,
