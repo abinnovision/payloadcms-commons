@@ -50,6 +50,20 @@ const KEYS: Record<string, KeyCapabilities> = {
 			media: { read: true },
 		},
 	},
+	/* May write the upload collection, which createDocument leaves out. */
+	uploads: {
+		collections: {
+			pages: { read: true, write: true },
+			media: { read: true, write: true },
+		},
+	},
+	/* Every write lands as a draft: no live-write slug. */
+	"drafts-only": {
+		collections: {
+			posts: { read: true, write: true },
+			pages: { read: true },
+		},
+	},
 };
 
 describe("tools/list and initialize", () => {
@@ -66,7 +80,7 @@ describe("tools/list and initialize", () => {
 					tags: { read: true, write: "live" },
 					notes: { read: true, write: "live" },
 					snippets: { read: true, write: "live" },
-					media: { read: true },
+					media: { read: true, write: "live" },
 				},
 				globals: {
 					"site-settings": { read: true, write: "live" },

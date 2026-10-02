@@ -15,11 +15,11 @@ import {
 
 import type { FieldDescriptor } from "../schema/index.js";
 
-const DESCRIPTION = `Describes the writable shape of a document, one node at a time.
+const DESCRIPTION = `Describes the shape of a document, one node at a time.
 
 Pass exactly one of "collection" and "global". A global is a singleton: it has no id, is not listed by findDocuments and cannot be created.
 
-Call it with no "paths" to get a collection's own fields. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; each node's "next" lists the ready-to-use paths for those blocks, so pass any entry of "next" as a "paths" element to descend, e.g. "/layout/sections/sectionWrapper" and then "/layout/sections/sectionWrapper/modules/hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
+Call it with no "paths" to get the own fields of the collection or global. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; each node's "next" lists the ready-to-use paths for those blocks, so pass any entry of "next" as a "paths" element to descend, e.g. "/layout/sections/sectionWrapper" and then "/layout/sections/sectionWrapper/modules/hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
 
 A "richText" field stops there too. It lists the Lexical node types it accepts in "nodes", and "next" carries a path for every node type that holds fields of its own: "/content/link" for a link node, "/content/block/callout" and "/content/inlineBlock/badge" for the block nodes. Descend to get the real field list instead of guessing what a node carries. Upload nodes are not addressable, because their fields depend on the collection the node points at.
 
@@ -27,7 +27,7 @@ Write each Lexical node the way Lexical serializes it, with every property its t
 
 A rich text field's value is addressable too, so an edit does not have to rewrite the whole state: "/content/root/children/0" is the first top-level node, "/content/root/children/0/children/1" a node inside it, "/content/root/children/0/tag" one property of a node, and "/content/root/children/0/fields/url" a field of a node, described at the "next" path for that node type. Append a node with "/-". Which node sits at an index is only knowable from what is stored, so read it first: getDocument with "outline" answers with the pointer, type, "version" and a text excerpt for every node, which is far cheaper than reading the whole state.
 
-Paths here use the same JSON Pointer syntax as getDocument and patchDocument, and are already resolved through anything that does not nest in the stored document. The difference is only what stands in an element position: a path names an array element "*" and a block by its slug, where a pointer into a document carries a 0-based index. So "/items/*/title" is written at "/items/0/title", and "/layout/sections/hero" at "/layout/sections/0". Inside a rich text field that substitution does not apply: a path there names the node type, and a block node its slug, where a pointer enters the stored state at "root" and walks "children" by an index counted over every child at that level, not over the blocks among them, with the node's own fields under "fields". So "/content/block/practice-note/variant" is written at "/content/root/children/7/fields/variant".
+Paths here use the same JSON Pointer syntax as getDocument and patchDocument, and are already resolved through anything that does not nest in the stored document. The difference is only what stands in an element position: a path names an array element "*" and a block by its slug, where a pointer into a document carries a 0-based index. So "/items/*/title" is written at "/items/0/title", and "/layout/sections/hero" at "/layout/sections/0". Inside a rich text field that substitution does not apply: a path there names the node type, and a block node its slug, where a pointer enters the stored state at "root" and walks "children" by an index counted over every child at that level, not over the blocks among them, with the node's own fields under "fields". So "/content/block/callout/tone" is written at "/content/root/children/7/fields/tone".
 
 Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;
 
@@ -56,7 +56,7 @@ export const describeSchema = defineMcpxTool({
 			.max(PATHS_LIMIT)
 			.optional()
 			.describe(
-				'Schema paths to describe, e.g. "/layout/sections/sectionWrapper". Omit for the collection root.',
+				'Schema paths to describe, e.g. "/layout/sections/sectionWrapper". Omit for the root.',
 			),
 		expand: z
 			.boolean()

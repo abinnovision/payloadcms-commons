@@ -12,16 +12,16 @@ import { jsonResult } from "../result.js";
 import { withPublishIntent } from "../write/publish-intent.js";
 import { withTransaction } from "../write/transaction.js";
 
-const DESCRIPTION = `Publishes the current draft, which changes what the public sees. This is the only tool that does; every other write lands as a draft. Call validateDocument first: a document that still has publish blockers is refused, and nothing is written.
+const DESCRIPTION = `Publishes the current draft, which changes what the public sees. This is the only tool that does; every other write lands as a draft, except on slugs without drafts, where it goes live at once. Call validateDocument first: a document that still has publish blockers is refused, and nothing is written.
 
 ${ONE_DOCUMENT_RULE}
 
-The whole document is published, but Payload only validates the locale the publish runs in, so a required field left empty in another locale goes live empty. That is how the admin panel behaves too. Publishing is refused while a human holds the document open in the admin panel, and republishing an unchanged document is accepted but writes another version.
+The whole document is published, but Payload only validates the locale the publish runs in (the request's locale, which is the default locale unless the request sets one), so a required field left empty in another locale goes live empty. That is how the admin panel behaves too. Publishing is refused while a human holds the document open in the admin panel, and republishing an unchanged document is accepted but writes another version.
 
 There is no unpublish: reverting to a draft stays a human action in the admin panel.`;
 
 /**
- * The only tool that changes live content, available where the config sets
+ * Publishes a draft. Available where the config sets
  * `write: "live"` on a versioned entity and the key has both the `write` and
  * `publish` checkboxes.
  */

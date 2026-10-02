@@ -24,24 +24,12 @@
       "type": "object",
       "properties": {
         "collection": {
-          "description": "Collection to describe.",
           "type": "string",
           "enum": [
             "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets",
-            "media"
-          ]
-        },
-        "global": {
-          "description": "Global to describe.",
-          "type": "string",
-          "enum": [
-            "site-settings",
-            "banner"
-          ]
+            "posts"
+          ],
+          "description": "Collection to describe."
         },
         "paths": {
           "description": "Schema paths to describe, e.g. \"/layout/sections/sectionWrapper\". Omit for the root.",
@@ -56,6 +44,9 @@
           "type": "boolean"
         }
       },
+      "required": [
+        "collection"
+      ],
       "additionalProperties": false
     },
     "annotations": {
@@ -77,11 +68,7 @@
           "type": "string",
           "enum": [
             "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets",
-            "media"
+            "posts"
           ],
           "description": "Collection to search."
         },
@@ -157,27 +144,15 @@
       "type": "object",
       "properties": {
         "collection": {
-          "description": "Collection holding the document.",
           "type": "string",
           "enum": [
             "pages",
-            "posts",
-            "tags",
-            "notes",
-            "snippets",
-            "media"
-          ]
-        },
-        "global": {
-          "description": "Global to read.",
-          "type": "string",
-          "enum": [
-            "site-settings",
-            "banner"
-          ]
+            "posts"
+          ],
+          "description": "Collection holding the document."
         },
         "id": {
-          "description": "Document id. Required with \"collection\"; must be omitted with \"global\".",
+          "description": "Document id.",
           "type": [
             "string",
             "number"
@@ -225,6 +200,10 @@
           ]
         }
       },
+      "required": [
+        "collection",
+        "id"
+      ],
       "additionalProperties": false
     },
     "annotations": {
@@ -243,25 +222,15 @@
       "type": "object",
       "properties": {
         "collection": {
-          "description": "Collection holding the document.",
           "type": "string",
           "enum": [
             "pages",
-            "posts",
-            "notes",
-            "snippets",
-            "media"
-          ]
-        },
-        "global": {
-          "description": "Global whose history to list.",
-          "type": "string",
-          "enum": [
-            "site-settings"
-          ]
+            "posts"
+          ],
+          "description": "Collection holding the document."
         },
         "id": {
-          "description": "Document id. Required with \"collection\"; must be omitted with \"global\".",
+          "description": "Document id.",
           "type": [
             "string",
             "number"
@@ -296,10 +265,293 @@
           ]
         }
       },
+      "required": [
+        "collection",
+        "id"
+      ],
       "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "patchDocument",
+    "description": "Applies RFC 6902 JSON Patch operations to one document.\n\nPass exactly one of \"collection\" and \"global\". \"id\" is required with \"collection\" and must be omitted with \"global\", because a global is a singleton.\n\nEvery write lands as a draft. Nothing this key writes is ever published; publishing stays a human action in the admin panel.\n\nOnly the fields describeSchema lists can be addressed. A pointer that does not resolve is refused with the fields that are valid at that point, and nothing is applied unless every operation in the batch validates first. describeSchema reports field paths in this same pointer syntax; a path becomes a pointer into a document by replacing each \"*\" and each block slug with its 0-based index. Inside a rich text field that substitution does not apply: a path there names the node type, and a block node its slug, where a pointer enters the stored state at \"root\" and walks \"children\" by an index counted over every child at that level, not over the blocks among them, with the node's own fields under \"fields\". So \"/content/block/callout/tone\" is written at \"/content/root/children/7/fields/tone\".\n\nAdding a block requires \"blockType\" on the value. Append with \"/-\" as the last segment. To clear a field use \"replace\" with null; an array or blocks field refuses null and is emptied with [] instead. \"remove\" is only for list elements, because a field left out of a write is kept rather than cleared. Read the document first to learn the indices, and pass its \"updatedAt\" as expectedUpdatedAt so an edit made since that read is refused rather than overwritten.\n\nInside a rich text field a pointer keeps going: \"/content/root/children/2\" is a node, \"/content/root/children/2/tag\" one of its properties, and \"/content/root/children/2/fields/url\" a field it carries. A node written at a position must carry everything Lexical serializes, \"version\" included, exactly as one written inside a whole state must; getDocument with \"outline\" returns each node's pointer and version, which is the cheapest way to get both right. A node's \"type\" cannot be replaced on its own, and neither can the root.\n\nNode positions shift as soon as anything is added or removed, so read immediately before patching, order removals from the last index to the first, and use a \"test\" operation on \"/content/root/children/2/type\" to assert a position is what you think it is before writing to it.\n\nA successful write may come back with \"publishBlockers\": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but the document cannot be published until the list is empty. \"notApplied\" lists pointers whose value Payload kept unchanged or cannot be read back, which happens when field-level access denies the update. \"publishBlockersUnavailable\" means the check itself failed, so the empty list says nothing about whether the document is publishable.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "enum": [
+            "posts"
+          ],
+          "description": "Collection holding the document."
+        },
+        "id": {
+          "description": "Document id.",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "de"
+          ],
+          "description": "Locale the patch applies to. Localized fields write here only."
+        },
+        "patches": {
+          "minItems": 1,
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "add"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "value": {}
+                },
+                "required": [
+                  "op",
+                  "path",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "remove"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  }
+                },
+                "required": [
+                  "op",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "replace"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "value": {}
+                },
+                "required": [
+                  "op",
+                  "path",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "op": {
+                    "type": "string",
+                    "const": "move"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  }
+                },
+                "required": [
+                  "from",
+                  "op",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "op": {
+                    "type": "string",
+                    "const": "copy"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  }
+                },
+                "required": [
+                  "from",
+                  "op",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "test"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "value": {}
+                },
+                "required": [
+                  "op",
+                  "path",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "description": "An RFC 6902 operation."
+          },
+          "description": "Operations, applied in order."
+        },
+        "expectedUpdatedAt": {
+          "description": "The updatedAt read before patching. Best effort: the write is refused if the document changed before the check, but not if it changes between the check and the write.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "collection",
+        "id",
+        "locale",
+        "patches"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "createDocument",
+    "description": "Creates a new document from a minimal seed. Only the fields describeSchema lists may appear in \"data\"; unknown keys are refused with the valid siblings, and \"id\" is Payload's to assign. The document may be incomplete: the response lists \"publishBlockers\", which patchDocument can then work through, and \"publishBlockersUnavailable\" when that check itself failed. Use this when no document exists yet; prefer patching an existing draft otherwise.\n\nEvery write lands as a draft. Nothing this key writes is ever published; publishing stays a human action in the admin panel.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "enum": [
+            "posts"
+          ],
+          "description": "Collection to create the document in."
+        },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "de"
+          ],
+          "description": "Locale the localized fields of the seed belong to."
+        },
+        "data": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "Initial field values, as describeSchema lists them."
+        }
+      },
+      "required": [
+        "collection",
+        "locale",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "validateDocument",
+    "description": "Reports what still prevents publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer \"is this ready\".\n\nPass exactly one of \"collection\" and \"global\". \"id\" is required with \"collection\" and must be omitted with \"global\", because a global is a singleton.\n\nNothing is written, but the check runs the same field-level beforeValidate and beforeChange hooks a save would, so a hook with side effects fires. \"publishBlockersUnavailable\" means the check itself failed, so the empty list says nothing.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "enum": [
+            "posts"
+          ],
+          "description": "Collection holding the document."
+        },
+        "id": {
+          "description": "Document id.",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "de"
+          ],
+          "description": "Locale to validate."
+        }
+      },
+      "required": [
+        "collection",
+        "id",
+        "locale"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
       "openWorldHint": false
     },
     "execution": {

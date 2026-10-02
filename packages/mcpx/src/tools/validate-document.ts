@@ -10,7 +10,7 @@ import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
-const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
+const DESCRIPTION = `Reports what still prevents publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
 
 ${ONE_DOCUMENT_RULE}
 
