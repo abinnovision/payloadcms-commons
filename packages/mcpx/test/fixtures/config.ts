@@ -17,7 +17,11 @@ import { banner, siteSettings } from "./globals.js";
 import { defineMcpxTool, mcpxPlugin } from "../../src/index.js";
 
 import type { McpxPluginOptions } from "../../src/index.js";
-import type { SanitizedConfig } from "payload";
+import type {
+	CollectionConfig,
+	DatabaseAdapterObj,
+	SanitizedConfig,
+} from "payload";
 
 /**
  * Custom tool echoing what the handler can see about the caller.
@@ -107,17 +111,35 @@ export const defaultPluginOptions: McpxPluginOptions = {
 /**
  * A sanitized config with the plugin applied. `sqliteAdapter` only connects
  * in `init`, so this is safe for unit tests that never call `getPayload`.
+ *
+ * `users` replaces the fixture user collection, `collections` is appended to
+ * the fixture collections and `db` replaces the in-memory adapter; without
+ * them the config is unchanged.
  */
 export const buildFixtureConfig = (
-	overrides: { plugin?: Partial<McpxPluginOptions> } = {},
+	overrides: {
+		plugin?: Partial<McpxPluginOptions>;
+		users?: CollectionConfig;
+		collections?: CollectionConfig[];
+		db?: DatabaseAdapterObj;
+	} = {},
 ): Promise<SanitizedConfig> =>
 	buildConfig({
 		secret: "mcpx-test-secret",
-		db: sqliteAdapter({ client: { url: ":memory:" } }),
+		db: overrides.db ?? sqliteAdapter({ client: { url: ":memory:" } }),
 		editor: lexicalEditor(),
 		localization: { locales: ["en", "de"], defaultLocale: "en" },
 		blocks: [calloutBlock, richTextBlock],
-		collections: [users, pages, posts, tags, notes, media, snippets],
+		collections: [
+			overrides.users ?? users,
+			pages,
+			posts,
+			tags,
+			notes,
+			media,
+			snippets,
+			...(overrides.collections ?? []),
+		],
 		/*
 		 * Registered on the config but deliberately absent from
 		 * `defaultPluginOptions`: every existing spec then keeps running against

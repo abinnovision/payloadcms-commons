@@ -1,0 +1,1 @@
+Start with listCapabilities, then describeSchema for the collection or global you work on. Writes land as drafts, except for tags, snippets, banner, which have no drafts: a write there changes the live document immediately. Publish a draft with publishDocument, which this key may do for pages, notes, site-settings. Publishing anything else stays a human action in the admin panel.

@@ -3,7 +3,12 @@ import { getPayload } from "payload";
 import { buildFixtureConfig } from "../../fixtures/config.js";
 
 import type { McpxPluginOptions } from "../../../src/index.js";
-import type { Payload, SanitizedConfig } from "payload";
+import type {
+	CollectionConfig,
+	DatabaseAdapterObj,
+	Payload,
+	SanitizedConfig,
+} from "payload";
 
 /** Cache key shared by `getPayload` and `handleEndpoints` within one file. */
 export const CACHE_KEY = "mcpx-integration";
@@ -22,11 +27,22 @@ export interface Booted {
  * must pass its own or it silently reuses the default instance.
  */
 export const bootPayload = async (
-	args: { key?: string; plugin?: Partial<McpxPluginOptions> } = {},
+	args: {
+		key?: string;
+		plugin?: Partial<McpxPluginOptions>;
+		users?: CollectionConfig;
+		collections?: CollectionConfig[];
+		db?: DatabaseAdapterObj;
+	} = {},
 ): Promise<Booted> => {
-	const config = buildFixtureConfig(
-		args.plugin === undefined ? {} : { plugin: args.plugin },
-	);
+	const config = buildFixtureConfig({
+		...(args.plugin === undefined ? {} : { plugin: args.plugin }),
+		...(args.users === undefined ? {} : { users: args.users }),
+		...(args.collections === undefined
+			? {}
+			: { collections: args.collections }),
+		...(args.db === undefined ? {} : { db: args.db }),
+	});
 	const payload = await getPayload({ config, key: args.key ?? CACHE_KEY });
 
 	return { config, payload };

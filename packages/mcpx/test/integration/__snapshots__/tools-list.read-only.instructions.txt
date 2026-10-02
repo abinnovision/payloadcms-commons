@@ -1,0 +1,1 @@
+Start with listCapabilities, then describeSchema for the collection or global you work on. Every write lands as a draft. Nothing this key writes is ever published; publishing stays a human action in the admin panel.
