@@ -2,7 +2,7 @@ import { APIError } from "payload";
 import { Pointer } from "rfc6902";
 import { z } from "zod";
 
-import { identityOf, refOf, resolveDocument } from "./entity.js";
+import { identityOf, resolveDocument } from "./document.js";
 import {
 	depthShape,
 	idSchema,
@@ -232,7 +232,7 @@ export const getDocument = defineMcpxTool({
 			resolution = resolveDataPointer(scope.req.payload.config, {
 				doc,
 				pointer: path,
-				ref: refOf(target),
+				ref: target,
 			});
 		} catch (error) {
 			if (!(error instanceof SchemaError)) {

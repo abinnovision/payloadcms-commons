@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { refOf, resolveEntity } from "./entity.js";
+import { resolveEntity } from "./document.js";
 import { entityShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { translatorFor } from "../i18n.js";
@@ -66,7 +66,7 @@ export const describeSchema = defineMcpxTool({
 			),
 	}),
 	handler: ({ args, scope }) => {
-		const ref = refOf(resolveEntity(scope, args, "read"));
+		const ref = resolveEntity(scope, args, "read");
 
 		const { config } = scope.req.payload;
 		const describeNode = nodeDescriber(translatorFor(scope.req.i18n));

@@ -1,13 +1,8 @@
 import { z } from "zod";
 
-import { resolveEntity } from "./entity.js";
-import {
-	slugEnum,
-	depthShape,
-	localeOf,
-	localeShape,
-	readRequest,
-} from "./shared.js";
+import { resolveEntity } from "./document.js";
+import { readRequest } from "./read-request.js";
+import { slugEnum, depthShape, localeOf, localeShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 

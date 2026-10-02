@@ -18,14 +18,12 @@ export interface PublishBlocker {
 }
 
 /**
- * Runs Payload's field validation over a draft without saving. `beforeValidate`
- * runs first because some field hooks (Lexical's) prepare `context` state that
- * `beforeChange` needs. `data` and the context are copies, so nothing is
- * written.
- *
- * `overrideAccess` is true because the question is whether the draft could be
- * published, not whether this client may write it. `unavailable` means the
- * traversal threw, which is not the same as a clean document.
+ * Payload's field validation over a draft, without saving: `data` and the
+ * context are copies. `beforeValidate` runs first because some field hooks
+ * (Lexical's) prepare `context` state that `beforeChange` needs. Access is
+ * overridden because the question is whether the draft could be published, not
+ * whether this client may write it. `unavailable` means the traversal threw,
+ * which is not the same as a clean document.
  */
 export const collectPublishBlockers = async (
 	req: PayloadRequest,

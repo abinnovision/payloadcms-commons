@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { resolveDocument } from "./entity.js";
+import { resolveDocument } from "./document.js";
 import {
 	idShape,
 	localeOf,

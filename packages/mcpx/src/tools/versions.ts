@@ -1,7 +1,7 @@
 import { hasDraftsEnabled } from "payload/shared";
 import { createPatch, Pointer } from "rfc6902";
 
-import { readRequest } from "./shared.js";
+import { readRequest } from "./read-request.js";
 
 import type { DocumentId, DocumentRef } from "../entity.js";
 import type { McpxToolScope } from "../types.js";

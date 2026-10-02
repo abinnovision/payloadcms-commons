@@ -26,15 +26,12 @@ const STRIPPED_ARGS = new Set([
 ]);
 
 /*
- * Forces every MCP write into a draft save, unless it is the one write
- * `publishDocument` asked for. `draft` alone is not enough: Payload's update
- * path saves a draft only when `data._status !== "published"`, so `_status` is
- * dropped and left to Payload. A publish is granted only here, not in the tool.
- *
- * Not covered: deletes, `duplicate`, files (the local API lifts `file` and
- * `filePath` onto `req` first) and anything going straight to `payload.db`.
- * `restoreVersion` is caught by {@link refusePublish}, since it runs the
- * collection's `beforeChange` hooks.
+ * `draft` alone does not force a draft save: Payload's update path saves one
+ * only when `data._status !== "published"`, so `_status` is dropped. A publish
+ * is granted only here, for the write `publishDocument` marked. Not covered:
+ * deletes, `duplicate`, files (the local API lifts `file` and `filePath` onto
+ * `req` first) and anything going straight to `payload.db`. `restoreVersion`
+ * runs `beforeChange` hooks, so {@link refusePublish} catches it.
  */
 const scrubWriteArgs = (
 	args: Record<string, unknown>,

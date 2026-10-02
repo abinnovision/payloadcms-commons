@@ -4,10 +4,9 @@ import { z } from "zod";
 import {
 	identityOf,
 	readDraft,
-	refOf,
 	resolveDocument,
 	staleReadResult,
-} from "./entity.js";
+} from "./document.js";
 import {
 	draftSentence,
 	idShape,
@@ -195,7 +194,7 @@ export const patchDocument = defineMcpxTool({
 			const applied = applyPatchOperations(payload.config, {
 				doc,
 				patches,
-				ref: refOf(target),
+				ref: target,
 			});
 
 			if ("problems" in applied) {

@@ -1,4 +1,4 @@
-import { identityOf, readDraft, resolveDocument } from "./entity.js";
+import { identityOf, readDraft, resolveDocument } from "./document.js";
 import {
 	idShape,
 	localeOf,

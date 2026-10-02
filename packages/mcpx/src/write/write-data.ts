@@ -97,13 +97,12 @@ const pickDescribed = (
 	return result;
 };
 
-/** The patched document reduced to writable fields, plus row identity keys. */
+/**
+ * The patched document reduced to writable fields, plus row identity keys.
+ * `target` is a sanitized collection or global alike.
+ */
 export const buildWriteData = (
 	config: SanitizedConfig,
-	/*
-	 * Widened to the structural minimum this reads, so a sanitized collection
-	 * and a sanitized global both satisfy it without a union.
-	 */
 	target: { flattenedFields: FlattenedField[] },
 	doc: JsonObject,
 ): JsonObject => {

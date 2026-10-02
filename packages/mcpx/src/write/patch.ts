@@ -23,10 +23,7 @@ import type { Operation } from "rfc6902";
 export type PatchOperation = Operation;
 
 export const isReservedPointer = (pointer: string): boolean =>
-	pointer
-		.split("/")
-		.slice(1)
-		.some((segment) => RESERVED_FIELD_NAMES.has(segment));
+	splitPath(pointer).some((segment) => RESERVED_FIELD_NAMES.has(segment));
 
 export const droppedPointer = (operation: Operation): string | undefined => {
 	if (operation.op === "remove") {
@@ -37,7 +34,7 @@ export const droppedPointer = (operation: Operation): string | undefined => {
 };
 
 export const isElementPointer = (pointer: string): boolean => {
-	return isIndexSegment(pointer.split("/").pop() ?? "");
+	return isIndexSegment(splitPath(pointer).at(-1) ?? "");
 };
 
 /*
@@ -58,7 +55,6 @@ const prepare = (operation: Operation, doc: JsonObject): Operation => {
 		: cloned;
 };
 
-// The value it carries, or the one it copies from `from`. `remove` writes nothing.
 const effectiveValue = (operation: Operation, doc: JsonObject): unknown => {
 	if ("value" in operation) {
 		return operation.value;

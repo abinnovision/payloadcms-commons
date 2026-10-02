@@ -42,8 +42,7 @@ interface Branch {
 	token: string;
 }
 
-// Blocks and rich text are both leaves of the walk, so at most one matches.
-const longestMatch = (
+const matchSchemaSegments = (
 	descriptors: FieldDescriptor[],
 	remaining: readonly string[],
 ): string[] | undefined =>
@@ -196,10 +195,9 @@ const fieldsAtSchemaPath = (
 
 		/*
 		 * A field's own path may span several segments (`/layout/sections`), so
-		 * the longest match is taken. Blocks and rich text fields are leaves of
-		 * the walk, so no two of these paths overlap.
+		 * the longest match is taken.
 		 */
-		const match = longestMatch(descendable, remaining);
+		const match = matchSchemaSegments(descendable, remaining);
 
 		if (!match) {
 			throw new SchemaError(

@@ -3,21 +3,11 @@ import { APIError, Forbidden, NotFound } from "payload";
 import { slugsFor } from "./shared.js";
 import { errorResult } from "../result.js";
 
-import type { McpxOperation } from "./shared.js";
-import type {
-	DocumentId,
-	DocumentRef,
-	EntityRef,
-	ResolvedEntity,
-} from "../entity.js";
+import type { Operation } from "./shared.js";
+import type { DocumentId, DocumentRef, ResolvedEntity } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { TypedLocale } from "payload";
-
-export const refOf = (target: ResolvedEntity): EntityRef => ({
-	kind: target.kind,
-	slug: target.slug,
-});
 
 /**
  * A raw input shape leaves no top-level `.refine` to express "exactly one of
@@ -27,7 +17,7 @@ export const refOf = (target: ResolvedEntity): EntityRef => ({
 export const resolveEntity = (
 	scope: McpxToolScope,
 	args: { collection?: string | undefined; global?: string | undefined },
-	operation: McpxOperation,
+	operation: Operation,
 ): ResolvedEntity => {
 	const { collection, global } = args;
 	const allowedSlugs = slugsFor(scope, operation);
@@ -82,7 +72,7 @@ export const resolveDocument = (
 		global?: string | undefined;
 		id?: DocumentId | undefined;
 	},
-	operation: McpxOperation,
+	operation: Operation,
 ): DocumentRef => {
 	const target = resolveEntity(scope, args, operation);
 

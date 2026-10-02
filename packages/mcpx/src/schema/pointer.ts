@@ -62,7 +62,7 @@ const partMatches = (part: string, segment: string | undefined): boolean =>
 	(part === ARRAY_MARKER ? isIndexSegment(segment) : part === segment);
 
 // Longest descriptor whose path is fully consumed by the leading segments.
-const longestMatch = (
+const matchPointerSegments = (
 	descriptors: FieldDescriptor[],
 	segments: readonly string[],
 ): { consumed: number; descriptor: FieldDescriptor } | undefined =>
@@ -192,7 +192,7 @@ export const resolveDataPointer = (
 
 	while (segments.length > 0) {
 		const descriptors = describeAddressableFields(fields);
-		const match = longestMatch(descriptors, segments);
+		const match = matchPointerSegments(descriptors, segments);
 
 		if (!match) {
 			if (isSubtreePrefix(descriptors, segments)) {

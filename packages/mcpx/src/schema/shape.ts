@@ -144,16 +144,11 @@ const checkNarrowedProperty = (
 };
 
 /*
- * One node, wherever it came from. `pointer` addresses the node itself, so a
- * node written at a position and one inside a whole editor state are held to
- * the same rules.
- *
- * Payload checks none of this: its Lexical validator runs only the validations
- * node types register. Invalid nodes are stored and fail later, at render or
- * when the admin editor opens them: a `heading` in an editor with no heading
- * feature, an `h3` in an editor restricted to `h4`, a node missing the
- * properties its class hydrates from. Keys a node's fields do not declare are
- * dropped silently.
+ * `pointer` addresses the node itself, so a node written at a position and one
+ * inside a whole editor state are held to the same rules. Payload checks none
+ * of this: its Lexical validator runs only the validations node types
+ * register, so an invalid node is stored and fails later, at render or in the
+ * admin editor. Keys a node's fields do not declare are dropped silently.
  */
 const checkNode = (
 	scope: ValueCheck,

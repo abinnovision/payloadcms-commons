@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { staleReadResult } from "./entity.js";
+import { staleReadResult } from "./document.js";
 
 const READ_AT = "2026-01-01T00:00:00.000Z";
 

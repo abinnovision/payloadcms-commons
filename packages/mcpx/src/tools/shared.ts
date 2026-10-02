@@ -1,18 +1,12 @@
-import {
-	createDataloaderCacheKey,
-	getDataLoader,
-	isolateObjectProperty,
-} from "payload";
 import { z } from "zod";
 
 import { canCreate, canPublish, isLiveWrite } from "../capabilities.js";
 
 import type { DocumentId } from "../entity.js";
 import type { McpxExposedEntity, McpxToolScope } from "../types.js";
-import type { PayloadRequest, TypedLocale, TypeWithID } from "payload";
+import type { TypedLocale } from "payload";
 
-export type McpxOperation =
-	"create" | "publish" | "read" | "versions" | "write";
+export type Operation = "create" | "publish" | "read" | "versions" | "write";
 
 /**
  * An out-of-scope slug fails schema validation before a handler runs, so a
@@ -72,10 +66,7 @@ const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
 		globals: scope.publishableGlobals,
 	});
 
-/**
- * Stated by the tools that address one document by id. findVersions words the
- * same rule its own way.
- */
+/** The rule every tool addressing one document by id states. */
 export const ONE_DOCUMENT_RULE = `Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
 /**
@@ -139,7 +130,7 @@ const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
 /** The one list the shape helpers and {@link resolveEntity} both read. */
 export const slugsFor = (
 	scope: McpxToolScope,
-	operation: McpxOperation,
+	operation: Operation,
 ): { collections: string[]; globals: string[] } => {
 	switch (operation) {
 		case "create":
@@ -182,7 +173,7 @@ export const slugsFor = (
  */
 export const entityShape = (
 	scope: McpxToolScope,
-	operation: McpxOperation,
+	operation: Operation,
 	descriptions: { collection: string; global: string },
 ): EntityShape => {
 	const { collections, globals } = slugsFor(scope, operation);
@@ -213,7 +204,7 @@ export const entityShape = (
  */
 export const idShape = (
 	scope: McpxToolScope,
-	operation: McpxOperation,
+	operation: Operation,
 ): IdShape => {
 	const { collections, globals } = slugsFor(scope, operation);
 
@@ -266,64 +257,6 @@ export const depthShape = (scope: McpxToolScope): DepthShape => ({
 			`Relationship population depth. Default 0, at most ${String(scope.limits.maxDepth)}.`,
 		),
 });
-
-/*
- * Positions of the collection slug and document id in the data loader's cache
- * key, found by probing rather than assumed. If the layout cannot be read both
- * are -1, which refuses every population.
- */
-const LOADER_KEY = ((): { slug: number; id: number } => {
-	const slug = "\u0000slug";
-	const id = "\u0000id";
-	const parts: unknown = JSON.parse(
-		createDataloaderCacheKey({
-			collectionSlug: slug,
-			currentDepth: 0,
-			depth: 0,
-			docID: id,
-			draft: false,
-			fallbackLocale: false,
-			locale: "",
-			overrideAccess: false,
-			showHiddenFields: false,
-			transactionID: "",
-		}),
-	);
-
-	return Array.isArray(parts)
-		? { slug: parts.indexOf(slug), id: parts.indexOf(id) }
-		: { slug: -1, id: -1 };
-})();
-
-/**
- * The request a read tool hands to Payload, populating relations only into
- * collections this key may read. Relationships, uploads, joins and rich text
- * nodes all populate through `req.payloadDataLoader`, which runs on the request
- * it was made for. A loader of its own on an isolated request bounds every
- * depth without touching the request that custom tools share.
- *
- * A refused relation resolves to its own id, which is what depth 0 returns.
- * Relationship fields keep the id when the loader answers nothing, but rich
- * text sets `null`, so the loader must return the id itself.
- */
-export const readRequest = (scope: McpxToolScope): PayloadRequest => {
-	const req = isolateObjectProperty(scope.req, "payloadDataLoader");
-	const loader = getDataLoader(req);
-	const load = loader.load.bind(loader);
-
-	loader.load = (key) => {
-		const parts = JSON.parse(key) as unknown[];
-		const collection = parts[LOADER_KEY.slug];
-
-		return typeof collection === "string" && scope.readable.includes(collection)
-			? load(key)
-			: Promise.resolve(parts[LOADER_KEY.id] as TypeWithID);
-	};
-
-	req.payloadDataLoader = loader;
-
-	return req;
-};
 
 /**
  * The locale to operate on: the explicit argument, else the request's, else

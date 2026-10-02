@@ -5,7 +5,7 @@ import {
 	readDraft,
 	resolveDocument,
 	staleReadResult,
-} from "./entity.js";
+} from "./document.js";
 import { idShape, localeOf, entityShape, ONE_DOCUMENT_RULE } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";

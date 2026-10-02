@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { readDraft, resolveEntity } from "./entity.js";
+import { readDraft, resolveEntity } from "./document.js";
 import {
 	draftSentence,
 	localeOf,
@@ -15,7 +15,7 @@ import { validateWriteValue } from "../schema/index.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { stripRowIds } from "../write/row-ids.js";
 
-import type { DocumentId, DocumentRef } from "../entity.js";
+import type { DocumentId } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 
 // Names the writable slugs this tool leaves out, so the gap reads as intent.
@@ -70,6 +70,11 @@ export const createDocument = defineMcpxTool({
 			{ collection: args.collection },
 			"create",
 		);
+
+		if (target.kind === "global") {
+			throw new Error("createDocument resolved a global.");
+		}
+
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
 
@@ -107,12 +112,8 @@ export const createDocument = defineMcpxTool({
 			...(locale === undefined ? {} : { locale }),
 		})) as Record<string, unknown>;
 
-		const createdRef: DocumentRef =
-			target.kind === "collection"
-				? { ...target, id: created["id"] as DocumentId }
-				: target;
 		const saved = await readDraft(scope, {
-			target: createdRef,
+			target: { ...target, id: created["id"] as DocumentId },
 			locale,
 			privileged: true,
 		});

@@ -21,12 +21,9 @@ import type {
  * One writable field, addressed relative to the node that declares it. `path`
  * is a JSON Pointer with every construct that does not nest in the stored
  * document already resolved, so replacing each {@link ARRAY_MARKER} with an
- * index gives a document pointer.
- *
- * That does not apply inside rich text. A path there names the node type (for a
- * block node, its slug), while a document pointer enters the state at `root`
- * and walks `children` by index: `/content/block/practice-note/variant` is
- * written at `/content/root/children/7/fields/variant`.
+ * index gives a document pointer. Not inside rich text: a path there names the
+ * node type (for a block node, its slug), while a document pointer enters the
+ * state at `root` and walks `children` by index.
  */
 export interface FieldDescriptor {
 	blocks?: string[];
@@ -246,14 +243,12 @@ const isInformative = (descriptor: FieldDescriptor): boolean =>
 	descriptor.localized === true;
 
 /**
- * Flattens a field list into descriptors addressed relative to the node. Named
- * tabs, groups and arrays add a path segment and are described themselves only
- * when they declare something of their own: an array always, since its row
- * counts live nowhere else.
- *
- * The walk stops at every blocks field and names the slugs, so a node's size
- * follows the number of blocks it allows, not their definitions. Omitting
- * `translate` costs language selection, never the description itself.
+ * Named tabs, groups and arrays add a path segment and are described
+ * themselves only when they declare something of their own: an array always,
+ * since its row counts live nowhere else. The walk stops at every blocks field
+ * and names the slugs, so a node's size follows the number of blocks it
+ * allows, not their definitions. Omitting `translate` costs language
+ * selection, never the description itself.
  */
 export const describeFields = (
 	fields: FlattenedField[],

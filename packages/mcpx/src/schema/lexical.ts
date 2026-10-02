@@ -30,12 +30,10 @@ const OPAQUE_NODE_TYPES: ReadonlySet<string> = new Set(["upload"]);
 
 /*
  * Typed structurally so the plugin does not depend on
- * `@payloadcms/richtext-lexical`.
- *
- * `getSubFields` is the hook Payload uses to populate and run hooks on the
- * fields a node carries. Called without a node it returns every sub-field the
- * node can hold, which is a schema. It is keyed by node type and filled by any
- * feature that declares one, so custom features need no special case.
+ * `@payloadcms/richtext-lexical`. `getSubFields` is the hook Payload runs a
+ * node's fields through. Called without a node it returns every sub-field the
+ * node can hold, which is a schema, and any feature that declares one fills
+ * it, so custom features need no special case.
  */
 interface LexicalLikeEditor {
 	editorConfig?: {
@@ -163,8 +161,7 @@ const KINDS = {
 		needs: "an object",
 	},
 	optionalObject: {
-		accepts: (value: unknown) =>
-			value === null || (typeof value === "object" && !Array.isArray(value)),
+		accepts: (value: unknown) => value === null || isPlainObject(value),
 		needs: "an object or null",
 	},
 	string: {
@@ -199,13 +196,11 @@ const TEXT_PROPERTIES = {
 } as const satisfies Record<string, Constraint>;
 
 /*
- * Carried by every node, whatever its type.
- *
- * Aligned with Payload, not measured: its `outputSchema` declares `type` and
- * `version` required for every node, and that types the field in
+ * Carried by every node. Aligned with Payload, not measured: its `outputSchema`
+ * requires `type` and `version` on every node, which types the field in
  * `payload-types.ts`. Lexical hydrates a node with a missing or mistyped
- * `version` unchanged, but a consumer reading through the generated types is
- * promised an integer, and `BlockNode.importJSON` migrates on it.
+ * `version` unchanged, but the generated types promise an integer and
+ * `BlockNode.importJSON` migrates on it.
  */
 const UNIVERSAL_PROPERTIES = { version: "number" } as const satisfies Record<
 	string,
@@ -227,15 +222,11 @@ export const ROOT_PROPERTIES: Readonly<Record<string, Constraint>> = {
 
 /**
  * What a serialized node must carry beyond {@link UNIVERSAL_PROPERTIES}, keyed
- * by node type. Payload stores an editor state without hydrating it, so a node
- * missing these only fails later in the admin editor. Payload declares nothing
- * per node type, so the table is measured: an entry belongs only if breaking it
- * makes Lexical throw or changes what the editor reads back. `lexical.spec.ts`
- * checks every entry against the node classes `@payloadcms/richtext-lexical`
- * ships, so extend that test first.
- *
- * A type with no entry gets the universal properties only: guessing at a
- * project's own nodes would reject content that works.
+ * by node type. Payload stores a state without hydrating it, so a node missing
+ * these fails only later, in the admin editor. Payload declares nothing per
+ * node type, so the table is measured: an entry belongs only if breaking it
+ * makes Lexical throw or changes what the editor reads back. A type with no
+ * entry is not guessed at, since that would reject a project's working nodes.
  */
 export const REQUIRED_NODE_PROPERTIES: Readonly<
 	Record<string, Readonly<Record<string, Constraint>>>
@@ -281,14 +272,11 @@ const describeConstraints = (
 	);
 
 /**
- * What each of the given node types must carry, phrased as the write side
- * phrases its refusals so the two never disagree. Keyed by node type, not per
- * field, because what a `text` node must carry is the same wherever it is
- * written.
- *
- * `type` is listed although {@link UNIVERSAL_PROPERTIES} omits it: the
- * validator never reports it missing, since it finds the entry by `type`, but a
- * client building a node must still write one.
+ * What each node type must carry, phrased as the write side phrases its
+ * refusals so the two never disagree. Keyed by node type, since a `text` node
+ * needs the same wherever it is written. `type` is listed although
+ * {@link UNIVERSAL_PROPERTIES} omits it: the validator finds the entry by
+ * `type` and so never reports it missing, but a client must still write one.
  */
 export const nodePropertiesFor = (
 	types: readonly string[],
