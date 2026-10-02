@@ -1,7 +1,7 @@
 # Security
 
-This page describes what an API key can reach through the MCP endpoint, as the code behaves now.
-Known limitations are listed at the end, each with what an operator can do about it.
+What an API key can reach through the MCP endpoint, and where that falls short. Each known
+limitation at the end names a workaround.
 
 ## Authentication
 
@@ -18,10 +18,10 @@ GraphQL API.
 
 ## Capabilities
 
-Two levels decide what a key may do. The plugin config sets the upper bound: which collections
-and globals are exposed, and whether each is readable, writable as drafts, or writable live. The
-key's checkboxes then grant operations within that bound. A checkbox that is missing or unticked
-counts as no. Auth collections cannot be exposed at all, since their documents carry credentials.
+The plugin config sets the upper bound and the key's checkboxes grant operations within it, as
+described under [Capabilities](../README.md#capabilities) in the README. A checkbox that is
+missing or unticked counts as no. Auth collections cannot be exposed at all, since their documents
+carry credentials.
 
 ### Who can create keys
 
@@ -58,7 +58,8 @@ collections' access control applies to them.
 Read tools populate relations only into collections the key can read. A relation into any other
 collection comes back as its id, as at depth 0, whatever `depth` the client asks for. This holds
 for relationship and upload fields, joins and rich text nodes. A virtual field that resolves
-through such a relation is left out of the response.
+through such a relation has nothing to resolve from, because the loader returns only the id, so
+it comes back without a value.
 
 ### Privileged reads
 
@@ -141,21 +142,20 @@ runs, and the handler only replaces it after `auth.resolve` returns.
 
 ## Known limitations
 
-These are current behaviour.
-
 - `findDocuments` accepts `where` and `sort` on fields of related documents, including related
   users, so a key can test the values of fields in collections it cannot read through MCP.
   Payload checks field-level `read` access on query paths, so set it on related fields a key's
   user must not test.
 - Fields with `admin.hidden` are returned by `getDocument` and `findDocuments`, though
-  `describeSchema` leaves them out; only Payload's top-level `hidden` is withheld. Use `hidden:
-true` or field-level `read` access for values that must not reach clients.
+  `describeSchema` omits them. Only Payload's top-level `hidden` withholds a value. Set `hidden`
+  or field-level `read` access on values that must not reach clients.
 - Once a document is readable, its older versions are readable subject only to the collection's
   `readVersions` access, so a read filter that depends on document content does not apply to old
   versions. Give `readVersions` a filter on the version fields that matches the `read` filter.
 - `patchDocument`'s `notApplied` reveals whether a field the user may neither read nor update
   equals the value sent. Keep such fields out of collections exposed for write, or accept that
   their value can be confirmed.
-- Calls in one JSON-RPC batch share a request and a transaction, so a failing call can roll back
-  a write another call in the batch already reported as done. Clients that need independent
+- Calls in one JSON-RPC batch share a request and a transaction. When the call that opened the
+  transaction fails, it can roll back a write another call in the batch already reported as done.
+  A later call failing does not undo an earlier completed write. Clients that need independent
   writes send them in separate requests.

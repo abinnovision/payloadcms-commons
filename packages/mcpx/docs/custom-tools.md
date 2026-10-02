@@ -1,8 +1,10 @@
 # Custom tools
 
-Custom tools are registered the same way as the builtin ones: one `McpxTool` shape, one
-registration loop. Pass them in the `tools` option. Each gets its own checkbox on every API key,
-unticked by default.
+Custom tools use the same `McpxTool` shape as the builtin ones. Pass them in the `tools` option.
+Each gets its own checkbox on every API key, unticked by default.
+
+The examples need `zod` v4 installed in the app. It is a dependency of the plugin, not a peer, so
+a strict package manager does not expose it.
 
 ```ts
 import { defineMcpxTool } from "@abinnovision/payloadcms-mcpx";
@@ -16,6 +18,7 @@ export const queueForReview = defineMcpxTool({
     await req.payload.update({
       collection: "pages",
       id: args.id,
+      // `reviewRequested` is an illustrative field on the `pages` collection.
       data: { reviewRequested: true },
       overrideAccess: false,
       req,
@@ -89,12 +92,10 @@ the checkbox to count, as above. An `isEnabled` that ignores it exposes the tool
 
 ## Arguments and results
 
-Every input schema is registered as strict, custom tools included: an unknown argument is refused
-by name rather than dropped.
+Input schemas are strict for custom tools too; see [concepts.md](./concepts.md#tools).
 
 `jsonResult(value)` and `errorResult(message, extras)` build results in the same format as the
-builtin tools. Return `errorResult` for outcomes the client can act on. A thrown public Payload
-`APIError` reaches the client with its message and status, and a Payload `ValidationError` also
-carries its field errors. Any other thrown error is logged and reported as "Internal error".
+builtin tools. Return `errorResult` for outcomes the client can act on. Thrown errors reach the
+client as described in [security.md](./security.md#input-checks).
 
 `isMcpxRequest(req)` tells your own hooks whether a request came through the MCP endpoint.

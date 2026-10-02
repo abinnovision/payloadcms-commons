@@ -84,8 +84,7 @@ are still described.
   refuses `null`. `remove` works only on list elements, because Payload keeps a field that is
   missing from a write.
 - Pass the `updatedAt` you read as `expectedUpdatedAt`. If the document changed since, the write
-  is refused. The check runs before the write, so a change that lands between check and write is
-  not caught.
+  is refused. The check is best effort; see [limitations.md](./limitations.md#known-gaps).
 
 The response carries the document's `id` (or the global's slug), `status` and `updatedAt`, plus:
 
@@ -154,16 +153,15 @@ mcpxPlugin({
 ```
 
 Pass exactly one of `collection` and `global`. `id` is required with `collection` and must be
-left out with `global`. JSON Schema cannot express these rules, so the handler enforces them,
-every affected tool description states them, and a refusal names the argument and the slug.
+left out with `global`. JSON Schema cannot express these rules, so the handler enforces them and a
+refusal names the argument and the slug.
 `findDocuments` and `createDocument` take collections only, since a global always exists.
 
 A global's checkboxes live under `capabilities.globals.<name>`, apart from
 `capabilities.collections.<name>`, so a global and a collection may share a name.
 
-`expectedUpdatedAt` works as for collections, since Payload adds `updatedAt` to every global. A
-global that has never been saved has no `updatedAt`, so its first write must leave
-`expectedUpdatedAt` out; passing one is refused as a concurrent change.
+`expectedUpdatedAt` works as for collections, since Payload adds `updatedAt` to every global,
+except on a global that has never been saved; see [limitations.md](./limitations.md#known-gaps).
 
 ## Upload collections
 
@@ -173,8 +171,7 @@ can edit the fields the collection declares, such as `alt` or a credit.
 
 The base fields Payload adds (`filename`, `url`, `filesize`, `sizes`, the focal point) are neither
 described nor writable. `createDocument` leaves upload collections out of its `collection` enum
-and says why in its description: a create there needs the file, and no tool carries one. Upload
-the file in the admin panel, then edit its fields through MCP.
+and says why in its description; see [limitations.md](./limitations.md#not-included).
 
 ## Drafts and publishing
 
@@ -190,16 +187,13 @@ the file in the admin panel, then edit its fields through MCP.
 instructions and the `patchDocument` and `createDocument` descriptions name those slugs for the
 key in question, so a client is not told its writes are drafts when they are not.
 
-The draft guard enforces this on the Payload operation rather than in the tools. A
-`beforeOperation` hook on every collection and global forces a draft save for any create or update
-that carries the MCP request marker, and a `beforeChange` hook on every entity with drafts refuses
-a write that would still not be a draft. Custom tools that pass the MCP `req` are covered the same
-way. [security.md](./security.md#the-draft-guard) lists what the guard does not cover.
+A draft guard enforces this on the Payload operation rather than in the tools, so custom tools
+that pass the MCP `req` are covered too. [security.md](./security.md#the-draft-guard) describes it
+and lists what it does not cover.
 
 `publishDocument` is the one way to publish. It publishes the whole document, as the admin
 Publish button does, and is refused when the document fails validation. Payload validates only
-the locale the publish runs in, so a required field left empty in another locale goes live
-empty. Publishing an unchanged document is accepted and writes another version. There is no
+the locale the publish runs in; see [limitations.md](./limitations.md#known-gaps). Publishing an unchanged document is accepted and writes another version. There is no
 unpublish tool; reverting a published document to a draft is done in the admin panel.
 
 While someone has a collection document open in the admin panel, every MCP write to it is
@@ -212,9 +206,9 @@ as `publishBlockers`. The write stands, and the client gets a list of what remai
 `versions.drafts.validate` is set, Payload refuses an invalid draft and the failures come back as
 `validationErrors`. Both use JSON Pointers.
 
-The blocker check validates only the written locale. It runs the fields' `beforeValidate` and
-`beforeChange` hooks again, so those hooks must not have side effects. `validateDocument` runs the
-same check without saving; because the hooks run, it carries no `readOnlyHint`.
+The blocker check validates only the written locale and runs the fields' hooks again; see
+[limitations.md](./limitations.md#known-gaps). `validateDocument` runs the same check without
+saving; because the hooks run, it carries no `readOnlyHint`.
 
 ## Versions and diffs
 
@@ -231,8 +225,6 @@ status, in any locale), `getDocument` returns `{ from, to, patch }`: the RFC 690
 turn `diffFrom` into the document read, which is the current draft or `versionId` when given. The
 operations use the pointers `patchDocument` takes, `path` limits them to a subtree, and `id`,
 timestamps and `_status` are left out. Arrays are compared by position, so a reordered block
-shows up as replace operations.
+shows up as replace operations; see [limitations.md](./limitations.md#known-gaps).
 
-There is no restore tool. To revert, pass the old version as `versionId` and the latest one as
-`diffFrom`, then apply the returned patch with `patchDocument`. The revert lands as a draft like
-any other write, with `expectedUpdatedAt` and publish blockers in force.
+There is no restore tool; [limitations.md](./limitations.md#not-included) says how to revert.

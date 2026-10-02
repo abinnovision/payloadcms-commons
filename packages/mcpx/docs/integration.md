@@ -44,8 +44,7 @@ keys. Anyone who may read the key document sees the plaintext; by default that i
 created it. A key is bound to the user who created it, and that binding cannot be changed.
 Unticking `enabled` refuses the key without deleting it.
 
-The key collection is not an auth collection, so a key never authenticates the REST or GraphQL
-API. By default, users read, update and delete only their own keys. Use
+By default, users read, update and delete only their own keys. Use
 `apiKeys.overrideCollection` to change that, for example to let admins manage all keys, or to add
 fields. [security.md](./security.md#who-can-create-keys) shows how to restrict who may create
 keys.
@@ -70,6 +69,30 @@ config sets one, and the browser's origin otherwise.
 
 `apiKeys.setupGuide: false` removes the tab and the tab layout, leaving a flat form.
 
+### Connecting other clients
+
+Claude Desktop cannot send headers itself, so it goes through `mcp-remote`:
+
+```json
+{
+  "mcpServers": {
+    "payload": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://localhost:3000/api/mcpx",
+        "--header",
+        "Authorization: Bearer <key>"
+      ]
+    }
+  }
+}
+```
+
+To try the endpoint by hand, run `npx @modelcontextprotocol/inspector` and choose the Streamable
+HTTP transport with the same URL and header.
+
 ### Admin components
 
 The key form renders the capability matrix and the setup guide from
@@ -80,8 +103,9 @@ payload generate:importmap
 ```
 
 Without those entries Payload logs a missing-component error and renders nothing in their place.
-A missing setup guide costs the tab. A missing matrix costs the whole capability editor, so no
-key can be granted anything from the admin panel. The endpoint keeps working either way.
+Without the setup guide entry, the key form loses its "Connect a client" tab. Without the matrix
+entry, it loses the capability editor, so no key can be granted anything from the admin panel. The
+endpoint is unaffected.
 
 ## Custom key resolution
 

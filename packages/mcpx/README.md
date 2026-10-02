@@ -67,8 +67,12 @@ The key form uses two admin components, so regenerate the import map:
 payload generate:importmap
 ```
 
+Without it, the key form loses the capability editor, so no key can be granted anything from the
+admin panel. The endpoint itself is unaffected.
+
 Then create a key in the admin panel under MCP > API Keys, tick what it may do, save, and copy
-the key from the saved document. Every checkbox starts unticked, so a new key can do nothing.
+the key from the saved document. Every checkbox starts unticked, so a new key can only call
+`listCapabilities`.
 
 Connect a client with the key as a bearer token. Claude Code:
 
@@ -77,28 +81,9 @@ claude mcp add --transport http payload http://localhost:3000/api/mcpx \
   --header "Authorization: Bearer <key>"
 ```
 
-Claude Desktop cannot send headers itself, so it goes through `mcp-remote`:
-
-```json
-{
-  "mcpServers": {
-    "payload": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "http://localhost:3000/api/mcpx",
-        "--header",
-        "Authorization: Bearer <key>"
-      ]
-    }
-  }
-}
-```
-
-To try the endpoint by hand, run `npx @modelcontextprotocol/inspector` and choose the Streamable
-HTTP transport with the same URL and header. Saved keys also have a "Connect a client" tab with
-these snippets filled in.
+Claude Desktop and the MCP Inspector are covered in
+[`docs/integration.md`](./docs/integration.md#connecting-other-clients). Saved keys also have a
+"Connect a client" tab with ready-to-paste snippets.
 
 ## Options
 
@@ -172,9 +157,14 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
   publish blockers. Blocker messages can name fields the user cannot read.
 - The request body is limited to 4 MB, a JSON-RPC batch to 10 messages, `patchDocument` to 500
   operations and `describeSchema` to 400 paths.
+- `findDocuments` accepts `where` and `sort` on fields of related documents, so a key can test
+  values in collections it cannot read, unless those fields have field-level `read` access. See
+  [known limitations](./docs/security.md#known-limitations).
+- Fields with `admin.hidden` are returned by the read tools. Only Payload's top-level `hidden`
+  withholds a value. See [known limitations](./docs/security.md#known-limitations).
 - Custom tools are trusted code and must apply access control themselves.
 
-[`docs/security.md`](./docs/security.md) covers each point and the known limitations.
+Details and known limitations: [`docs/security.md`](./docs/security.md).
 
 ## Documentation
 

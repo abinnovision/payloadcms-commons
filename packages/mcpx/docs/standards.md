@@ -5,17 +5,21 @@ These rules apply to code in this package.
 ## Tests
 
 Unit specs sit beside the source file they test and test one module through its exports.
-Integration specs live in `test/integration`. They boot Payload on in-memory SQLite and go through
+Integration specs live in `test/integration`. They boot Payload on SQLite, in memory unless a test needs transactions, and go through
 the MCP endpoint or the Local API.
 
 A unit spec may build the fixture config but never boots Payload. A structural request stub, such
 as a config and a logger, is fine. If the test needs a fake with behaviour, such as a database or
-Payload operations, it belongs in integration. `@payloadcms/ui` may be mocked in client specs.
+Payload operations, it belongs in integration. The one exception is `src/write/transaction.spec.ts`,
+which uses a database fake because two of its branches, an adapter without transactions and an
+outer transaction, cannot be reached through integration. `@payloadcms/ui` may be mocked in client
+specs.
 
 A builder used by two specs moves to `test/builders`.
 
 Assert what a caller can observe. Do not assert call counts, hook identity, CSS classes or
-private fields.
+private fields. A log line is an outcome an operator sees, so a test may assert what a logger stub
+received.
 
 `describe` names the export or the tool. `it` states the behaviour in lowercase present tense:
 `it("refuses a key whose user is locked out")`.
