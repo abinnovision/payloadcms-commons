@@ -101,7 +101,7 @@ describe("validateWriteValue", () => {
 		]);
 	});
 
-	it("rejects a blockType that is not a string", () => {
+	it("rejects a blockType that is absent or not a string", () => {
 		expect(
 			check("/layout/sections/0/modules", [
 				{ blockType: { toString: 1 } },
@@ -109,7 +109,7 @@ describe("validateWriteValue", () => {
 			]),
 		).toEqual([
 			'/layout/sections/0/modules/0: "blockType" must be a string naming a block. Allowed: hero, richText',
-			'/layout/sections/0/modules/1: "blockType" must be a string naming a block. Allowed: hero, richText',
+			'/layout/sections/0/modules/1: a row needs a "blockType". Allowed: hero, richText',
 		]);
 		expect(checkPost(blockNode({ blockType: { toString: 1 } }))).toEqual([
 			'/content/root/children/0/fields: "blockType" must be a string naming a block. Allowed: callout',
@@ -446,6 +446,33 @@ describe("validateWriteValue at a position inside an editor state", () => {
 		expect(checkPost({ ...held, root: { ...held.root, toString: 5 } })).toEqual(
 			[expect.stringContaining("/content/root/toString: no such property")],
 		);
+	});
+
+	it("treats a prototype-named node type as an unknown type", () => {
+		const stored = { summary: state([node("toString", { tag: "h3" })]) };
+		const checkStored = (pointer: string, value: unknown) =>
+			validateWriteValue(
+				config,
+				{
+					pointer,
+					resolution: resolveDataPointer(config, {
+						doc: stored,
+						pointer,
+						ref: { kind: "collection", slug: "posts" },
+					}),
+				},
+				value,
+			);
+
+		expect(checkPost(state([node("constructor")]))).toEqual([
+			expect.stringContaining(
+				'/content/root/children/0: "constructor" is not available in this field\'s editor.',
+			),
+		]);
+		expect(checkStored("/summary/root/children/0/tag", "h3")).toEqual([]);
+		expect(checkStored("/summary/root/children/0/version", "1")).toEqual([
+			'/summary/root/children/0/version: a "toString" node needs a number here.',
+		]);
 	});
 
 	it("expects a list where the pointer addresses one", () => {

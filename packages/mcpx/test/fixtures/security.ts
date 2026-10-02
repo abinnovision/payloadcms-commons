@@ -12,6 +12,13 @@ export const verifiedUsers: CollectionConfig = {
 	fields: [],
 };
 
+/** Users without lockouts, so the collection has no `lockUntil` field. */
+export const lockoutFreeUsers: CollectionConfig = {
+	slug: "users",
+	auth: { maxLoginAttempts: 0 },
+	fields: [],
+};
+
 /** Users that can carry a Payload API key of their own. */
 export const apiKeyUsers: CollectionConfig = {
 	slug: "users",

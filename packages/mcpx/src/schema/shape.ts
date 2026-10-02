@@ -16,7 +16,7 @@ import {
 	findRichTextField,
 	ROW_KEYS,
 } from "./walk.js";
-import { isPlainObject } from "../guards.js";
+import { isPlainObject, ownValue } from "../guards.js";
 
 import type { LexicalPosition } from "./lexical-pointer.js";
 import type { NodeOptions } from "./lexical.js";
@@ -36,10 +36,15 @@ const quoted = (properties: readonly string[]): string =>
 	properties.map((property) => `"${property}"`).join(", ");
 
 // The client's `blockType` may be anything, and not every value can be printed.
-const refusedSlug = (slug: unknown): string =>
-	typeof slug === "string"
+const refusedSlug = (slug: unknown): string => {
+	if (slug === undefined) {
+		return `a row needs a "blockType"`;
+	}
+
+	return typeof slug === "string"
 		? `"${slug}" is not allowed here`
 		: `"blockType" must be a string naming a block`;
+};
 
 /*
  * A position in an incoming value, and where problems are collected. `pointer`
@@ -187,7 +192,7 @@ const checkNode = (
 	}
 
 	for (const [property, values] of Object.entries(
-		editor.nodeOptions?.[type] ?? {},
+		ownValue(editor.nodeOptions, type) ?? {},
 	)) {
 		checkNarrowedProperty(
 			scope,
@@ -302,18 +307,7 @@ const checkNodeProperty = (
 		);
 	}
 
-	/*
-	 * Both keys come from the client, the node type possibly from the value
-	 * itself, so a name such as "toString" must not reach the prototype.
-	 */
-	const narrowed =
-		editor.nodeOptions && Object.hasOwn(editor.nodeOptions, type)
-			? editor.nodeOptions[type]
-			: undefined;
-	const values =
-		narrowed && Object.hasOwn(narrowed, property)
-			? narrowed[property]
-			: undefined;
+	const values = ownValue(ownValue(editor.nodeOptions, type), property);
 
 	if (values) {
 		checkNarrowedProperty(

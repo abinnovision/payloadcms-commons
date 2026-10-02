@@ -132,6 +132,23 @@ describe("lexicalOutline", () => {
 		);
 	});
 
+	it("treats a prototype-named node type as an unknown type", () => {
+		const doc = state([
+			node("constructor", { tag: "h4" }),
+			node("toString", { tag: "h4" }),
+		]);
+
+		const entries = lexicalOutline(doc, "/summary", summary);
+
+		expect(entries.map((entry) => entry.type)).toEqual([
+			"constructor",
+			"toString",
+		]);
+		for (const entry of entries) {
+			expect(entry).not.toHaveProperty("options");
+		}
+	});
+
 	it("returns no entries for a state with no root children", () => {
 		expect(lexicalOutline(undefined, "/content", content)).toEqual([]);
 		expect(lexicalOutline({}, "/content", content)).toEqual([]);

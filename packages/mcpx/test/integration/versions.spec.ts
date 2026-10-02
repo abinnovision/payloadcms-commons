@@ -287,6 +287,9 @@ describe("version history", () => {
 		});
 
 		expect(published.isError).toBe(true);
+		expect(published.data).toEqual({
+			error: '"snippets" has no published version to diff from.',
+		});
 	});
 
 	it("refuses the history of a document its read access hides", async () => {

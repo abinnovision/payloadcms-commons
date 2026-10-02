@@ -112,7 +112,11 @@ const resolutionAt = (
 			pointer: target.pointer,
 			ref: target.ref,
 		});
-	} catch {
+	} catch (error) {
+		if (!(error instanceof SchemaError)) {
+			throw error;
+		}
+
 		return undefined;
 	}
 };

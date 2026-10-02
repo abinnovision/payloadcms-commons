@@ -116,7 +116,7 @@ export const identityOf = (
 
 // The client's value is a string, but the stored one may be a Date.
 const sameInstant = (left: unknown, right: string): boolean =>
-	typeof left === "string" &&
+	(typeof left === "string" || left instanceof Date) &&
 	new Date(left).getTime() === new Date(right).getTime();
 
 /** Refuses a write when the document changed since the client read it. */

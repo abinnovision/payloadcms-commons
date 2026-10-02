@@ -78,7 +78,7 @@ export const createDocument = defineMcpxTool({
 		 * every level, for row ids a client echoes back, so a supplied one is
 		 * refused here instead of silently dropped.
 		 */
-		if ("id" in args.data) {
+		if (Object.hasOwn(args.data, "id")) {
 			return errorResult("Nothing was created.", {
 				problems: ["/id: Payload assigns the id; it cannot be supplied."],
 			});

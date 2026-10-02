@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import {
 	allowedNodeTypes,
+	constrainsFields,
 	nodeProblems,
 	nodePropertiesFor,
 	propertyProblem,
@@ -495,5 +496,22 @@ describe("propertyProblem", () => {
 	it("says nothing about a property no table constrains", () => {
 		expect(propertyProblem("paragraph", "textFormat", "x")).toBeUndefined();
 		expect(propertyProblem("artificial", "whatever", 1)).toBeUndefined();
+	});
+});
+
+describe("a node type named like an Object.prototype member", () => {
+	it("is treated as an unknown type", () => {
+		for (const type of ["constructor", "toString", "hasOwnProperty"]) {
+			expect(nodeProblems({ type, version: 1 })).toEqual({
+				missing: [],
+				rejected: [],
+			});
+			expect(propertyProblem(type, "fields", 1)).toBeUndefined();
+			expect(constrainsFields(type)).toBe(false);
+			expect(nodePropertiesFor([type])[type]).toEqual({
+				type: "a string",
+				version: "a number",
+			});
+		}
 	});
 });

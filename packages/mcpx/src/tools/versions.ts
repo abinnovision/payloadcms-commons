@@ -1,3 +1,4 @@
+import { hasDraftsEnabled } from "payload/shared";
 import { createPatch, Pointer } from "rfc6902";
 
 import { readRequest } from "./shared.js";
@@ -165,6 +166,11 @@ export const loadPublished = async (
 	scope: McpxToolScope,
 	read: VersionRead,
 ): Promise<null | StoredVersion> => {
+	// Without drafts no version has a status, and Payload refuses the query.
+	if (!hasDraftsEnabled(read.target.config)) {
+		return null;
+	}
+
 	const result = await queryVersions(scope, read, {
 		status: "published",
 		limit: 1,

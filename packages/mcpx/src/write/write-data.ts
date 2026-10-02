@@ -27,7 +27,7 @@ const pickDescribed = (
 
 	if (isRow) {
 		for (const key of ROW_KEYS) {
-			if (key in value) {
+			if (Object.hasOwn(value, key)) {
 				result[key] = value[key];
 			}
 		}

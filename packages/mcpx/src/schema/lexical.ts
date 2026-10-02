@@ -1,6 +1,6 @@
 import { flattenAllFields } from "payload";
 
-import { isPlainObject } from "../guards.js";
+import { isPlainObject, ownValue } from "../guards.js";
 
 import type {
 	Field,
@@ -269,7 +269,7 @@ export const REQUIRED_NODE_PROPERTIES: Readonly<
  * sub-field walk does not report the same problem twice.
  */
 export const constrainsFields = (type: string): boolean =>
-	"fields" in (REQUIRED_NODE_PROPERTIES[type] ?? {});
+	"fields" in (ownValue(REQUIRED_NODE_PROPERTIES, type) ?? {});
 
 const describeConstraints = (
 	constraints: Readonly<Record<string, Constraint>>,
@@ -301,7 +301,7 @@ export const nodePropertiesFor = (
 				type === "root"
 					? ROOT_PROPERTIES
 					: {
-							...REQUIRED_NODE_PROPERTIES[type],
+							...ownValue(REQUIRED_NODE_PROPERTIES, type),
 							...UNIVERSAL_PROPERTIES,
 							type: "string",
 						},
@@ -344,7 +344,7 @@ const check = (
 export const nodeProblems = (node: Record<string, unknown>): PropertyProblems =>
 	check(node, {
 		...UNIVERSAL_PROPERTIES,
-		...(REQUIRED_NODE_PROPERTIES[node["type"] as string] ?? {}),
+		...ownValue(REQUIRED_NODE_PROPERTIES, node["type"] as string),
 	});
 
 /**
@@ -376,13 +376,10 @@ export const propertyProblem = (
 			? ROOT_PROPERTIES
 			: {
 					...UNIVERSAL_PROPERTIES,
-					...(REQUIRED_NODE_PROPERTIES[nodeType] ?? {}),
+					...ownValue(REQUIRED_NODE_PROPERTIES, nodeType),
 				};
 
-	// The property is a pointer segment, so it may name a prototype member.
-	const constraint = Object.hasOwn(constraints, property)
-		? constraints[property]
-		: undefined;
+	const constraint = ownValue(constraints, property);
 
 	return constraint === undefined || accepts(constraint, value)
 		? undefined

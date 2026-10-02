@@ -1,5 +1,5 @@
 import { allowedNodeTypes, nodeOptions } from "./lexical.js";
-import { isPlainObject } from "../guards.js";
+import { isPlainObject, ownValue } from "../guards.js";
 
 import type { NodeOptions } from "./lexical.js";
 import type { RichTextField } from "payload";
@@ -87,7 +87,7 @@ const walk = (
 
 	const version = node["version"];
 	const text = preview(collectText(node));
-	const nodeOptionsFound = narrowedOptions(node, options?.[type]);
+	const nodeOptionsFound = narrowedOptions(node, ownValue(options, type));
 	const children = node["children"];
 	const childCount = Array.isArray(children) ? children.length : 0;
 
