@@ -90,6 +90,39 @@ const normalizeWriteMode = (
 	);
 };
 
+// Checked at runtime too: a truthy string would otherwise count as opted in.
+const normalizeVersions = (
+	kind: string,
+	config: CollectionConfig | GlobalConfig,
+	settings: { read?: boolean; versions?: unknown },
+): boolean => {
+	const value = settings.versions;
+
+	if (value === undefined || value === false) {
+		return false;
+	}
+
+	if (value !== true) {
+		return fail(
+			`${kind} "${config.slug}" has versions: ${JSON.stringify(value)}. Use true or false.`,
+		);
+	}
+
+	if (!config.versions) {
+		return fail(
+			`${kind} "${config.slug}" keeps no versions. Enable versions or remove versions: true.`,
+		);
+	}
+
+	if (settings.read === false) {
+		return fail(
+			`${kind} "${config.slug}" has versions: true but read: false. Version history follows read.`,
+		);
+	}
+
+	return true;
+};
+
 /*
  * `localizeStatus` makes `_status` a localized field: Payload's
  * `publishAllLocales` default flips to false and `_status` becomes a
@@ -153,7 +186,7 @@ const normalizeCollections = (
 				read: settings.read ?? true,
 				write: normalizeWriteMode("Collection", slug, settings.write),
 				hasDrafts,
-				hasVersions: Boolean(collection.versions),
+				hasVersions: normalizeVersions("Collection", collection, settings),
 				isUpload: Boolean(collection.upload),
 				fieldName: toCamelCase(slug),
 			};
@@ -213,7 +246,7 @@ const normalizeGlobals = (
 				read: settings.read ?? true,
 				write: normalizeWriteMode("Global", slug, settings.write),
 				hasDrafts,
-				hasVersions: Boolean(global.versions),
+				hasVersions: normalizeVersions("Global", global, settings),
 				isUpload: false,
 				fieldName: toCamelCase(slug),
 			};

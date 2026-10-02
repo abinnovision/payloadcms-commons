@@ -130,7 +130,7 @@ type Branch<Full extends z.ZodRawShape> = {
 };
 
 // Unchecked because the runtime shape varies; `Branch` guards it.
-const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
+export const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
 	branch as unknown as Full;
 
 /** The one list the shape helpers and {@link resolveEntity} both read. */
@@ -153,7 +153,7 @@ export const slugsFor = (
 		case "read":
 			return slugsOf(scope, "readable");
 		case "versions":
-			// Version history is a read, of entities that keep one.
+			// Version history is a read, of entities that keep one and expose it.
 			return {
 				collections: slugsWhere(scope, (entity) => entity.hasVersions, {
 					collections: scope.collections.readable,
@@ -167,6 +167,27 @@ export const slugsFor = (
 		case "write":
 			return slugsOf(scope, "writable");
 	}
+};
+
+/**
+ * The slugs of {@link slugsFor} `"versions"` that also have drafts. Only they
+ * have `_status` on their versions, so only they can be queried by status.
+ */
+export const draftVersionSlugs = (
+	scope: McpxToolScope,
+): { collections: string[]; globals: string[] } => {
+	const { collections, globals } = slugsFor(scope, "versions");
+
+	return {
+		collections: slugsWhere(scope, (entity) => entity.hasDrafts, {
+			collections,
+			globals: [],
+		}),
+		globals: slugsWhere(scope, (entity) => entity.hasDrafts, {
+			collections: [],
+			globals,
+		}),
+	};
 };
 
 /**

@@ -56,7 +56,7 @@ describe("normalizeOptions", () => {
 				read: true,
 				write: false,
 				hasDrafts: true,
-				hasVersions: true,
+				hasVersions: false,
 				isUpload: false,
 				fieldName: "pages",
 			},
@@ -94,6 +94,70 @@ describe("normalizeOptions", () => {
 		}).collections;
 
 		expect(entry).toMatchObject({ write: "live", hasDrafts: true });
+	});
+
+	it("keeps version history off unless an entity opts in", () => {
+		const normalized = normalize({
+			collections: { pages: { versions: true }, posts: true },
+			globals: { "site-settings": { versions: true }, banner: true },
+		});
+
+		expect(normalized.collections.map((c) => c.hasVersions)).toEqual([
+			true,
+			false,
+		]);
+		expect(normalized.globals.map((g) => g.hasVersions)).toEqual([true, false]);
+	});
+
+	it("takes versions: false as off", () => {
+		const [pages] = normalize({
+			collections: { pages: { versions: false } },
+		}).collections;
+
+		expect(pages?.hasVersions).toBe(false);
+	});
+
+	it("keeps drafts apart from the version setting", () => {
+		const [pages] = normalize({
+			collections: { pages: { write: "draft" } },
+		}).collections;
+
+		expect(pages).toMatchObject({ hasDrafts: true, hasVersions: false });
+	});
+
+	it("refuses a versions value that is not a boolean", () => {
+		expect(() =>
+			normalize({
+				collections: { pages: { versions: "yes" as unknown as boolean } },
+			}),
+		).toThrow(/Use true or false/);
+		expect(() =>
+			normalize({
+				collections: {},
+				globals: { banner: { versions: 1 as unknown as boolean } },
+			}),
+		).toThrow(/Use true or false/);
+	});
+
+	it("refuses versions on an entity that keeps none", () => {
+		expect(() =>
+			normalize({ collections: { tags: { versions: true } } }),
+		).toThrow(/"tags" keeps no versions/);
+		expect(() =>
+			normalize({ collections: {}, globals: { banner: { versions: true } } }),
+		).toThrow(/"banner" keeps no versions/);
+	});
+
+	it("refuses versions on an entity that is not readable", () => {
+		expect(() =>
+			normalize({ collections: { pages: { read: false, versions: true } } }),
+		).toThrow(/read: false/);
+		expect(() =>
+			normalize({
+				collections: {},
+				globals: { "site-settings": { read: false, versions: true } },
+			}),
+		).toThrow(/read: false/);
 	});
 
 	it("refuses a write mode it does not know", () => {
@@ -155,7 +219,7 @@ describe("normalizeOptions", () => {
 				read: true,
 				write: "draft",
 				hasDrafts: true,
-				hasVersions: true,
+				hasVersions: false,
 				isUpload: true,
 				fieldName: "media",
 			},
@@ -190,7 +254,7 @@ describe("normalizeOptions", () => {
 				read: true,
 				write: false,
 				hasDrafts: true,
-				hasVersions: true,
+				hasVersions: false,
 				isUpload: false,
 				fieldName: "siteSettings",
 			},

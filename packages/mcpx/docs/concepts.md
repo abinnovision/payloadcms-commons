@@ -212,10 +212,18 @@ saving; because the hooks run, it carries no `readOnlyHint`.
 
 ## Versions and diffs
 
-On a collection or global with `versions`, with or without drafts, `findVersions` lists the
-history newest first: `versionId`, timestamps, `status`, `latest` and `autosave`, without bodies.
-It follows the `read` capability. The document's `read` access is checked first, then Payload's
-`readVersions`.
+Version history is off by default. Set `versions: true` on a collection or global that has
+Payload `versions`, with or without drafts. Then `findVersions` lists the history newest first:
+`versionId`, timestamps, `status`, `latest` and `autosave`, without bodies. It follows the `read`
+capability. The document's `read` access is checked first, then Payload's `readVersions`, which
+defaults to any logged-in user; see [security.md](./security.md#version-history).
+
+A key that reaches no entity with `versions: true` has no `findVersions`, and `getDocument` has no
+`versionId` or `diffFrom`, so a call that passes them is rejected as an unknown argument. Once the
+key reaches one such entity, those two arguments are refused for any other slug with
+`"<slug>" does not expose version history.` `status` is only offered while the key reaches an
+entity with drafts, since only drafts give a version a status. On an entity without drafts,
+`findVersions` refuses it.
 
 `getDocument` with `versionId` reads one of those versions instead of the document. `path`,
 `outline`, `locale` and `depth` work as usual.

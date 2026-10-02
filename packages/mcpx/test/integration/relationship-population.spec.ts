@@ -18,8 +18,8 @@ const OTHER_AUTHOR_EMAIL = "zzz-author@example.com";
 /**
  * Exposure stops at the allow-list, but a relationship reaches past it: an
  * exposed document may point at a user. Population stops at the collections
- * the key may read, while a where or sort through the relation still reaches
- * the user document under Payload's own access rules.
+ * the key may read, and a where or sort through the relation into one it
+ * cannot read is refused.
  */
 describe("relationships into the user collection", () => {
 	let booted: Booted;
@@ -34,7 +34,7 @@ describe("relationships into the user collection", () => {
 			key: CACHE_KEY,
 			users: apiKeyUsers,
 			collections: [articles],
-			plugin: { collections: { articles: true } },
+			plugin: { collections: { articles: { versions: true } } },
 		});
 
 		const { payload } = booted;
@@ -149,51 +149,36 @@ describe("relationships into the user collection", () => {
 			(doc) => doc.id,
 		);
 
-	const independentOf = async (
-		matching: Record<string, unknown>,
-		notMatching: Record<string, unknown>,
-	): Promise<boolean> => {
-		const hit = await mcp.call("findDocuments", {
-			collection: "articles",
-			...matching,
-		});
-		const miss = await mcp.call("findDocuments", {
-			collection: "articles",
-			...notMatching,
-		});
-
-		if (hit.isError || hit.rpcError || miss.isError || miss.rpcError) {
-			return true;
-		}
-
-		return JSON.stringify(idsOf(hit)) === JSON.stringify(idsOf(miss));
-	};
-
-	it.fails("answers a where on the related user's email", async () => {
-		expect(
-			await independentOf(
-				{ where: { "author.email": { equals: AUTHOR.email } } },
-				{ where: { "author.email": { equals: "nobody@example.com" } } },
-			),
-		).toBe(true);
+	const refusal = (path: string) => ({
+		error: `This key cannot query through "${path}".`,
+		status: 400,
 	});
 
-	it.fails(
-		"answers a where on whether the related user has an API key",
-		async () => {
-			expect(
-				await independentOf(
-					{ where: { "author.apiKey": { exists: true } } },
-					{ where: { "author.apiKey": { exists: false } } },
-				),
-			).toBe(true);
-		},
-	);
+	it("refuses a where on the related user's email", async () => {
+		const result = await mcp.call("findDocuments", {
+			collection: "articles",
+			where: { "author.email": { equals: AUTHOR.email } },
+		});
 
-	it.fails("orders by the related user's email", async () => {
-		expect(
-			await independentOf({ sort: "author.email" }, { sort: "-author.email" }),
-		).toBe(true);
+		expect(result.data).toEqual(refusal("author.email"));
+	});
+
+	it("refuses a where on whether the related user has an API key", async () => {
+		const result = await mcp.call("findDocuments", {
+			collection: "articles",
+			where: { "author.apiKey": { exists: true } },
+		});
+
+		expect(result.data).toEqual(refusal("author.apiKey"));
+	});
+
+	it("refuses to order by the related user's email", async () => {
+		const result = await mcp.call("findDocuments", {
+			collection: "articles",
+			sort: "author.email",
+		});
+
+		expect(result.data).toEqual(refusal("author.email"));
 	});
 
 	it("finds both articles without a filter", async () => {

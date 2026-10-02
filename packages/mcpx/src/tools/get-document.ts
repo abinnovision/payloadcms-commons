@@ -11,6 +11,7 @@ import {
 	localeShape,
 	slugsFor,
 	entityShape,
+	widen,
 	ONE_DOCUMENT_RULE,
 } from "./shared.js";
 import {
@@ -39,13 +40,22 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 const OUTLINE_ERROR =
 	'"outline" applies to a rich text field; give "path" for one.';
 
+const VERSION_PARAGRAPH = `
+
+On an entity that exposes versions, "versionId" (from findVersions) reads that version instead. "diffFrom" returns the RFC 6902 operations turning a version, or "published" (the newest version with published status, regardless of locale), into the document read, in the pointer syntax patchDocument takes and limited to "path" when given. To revert, pass the old version as "versionId" and the latest one from findVersions as "diffFrom", then apply the patch with patchDocument.`;
+
 const DESCRIPTION = `Reads one document, or one subtree of it when "path" is given as a JSON pointer such as "/layout/sections/2". Returns the latest draft by default. Read before patching: the response carries "updatedAt" for expectedUpdatedAt and the indices pointers need.
 
 ${ONE_DOCUMENT_RULE}
 
-Set "outline" on a rich text "path" to get a compact positional listing of its nodes instead of the raw editor state.
+Set "outline" on a rich text "path" to get a compact positional listing of its nodes instead of the raw editor state.`;
 
-On an entity with versions, "versionId" (from findVersions) reads that version instead. "diffFrom" returns the RFC 6902 operations turning a version, or "published" (the newest version with published status, regardless of locale), into the document read, in the pointer syntax patchDocument takes and limited to "path" when given. To revert, pass the old version as "versionId" and the latest one from findVersions as "diffFrom", then apply the patch with patchDocument.`;
+// Whether the key reaches any entity whose version history the config exposes.
+const exposesVersions = (scope: McpxToolScope): boolean => {
+	const { collections, globals } = slugsFor(scope, "versions");
+
+	return collections.length + globals.length > 0;
+};
 
 // Refuses `versionId` and `diffFrom` where they cannot apply.
 const assertVersionArgs = (
@@ -66,7 +76,10 @@ const assertVersionArgs = (
 	const versioned = target.kind === "collection" ? collections : globals;
 
 	if (!versioned.includes(target.slug)) {
-		throw new APIError(`"${target.slug}" keeps no versions.`, 400);
+		throw new APIError(
+			`"${target.slug}" does not expose version history.`,
+			400,
+		);
 	}
 
 	if (args.versionId !== undefined && args.draft !== undefined) {
@@ -109,6 +122,35 @@ const diffResult = async (
 	});
 };
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+type VersionShape = {
+	versionId: z.ZodOptional<typeof idSchema>;
+	diffFrom: z.ZodOptional<typeof idSchema>;
+};
+
+/*
+ * Left out for a key that reaches no entity with exposed versions, so the
+ * client is never offered what the refusal would answer.
+ */
+const versionShape = (scope: McpxToolScope): VersionShape => {
+	if (!exposesVersions(scope)) {
+		return widen<VersionShape>({});
+	}
+
+	return widen<VersionShape>({
+		versionId: idSchema
+			.optional()
+			.describe(
+				'Version to read instead of the document, from findVersions. Only for entities that expose versions; not with "draft".',
+			),
+		diffFrom: idSchema
+			.optional()
+			.describe(
+				'Version id, or "published" for the newest published version in any locale, to diff from. Returns {from, to, patch} instead of the document. Only for entities that expose versions.',
+			),
+	});
+};
+
 /**
  * With `path` the handler returns the subtree plus the `id`, `_status` and
  * `updatedAt` a client needs to write back, so reading one branch still gives
@@ -116,7 +158,8 @@ const diffResult = async (
  */
 export const getDocument = defineMcpxTool({
 	name: "getDocument",
-	description: DESCRIPTION,
+	description: (scope) =>
+		exposesVersions(scope) ? DESCRIPTION + VERSION_PARAGRAPH : DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
 	isEnabled: (scope) =>
 		scope.collections.readable.length + scope.globals.readable.length > 0,
@@ -148,16 +191,7 @@ export const getDocument = defineMcpxTool({
 			.describe(
 				'For a rich text field, return a compact positional outline instead of the editor state. Requires "path".',
 			),
-		versionId: idSchema
-			.optional()
-			.describe(
-				'Version to read instead of the document, from findVersions. Only for entities with versions; not with "draft".',
-			),
-		diffFrom: idSchema
-			.optional()
-			.describe(
-				'Version id, or "published" for the newest published version in any locale, to diff from. Returns {from, to, patch} instead of the document. Only for entities with versions.',
-			),
+		...versionShape(scope),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "read");

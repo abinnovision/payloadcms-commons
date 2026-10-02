@@ -40,13 +40,18 @@ export const diaries: CollectionConfig = {
 	],
 };
 
-/** Relates to users under Payload's default access. */
+/**
+ * Relates to users under Payload's default access. `authorEmail` resolves
+ * through that relation.
+ */
 export const articles: CollectionConfig = {
 	slug: "articles",
 	versions: { drafts: true },
 	fields: [
 		{ name: "title", type: "text" },
 		{ name: "author", type: "relationship", relationTo: "users" },
+		{ name: "authorEmail", type: "text", virtual: "author.email" },
+		{ name: "notes", type: "json" },
 	],
 };
 
@@ -61,13 +66,19 @@ export const dossiers: CollectionConfig = {
 };
 
 /**
- * Read access is a filter on the current state, and `readVersions` keeps
- * Payload's default, so an old version may hold a state the filter excludes.
+ * Read access is a filter on the current state, so an old version may hold a
+ * state the filter excludes. A slug and a `readVersions` rule make the variants.
  */
-export const bulletins: CollectionConfig = {
-	slug: "bulletins",
+const bulletinCollection = (
+	slug: string,
+	readVersions?: Access,
+): CollectionConfig => ({
+	slug,
 	versions: true,
-	access: { read: () => ({ visibility: { equals: "public" } }) },
+	access: {
+		read: () => ({ visibility: { equals: "public" } }),
+		...(readVersions ? { readVersions } : {}),
+	},
 	fields: [
 		{ name: "body", type: "text" },
 		{
@@ -76,7 +87,18 @@ export const bulletins: CollectionConfig = {
 			options: ["public", "private"],
 		},
 	],
-};
+});
+
+/** `readVersions` keeps Payload's default, which lets any logged-in user in. */
+export const bulletins = bulletinCollection("bulletins");
+
+/** The same as `bulletins`, for a spec that opts in to version history. */
+export const openBulletins = bulletinCollection("open-bulletins");
+
+/** `readVersions` applies the read filter to the version's own fields. */
+export const guardedBulletins = bulletinCollection("guarded-bulletins", () => ({
+	"version.visibility": { equals: "public" },
+}));
 
 /**
  * `secret` is closed to every user for read and update; a frozen document
@@ -165,6 +187,7 @@ export const dispatches: CollectionConfig = {
 		},
 		{ name: "body", type: "richText" },
 		{ name: "remarks", type: "join", collection: "remarks", on: "dispatch" },
+		{ name: "ownerEmail", type: "text", virtual: "article.author.email" },
 	],
 };
 

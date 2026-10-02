@@ -54,7 +54,10 @@ describe("relationships across field shapes", () => {
 			users: apiKeyUsers,
 			collections: [articles, dispatches, remarks],
 			plugin: {
-				collections: { articles: true, dispatches: true },
+				collections: {
+					articles: { versions: true },
+					dispatches: { versions: true },
+				},
 				limits: { maxDepth: 2 },
 			},
 		});

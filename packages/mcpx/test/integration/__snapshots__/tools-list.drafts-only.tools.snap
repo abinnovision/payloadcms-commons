@@ -138,7 +138,7 @@
   },
   {
     "name": "getDocument",
-    "description": "Reads one document, or one subtree of it when \"path\" is given as a JSON pointer such as \"/layout/sections/2\". Returns the latest draft by default. Read before patching: the response carries \"updatedAt\" for expectedUpdatedAt and the indices pointers need.\n\nPass exactly one of \"collection\" and \"global\". \"id\" is required with \"collection\" and must be omitted with \"global\", because a global is a singleton.\n\nSet \"outline\" on a rich text \"path\" to get a compact positional listing of its nodes instead of the raw editor state.\n\nOn an entity with versions, \"versionId\" (from findVersions) reads that version instead. \"diffFrom\" returns the RFC 6902 operations turning a version, or \"published\" (the newest version with published status, regardless of locale), into the document read, in the pointer syntax patchDocument takes and limited to \"path\" when given. To revert, pass the old version as \"versionId\" and the latest one from findVersions as \"diffFrom\", then apply the patch with patchDocument.",
+    "description": "Reads one document, or one subtree of it when \"path\" is given as a JSON pointer such as \"/layout/sections/2\". Returns the latest draft by default. Read before patching: the response carries \"updatedAt\" for expectedUpdatedAt and the indices pointers need.\n\nPass exactly one of \"collection\" and \"global\". \"id\" is required with \"collection\" and must be omitted with \"global\", because a global is a singleton.\n\nSet \"outline\" on a rich text \"path\" to get a compact positional listing of its nodes instead of the raw editor state.\n\nOn an entity that exposes versions, \"versionId\" (from findVersions) reads that version instead. \"diffFrom\" returns the RFC 6902 operations turning a version, or \"published\" (the newest version with published status, regardless of locale), into the document read, in the pointer syntax patchDocument takes and limited to \"path\" when given. To revert, pass the old version as \"versionId\" and the latest one from findVersions as \"diffFrom\", then apply the patch with patchDocument.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -186,14 +186,14 @@
           "type": "boolean"
         },
         "versionId": {
-          "description": "Version to read instead of the document, from findVersions. Only for entities with versions; not with \"draft\".",
+          "description": "Version to read instead of the document, from findVersions. Only for entities that expose versions; not with \"draft\".",
           "type": [
             "string",
             "number"
           ]
         },
         "diffFrom": {
-          "description": "Version id, or \"published\" for the newest published version in any locale, to diff from. Returns {from, to, patch} instead of the document. Only for entities with versions.",
+          "description": "Version id, or \"published\" for the newest published version in any locale, to diff from. Returns {from, to, patch} instead of the document. Only for entities that expose versions.",
           "type": [
             "string",
             "number"
@@ -224,8 +224,7 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages",
-            "posts"
+            "pages"
           ],
           "description": "Collection holding the document."
         },

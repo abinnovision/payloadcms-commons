@@ -67,7 +67,7 @@ beforeAll(async () => {
 	};
 
 	const collections = {
-		pages: { read: true, write: "draft" },
+		pages: { read: true, write: "draft", versions: true },
 		posts: { read: true, write: "draft" },
 		tags: true,
 	} as const;
@@ -84,7 +84,9 @@ beforeAll(async () => {
 		{ ...raw, globals: [siteSettings, banner] },
 		{
 			collections,
-			globals: { "site-settings": { read: true, write: "draft" } },
+			globals: {
+				"site-settings": { read: true, write: "draft", versions: true },
+			},
 			tools,
 		},
 	);
@@ -168,6 +170,31 @@ describe("builtin tool shapes", () => {
 		expect(enabled(scopeFor(options, {}, config))).toEqual([
 			"listCapabilities",
 		]);
+	});
+
+	it("leaves the version tool and arguments out for a key that reaches no exposed versions", () => {
+		const scope = scopeFor(
+			options,
+			{ collections: { posts: { read: true }, tags: { read: true } } },
+			config,
+		);
+		const names = BUILTIN_TOOLS.filter((tool) =>
+			isToolEnabled(tool, scope),
+		).map((tool) => tool.name);
+		const { properties } = schemaOf(scope, "getDocument");
+
+		expect(names).not.toContain("findVersions");
+		expect(properties).not.toHaveProperty("versionId");
+		expect(properties).not.toHaveProperty("diffFrom");
+	});
+
+	it("offers the version arguments for a key that reaches an exposed entity", () => {
+		const scope = scopeFor(options, READ_ONLY_KEY, config);
+		const { properties } = schemaOf(scope, "getDocument");
+
+		expect(properties).toHaveProperty("versionId");
+		expect(properties).toHaveProperty("diffFrom");
+		expect(schemaOf(scope, "findVersions").properties).toHaveProperty("status");
 	});
 
 	it("offers locale only when localization is configured", () => {

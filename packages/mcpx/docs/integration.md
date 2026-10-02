@@ -23,6 +23,8 @@ for any of these:
 - an exposed `payload-*` collection or global, or the key collection itself;
 - a key collection slug that another collection already uses;
 - a `write` value other than `false`, `"draft"` or `"live"`;
+- a `versions` value other than `true` or `false`, `versions: true` on an entity without Payload
+  `versions`, or `versions: true` with `read: false`;
 - `write: "draft"` on an entity without `versions.drafts`;
 - `write` on a collection with `timestamps: false`, since the concurrency check needs `updatedAt`;
 - `write: "live"` on an entity with `versions.drafts.localizeStatus`, which is not supported yet;
@@ -162,5 +164,10 @@ scope.globals.writable;
 scope.localization?.locales;
 scope.localization?.defaultLocale;
 ```
+
+Version history is hidden by default. `findVersions`, `versionId` and `diffFrom` are refused until
+an entity sets `versions: true`. Set `access.readVersions` before opting in if the entity's `read`
+rule depends on document content, since old versions follow `readVersions` and Payload defaults it
+to any logged-in user. See [security.md](./security.md#version-history).
 
 `PublishBlocker` is no longer exported.

@@ -47,6 +47,13 @@ export interface McpxCollectionOptions {
 	 * `false`.
 	 */
 	write?: McpxWriteMode;
+	/**
+	 * Expose `findVersions` and the `versionId` and `diffFrom` arguments of
+	 * `getDocument` to keys that may read the entity. `access.readVersions`
+	 * governs old versions, and Payload lets any logged-in user through by
+	 * default. Requires Payload `versions`. Default `false`.
+	 */
+	versions?: boolean;
 }
 
 /** A singleton, so neither `findDocuments` nor `createDocument` reaches one. */
@@ -58,6 +65,13 @@ export interface McpxGlobalOptions {
 	 * reach. Default `false`.
 	 */
 	write?: McpxWriteMode;
+	/**
+	 * Expose `findVersions` and the `versionId` and `diffFrom` arguments of
+	 * `getDocument` to keys that may read the entity. `access.readVersions`
+	 * governs old versions, and Payload lets any logged-in user through by
+	 * default. Requires Payload `versions`. Default `false`.
+	 */
+	versions?: boolean;
 }
 
 export type McpxToolExtra = RequestHandlerExtra<
@@ -71,7 +85,10 @@ export interface McpxExposedEntity {
 	read: boolean;
 	write: McpxWriteMode;
 	hasDrafts: boolean;
-	/** Payload keeps a version history, with or without drafts. */
+	/**
+	 * Payload keeps a version history, with or without drafts, and the config
+	 * exposes it. Says nothing about drafts; see `hasDrafts`.
+	 */
 	hasVersions: boolean;
 	/** An upload document is a file, and no tool here can supply one. */
 	isUpload: boolean;

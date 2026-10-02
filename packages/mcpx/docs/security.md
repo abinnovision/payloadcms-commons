@@ -61,6 +61,41 @@ for relationship and upload fields, joins and rich text nodes. A virtual field t
 through such a relation has nothing to resolve from, because the loader returns only the id, so
 it comes back without a value.
 
+### Queries through relations
+
+`findDocuments` refuses a `where` or `sort` path that goes through a relationship, upload or join
+field into a collection the key cannot read, with a 400 error that names the path. This covers
+the `__` form of a path, `and` and `or` clauses at any depth, comma separated sort fields, and a
+`virtual` field whose path resolves through such a relation. Naming the relation field itself, its
+`id` (a join's too), or a polymorphic relation's `value` and `relationTo` is allowed, and so is a path through a
+collection the key can read. A path that matches no field is left to Payload.
+
+### Version history
+
+Version history is off unless an entity sets `versions: true`. Without it, the slug is missing from
+`findVersions` (the tool is not registered at all when the key reaches no opted-in entity) and
+`getDocument` refuses `versionId` and `diffFrom` for it. With it, a key that
+may read the entity reads its history too. The tools read the document with the key's access
+first. Old versions are then governed by the collection's `access.readVersions`, which Payload
+defaults to any logged-in user. A `read` rule that depends on document content does not apply to
+old versions, so a document that passes it now exposes older states it would have excluded.
+
+Before opting in, give `readVersions` a filter on the version fields that matches the `read`
+filter:
+
+```ts
+const published: CollectionConfig = {
+  slug: "bulletins",
+  versions: true,
+  access: {
+    read: () => ({ visibility: { equals: "public" } }),
+    // Version fields sit under `version`.
+    readVersions: () => ({ "version.visibility": { equals: "public" } }),
+  },
+  fields: [/* ... */],
+};
+```
+
 ### Privileged reads
 
 Some reads run with full access, because they answer a question about the whole document:
@@ -146,13 +181,13 @@ whose user has no `id` or whose `collection` is not the configured user collecti
 
 ## Known limitations
 
-- `findDocuments` accepts `where` and `sort` on fields of related documents, including related
-  users, so a key can test the values of fields in collections it cannot read through MCP.
-  Payload checks field-level `read` access on query paths, so set it on related fields a key's
-  user must not test.
+- `findDocuments` lets a `where` or `sort` go through a relation into a collection the key can
+  read. That query is plain Payload behaviour: it is not subject to the related collection's
+  row-level `read` rule, and Payload checks only field-level `read` access on the path. Set
+  field-level `read` access on fields of the related collection that must not be tested.
 - Fields with `admin.hidden` are returned by `getDocument` and `findDocuments`, though
   `describeSchema` omits them. Only Payload's top-level `hidden` withholds a value. Set `hidden`
   or field-level `read` access on values that must not reach clients.
-- Once a document is readable, its older versions are readable subject only to the collection's
-  `readVersions` access, so a read filter that depends on document content does not apply to old
-  versions. Give `readVersions` a filter on the version fields that matches the `read` filter.
+- With `versions: true`, old versions are governed by the collection's `access.readVersions`, not
+  by its `read` rule. Payload lets any logged-in user through by default. See
+  [Version history](#version-history) for a `readVersions` filter.

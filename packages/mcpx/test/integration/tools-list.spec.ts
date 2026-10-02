@@ -75,15 +75,15 @@ describe("tools/list and initialize", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "live" },
+					pages: { read: true, write: "live", versions: true },
 					posts: { read: true, write: "draft" },
 					tags: { read: true, write: "live" },
 					notes: { read: true, write: "live" },
-					snippets: { read: true, write: "live" },
+					snippets: { read: true, write: "live", versions: true },
 					media: { read: true, write: "live" },
 				},
 				globals: {
-					"site-settings": { read: true, write: "live" },
+					"site-settings": { read: true, write: "live", versions: true },
 					banner: { read: true, write: "live" },
 				},
 				tools: [],

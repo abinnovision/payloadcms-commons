@@ -87,25 +87,29 @@ Claude Desktop and the MCP Inspector are covered in
 
 ## Options
 
-| Option                       | Default                                   | Description                                                         |
-| ---------------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
-| `collections`                | required                                  | Collections to expose. `true` means `{ read: true }`.               |
-| `collections.<slug>.read`    | `true`                                    | Expose the read tools for this collection.                          |
-| `collections.<slug>.write`   | `false`                                   | `"draft"`, `"live"` or `false`: how far writes reach.               |
-| `globals`                    | `{}`                                      | Globals to expose, with the same `read` and `write` options.        |
-| `userCollection`             | `config.admin.user`, then `users`         | Auth collection whose users the keys act as.                        |
-| `apiKeys.slug`               | `mcpx-api-keys`                           | Slug of the key collection.                                         |
-| `apiKeys.setupGuide`         | `true`                                    | Add the "Connect a client" tab to saved keys.                       |
-| `apiKeys.overrideCollection` | none                                      | Function that receives the key collection and returns it.           |
-| `endpoint.path`              | `/mcpx`                                   | Endpoint path below the API route.                                  |
-| `limits.maxLimit`            | `25`                                      | Highest `limit` a client may pass to a list tool.                   |
-| `limits.maxDepth`            | `1`                                       | Highest `depth` a client may pass to a read tool.                   |
-| `tools`                      | `[]`                                      | Custom tools, see [`docs/custom-tools.md`](./docs/custom-tools.md). |
-| `auth.resolve`               | none                                      | Replace or wrap the key lookup.                                     |
-| `serverInfo`                 | `payloadcms-mcpx` and the package version | `{ name, version }` reported to clients.                            |
+| Option                        | Default                                   | Description                                                         |
+| ----------------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
+| `collections`                 | required                                  | Collections to expose. `true` means `{ read: true }`.               |
+| `collections.<slug>.read`     | `true`                                    | Expose the read tools for this collection.                          |
+| `collections.<slug>.write`    | `false`                                   | `"draft"`, `"live"` or `false`: how far writes reach.               |
+| `collections.<slug>.versions` | `false`                                   | Expose version history. Needs Payload `versions` on the entity.     |
+| `globals`                     | `{}`                                      | Globals to expose, with the same `read`, `write` and `versions`.    |
+| `userCollection`              | `config.admin.user`, then `users`         | Auth collection whose users the keys act as.                        |
+| `apiKeys.slug`                | `mcpx-api-keys`                           | Slug of the key collection.                                         |
+| `apiKeys.setupGuide`          | `true`                                    | Add the "Connect a client" tab to saved keys.                       |
+| `apiKeys.overrideCollection`  | none                                      | Function that receives the key collection and returns it.           |
+| `endpoint.path`               | `/mcpx`                                   | Endpoint path below the API route.                                  |
+| `limits.maxLimit`             | `25`                                      | Highest `limit` a client may pass to a list tool.                   |
+| `limits.maxDepth`             | `1`                                       | Highest `depth` a client may pass to a read tool.                   |
+| `tools`                       | `[]`                                      | Custom tools, see [`docs/custom-tools.md`](./docs/custom-tools.md). |
+| `auth.resolve`                | none                                      | Replace or wrap the key lookup.                                     |
+| `serverInfo`                  | `payloadcms-mcpx` and the package version | `{ name, version }` reported to clients.                            |
 
 `write: "draft"` needs `versions.drafts` on the entity. `write: "live"` on an entity with drafts
 exposes `publishDocument`; on one without drafts it lets writes change the live document.
+`versions: true` exposes `findVersions` and the `versionId` and `diffFrom` arguments of
+`getDocument` to keys that may read the entity. Old versions are then governed by the collection's
+`access.readVersions`; see [`docs/security.md`](./docs/security.md#version-history).
 Mistakes in the options fail at startup. [`docs/integration.md`](./docs/integration.md) lists
 every check.
 
@@ -117,7 +121,7 @@ every check.
 | `describeSchema`   | Describes the fields at one schema path, with the paths below it.  | `read`             |
 | `findDocuments`    | Queries a collection with a Payload `where`, `sort` and `select`.  | `read`             |
 | `getDocument`      | Reads a document, a subtree of it, an old version or a diff.       | `read`             |
-| `findVersions`     | Lists the version history of a document or global, without bodies. | `read`, versions   |
+| `findVersions`     | Lists the version history of a document or global, without bodies. | `read`, `versions` |
 | `patchDocument`    | Applies JSON Patch operations to the current draft.                | `write`            |
 | `createDocument`   | Creates a draft from a seed. Not for upload collections.           | `write`            |
 | `validateDocument` | Lists what blocks publishing, without saving.                      | `write`            |
@@ -157,9 +161,9 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
   publish blockers. Blocker messages can name fields the user cannot read.
 - The request body is limited to 4 MB, a JSON-RPC batch to 10 messages, `patchDocument` to 500
   operations and `describeSchema` to 400 paths.
-- `findDocuments` accepts `where` and `sort` on fields of related documents, so a key can test
-  values in collections it cannot read, unless those fields have field-level `read` access. See
-  [known limitations](./docs/security.md#known-limitations).
+- `findDocuments` refuses a `where` or `sort` that goes through a relation into a collection the
+  key cannot read. Through a collection the key can read, Payload applies only field-level `read`
+  access to the path. See [known limitations](./docs/security.md#known-limitations).
 - Fields with `admin.hidden` are returned by the read tools. Only Payload's top-level `hidden`
   withholds a value. See [known limitations](./docs/security.md#known-limitations).
 - Custom tools are trusted code and must apply access control themselves.

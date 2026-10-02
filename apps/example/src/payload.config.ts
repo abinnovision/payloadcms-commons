@@ -101,13 +101,15 @@ export default buildConfig({
 		 */
 		mcpxPlugin({
 			collections: {
-				pages: { read: true, write: "live" },
-				articles: { read: true, write: "draft" },
-				posts: { read: true, write: "draft" },
+				pages: { read: true, write: "live", versions: true },
+				articles: { read: true, write: "draft", versions: true },
+				posts: { read: true, write: "draft", versions: true },
 				sections: { read: true, write: "live" },
 				tags: true,
 			},
-			globals: { "site-settings": { read: true, write: "live" } },
+			globals: {
+				"site-settings": { read: true, write: "live", versions: true },
+			},
 			limits: { maxLimit: 25, maxDepth: 1 },
 		}),
 		/*

@@ -21,6 +21,8 @@ describe("version history", () => {
 	let editor: McpClient;
 	let postsOnly: McpClient;
 	let tagsOnly: McpClient;
+	let notesAndPages: McpClient;
+	let snippetsOnly: McpClient;
 	let pageId: number | string;
 	let otherPageId: number | string;
 	let history: Version[];
@@ -30,12 +32,15 @@ describe("version history", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "live" },
-					posts: { read: true },
+					pages: { read: true, write: "live", versions: true },
+					posts: { read: true, versions: true },
 					tags: { read: true },
-					snippets: { read: true, write: "live" },
+					notes: { read: true },
+					snippets: { read: true, write: "live", versions: true },
 				},
-				globals: { "site-settings": { read: true, write: "live" } },
+				globals: {
+					"site-settings": { read: true, write: "live", versions: true },
+				},
 			},
 		});
 
@@ -49,11 +54,20 @@ describe("version history", () => {
 			},
 			postsOnly: { collections: { posts: { read: true } } },
 			tagsOnly: { collections: { tags: { read: true } } },
+			notesAndPages: {
+				collections: {
+					notes: { read: true },
+					pages: { read: true },
+				},
+			},
+			snippetsOnly: { collections: { snippets: { read: true } } },
 		});
 
 		editor = createMcpClient(booted, keys.editor);
 		postsOnly = createMcpClient(booted, keys.postsOnly);
 		tagsOnly = createMcpClient(booted, keys.tagsOnly);
+		notesAndPages = createMcpClient(booted, keys.notesAndPages);
+		snippetsOnly = createMcpClient(booted, keys.snippetsOnly);
 
 		const created = await editor.call("createDocument", {
 			collection: "pages",
@@ -230,20 +244,83 @@ describe("version history", () => {
 		);
 	});
 
-	it("refuses versionId on an entity that keeps none", async () => {
-		const tag = await booted.payload.create({
-			collection: "tags",
-			data: { name: "Tag" },
+	describe("on an entity with Payload versions that is not opted in", () => {
+		let noteId: number | string;
+
+		beforeAll(async () => {
+			const note = await booted.payload.create({
+				collection: "notes",
+				data: { title: "Note" },
+			});
+
+			noteId = note.id;
 		});
 
-		const result = await tagsOnly.call("getDocument", {
-			collection: "tags",
-			id: tag.id,
-			versionId: 1,
+		for (const [name, args] of [
+			["versionId", { versionId: 1 }],
+			["diffFrom", { diffFrom: 1 }],
+			["diffFrom published", { diffFrom: "published" }],
+		] as const) {
+			it(`refuses ${name}`, async () => {
+				const result = await notesAndPages.call("getDocument", {
+					collection: "notes",
+					id: noteId,
+					...args,
+				});
+
+				expect(result.isError).toBe(true);
+				expect(result.data["error"]).toBe(
+					'"notes" does not expose version history.',
+				);
+			});
+		}
+	});
+
+	it("leaves the version arguments out for a key that reaches no exposed versions", async () => {
+		const tools = await tagsOnly.list();
+		const getDocument = tools.find((tool) => tool.name === "getDocument");
+		const properties = getDocument?.inputSchema["properties"] as Record<
+			string,
+			unknown
+		>;
+
+		expect(properties).not.toHaveProperty("versionId");
+		expect(properties).not.toHaveProperty("diffFrom");
+		expect(getDocument?.description).not.toContain("versionId");
+	});
+
+	it("offers status only where a reachable entity has drafts", async () => {
+		const statusOf = async (client: McpClient): Promise<boolean> => {
+			const tool = (await client.list()).find(
+				(candidate) => candidate.name === "findVersions",
+			);
+
+			return Object.hasOwn(
+				tool?.inputSchema["properties"] as Record<string, unknown>,
+				"status",
+			);
+		};
+
+		expect(await statusOf(editor)).toBe(true);
+		expect(await statusOf(snippetsOnly)).toBe(false);
+	});
+
+	it("refuses status on an entity without drafts", async () => {
+		const snippet = await booted.payload.create({
+			collection: "snippets",
+			data: { body: "Plain" },
+		});
+
+		const result = await editor.call("findVersions", {
+			collection: "snippets",
+			id: snippet.id,
+			status: "published",
 		});
 
 		expect(result.isError).toBe(true);
-		expect(result.data["error"]).toMatch(/keeps no versions/);
+		expect(result.data["error"]).toBe(
+			'"snippets" has no drafts, so its versions carry no status.',
+		);
 	});
 
 	it("covers a collection with versions but no drafts", async () => {

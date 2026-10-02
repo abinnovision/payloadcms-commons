@@ -5,6 +5,8 @@ import { bootPayload, seedKeys } from "./helpers/payload.js";
 
 import type { Booted, Seeded } from "./helpers/payload.js";
 
+const CACHE_KEY = "mcpx-integration-capabilities";
+
 const BUILTIN = [
 	"listCapabilities",
 	"describeSchema",
@@ -23,7 +25,16 @@ describe("capabilities", () => {
 	let seeded: Seeded;
 
 	beforeAll(async () => {
-		booted = await bootPayload();
+		booted = await bootPayload({
+			key: CACHE_KEY,
+			plugin: {
+				collections: {
+					pages: { read: true, write: "draft", versions: true },
+					posts: { read: true, write: "draft" },
+					tags: true,
+				},
+			},
+		});
 		seeded = await seedKeys(booted.payload);
 	});
 
