@@ -10,6 +10,7 @@ import {
 	nodePropertiesFor,
 	REACHABLE_PATHS_LIMIT,
 	reachableSchemaPaths,
+	SchemaError,
 } from "../schema/index.js";
 
 import type { FieldDescriptor } from "../schema/index.js";
@@ -78,10 +79,16 @@ export const describeSchema = defineMcpxTool({
 			try {
 				return describeNode(config, ref, schemaPath);
 			} catch (error) {
-				return {
-					error: error instanceof Error ? error.message : "Unknown error",
-					schemaPath,
-				};
+				if (error instanceof SchemaError) {
+					return { error: error.message, schemaPath };
+				}
+
+				scope.req.payload.logger.error({
+					err: error,
+					msg: "[payloadcms-mcpx] Describing a schema path failed.",
+				});
+
+				return { error: "Internal error", schemaPath };
 			}
 		});
 

@@ -9,6 +9,7 @@ import {
 	isIndexSegment,
 	joinPath,
 	RESERVED_FIELD_NAMES,
+	SchemaError,
 	splitPath,
 } from "../schema/index.js";
 
@@ -247,7 +248,11 @@ const findOperationProblems = (
 
 		return [];
 	} catch (error) {
-		return [error instanceof Error ? error.message : "invalid"];
+		if (!(error instanceof SchemaError)) {
+			throw error;
+		}
+
+		return [error.message];
 	}
 };
 

@@ -537,3 +537,47 @@ describe("dropping a pointer inside an editor state", () => {
 		});
 	});
 });
+
+describe("applyPatchOperations when the schema walk throws", () => {
+	let config: SanitizedConfig;
+
+	beforeAll(async () => {
+		config = await buildFixtureConfig();
+	});
+
+	const replaceTitle = (
+		at: SanitizedConfig,
+	): { next: Record<string, unknown> } | { problems: string[] } =>
+		applyPatchOperations(at, {
+			doc: DOC,
+			patches: [{ op: "replace", path: "/title", value: "Renamed" }],
+			ref: { kind: "collection", slug: "pages" },
+		});
+
+	it("reports a schema failure as the operation's problem", () => {
+		const unknown = applyPatchOperations(config, {
+			doc: DOC,
+			patches: [{ op: "replace", path: "/title", value: "Renamed" }],
+			ref: { kind: "collection", slug: "missing" },
+		});
+
+		expect(unknown).toEqual({
+			problems: ['patches[0]: Unknown collection "missing".'],
+		});
+	});
+
+	it("rethrows anything else, so it is not handed to the client", () => {
+		/* A schema the walk cannot read stands in for an unexpected failure. */
+		const broken = {
+			...config,
+			collections: config.collections.map((collection) =>
+				collection.slug === "pages"
+					? { ...collection, flattenedFields: null as never }
+					: collection,
+			),
+		};
+
+		expect(() => replaceTitle(broken)).toThrow(TypeError);
+		expect(replaceTitle(config)).toHaveProperty("next");
+	});
+});

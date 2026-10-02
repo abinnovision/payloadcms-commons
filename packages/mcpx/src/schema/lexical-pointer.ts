@@ -1,3 +1,4 @@
+import { SchemaError } from "./errors.js";
 import { lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
 import { isIndexSegment, joinPath } from "./path.js";
 import { blockOf, blockSlugsOf } from "./walk.js";
@@ -68,7 +69,7 @@ const stepIntoFields = (at: {
 	const sub = lexicalSubSchema(field, nodeType);
 
 	if (!sub) {
-		throw new Error(
+		throw new SchemaError(
 			`"${nodeType}" nodes carry no addressable fields in this field's editor. Node types with fields here: ${subSchemaNodeTypes(field).join(", ")}`,
 		);
 	}
@@ -85,7 +86,7 @@ const stepIntoFields = (at: {
 		(isPlainObject(added) ? added["blockType"] : undefined);
 
 	if (typeof slug !== "string") {
-		throw new Error(
+		throw new SchemaError(
 			`Cannot tell which block a "${nodeType}" node holds. Supply a "blockType" on the value, one of: ${blockSlugsOf(sub.blocksField).join(", ")}`,
 		);
 	}
@@ -93,7 +94,7 @@ const stepIntoFields = (at: {
 	const block = blockOf(config, sub.blocksField, slug);
 
 	if (!block) {
-		throw new Error(
+		throw new SchemaError(
 			`"${slug}" is not allowed in a "${nodeType}" node here. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
 		);
 	}
@@ -128,7 +129,7 @@ export const resolveLexicalPointer = (at: {
 	const base = { descriptor, field };
 
 	if (!isPlainObject(state) || !isPlainObject(state["root"])) {
-		throw new Error(
+		throw new SchemaError(
 			`"${descriptor.path}" holds no editor state yet. Write the whole field once, then address positions inside it.`,
 		);
 	}
@@ -136,7 +137,7 @@ export const resolveLexicalPointer = (at: {
 	const [entry, ...rest] = at.segments;
 
 	if (entry !== "root") {
-		throw new Error(
+		throw new SchemaError(
 			`"${String(entry)}" is not a position in a rich text field. An editor state is entered at "root", e.g. "${descriptor.path}/root/children/0". getDocument with "outline" lists every position this field holds.`,
 		);
 	}
@@ -178,7 +179,7 @@ export const resolveLexicalPointer = (at: {
 			const [index, ...beyond] = remaining as [string, ...string[]];
 
 			if (!isIndexSegment(index)) {
-				throw new Error(
+				throw new SchemaError(
 					`"${descriptor.path}${joinPath([...walked, "children"])}" is a list; "${index}" is not an index. getDocument with "outline" reports the pointer of each node in it.`,
 				);
 			}
@@ -201,7 +202,7 @@ export const resolveLexicalPointer = (at: {
 					};
 				}
 
-				throw new Error(
+				throw new SchemaError(
 					`Cannot tell which node "${descriptor.path}${joinPath([...walked, "children", index])}" is. Call getDocument with "outline" for the pointer of each node, or address an existing position.`,
 				);
 			}
@@ -226,7 +227,7 @@ export const resolveLexicalPointer = (at: {
 		}
 
 		if (remaining.length > 0) {
-			throw new Error(
+			throw new SchemaError(
 				`"${segment}" is a property of a "${nodeType}" node and nothing beneath it can be addressed.`,
 			);
 		}

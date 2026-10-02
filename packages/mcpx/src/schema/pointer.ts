@@ -1,3 +1,4 @@
+import { SchemaError } from "./errors.js";
 import { resolveLexicalPointer } from "./lexical-pointer.js";
 import { isIndexSegment, joinPath, splitPath } from "./path.js";
 import {
@@ -130,7 +131,7 @@ const stepIntoBlock = (at: {
 	const [index, ...remaining] = at.rest as [string, ...string[]];
 
 	if (!isIndexSegment(index)) {
-		throw new Error(
+		throw new SchemaError(
 			`"${descriptor.path}" is an array; "${index}" is not an index.`,
 		);
 	}
@@ -147,7 +148,7 @@ const stepIntoBlock = (at: {
 		(addedValue as { blockType?: string } | undefined)?.blockType;
 
 	if (!field || slug === undefined) {
-		throw new Error(
+		throw new SchemaError(
 			`Cannot tell which block "${descriptor.path}/${index}" is. Supply a "blockType" on the value, one of: ${field ? blockSlugsOf(field).join(", ") : ""}`,
 		);
 	}
@@ -155,7 +156,7 @@ const stepIntoBlock = (at: {
 	const block = blockOf(config, field, slug);
 
 	if (!block) {
-		throw new Error(
+		throw new SchemaError(
 			`"${slug}" is not allowed at "${descriptor.path}". Allowed: ${blockSlugsOf(field).join(", ")}`,
 		);
 	}
@@ -204,7 +205,7 @@ export const resolveDataPointer = (
 				};
 			}
 
-			throw new Error(
+			throw new SchemaError(
 				`"${joinPath(segments)}" is not a field here. Available: ${descriptors
 					.map((descriptor) => descriptor.path)
 					.join(", ")}`,
@@ -228,7 +229,9 @@ export const resolveDataPointer = (
 			const field = findRichTextField(fields, splitPath(match.descriptor.path));
 
 			if (!field) {
-				throw new Error(`"${match.descriptor.path}" could not be resolved.`);
+				throw new SchemaError(
+					`"${match.descriptor.path}" could not be resolved.`,
+				);
 			}
 
 			const step = resolveLexicalPointer({
@@ -268,7 +271,7 @@ export const resolveDataPointer = (
 		}
 
 		if (match.descriptor.type !== "blocks") {
-			throw new Error(
+			throw new SchemaError(
 				`"${match.descriptor.path}" is a ${match.descriptor.type} field and has no "${joinPath(rest)}" beneath it.`,
 			);
 		}

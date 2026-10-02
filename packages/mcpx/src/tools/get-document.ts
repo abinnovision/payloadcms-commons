@@ -26,6 +26,7 @@ import {
 	JSON_POINTER_PATTERN,
 	lexicalOutline,
 	resolveDataPointer,
+	SchemaError,
 	splitPath,
 } from "../schema/index.js";
 
@@ -227,9 +228,11 @@ export const getDocument = defineMcpxTool({
 				ref: refOf(target),
 			});
 		} catch (error) {
-			return errorResult(
-				error instanceof Error ? error.message : OUTLINE_ERROR,
-			);
+			if (!(error instanceof SchemaError)) {
+				throw error;
+			}
+
+			return errorResult(error.message);
 		}
 
 		/*

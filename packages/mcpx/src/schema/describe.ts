@@ -1,3 +1,4 @@
+import { SchemaError } from "./errors.js";
 import { lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
 import { joinPath, splitPath } from "./path.js";
 import {
@@ -79,13 +80,13 @@ const stepThroughBlocks = ({
 	const field = findBlocksField(fields, match);
 
 	if (!field) {
-		throw new Error(`"${joinPath(match)}" could not be resolved.`);
+		throw new SchemaError(`"${joinPath(match)}" could not be resolved.`);
 	}
 
 	const slug = remaining.at(match.length);
 
 	if (slug === undefined) {
-		throw new Error(
+		throw new SchemaError(
 			`"${joinPath(match)}" is a blocks field; append one of: ${blockSlugsOf(field).join(", ")}`,
 		);
 	}
@@ -93,7 +94,7 @@ const stepThroughBlocks = ({
 	const block = blockOf(config, field, slug);
 
 	if (!block) {
-		throw new Error(
+		throw new SchemaError(
 			`"${slug}" is not allowed at "${joinPath(match)}". Allowed: ${blockSlugsOf(field).join(", ")}`,
 		);
 	}
@@ -119,14 +120,14 @@ const stepThroughLexical = ({
 	const field = findRichTextField(fields, match);
 
 	if (!field) {
-		throw new Error(`"${joinPath(match)}" could not be resolved.`);
+		throw new SchemaError(`"${joinPath(match)}" could not be resolved.`);
 	}
 
 	const available = subSchemaNodeTypes(field).join(", ") || "none";
 	const nodeType = remaining.at(match.length);
 
 	if (nodeType === undefined) {
-		throw new Error(
+		throw new SchemaError(
 			`"${joinPath(match)}" is a rich text field; append one of: ${available}`,
 		);
 	}
@@ -135,7 +136,7 @@ const stepThroughLexical = ({
 	const reached = joinPath([...match, nodeType]);
 
 	if (!sub) {
-		throw new Error(
+		throw new SchemaError(
 			`"${nodeType}" carries no fields in this field's editor. Node types with fields here: ${available}`,
 		);
 	}
@@ -148,13 +149,15 @@ const stepThroughLexical = ({
 	const slugs = blockSlugsOf(sub.blocksField).join(", ");
 
 	if (slug === undefined) {
-		throw new Error(`"${reached}" selects a block; append one of: ${slugs}`);
+		throw new SchemaError(
+			`"${reached}" selects a block; append one of: ${slugs}`,
+		);
 	}
 
 	const block = blockOf(config, sub.blocksField, slug);
 
 	if (!block) {
-		throw new Error(
+		throw new SchemaError(
 			`"${slug}" is not allowed at "${reached}". Allowed: ${slugs}`,
 		);
 	}
@@ -197,7 +200,7 @@ const fieldsAtSchemaPath = (
 		const match = longestMatch(descendable, remaining);
 
 		if (!match) {
-			throw new Error(
+			throw new SchemaError(
 				`"${joinPath(remaining)}" does not address a blocks or rich text field. Available here: ${
 					descendable.map((descriptor) => descriptor.path).join(", ") || "none"
 				}`,

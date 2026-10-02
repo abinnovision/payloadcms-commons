@@ -1,4 +1,5 @@
 export * from "./describe.js";
+export * from "./errors.js";
 export * from "./lexical-pointer.js";
 export * from "./lexical.js";
 export * from "./outline.js";

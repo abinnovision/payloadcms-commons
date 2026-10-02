@@ -1,5 +1,6 @@
 import { fieldIsHiddenOrDisabled, fieldIsVirtual } from "payload/shared";
 
+import { SchemaError } from "./errors.js";
 import { allowedNodeTypes, nodeOptions } from "./lexical.js";
 import { joinPath, splitPath } from "./path.js";
 import { translateAny } from "../i18n.js";
@@ -406,7 +407,7 @@ export const schemaOf = (
 			: config.globals.find((candidate) => candidate.slug === ref.slug);
 
 	if (!found) {
-		throw new Error(`Unknown ${ref.kind} "${ref.slug}".`);
+		throw new SchemaError(`Unknown ${ref.kind} "${ref.slug}".`);
 	}
 
 	return found;
