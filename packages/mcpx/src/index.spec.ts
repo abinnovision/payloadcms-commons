@@ -29,6 +29,7 @@ describe('the "." entrypoint', () => {
 			"isMcpxRequest",
 			"jsonResult",
 			"mcpxPlugin",
+			"mcpxReadRequest",
 		]);
 	});
 

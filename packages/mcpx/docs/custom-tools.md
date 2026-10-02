@@ -54,6 +54,40 @@ above: Payload's Local API skips access control by default, and the draft guard 
 writes that carry the MCP `req`. [security.md](./security.md#custom-tools-and-custom-auth) lists
 what else a custom tool is responsible for.
 
+## Reads
+
+The builtin read tools populate relations only into collections the key can read, and send any
+other relation back as its id. A read on `req` does not: it populates into every collection the
+user's access allows. Pass `mcpxReadRequest(scope)` as `req` to apply the same bound:
+
+```ts
+import {
+  defineMcpxTool,
+  jsonResult,
+  mcpxReadRequest,
+} from "@abinnovision/payloadcms-mcpx";
+
+export const listPages = defineMcpxTool({
+  name: "listPages",
+  description: "Lists pages with their relations populated.",
+  inputSchema: {},
+  handler: async ({ req, scope }) =>
+    jsonResult(
+      await req.payload.find({
+        collection: "pages",
+        depth: 1,
+        overrideAccess: false,
+        req: mcpxReadRequest(scope),
+      }),
+    ),
+});
+```
+
+Use it for reads only; writes keep `req`. It bounds population, not output: neither `req` nor
+`mcpxReadRequest(scope)` removes `admin.hidden` fields, so a tool that must withhold them filters
+its own output. A virtual field is judged by its own `admin.hidden`, not by the field it points
+at, for read output; `where` and `sort` through it are refused when it points at a hidden field.
+
 ## Schemas built per request
 
 `inputSchema` may be a function of the scope instead of a fixed shape. That is how a tool narrows
