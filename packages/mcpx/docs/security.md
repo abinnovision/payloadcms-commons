@@ -67,7 +67,9 @@ Some reads run with full access, because they answer a question about the whole 
 
 - After `patchDocument`, `createDocument` and `publishDocument` write, the tool re-reads the saved
   draft with `overrideAccess: true` and hidden fields included.
-- `patchDocument` compares that read with what was sent to compute `notApplied`.
+- `patchDocument` computes `notApplied` from a second read with the key's access, not from that
+  read, so a field the user cannot read gives the same answer whatever value was sent. When the
+  patch leaves the document unreadable to the user, that read fails and `notApplied` is left out.
 - `patchDocument`, `createDocument` and `validateDocument` run Payload's field validation over
   that read with `overrideAccess: true` to collect publish blockers. `validateDocument` first
   reads the document with the key's access and fails if the user cannot see it.
@@ -95,7 +97,7 @@ These limits are fixed, not configurable, and checked after authentication:
 
 A body that declares a larger `Content-Length` is refused unread. A body without one is read
 until it passes 4 MB and then refused. `limits.maxLimit` and `limits.maxDepth` cap `limit` and
-`depth` on the read tools.
+`depth` on the read tools. The tool handlers of a JSON-RPC batch run one at a time, each in its own transaction.
 
 ## Input checks
 
@@ -138,7 +140,9 @@ bound: a read on `req` populates relations into any collection the user's access
 that defines `isEnabled` without checking its own checkbox is available to every key.
 
 A custom `auth.resolve` must not trust `req.user`. Payload sets it from cookies before the handler
-runs, and the handler only replaces it after `auth.resolve` returns.
+runs, and the handler only replaces it after `auth.resolve` returns. The handler refuses a result
+whose user has no `id` or whose `collection` is not the configured user collection, or that has no
+`apiKeyId`, with the same 401 as an unknown key, and logs one error line.
 
 ## Known limitations
 
@@ -152,10 +156,3 @@ runs, and the handler only replaces it after `auth.resolve` returns.
 - Once a document is readable, its older versions are readable subject only to the collection's
   `readVersions` access, so a read filter that depends on document content does not apply to old
   versions. Give `readVersions` a filter on the version fields that matches the `read` filter.
-- `patchDocument`'s `notApplied` reveals whether a field the user may neither read nor update
-  equals the value sent. Keep such fields out of collections exposed for write, or accept that
-  their value can be confirmed.
-- Calls in one JSON-RPC batch share a request and a transaction. When the call that opened the
-  transaction fails, it can roll back a write another call in the batch already reported as done.
-  A later call failing does not undo an earlier completed write. Clients that need independent
-  writes send them in separate requests.
