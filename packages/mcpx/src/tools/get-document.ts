@@ -25,6 +25,7 @@ import {
 	findRichTextField,
 	JSON_POINTER_PATTERN,
 	lexicalOutline,
+	prototypeSegmentProblem,
 	resolveDataPointer,
 	SchemaError,
 	splitPath,
@@ -163,6 +164,14 @@ export const getDocument = defineMcpxTool({
 		const id = target.kind === "collection" ? target.id : undefined;
 
 		assertVersionArgs(scope, target, args);
+
+		const prototyped = args.path
+			? prototypeSegmentProblem(args.path)
+			: undefined;
+
+		if (prototyped !== undefined) {
+			return errorResult(prototyped);
+		}
 
 		let pointer: Pointer | undefined;
 

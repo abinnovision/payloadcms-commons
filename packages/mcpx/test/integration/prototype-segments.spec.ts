@@ -127,41 +127,92 @@ describe("prototype segments in writes", () => {
 	}
 
 	for (const op of ["add", "replace"] as const) {
-		it.fails(
-			`writes a rich text node property named prototype through ${op}`,
-			async () => {
-				const { refused, before, after } = await patchAt(op, NODE_PROTOTYPE);
+		it(`refuses ${op} of a rich text node property named prototype and changes nothing`, async () => {
+			const { refused, before, after } = await patchAt(op, NODE_PROTOTYPE);
 
-				expect(refused).toBe(true);
-				expect(after).toEqual(before);
-				expect(isPolluted()).toBe(false);
-			},
-		);
+			expect(refused).toBe(true);
+			expect(after).toEqual(before);
+			expect(isPolluted()).toBe(false);
+		});
 	}
 
-	it.fails(
-		"creates a document from data carrying a __proto__ key",
-		async () => {
-			const before = await booted.payload.count({ collection: "posts" });
+	for (const op of ["move", "copy"] as const) {
+		it(`refuses ${op} from a prototype segment and changes nothing`, async () => {
+			const before = await stored();
 
-			// The literal is sent as JSON text so `__proto__` arrives as an own key.
-			const response = await mcpPost(booted.config, {
-				cacheKey: CACHE_KEY,
+			const result = await callTool(
+				booted.config,
 				key,
-				rawBody: `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"createDocument","arguments":{"collection":"posts","locale":"en","data":{"title":"Proto create","__proto__":{"polluted":"yes"}}}}}`,
-			});
-			const body = (await response.json()) as {
-				result?: { isError?: boolean };
-				error?: unknown;
-			};
+				"patchDocument",
+				{
+					collection: "posts",
+					id: postId,
+					locale: "en",
+					patches: [{ op, from: NODE_PROTOTYPE, path: "/title" }],
+				},
+				CACHE_KEY,
+			);
 
-			expect(body.result?.isError === true || body.error !== undefined).toBe(
-				true,
-			);
-			expect(await booted.payload.count({ collection: "posts" })).toEqual(
-				before,
-			);
+			expect(result.isError).toBe(true);
+			expect(result.data["problems"]).toEqual([
+				`patches[0]: "${NODE_PROTOTYPE}" contains a segment named __proto__, constructor or prototype, which no field or node property uses.`,
+			]);
+			expect(await stored()).toEqual(before);
 			expect(isPolluted()).toBe(false);
-		},
-	);
+		});
+	}
+
+	for (const pointer of [...POINTERS, NODE_PROTOTYPE]) {
+		it(`refuses to read ${pointer} and changes nothing`, async () => {
+			const before = await stored();
+
+			const result = await callTool(
+				booted.config,
+				key,
+				"getDocument",
+				{ collection: "posts", id: postId, locale: "en", path: pointer },
+				CACHE_KEY,
+			);
+
+			expect(result.isError).toBe(true);
+			expect(result.data["error"]).toBe(
+				`"${pointer}" contains a segment named __proto__, constructor or prototype, which no field or node property uses.`,
+			);
+			expect(await stored()).toEqual(before);
+			expect(isPolluted()).toBe(false);
+		});
+	}
+
+	/*
+	 * Zod's record parsing skips a `__proto__` key, so it never reaches the
+	 * tool and the rest of the seed is created.
+	 */
+	it("creates a document from data carrying a __proto__ key without that key", async () => {
+		// The literal is sent as JSON text so `__proto__` arrives as an own key.
+		const response = await mcpPost(booted.config, {
+			cacheKey: CACHE_KEY,
+			key,
+			rawBody: `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"createDocument","arguments":{"collection":"posts","locale":"en","data":{"title":"Proto create","__proto__":{"polluted":"yes"}}}}}`,
+		});
+		const body = (await response.json()) as {
+			result?: { isError?: boolean; content?: { text: string }[] };
+		};
+
+		expect(body.result?.isError).toBeUndefined();
+
+		const { id } = JSON.parse(body.result?.content?.[0]?.text ?? "{}") as {
+			id: number | string;
+		};
+		const doc = (await booted.payload.findByID({
+			collection: "posts",
+			id,
+			draft: true,
+			overrideAccess: true,
+		})) as unknown as Record<string, unknown>;
+
+		expect(doc["title"]).toBe("Proto create");
+		expect(Object.hasOwn(doc, "__proto__")).toBe(false);
+		expect(doc["polluted"]).toBeUndefined();
+		expect(isPolluted()).toBe(false);
+	});
 });

@@ -13,6 +13,18 @@ export const splitPath = (path: string): string[] =>
 		.slice(1)
 		.map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
 
+const PROTOTYPE_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * No field or node property carries one of these names, and rfc6902 skips
+ * them as intermediate tokens but writes them as a final key, so a pointer
+ * holding one is refused before anything resolves it.
+ */
+export const prototypeSegmentProblem = (pointer: string): string | undefined =>
+	splitPath(pointer).some((segment) => PROTOTYPE_SEGMENTS.has(segment))
+		? `"${pointer}" contains a segment named __proto__, constructor or prototype, which no field or node property uses.`
+		: undefined;
+
 /** `-` included, since RFC 6901 reads it as the position after the last. */
 export const isIndexSegment = (segment: string): boolean =>
 	segment === "-" || /^\d+$/.test(segment);

@@ -8,6 +8,7 @@ import {
 	describeAddressableFields,
 	isIndexSegment,
 	joinPath,
+	prototypeSegmentProblem,
 	RESERVED_FIELD_NAMES,
 	SchemaError,
 	splitPath,
@@ -184,6 +185,14 @@ const findOperationProblems = (
 		return [
 			"an empty pointer addresses the whole document. Address a field instead.",
 		];
+	}
+
+	const prototyped = pointers
+		.map(prototypeSegmentProblem)
+		.find((problem) => problem !== undefined);
+
+	if (prototyped !== undefined) {
+		return [prototyped];
 	}
 
 	const reserved = pointers.find(isReservedPointer);
