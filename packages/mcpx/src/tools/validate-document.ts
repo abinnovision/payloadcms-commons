@@ -1,12 +1,18 @@
-import { readDraft, requireIdFor, resolveEntity } from "./entity.js";
-import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
+import { identityOf, readDraft, resolveDocument } from "./entity.js";
+import {
+	idShape,
+	localeOf,
+	localeShape,
+	entityShape,
+	ONE_DOCUMENT_RULE,
+} from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
 
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
+${ONE_DOCUMENT_RULE}
 
 Nothing is written, but the check runs the same field-level beforeValidate and beforeChange hooks a save would, so a hook with side effects fires. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing.`;
 
@@ -37,16 +43,14 @@ export const validateDocument = defineMcpxTool({
 		}),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveEntity(scope, args, "write");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "write");
 		const locale = localeOf(scope, args.locale);
 
 		// The first read checks the key's access; the second sees every field.
-		await readDraft(scope, { target, id, locale });
+		await readDraft(scope, { target, locale });
 
 		const doc = await readDraft(scope, {
 			target,
-			id,
 			locale,
 			privileged: true,
 		});
@@ -57,9 +61,7 @@ export const validateDocument = defineMcpxTool({
 		});
 
 		return jsonResult({
-			...(target.kind === "collection"
-				? { id: doc["id"] }
-				: { global: target.slug }),
+			...identityOf(target, doc["id"]),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			publishBlockers: validation.blockers,

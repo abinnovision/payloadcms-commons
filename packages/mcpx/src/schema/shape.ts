@@ -11,19 +11,18 @@ import {
 	ARRAY_MARKER,
 	blockOf,
 	blockSlugsOf,
-	describeAddressableFields,
+	descriptorsUnder,
 	findBlocksField,
 	findRichTextField,
-	isPlainObject,
+	ROW_KEYS,
 } from "./walk.js";
+import { isPlainObject } from "../guards.js";
 
 import type { LexicalPosition } from "./lexical-pointer.js";
 import type { NodeOptions } from "./lexical.js";
 import type { PointerResolution } from "./pointer.js";
 import type { FieldDescriptor } from "./walk.js";
 import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
-
-const TOLERATED_VALUE_KEYS = new Set(["blockName", "blockType", "id"]);
 
 /**
  * Lexical refuses to hydrate a state whose root holds nothing: `isEmpty` is a
@@ -448,18 +447,10 @@ const checkValue = (scope: ValueCheck, value: unknown): void => {
 
 	const prefixParts = scope.prefix;
 
-	const relative = describeAddressableFields(scope.fields).flatMap(
-		(descriptor) => {
-			const parts = splitPath(descriptor.path);
-
-			return prefixParts.every((part, offset) => part === parts[offset])
-				? [{ descriptor, parts: parts.slice(prefixParts.length) }]
-				: [];
-		},
-	);
+	const relative = descriptorsUnder(scope.fields, prefixParts);
 
 	for (const [key, entry] of Object.entries(value)) {
-		if (TOLERATED_VALUE_KEYS.has(key)) {
+		if (ROW_KEYS.has(key)) {
 			continue;
 		}
 

@@ -72,6 +72,9 @@ const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
 		globals: scope.publishableGlobals,
 	});
 
+/** Stated in every tool that addresses one document of either kind. */
+export const ONE_DOCUMENT_RULE = `Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
+
 /**
  * What a write actually does for this key, and what it takes to make it public.
  * A live-write slug has no draft and no publish step; a publishable one has
@@ -103,7 +106,7 @@ export const draftSentence = (scope: McpxToolScope): string => {
  * inferred from them, which is what keeps the two from drifting apart. The
  * cross-field rules they cannot state ("exactly one of collection and global",
  * "id required with collection") are enforced by `resolveEntity` and
- * `requireIdFor` at call time.
+ * `resolveDocument` at call time.
  */
 /* eslint-disable @typescript-eslint/consistent-type-definitions */
 type EntityShape = {
@@ -206,7 +209,7 @@ export const entityShape = (
 
 /**
  * Only a collection document has one. Optional in the mixed case, where
- * `requireIdFor` enforces the dependency.
+ * `resolveDocument` enforces the dependency.
  */
 export const idShape = (
 	scope: McpxToolScope,

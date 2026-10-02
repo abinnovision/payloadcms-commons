@@ -1,22 +1,20 @@
 import { z } from "zod";
 
 import {
+	identityOf,
 	readDraft,
-	requireIdFor,
-	resolveEntity,
-	sameInstant,
+	resolveDocument,
+	staleReadResult,
 } from "./entity.js";
-import { idShape, localeOf, entityShape } from "./shared.js";
+import { idShape, localeOf, entityShape, ONE_DOCUMENT_RULE } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
-import { errorResult, jsonResult } from "../result.js";
+import { jsonResult } from "../result.js";
 import { withPublishIntent } from "../write/publish-intent.js";
 import { withTransaction } from "../write/transaction.js";
 
-import type { DocumentId } from "../entity.js";
-
 const DESCRIPTION = `Publishes the current draft, which changes what the public sees. This is the only tool that does; every other write lands as a draft. Call validateDocument first: a document that still has publish blockers is refused, and nothing is written.
 
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
+${ONE_DOCUMENT_RULE}
 
 The whole document is published, but Payload only validates the locale the publish runs in, so a required field left empty in another locale goes live empty. That is how the admin panel behaves too. Publishing is refused while a human holds the document open in the admin panel, and republishing an unchanged document is accepted but writes another version.
 
@@ -47,8 +45,7 @@ export const publishDocument = defineMcpxTool({
 			),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveEntity(scope, args, "publish");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "publish");
 		const { payload } = scope.req;
 		/*
 		 * Explicit, because `createLocalReq` assigns `req.locale` in place: a
@@ -58,16 +55,15 @@ export const publishDocument = defineMcpxTool({
 		const locale = localeOf(scope, undefined);
 
 		return await withTransaction(scope.req, async () => {
-			const doc = await readDraft(scope, { target, id, locale });
+			const doc = await readDraft(scope, { target, locale });
+			const stale = staleReadResult(
+				doc,
+				args.expectedUpdatedAt,
+				"The document changed since you read it. Read it again before publishing.",
+			);
 
-			if (
-				args.expectedUpdatedAt !== undefined &&
-				!sameInstant(doc["updatedAt"], args.expectedUpdatedAt)
-			) {
-				return errorResult(
-					"The document changed since you read it. Read it again before publishing.",
-					{ updatedAt: doc["updatedAt"] },
-				);
+			if (stale) {
+				return stale;
 			}
 
 			/*
@@ -90,7 +86,7 @@ export const publishDocument = defineMcpxTool({
 				await payload.update({
 					...write,
 					collection: target.slug,
-					id: id as DocumentId,
+					id: target.id,
 				});
 			} else {
 				await payload.updateGlobal({ ...write, slug: target.slug });
@@ -98,15 +94,12 @@ export const publishDocument = defineMcpxTool({
 
 			const saved = await readDraft(scope, {
 				target,
-				id,
 				locale,
 				privileged: true,
 			});
 
 			return jsonResult({
-				...(target.kind === "collection"
-					? { id: saved["id"] }
-					: { global: target.slug }),
+				...identityOf(target, saved["id"]),
 				status: saved["_status"],
 				updatedAt: saved["updatedAt"],
 			});

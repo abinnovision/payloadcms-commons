@@ -2,11 +2,11 @@ import { Pointer } from "rfc6902";
 import { z } from "zod";
 
 import {
+	identityOf,
 	readDraft,
 	refOf,
-	requireIdFor,
-	resolveEntity,
-	sameInstant,
+	resolveDocument,
+	staleReadResult,
 } from "./entity.js";
 import {
 	draftSentence,
@@ -14,8 +14,10 @@ import {
 	localeOf,
 	localeShape,
 	entityShape,
+	ONE_DOCUMENT_RULE,
 } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
+import { isPlainObject } from "../guards.js";
 import { errorResult, jsonResult } from "../result.js";
 import { JSON_POINTER_PATTERN } from "../schema/index.js";
 import { applyPatchOperations, isElementPointer } from "../write/patch.js";
@@ -23,7 +25,6 @@ import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { withTransaction } from "../write/transaction.js";
 import { buildWriteData } from "../write/write-data.js";
 
-import type { DocumentId } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 import type { PatchOperation } from "../write/patch.js";
 
@@ -31,7 +32,7 @@ const DESCRIPTION = (
 	scope: McpxToolScope,
 ): string => `Applies RFC 6902 JSON Patch operations to one document.
 
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
+${ONE_DOCUMENT_RULE}
 
 ${draftSentence(scope)}
 
@@ -66,9 +67,6 @@ export const PATCH_OPERATION_SCHEMA = z
 		}),
 	])
 	.describe("An RFC 6902 operation.");
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * Whether the intended value survived the write. The saved document is
@@ -169,8 +167,7 @@ export const patchDocument = defineMcpxTool({
 			),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveEntity(scope, args, "write");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "write");
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
 		/*
@@ -181,16 +178,15 @@ export const patchDocument = defineMcpxTool({
 		const patches = args.patches as PatchOperation[];
 
 		return await withTransaction(scope.req, async () => {
-			const doc = await readDraft(scope, { target, id, locale });
+			const doc = await readDraft(scope, { target, locale });
+			const stale = staleReadResult(
+				doc,
+				args.expectedUpdatedAt,
+				"The document changed since you read it. Read it again and re-apply the patch.",
+			);
 
-			if (
-				args.expectedUpdatedAt !== undefined &&
-				!sameInstant(doc["updatedAt"], args.expectedUpdatedAt)
-			) {
-				return errorResult(
-					"The document changed since you read it. Read it again and re-apply the patch.",
-					{ updatedAt: doc["updatedAt"] },
-				);
+			if (stale) {
+				return stale;
 			}
 
 			const applied = applyPatchOperations(payload.config, {
@@ -218,7 +214,7 @@ export const patchDocument = defineMcpxTool({
 				await payload.update({
 					...write,
 					collection: target.slug,
-					id: id as DocumentId,
+					id: target.id,
 				});
 			} else {
 				/*
@@ -236,7 +232,6 @@ export const patchDocument = defineMcpxTool({
 
 			const saved = await readDraft(scope, {
 				target,
-				id,
 				locale,
 				privileged: true,
 			});
@@ -248,9 +243,7 @@ export const patchDocument = defineMcpxTool({
 			});
 
 			return jsonResult({
-				...(target.kind === "collection"
-					? { id: saved["id"] }
-					: { global: target.slug }),
+				...identityOf(target, saved["id"]),
 				status: saved["_status"],
 				updatedAt: saved["updatedAt"],
 				...(validation.blockers.length > 0

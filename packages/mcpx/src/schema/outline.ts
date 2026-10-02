@@ -1,5 +1,5 @@
 import { allowedNodeTypes, nodeOptions } from "./lexical.js";
-import { isPlainObject } from "./walk.js";
+import { isPlainObject } from "../guards.js";
 
 import type { NodeOptions } from "./lexical.js";
 import type { RichTextField } from "payload";

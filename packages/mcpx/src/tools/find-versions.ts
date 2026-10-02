@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { requireIdFor, resolveEntity } from "./entity.js";
+import { resolveDocument } from "./entity.js";
 import {
 	idShape,
 	localeOf,
@@ -57,8 +57,8 @@ export const findVersions = defineMcpxTool({
 		}),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveEntity(scope, args, "versions");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "versions");
+		const id = target.kind === "collection" ? target.id : undefined;
 
 		const result = await queryVersions(
 			scope,

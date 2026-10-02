@@ -15,7 +15,7 @@ import { validateWriteValue } from "../schema/index.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { stripRowIds } from "../write/row-ids.js";
 
-import type { DocumentId } from "../entity.js";
+import type { DocumentId, DocumentRef } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 
 /** Names the writable slugs this tool leaves out, so the gap reads as intent. */
@@ -107,9 +107,12 @@ export const createDocument = defineMcpxTool({
 			...(locale === undefined ? {} : { locale }),
 		})) as Record<string, unknown>;
 
+		const document: DocumentRef =
+			target.kind === "collection"
+				? { ...target, id: created["id"] as DocumentId }
+				: target;
 		const saved = await readDraft(scope, {
-			target,
-			id: created["id"] as DocumentId,
+			target: document,
 			locale,
 			privileged: true,
 		});

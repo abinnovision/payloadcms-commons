@@ -2,7 +2,7 @@ import { APIError } from "payload";
 import { Pointer } from "rfc6902";
 import { z } from "zod";
 
-import { refOf, requireIdFor, resolveEntity } from "./entity.js";
+import { identityOf, refOf, resolveDocument } from "./entity.js";
 import {
 	depthShape,
 	idSchema,
@@ -11,6 +11,7 @@ import {
 	localeShape,
 	slugsFor,
 	entityShape,
+	ONE_DOCUMENT_RULE,
 } from "./shared.js";
 import {
 	diffDocuments,
@@ -38,7 +39,7 @@ const OUTLINE_ERROR =
 
 const DESCRIPTION = `Reads one document, or one subtree of it when "path" is given as a JSON pointer such as "/layout/sections/2". Returns the latest draft by default. Read before patching: the response carries "updatedAt" for expectedUpdatedAt and the indices pointers need.
 
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
+${ONE_DOCUMENT_RULE}
 
 Set "outline" on a rich text "path" to get a compact positional listing of its nodes instead of the raw editor state.
 
@@ -157,8 +158,8 @@ export const getDocument = defineMcpxTool({
 			),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveEntity(scope, args, "read");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "read");
+		const id = target.kind === "collection" ? target.id : undefined;
 
 		assertVersionArgs(scope, target, args);
 
@@ -206,7 +207,7 @@ export const getDocument = defineMcpxTool({
 		const value = pointer.get(doc) as unknown;
 
 		const envelope = {
-			...(target.kind === "collection" ? { id } : { global: target.slug }),
+			...identityOf(target, id),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			path,

@@ -1,10 +1,17 @@
 import { APIError, Forbidden, NotFound } from "payload";
 
 import { slugsFor } from "./shared.js";
+import { errorResult } from "../result.js";
 
 import type { McpxOperation } from "./shared.js";
-import type { DocumentId, EntityRef, ResolvedEntity } from "../entity.js";
+import type {
+	DocumentId,
+	DocumentRef,
+	EntityRef,
+	ResolvedEntity,
+} from "../entity.js";
 import type { McpxToolScope } from "../types.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { TypedLocale } from "payload";
 
 export const refOf = (target: ResolvedEntity): EntityRef => ({
@@ -63,35 +70,65 @@ export const resolveEntity = (
 };
 
 /**
- * Checks `id` against the resolved target. A collection document needs one; a
- * global is a singleton and must not carry one. The schema cannot express the
- * dependency, so it is stated here and in every affected tool description.
+ * Resolves the target and checks `id` against it. A collection document needs
+ * one; a global is a singleton and must not carry one. The schema cannot
+ * express the dependency, so it is stated here and in every affected tool
+ * description.
  */
-export const requireIdFor = (
-	target: ResolvedEntity,
-	id: DocumentId | undefined,
-): DocumentId | undefined => {
-	if (target.kind === "collection" && id === undefined) {
+export const resolveDocument = (
+	scope: McpxToolScope,
+	args: {
+		collection?: string | undefined;
+		global?: string | undefined;
+		id?: DocumentId | undefined;
+	},
+	operation: McpxOperation,
+): DocumentRef => {
+	const target = resolveEntity(scope, args, operation);
+
+	if (target.kind === "global") {
+		if (args.id !== undefined) {
+			throw new APIError(
+				`"id" must be omitted when "global" is "${target.slug}"; a global is a singleton.`,
+				400,
+			);
+		}
+
+		return target;
+	}
+
+	if (args.id === undefined) {
 		throw new APIError(
 			`"id" is required when "collection" is "${target.slug}".`,
 			400,
 		);
 	}
 
-	if (target.kind === "global" && id !== undefined) {
-		throw new APIError(
-			`"id" must be omitted when "global" is "${target.slug}"; a global is a singleton.`,
-			400,
-		);
-	}
-
-	return target.kind === "collection" ? id : undefined;
+	return { ...target, id: args.id };
 };
 
+/** What a response names its subject by: a document's id, or a global's slug. */
+export const identityOf = (
+	target: ResolvedEntity,
+	id: unknown,
+): { id: unknown } | { global: string } =>
+	target.kind === "collection" ? { id } : { global: target.slug };
+
 /** The value a client read back is a string; what it meets may be a Date. */
-export const sameInstant = (left: unknown, right: string): boolean =>
+const sameInstant = (left: unknown, right: string): boolean =>
 	typeof left === "string" &&
 	new Date(left).getTime() === new Date(right).getTime();
+
+/** Refuses a write when the document changed since the client read it. */
+export const staleReadResult = (
+	doc: Record<string, unknown>,
+	expectedUpdatedAt: string | undefined,
+	message: string,
+): CallToolResult | undefined =>
+	expectedUpdatedAt !== undefined &&
+	!sameInstant(doc["updatedAt"], expectedUpdatedAt)
+		? errorResult(message, { updatedAt: doc["updatedAt"] })
+		: undefined;
 
 /**
  * Reads the current draft in a fixed locale with no fallback, which is the
@@ -100,8 +137,7 @@ export const sameInstant = (left: unknown, right: string): boolean =>
 export const readDraft = async (
 	scope: McpxToolScope,
 	args: {
-		target: ResolvedEntity;
-		id?: DocumentId | undefined;
+		target: DocumentRef;
 		locale: TypedLocale | undefined;
 		privileged?: boolean;
 	},
@@ -123,7 +159,7 @@ export const readDraft = async (
 		const doc = (await payload.findByID({
 			...shared,
 			collection: args.target.slug,
-			id: args.id as DocumentId,
+			id: args.target.id,
 			disableErrors: true,
 		})) as null | Record<string, unknown>;
 

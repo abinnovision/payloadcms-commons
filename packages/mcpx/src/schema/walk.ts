@@ -1,7 +1,7 @@
 import { fieldIsHiddenOrDisabled, fieldIsVirtual } from "payload/shared";
 
 import { allowedNodeTypes, nodeOptions } from "./lexical.js";
-import { joinPath } from "./path.js";
+import { joinPath, splitPath } from "./path.js";
 import { translateAny } from "../i18n.js";
 
 import type { NodeOptions } from "./lexical.js";
@@ -67,10 +67,12 @@ export const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
  */
 export const ARRAY_MARKER = "*";
 
-export const isPlainObject = (
-	value: unknown,
-): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
+/** The keys a row carries beside its fields. */
+export const ROW_KEYS: ReadonlySet<string> = new Set([
+	"blockName",
+	"blockType",
+	"id",
+]);
 
 /** On a flattened field, whichever of `blockReferences` and `blocks` was declared. */
 export const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
@@ -318,6 +320,19 @@ export const describeAddressableFields = (
 	fields: FlattenedField[],
 ): FieldDescriptor[] =>
 	describeFields(fields).filter((descriptor) => !isContainer(descriptor));
+
+/** The addressable descriptors under `prefix`, with their paths split relative to it. */
+export const descriptorsUnder = (
+	fields: FlattenedField[],
+	prefix: readonly string[],
+): { descriptor: FieldDescriptor; parts: string[] }[] =>
+	describeAddressableFields(fields).flatMap((descriptor) => {
+		const parts = splitPath(descriptor.path);
+
+		return prefix.every((part, offset) => part === parts[offset])
+			? [{ descriptor, parts: parts.slice(prefix.length) }]
+			: [];
+	});
 
 interface FieldOfType {
 	blocks: FlattenedBlocksField;

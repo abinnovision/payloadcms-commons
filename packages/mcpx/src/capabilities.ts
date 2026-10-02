@@ -1,3 +1,5 @@
+import { isPlainObject } from "./guards.js";
+
 import type { NormalizedOptions } from "./options.js";
 import type {
 	McpxCollectionCapabilities as McpxEntityCapabilities,
@@ -30,11 +32,8 @@ export const canCreate = (entity: McpxExposedEntity): boolean =>
 export const isLiveWrite = (entity: McpxExposedEntity): boolean =>
 	entity.write === "live" && !entity.hasDrafts;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
-
 const flag = (group: unknown, name: string): boolean =>
-	isRecord(group) && group[name] === true;
+	isPlainObject(group) && group[name] === true;
 
 /**
  * Publishing is an extension of writing, never a capability of its own: a key
@@ -53,51 +52,42 @@ export const resolveCapabilities = (
 	options: NormalizedOptions,
 	keyCapabilities: unknown,
 ): McpxResolvedCapabilities => {
-	const collectionsGroup = isRecord(keyCapabilities)
-		? keyCapabilities["collections"]
-		: undefined;
-	const globalsGroup = isRecord(keyCapabilities)
-		? keyCapabilities["globals"]
-		: undefined;
-	const toolsGroup = isRecord(keyCapabilities)
-		? keyCapabilities["tools"]
-		: undefined;
+	const groupOf = (name: string): unknown =>
+		isPlainObject(keyCapabilities) ? keyCapabilities[name] : undefined;
 
-	const collections: McpxResolvedCapabilities["collections"] = {};
+	const resolveEntities = (
+		entities: McpxExposedEntity[],
+		namespaceGroup: unknown,
+	): Record<string, McpxEntityCapabilities> => {
+		const resolved: Record<string, McpxEntityCapabilities> = {};
 
-	for (const collection of options.collections) {
-		const group = isRecord(collectionsGroup)
-			? collectionsGroup[collection.fieldName]
-			: undefined;
+		for (const entity of entities) {
+			const group = isPlainObject(namespaceGroup)
+				? namespaceGroup[entity.fieldName]
+				: undefined;
 
-		collections[collection.slug] = {
-			read: collection.read && flag(group, "read"),
-			write: canWrite(collection) && flag(group, "write"),
-			publish: publishFlag(collection, group),
-		};
-	}
+			resolved[entity.slug] = {
+				read: entity.read && flag(group, "read"),
+				write: canWrite(entity) && flag(group, "write"),
+				publish: publishFlag(entity, group),
+			};
+		}
 
-	const globals: McpxResolvedCapabilities["globals"] = {};
+		return resolved;
+	};
 
-	for (const global of options.globals) {
-		const group = isRecord(globalsGroup)
-			? globalsGroup[global.fieldName]
-			: undefined;
-
-		globals[global.slug] = {
-			read: global.read && flag(group, "read"),
-			write: canWrite(global) && flag(group, "write"),
-			publish: publishFlag(global, group),
-		};
-	}
-
+	const toolsGroup = groupOf("tools");
 	const tools: McpxResolvedCapabilities["tools"] = {};
 
 	for (const tool of options.tools) {
 		tools[tool.name] = flag(toolsGroup, tool.name);
 	}
 
-	return { collections, globals, tools };
+	return {
+		collections: resolveEntities(options.collections, groupOf("collections")),
+		globals: resolveEntities(options.globals, groupOf("globals")),
+		tools,
+	};
 };
 
 /**

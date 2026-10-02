@@ -1,7 +1,6 @@
-import type { JsonObject } from "payload";
+import { isPlainObject } from "../guards.js";
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
+import type { JsonObject } from "payload";
 
 /** Its nodes manage their own ids, so it is never descended into. */
 const isRichTextState = (value: Record<string, unknown>): boolean =>

@@ -1,15 +1,14 @@
+import { isPlainObject } from "../guards.js";
 import {
 	ARRAY_MARKER,
 	blockOf,
-	describeAddressableFields,
+	descriptorsUnder,
 	findBlocksField,
-	isPlainObject,
+	ROW_KEYS,
 	splitPath,
 } from "../schema/index.js";
 
 import type { FlattenedField, JsonObject, SanitizedConfig } from "payload";
-
-const ROW_KEYS = new Set(["blockName", "blockType", "id"]);
 
 /**
  * Everything Payload maintains or derives (`_status`, timestamps, join and
@@ -22,13 +21,7 @@ const pickDescribed = (
 	at: { fields: FlattenedField[]; prefix: readonly string[]; isRow: boolean },
 ): Record<string, unknown> => {
 	const { fields, prefix, isRow } = at;
-	const relative = describeAddressableFields(fields).flatMap((descriptor) => {
-		const parts = splitPath(descriptor.path);
-
-		return prefix.every((part, offset) => part === parts[offset])
-			? [{ descriptor, parts: parts.slice(prefix.length) }]
-			: [];
-	});
+	const relative = descriptorsUnder(fields, prefix);
 
 	const result: Record<string, unknown> = {};
 

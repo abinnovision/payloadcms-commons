@@ -28,7 +28,10 @@ import type {
 	ColumnState,
 	ToggleIntent,
 } from "./capability-toggles.js";
-import type { CapabilityMatrix } from "../api-keys/capability-matrix.js";
+import type {
+	CapabilityMatrix,
+	CapabilityNamespace,
+} from "../api-keys/capability-matrix.js";
 
 interface McpxCapabilityMatrixProps {
 	/** Built from the plugin options at config time. */
@@ -194,6 +197,240 @@ const Dash: React.FC = () => (
 	</span>
 );
 
+interface TableProps {
+	matrix: CapabilityMatrix;
+	path: string;
+	readOnly: boolean;
+	toggle: (intent: ToggleIntent) => void;
+	values: CapabilityValues;
+}
+
+/** One namespace: a row per entity, a column per operation. */
+const NamespaceTable: React.FC<
+	TableProps & { namespace: { id: CapabilityNamespace; title: string } }
+> = ({ matrix, namespace, path, readOnly, toggle, values }) => {
+	const rows = matrix[namespace.id];
+	/* A column no row exposes is dropped, so dashes mark real exceptions. */
+	const columns = CAPABILITY_OPERATIONS.filter((operation) =>
+		rows.some((row) => row[operation.id]),
+	);
+
+	return (
+		<section style={styles.section}>
+			<table style={styles.table}>
+				<Columns count={columns.length} />
+				<thead style={styles.head}>
+					<tr>
+						<th scope="col" style={{ ...styles.headTitle, ...styles.topStart }}>
+							{namespace.title}
+						</th>
+						{columns.map((operation, column) => (
+							<th
+								key={operation.id}
+								scope="col"
+								style={
+									column === columns.length - 1
+										? { ...styles.headOperation, ...styles.topEnd }
+										: styles.headOperation
+								}
+								title={operation.description}
+							>
+								{operation.label}
+							</th>
+						))}
+					</tr>
+					<tr>
+						<th scope="row" style={{ ...styles.headLabel, ...styles.rule }}>
+							All
+						</th>
+						{columns.map((operation, column) => {
+							const state = columnState(
+								matrix,
+								path,
+								namespace.id,
+								operation.id,
+								values,
+							);
+
+							return (
+								<td
+									key={operation.id}
+									style={{
+										...cellStyle(column === columns.length - 1),
+										...styles.rule,
+									}}
+								>
+									<Box
+										label={`${operation.label} every ${namespace.title.toLowerCase()} entry`}
+										onChange={() => {
+											toggle({
+												kind: "column",
+												namespace: namespace.id,
+												operation: operation.id,
+												value: state !== "on",
+											});
+										}}
+										readOnly={readOnly}
+										state={state}
+									/>
+								</td>
+							);
+						})}
+					</tr>
+				</thead>
+				<tbody>
+					{rows.map((row) => {
+						const state = rowState(path, namespace.id, row, values);
+
+						return (
+							<tr key={row.fieldName}>
+								<th scope="row" style={styles.rowHeader}>
+									<button
+										className={`${BASE_CLASS}__toggle`}
+										disabled={readOnly}
+										onClick={() => {
+											toggle({
+												kind: "row",
+												namespace: namespace.id,
+												fieldName: row.fieldName,
+												value: state !== "on",
+											});
+										}}
+										style={styles.rowButton}
+										title={`Toggle every capability for ${row.label}`}
+										type="button"
+									>
+										{row.label}
+									</button>
+									{row.hint ? (
+										<span style={styles.hint}>{row.hint}</span>
+									) : null}
+								</th>
+								{columns.map((operation, column) => (
+									<td
+										key={operation.id}
+										style={cellStyle(column === columns.length - 1)}
+									>
+										{row[operation.id] ? (
+											<Box
+												label={`${operation.label} ${row.label}`}
+												onChange={() => {
+													toggle({
+														kind: "cell",
+														namespace: namespace.id,
+														fieldName: row.fieldName,
+														operation: operation.id,
+														value:
+															values[
+																cellPath(
+																	path,
+																	namespace.id,
+																	row.fieldName,
+																	operation.id,
+																)
+															] !== true,
+													});
+												}}
+												readOnly={readOnly}
+												state={
+													values[
+														cellPath(
+															path,
+															namespace.id,
+															row.fieldName,
+															operation.id,
+														)
+													] === true
+														? "on"
+														: "off"
+												}
+											/>
+										) : (
+											<Dash />
+										)}
+									</td>
+								))}
+							</tr>
+						);
+					})}
+				</tbody>
+			</table>
+		</section>
+	);
+};
+
+const ToolsTable: React.FC<TableProps> = ({
+	matrix,
+	path,
+	readOnly,
+	toggle,
+	values,
+}) => {
+	const toolState = toolsState(matrix, path, values);
+
+	return (
+		<section style={styles.section}>
+			<table style={styles.table}>
+				<Columns count={1} />
+				<thead style={styles.head}>
+					<tr>
+						<th scope="col" style={{ ...styles.headTitle, ...styles.topStart }}>
+							Tools
+						</th>
+						<th
+							scope="col"
+							style={{ ...styles.headOperation, ...styles.topEnd }}
+						>
+							Enabled
+						</th>
+					</tr>
+					<tr>
+						<th scope="row" style={{ ...styles.headLabel, ...styles.rule }}>
+							All
+						</th>
+						<td style={{ ...cellStyle(true), ...styles.rule }}>
+							<Box
+								label="Enable every tool"
+								onChange={() => {
+									toggle({ kind: "tools", value: toolState !== "on" });
+								}}
+								readOnly={readOnly}
+								state={toolState}
+							/>
+						</td>
+					</tr>
+				</thead>
+				<tbody>
+					{matrix.tools.map((tool) => (
+						<tr key={tool.name}>
+							<th scope="row" style={styles.rowHeader}>
+								{tool.name}
+								<span style={styles.hint}>{tool.description}</span>
+							</th>
+							<td style={cellStyle(true)}>
+								<Box
+									label={`Enable ${tool.name}`}
+									onChange={() => {
+										toggle({
+											kind: "tool",
+											name: tool.name,
+											value: values[toolPath(path, tool.name)] !== true,
+										});
+									}}
+									readOnly={readOnly}
+									state={
+										values[toolPath(path, tool.name)] === true ? "on" : "off"
+									}
+								/>
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</section>
+	);
+};
+
 /**
  * What an API key may do, as one table per namespace: a row per entity, a
  * column per operation, and a bulk toggle in each column header. The nested
@@ -250,8 +487,6 @@ export const McpxCapabilityMatrix: React.FC<McpxCapabilityMatrixProps> = ({
 		] as const
 	).filter((namespace) => matrix[namespace.id].length > 0);
 
-	const toolState = toolsState(matrix, path, values);
-
 	return (
 		<div
 			className={[
@@ -283,230 +518,25 @@ export const McpxCapabilityMatrix: React.FC<McpxCapabilityMatrixProps> = ({
 						) : null}
 					</header>
 				</div>
-				{namespaces.map((namespace) => {
-					const rows = matrix[namespace.id];
-					/* A column no row exposes is dropped, so dashes mark real exceptions. */
-					const columns = CAPABILITY_OPERATIONS.filter((operation) =>
-						rows.some((row) => row[operation.id]),
-					);
-
-					return (
-						<section key={namespace.id} style={styles.section}>
-							<table style={styles.table}>
-								<Columns count={columns.length} />
-								<thead style={styles.head}>
-									<tr>
-										<th
-											scope="col"
-											style={{ ...styles.headTitle, ...styles.topStart }}
-										>
-											{namespace.title}
-										</th>
-										{columns.map((operation, column) => (
-											<th
-												key={operation.id}
-												scope="col"
-												style={
-													column === columns.length - 1
-														? { ...styles.headOperation, ...styles.topEnd }
-														: styles.headOperation
-												}
-												title={operation.description}
-											>
-												{operation.label}
-											</th>
-										))}
-									</tr>
-									<tr>
-										<th
-											scope="row"
-											style={{ ...styles.headLabel, ...styles.rule }}
-										>
-											All
-										</th>
-										{columns.map((operation, column) => {
-											const state = columnState(
-												matrix,
-												path,
-												namespace.id,
-												operation.id,
-												values,
-											);
-
-											return (
-												<td
-													key={operation.id}
-													style={{
-														...cellStyle(column === columns.length - 1),
-														...styles.rule,
-													}}
-												>
-													<Box
-														label={`${operation.label} every ${namespace.title.toLowerCase()} entry`}
-														onChange={() => {
-															toggle({
-																kind: "column",
-																namespace: namespace.id,
-																operation: operation.id,
-																value: state !== "on",
-															});
-														}}
-														readOnly={readOnly}
-														state={state}
-													/>
-												</td>
-											);
-										})}
-									</tr>
-								</thead>
-								<tbody>
-									{rows.map((row) => {
-										const state = rowState(path, namespace.id, row, values);
-
-										return (
-											<tr key={row.fieldName}>
-												<th scope="row" style={styles.rowHeader}>
-													<button
-														className={`${BASE_CLASS}__toggle`}
-														disabled={readOnly}
-														onClick={() => {
-															toggle({
-																kind: "row",
-																namespace: namespace.id,
-																fieldName: row.fieldName,
-																value: state !== "on",
-															});
-														}}
-														style={styles.rowButton}
-														title={`Toggle every capability for ${row.label}`}
-														type="button"
-													>
-														{row.label}
-													</button>
-													{row.hint ? (
-														<span style={styles.hint}>{row.hint}</span>
-													) : null}
-												</th>
-												{columns.map((operation, column) => (
-													<td
-														key={operation.id}
-														style={cellStyle(column === columns.length - 1)}
-													>
-														{row[operation.id] ? (
-															<Box
-																label={`${operation.label} ${row.label}`}
-																onChange={() => {
-																	toggle({
-																		kind: "cell",
-																		namespace: namespace.id,
-																		fieldName: row.fieldName,
-																		operation: operation.id,
-																		value:
-																			values[
-																				cellPath(
-																					path,
-																					namespace.id,
-																					row.fieldName,
-																					operation.id,
-																				)
-																			] !== true,
-																	});
-																}}
-																readOnly={readOnly}
-																state={
-																	values[
-																		cellPath(
-																			path,
-																			namespace.id,
-																			row.fieldName,
-																			operation.id,
-																		)
-																	] === true
-																		? "on"
-																		: "off"
-																}
-															/>
-														) : (
-															<Dash />
-														)}
-													</td>
-												))}
-											</tr>
-										);
-									})}
-								</tbody>
-							</table>
-						</section>
-					);
-				})}
+				{namespaces.map((namespace) => (
+					<NamespaceTable
+						key={namespace.id}
+						matrix={matrix}
+						namespace={namespace}
+						path={path}
+						readOnly={readOnly}
+						toggle={toggle}
+						values={values}
+					/>
+				))}
 				{matrix.tools.length > 0 ? (
-					<section style={styles.section}>
-						<table style={styles.table}>
-							<Columns count={1} />
-							<thead style={styles.head}>
-								<tr>
-									<th
-										scope="col"
-										style={{ ...styles.headTitle, ...styles.topStart }}
-									>
-										Tools
-									</th>
-									<th
-										scope="col"
-										style={{ ...styles.headOperation, ...styles.topEnd }}
-									>
-										Enabled
-									</th>
-								</tr>
-								<tr>
-									<th
-										scope="row"
-										style={{ ...styles.headLabel, ...styles.rule }}
-									>
-										All
-									</th>
-									<td style={{ ...cellStyle(true), ...styles.rule }}>
-										<Box
-											label="Enable every tool"
-											onChange={() => {
-												toggle({ kind: "tools", value: toolState !== "on" });
-											}}
-											readOnly={readOnly}
-											state={toolState}
-										/>
-									</td>
-								</tr>
-							</thead>
-							<tbody>
-								{matrix.tools.map((tool) => (
-									<tr key={tool.name}>
-										<th scope="row" style={styles.rowHeader}>
-											{tool.name}
-											<span style={styles.hint}>{tool.description}</span>
-										</th>
-										<td style={cellStyle(true)}>
-											<Box
-												label={`Enable ${tool.name}`}
-												onChange={() => {
-													toggle({
-														kind: "tool",
-														name: tool.name,
-														value: values[toolPath(path, tool.name)] !== true,
-													});
-												}}
-												readOnly={readOnly}
-												state={
-													values[toolPath(path, tool.name)] === true
-														? "on"
-														: "off"
-												}
-											/>
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</section>
+					<ToolsTable
+						matrix={matrix}
+						path={path}
+						readOnly={readOnly}
+						toggle={toggle}
+						values={values}
+					/>
 				) : null}
 			</div>
 		</div>

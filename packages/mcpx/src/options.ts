@@ -97,40 +97,21 @@ const normalizeWriteMode = (
  * the tool responses model `_status` as a string. Refused until both are
  * handled.
  */
-const assertPublishable = (
+const assertWritable = (
 	kind: string,
 	config: CollectionConfig | GlobalConfig,
+	options: { write: McpxWriteMode; hasDrafts: boolean },
 ): void => {
-	if (hasLocalizeStatusEnabled(config)) {
+	if (options.write === "draft" && !options.hasDrafts) {
+		fail(
+			`${kind} "${config.slug}" has no drafts. Enable versions.drafts or set write: "live".`,
+		);
+	}
+
+	if (options.write === "live" && hasLocalizeStatusEnabled(config)) {
 		fail(
 			`${kind} "${config.slug}" has versions.drafts.localizeStatus enabled, which write: "live" does not support yet.`,
 		);
-	}
-};
-
-const assertWritable = (
-	collection: CollectionConfig,
-	options: {
-		write: McpxWriteMode;
-		hasDrafts: boolean;
-	},
-): void => {
-	const { slug } = collection;
-
-	if (collection.timestamps === false) {
-		fail(
-			`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
-		);
-	}
-
-	if (options.write === "draft" && !options.hasDrafts) {
-		fail(
-			`Collection "${slug}" has no drafts. Enable versions.drafts or set write: "live".`,
-		);
-	}
-
-	if (options.write === "live") {
-		assertPublishable("Collection", collection);
 	}
 };
 
@@ -138,26 +119,6 @@ const assertWritable = (
 const assertGlobalExposable = (global: GlobalConfig): void => {
 	if (global.slug.startsWith("payload-")) {
 		fail(`Global "${global.slug}" cannot be exposed.`);
-	}
-};
-
-/**
- * `GlobalConfig` has no `timestamps` option and `sanitizeGlobal` always appends
- * `createdAt`/`updatedAt`, so the concurrency check the collection path guards
- * for is always available here. Drafts are the only requirement left.
- */
-const assertGlobalWritable = (
-	global: GlobalConfig,
-	options: { write: McpxWriteMode; hasDrafts: boolean },
-): void => {
-	if (options.write === "draft" && !options.hasDrafts) {
-		fail(
-			`Global "${global.slug}" has no drafts. Enable versions.drafts or set write: "live".`,
-		);
-	}
-
-	if (options.write === "live") {
-		assertPublishable("Global", global);
 	}
 };
 
@@ -198,7 +159,13 @@ const normalizeCollections = (
 			};
 
 			if (normalized.write !== false) {
-				assertWritable(collection, normalized);
+				if (collection.timestamps === false) {
+					fail(
+						`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
+					);
+				}
+
+				assertWritable("Collection", collection, normalized);
 			}
 
 			if (fieldNames.has(normalized.fieldName)) {
@@ -251,8 +218,13 @@ const normalizeGlobals = (
 				fieldName: toCamelCase(slug),
 			};
 
+			/*
+			 * `GlobalConfig` has no `timestamps` option and `sanitizeGlobal` always
+			 * appends `createdAt`/`updatedAt`, so the concurrency check a collection
+			 * is held to is always available here.
+			 */
 			if (normalized.write !== false) {
-				assertGlobalWritable(global, normalized);
+				assertWritable("Global", global, normalized);
 			}
 
 			if (fieldNames.has(normalized.fieldName)) {
