@@ -15,6 +15,7 @@ const BUILTIN = [
 	"describeSchema",
 	"findDocuments",
 	"getDocument",
+	"findVersions",
 	"patchDocument",
 	"createDocument",
 	"validateDocument",

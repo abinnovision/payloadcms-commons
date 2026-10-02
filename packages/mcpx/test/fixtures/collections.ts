@@ -179,6 +179,21 @@ export const notes: CollectionConfig = {
 	fields: [{ name: "title", type: "text", required: true }],
 };
 
+/**
+ * Versions without drafts: every save is live and still leaves a version. Read
+ * access hides one document while `readVersions` stays open, so a version read
+ * has to check the document itself.
+ */
+export const snippets: CollectionConfig = {
+	slug: "snippets",
+	versions: true,
+	access: {
+		read: () => ({ body: { not_equals: "Hidden" } }),
+		readVersions: () => true,
+	},
+	fields: [{ name: "body", type: "text" }],
+};
+
 export const tags: CollectionConfig = {
 	slug: "tags",
 	fields: [{ name: "name", type: "text", required: true }],

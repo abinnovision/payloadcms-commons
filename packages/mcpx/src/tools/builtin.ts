@@ -1,6 +1,7 @@
 import { createDocument } from "./create-document.js";
 import { describeSchema } from "./describe-schema.js";
 import { findDocuments } from "./find-documents.js";
+import { findVersions } from "./find-versions.js";
 import { getDocument } from "./get-document.js";
 import { listCapabilities } from "./list-capabilities.js";
 import { patchDocument } from "./patch-document.js";
@@ -20,6 +21,7 @@ export const BUILTIN_TOOLS: McpxAnyTool[] = [
 	describeSchema,
 	findDocuments,
 	getDocument,
+	findVersions,
 	patchDocument,
 	createDocument,
 	validateDocument,

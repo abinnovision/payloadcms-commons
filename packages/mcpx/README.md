@@ -170,16 +170,17 @@ every `collection` and `global` enum contains only the slugs the key may touch.
 Builtin tools reject unknown arguments by name instead of silently ignoring
 them.
 
-| Tool               | Purpose                                                                  | Key arguments                                                                                |
-| ------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `listCapabilities` | What this key may do, `create` apart from `write`; call first to orient. | none                                                                                         |
-| `describeSchema`   | Field shape of one node; `next` lists the drill-down paths.              | `collection` \| `global`, `paths?`, `expand?`                                                |
-| `findDocuments`    | Query documents.                                                         | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?` |
-| `getDocument`      | Read one document or a subtree of it.                                    | `collection` + `id` \| `global`, `path?`, `depth?`, `locale?`, `draft?`, `outline?`          |
-| `patchDocument`    | Apply RFC 6902 operations to the current draft.                          | `collection` + `id` \| `global`, `locale`, `patches`, `expectedUpdatedAt?`                   |
-| `createDocument`   | Create a draft from a minimal seed. Not for upload collections.          | `collection`, `locale`, `data`                                                               |
-| `validateDocument` | Publish blockers without saving anything.                                | `collection` + `id` \| `global`, `locale`                                                    |
-| `publishDocument`  | Publish the current draft.                                               | `collection` + `id` \| `global`, `expectedUpdatedAt?`                                        |
+| Tool               | Purpose                                                                  | Key arguments                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `listCapabilities` | What this key may do, `create` apart from `write`; call first to orient. | none                                                                                                           |
+| `describeSchema`   | Field shape of one node; `next` lists the drill-down paths.              | `collection` \| `global`, `paths?`, `expand?`                                                                  |
+| `findDocuments`    | Query documents.                                                         | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?`                   |
+| `getDocument`      | Read one document or a subtree of it, an old version, or a diff.         | `collection` + `id` \| `global`, `path?`, `depth?`, `locale?`, `draft?`, `outline?`, `versionId?`, `diffFrom?` |
+| `findVersions`     | Version history of one document or global, metadata only.                | `collection` + `id` \| `global`, `limit?`, `page?`, `status?`, `locale?`                                       |
+| `patchDocument`    | Apply RFC 6902 operations to the current draft.                          | `collection` + `id` \| `global`, `locale`, `patches`, `expectedUpdatedAt?`                                     |
+| `createDocument`   | Create a draft from a minimal seed. Not for upload collections.          | `collection`, `locale`, `data`                                                                                 |
+| `validateDocument` | Publish blockers without saving anything.                                | `collection` + `id` \| `global`, `locale`                                                                      |
+| `publishDocument`  | Publish the current draft.                                               | `collection` + `id` \| `global`, `expectedUpdatedAt?`                                                          |
 
 ### Paths and pointers
 
@@ -415,6 +416,27 @@ Three limits apply to that check. Only the written locale is validated. Field
 privileged, so blocker paths and messages may name fields the key's user cannot
 read, though values are never included. `validateDocument` runs the same
 traversal without saving anything, which is why it carries no `readOnlyHint`.
+
+## Version history
+
+On a collection or global with `versions` (with or without drafts),
+`findVersions` lists the history newest first: `versionId`, timestamps,
+`status`, `latest` and `autosave`, but no bodies. It is a read, so it follows
+the `read` capability. The document's own `read` access is checked first, then
+Payload's `readVersions`.
+
+`getDocument` takes `versionId` to read one of those versions in place of the
+document, with `path`, `outline`, `locale` and `depth` working as usual. With
+`diffFrom`, a `versionId` or `"published"` (the newest version with published
+status, in any locale), it returns `{ from, to, patch }`: the RFC 6902
+operations that turn `diffFrom` into the document read (the current draft, or
+`versionId` when given). The ops use the pointers `patchDocument` takes, `path`
+limits them to a subtree, and `id`, timestamps and `_status` are left out. Arrays diff by position, so a reordered block shows up as replaces.
+
+There is no restore tool. To revert, pass the old version as `versionId` and the
+latest one as `diffFrom`, then apply the patch with `patchDocument`. The revert
+lands as a draft like any other write, with `expectedUpdatedAt` and publish
+blockers in force.
 
 ## Custom tools
 

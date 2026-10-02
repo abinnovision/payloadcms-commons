@@ -8,7 +8,8 @@ import type { ResolvedTarget } from "./target.js";
 import type { McpxExposedEntity, McpxToolScope } from "../types.js";
 import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
 
-export type McpxOperation = "create" | "publish" | "read" | "write";
+export type McpxOperation =
+	"create" | "publish" | "read" | "versions" | "write";
 
 /**
  * An out-of-scope slug fails schema validation before a handler runs, so a
@@ -156,6 +157,18 @@ export const slugsFor = (
 			};
 		case "read":
 			return { collections: scope.readable, globals: scope.readableGlobals };
+		case "versions":
+			// Version history is a read, of entities that keep one.
+			return {
+				collections: slugsWhere(scope, (entity) => entity.hasVersions, {
+					collections: scope.readable,
+					globals: [],
+				}),
+				globals: slugsWhere(scope, (entity) => entity.hasVersions, {
+					collections: [],
+					globals: scope.readableGlobals,
+				}),
+			};
 		case "write":
 			return { collections: scope.writable, globals: scope.writableGlobals };
 	}

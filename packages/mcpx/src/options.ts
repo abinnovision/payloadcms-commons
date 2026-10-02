@@ -199,6 +199,7 @@ const normalizeCollections = (
 				read: settings.read ?? true,
 				write: normalizeWriteMode("Collection", slug, settings.write),
 				hasDrafts,
+				hasVersions: Boolean(collection.versions),
 				isUpload: Boolean(collection.upload),
 				fieldName: toCamelCase(slug),
 			};
@@ -252,6 +253,7 @@ const normalizeGlobals = (
 				read: settings.read ?? true,
 				write: normalizeWriteMode("Global", slug, settings.write),
 				hasDrafts,
+				hasVersions: Boolean(global.versions),
 				isUpload: false,
 				fieldName: toCamelCase(slug),
 			};

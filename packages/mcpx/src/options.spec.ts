@@ -56,6 +56,7 @@ describe("normalizeOptions", () => {
 				read: true,
 				write: false,
 				hasDrafts: true,
+				hasVersions: true,
 				isUpload: false,
 				fieldName: "pages",
 			},
@@ -80,7 +81,11 @@ describe("normalizeOptions", () => {
 			collections: { tags: { write: "live" } },
 		}).collections;
 
-		expect(tags).toMatchObject({ write: "live", hasDrafts: false });
+		expect(tags).toMatchObject({
+			write: "live",
+			hasDrafts: false,
+			hasVersions: false,
+		});
 	});
 
 	it("accepts live writes on a collection with drafts, which is what publishing needs", () => {
@@ -150,6 +155,7 @@ describe("normalizeOptions", () => {
 				read: true,
 				write: "draft",
 				hasDrafts: true,
+				hasVersions: true,
 				isUpload: true,
 				fieldName: "media",
 			},
@@ -184,6 +190,7 @@ describe("normalizeOptions", () => {
 				read: true,
 				write: false,
 				hasDrafts: true,
+				hasVersions: true,
 				isUpload: false,
 				fieldName: "siteSettings",
 			},

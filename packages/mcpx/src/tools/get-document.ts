@@ -1,14 +1,23 @@
+import { APIError } from "payload";
 import { Pointer } from "rfc6902";
 import { z } from "zod";
 
 import {
 	depthShape,
+	idSchema,
 	idShape,
 	localeOf,
 	localeShape,
+	slugsFor,
 	targetShape,
 } from "./shared.js";
 import { refOf, requireIdFor, resolveTarget } from "./target.js";
+import {
+	diffDocuments,
+	loadPublished,
+	loadVersion,
+	readLive,
+} from "./versions.js";
 import { errorResult, jsonResult } from "../result.js";
 import {
 	findRichTextField,
@@ -19,6 +28,11 @@ import {
 } from "../schema/index.js";
 import { defineMcpxTool } from "../types.js";
 
+import type { ResolvedTarget } from "./target.js";
+import type { VersionRead } from "./versions.js";
+import type { McpxToolScope } from "../types.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
 const OUTLINE_ERROR =
 	'"outline" applies to a rich text field; give "path" for one.';
 
@@ -26,7 +40,71 @@ const DESCRIPTION = `Reads one document, or one subtree of it when "path" is giv
 
 Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
 
-Set "outline" on a rich text "path" to get a compact positional listing of its nodes instead of the raw editor state.`;
+Set "outline" on a rich text "path" to get a compact positional listing of its nodes instead of the raw editor state.
+
+On an entity with versions, "versionId" (from findVersions) reads that version instead. "diffFrom" returns the RFC 6902 operations turning a version, or "published" (the newest version with published status, regardless of locale), into the document read, in the pointer syntax patchDocument takes and limited to "path" when given. To revert, pass the old version as "versionId" and the latest one from findVersions as "diffFrom", then apply the patch with patchDocument.`;
+
+/** Refuses `versionId` and `diffFrom` where they cannot apply. */
+const assertVersionArgs = (
+	scope: McpxToolScope,
+	target: ResolvedTarget,
+	args: {
+		draft?: boolean | undefined;
+		versionId?: number | string | undefined;
+		diffFrom?: number | string | undefined;
+		outline?: boolean | undefined;
+	},
+): void => {
+	if (args.versionId === undefined && args.diffFrom === undefined) {
+		return;
+	}
+
+	const { collections, globals } = slugsFor(scope, "versions");
+	const versioned = target.kind === "collection" ? collections : globals;
+
+	if (!versioned.includes(target.slug)) {
+		throw new APIError(`"${target.slug}" keeps no versions.`, 400);
+	}
+
+	if (args.versionId !== undefined && args.draft !== undefined) {
+		throw new APIError('Pass either "versionId" or "draft", not both.', 400);
+	}
+
+	if (args.diffFrom !== undefined && args.outline) {
+		throw new APIError('"outline" cannot be combined with "diffFrom".', 400);
+	}
+};
+
+const diffResult = async (
+	scope: McpxToolScope,
+	read: VersionRead,
+	diff: {
+		from: number | string;
+		to: number | string | undefined;
+		pointer: Pointer | undefined;
+	},
+	doc: Record<string, unknown>,
+): Promise<CallToolResult> => {
+	const from =
+		diff.from === "published"
+			? await loadPublished(scope, read)
+			: await loadVersion(scope, read, diff.from);
+
+	if (!from) {
+		return errorResult(
+			diff.from === "published"
+				? `"${read.target.slug}" has no published version to diff from.`
+				: `Version "${String(diff.from)}" not found.`,
+		);
+	}
+
+	return jsonResult({
+		from: from.id,
+		to: diff.to ?? "current",
+		...(diff.pointer === undefined ? {} : { path: diff.pointer.toString() }),
+		patch: diffDocuments(from.version, doc, diff.pointer),
+	});
+};
 
 /**
  * With `path` the handler returns the subtree plus the `id`, `_status` and
@@ -67,32 +145,56 @@ export const getDocument = defineMcpxTool({
 			.describe(
 				'For a rich text field, return a compact positional outline instead of the editor state. Requires "path".',
 			),
+		versionId: idSchema
+			.optional()
+			.describe(
+				'Version to read instead of the document, from findVersions. Only for entities with versions; not with "draft".',
+			),
+		diffFrom: idSchema
+			.optional()
+			.describe(
+				'Version id, or "published" for the newest published version in any locale, to diff from. Returns {from, to, patch} instead of the document. Only for entities with versions.',
+			),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveTarget(scope, args, "read");
 		const id = requireIdFor(target, args.id);
 
-		const locale = localeOf(scope, args.locale);
-		const shared = {
+		assertVersionArgs(scope, target, args);
+
+		let pointer: Pointer | undefined;
+
+		try {
+			pointer = args.path ? Pointer.fromJSON(args.path) : undefined;
+		} catch {
+			return errorResult(`"${String(args.path)}" is not a valid JSON pointer.`);
+		}
+
+		const read = {
+			target,
+			id,
 			depth: args.depth ?? 0,
-			draft: args.draft ?? true,
-			overrideAccess: false,
-			req: scope.req,
-			...(locale === undefined ? {} : { locale }),
+			locale: localeOf(scope, args.locale),
 		};
+		const doc =
+			args.versionId === undefined
+				? await readLive(scope, read, { draft: args.draft ?? true })
+				: (await loadVersion(scope, read, args.versionId))?.version;
 
-		const doc = (await (target.kind === "collection"
-			? scope.req.payload.findByID({
-					...shared,
-					collection: target.slug,
-					id: id as number | string,
-				})
-			: scope.req.payload.findGlobal({
-					...shared,
-					slug: target.slug,
-				}))) as Record<string, unknown>;
+		if (!doc) {
+			return errorResult(`Version "${String(args.versionId)}" not found.`);
+		}
 
-		if (args.path === undefined || args.path === "") {
+		if (args.diffFrom !== undefined) {
+			return await diffResult(
+				scope,
+				read,
+				{ from: args.diffFrom, to: args.versionId, pointer },
+				doc,
+			);
+		}
+
+		if (pointer === undefined) {
 			if (args.outline) {
 				return errorResult(OUTLINE_ERROR);
 			}
@@ -100,21 +202,14 @@ export const getDocument = defineMcpxTool({
 			return jsonResult(doc);
 		}
 
-		let value: unknown;
-
-		try {
-			value = Pointer.fromJSON(args.path).get(doc) as unknown;
-		} catch {
-			return errorResult(`"${args.path}" is not a valid JSON pointer.`);
-		}
+		const path = pointer.toString();
+		const value = pointer.get(doc) as unknown;
 
 		const envelope = {
-			...(target.kind === "collection"
-				? { id: doc["id"] }
-				: { global: target.slug }),
+			...(target.kind === "collection" ? { id } : { global: target.slug }),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
-			path: args.path,
+			path,
 		};
 
 		if (!args.outline) {
@@ -127,7 +222,7 @@ export const getDocument = defineMcpxTool({
 		try {
 			resolution = resolveDataPointer(scope.req.payload.config, {
 				doc,
-				pointer: args.path,
+				pointer: path,
 				ref: refOf(target),
 			});
 		} catch (error) {
@@ -154,7 +249,7 @@ export const getDocument = defineMcpxTool({
 
 		return jsonResult({
 			...envelope,
-			outline: lexicalOutline(value, args.path, field),
+			outline: lexicalOutline(value, path, field),
 		});
 	},
 });

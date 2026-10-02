@@ -170,6 +170,7 @@ describe("canCreate", () => {
 		read: true,
 		write: "draft",
 		hasDrafts: true,
+		hasVersions: true,
 		isUpload: false,
 		fieldName: "pages",
 		...overrides,

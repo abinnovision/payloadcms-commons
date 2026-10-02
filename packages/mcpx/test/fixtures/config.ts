@@ -4,7 +4,15 @@ import { buildConfig } from "payload";
 import { z } from "zod";
 
 import { calloutBlock, richTextBlock } from "./blocks.js";
-import { media, notes, pages, posts, tags, users } from "./collections.js";
+import {
+	media,
+	notes,
+	pages,
+	posts,
+	snippets,
+	tags,
+	users,
+} from "./collections.js";
 import { banner, siteSettings } from "./globals.js";
 import { defineMcpxTool, mcpxPlugin } from "../../src/index.js";
 
@@ -109,7 +117,7 @@ export const buildFixtureConfig = (
 		editor: lexicalEditor(),
 		localization: { locales: ["en", "de"], defaultLocale: "en" },
 		blocks: [calloutBlock, richTextBlock],
-		collections: [users, pages, posts, tags, notes, media],
+		collections: [users, pages, posts, tags, notes, media, snippets],
 		/*
 		 * Registered on the config but deliberately absent from
 		 * `defaultPluginOptions`: every existing spec then keeps running against
