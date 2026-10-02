@@ -67,8 +67,8 @@ root in one response. `expand` stops after 400 nodes and says so.
 - Fields Payload maintains (`id`, `_status`, `createdAt`, `updatedAt`, `deletedAt`) are never
   listed and cannot be written. `readOnly` fields are listed and refused on write.
 - Fields with `admin.hidden`, `hidden`, `admin.disabled` or `virtual`, and join fields, are not
-  described and cannot be written. Read tools still return `admin.hidden` fields; see
-  [security.md](./security.md#known-limitations).
+  described and cannot be written. Read tools leave out `admin.hidden` fields too; see
+  [security.md](./security.md#hidden-fields).
 
 A path that does not resolve returns an error entry for that path. The other paths in the call
 are still described.

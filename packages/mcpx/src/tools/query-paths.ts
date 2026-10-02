@@ -1,6 +1,7 @@
 import { APIError, getLocalizedPaths } from "payload";
 
 import { isPlainObject } from "../guards.js";
+import { addressesAdminHidden } from "../schema/index.js";
 
 import type { McpxToolScope } from "../types.js";
 
@@ -30,11 +31,12 @@ const normalise = (path: string): string =>
 	path === "_id" ? "id" : path.replaceAll("__", ".");
 
 /*
- * Whether Payload would read a document of a collection outside `readable`
- * while resolving `path`: a hop into one other than its bare id, or a string
- * `virtual` field that resolves through one.
+ * Whether `path` is one the key may not query: Payload would read a document
+ * of a collection outside `readable` to resolve it (a hop into one other than
+ * its bare id, or a string `virtual` field that resolves through one), or it
+ * names an `admin.hidden` field.
  */
-const reachesUnreadable = (
+const isRefusedPath = (
 	scope: McpxToolScope,
 	args: { collection: string; path: string; locale?: string | undefined },
 	seen: Set<string> = new Set(),
@@ -66,6 +68,13 @@ const reachesUnreadable = (
 				via?.type === "join");
 
 		if (
+			collectionSlug !== undefined &&
+			addressesAdminHidden(payload.config, collectionSlug, hop.path)
+		) {
+			return true;
+		}
+
+		if (
 			index > 0 &&
 			collectionSlug !== undefined &&
 			!scope.collections.readable.includes(collectionSlug) &&
@@ -78,7 +87,7 @@ const reachesUnreadable = (
 			!hop.invalid &&
 			"virtual" in field &&
 			typeof field.virtual === "string" &&
-			reachesUnreadable(
+			isRefusedPath(
 				scope,
 				{
 					collection: collectionSlug ?? args.collection,
@@ -94,9 +103,10 @@ const reachesUnreadable = (
 /**
  * Refuses a `where` or `sort` that traverses a relationship, upload or join
  * field into a collection the key cannot read, since Payload answers it from
- * documents the key may not see. Naming the relation field itself, or its id,
- * stays allowed, as does traversal into a readable collection. Unknown paths
- * are left to Payload.
+ * documents the key may not see, and one that names an `admin.hidden` field,
+ * whose value the read tools withhold. Naming the relation field itself, or
+ * its id, stays allowed, as does traversal into a readable collection. Unknown
+ * paths are left to Payload.
  */
 export const assertQueryable = (
 	scope: McpxToolScope,
@@ -108,7 +118,7 @@ export const assertQueryable = (
 	},
 ): void => {
 	const reaches = (path: string): boolean =>
-		reachesUnreadable(scope, {
+		isRefusedPath(scope, {
 			collection: args.collection,
 			path: normalise(path),
 			locale: args.locale ?? undefined,

@@ -37,5 +37,8 @@ A global that has never been saved has no `updatedAt`. Its first write must leav
 Diffs compare arrays by position, so a reordered block shows up as a series of replace
 operations rather than a move.
 
-The security limitations, such as queries through relations and the visibility of `admin.hidden`
-fields, are listed in [security.md](./security.md#known-limitations).
+`admin.hidden` set on a row, collapsible, unnamed group or tab is not applied to the fields inside
+it, in the schema or in reads; set it on the fields themselves.
+
+The other security limitations, such as queries through relations and documents populated in rich
+text, are listed in [security.md](./security.md#known-limitations).

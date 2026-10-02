@@ -164,8 +164,8 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
 - `findDocuments` refuses a `where` or `sort` that goes through a relation into a collection the
   key cannot read. Through a collection the key can read, Payload applies only field-level `read`
   access to the path. See [known limitations](./docs/security.md#known-limitations).
-- Fields with `admin.hidden` are returned by the read tools. Only Payload's top-level `hidden`
-  withholds a value. See [known limitations](./docs/security.md#known-limitations).
+- The read tools leave out fields with `admin.hidden`, and `findDocuments` refuses a `where` or
+  `sort` that names one. See [hidden fields](./docs/security.md#hidden-fields).
 - Custom tools are trusted code and must apply access control themselves.
 
 Details and known limitations: [`docs/security.md`](./docs/security.md).

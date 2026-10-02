@@ -103,11 +103,11 @@ export const blockOf = (
 		: undefined;
 };
 
-/*
+/**
  * Payload's `fieldIsHiddenOrDisabled` reads `hidden` and `admin.disabled`, not
  * `admin.hidden`, which its own upload base fields carry.
  */
-const isAdminHidden = (field: FlattenedField): boolean =>
+export const isAdminHidden = (field: FlattenedField): boolean =>
 	"admin" in field && field.admin.hidden === true;
 
 // A field kept out of the admin panel is kept out of the MCP surface too.

@@ -70,6 +70,22 @@ the `__` form of a path, `and` and `or` clauses at any depth, comma separated so
 `id` (a join's too), or a polymorphic relation's `value` and `relationTo` is allowed, and so is a path through a
 collection the key can read. A path that matches no field is left to Payload.
 
+### Hidden fields
+
+`getDocument` and `findDocuments` leave out fields with `admin.hidden`, as `describeSchema` does.
+This holds in groups, tabs, array rows, the rows of a `blocks` field, populated relationship, upload
+and join documents, and the body of a version read by `versionId` or `diffFrom`. `admin.hidden`
+set on a row, collapsible, unnamed group or tab is not applied to the fields inside it, in the
+schema or in reads; set it on the fields themselves. A virtual field is judged by its own
+`admin.hidden`, not by the field it points at, for read output. `findDocuments` also refuses a
+`where` or `sort` that names a hidden field, or a virtual field that points at one, with the same
+400 error as a path through an unreadable relation. The fields Payload adds to an upload
+collection (`url`, `filename`, `sizes` and the rest) are returned, and the `id` of array and block
+rows stays.
+
+Neither `req` nor `mcpxReadRequest(scope)` removes `admin.hidden` fields for a custom tool. A
+custom tool that must withhold them filters its own output.
+
 ### Version history
 
 Version history is off unless an entity sets `versions: true`. Without it, the slug is missing from
@@ -170,8 +186,9 @@ The guard does not cover:
 
 Custom tools are trusted code. A handler receives the raw request with `req.user` set to the
 key's user. Payload's Local API skips access control by default, so the tool must pass
-`overrideAccess: false` and `req` to every call. Custom tools are not covered by the population
-bound: a read on `req` populates relations into any collection the user's access allows. A tool
+`overrideAccess: false` and `req` to every call. Custom tools are covered by the population bound
+when the read passes `mcpxReadRequest(scope)`; a read on the plain `req` populates relations into
+any collection the user's access allows. A tool
 that defines `isEnabled` without checking its own checkbox is available to every key.
 
 A custom `auth.resolve` must not trust `req.user`. Payload sets it from cookies before the handler
@@ -185,9 +202,11 @@ whose user has no `id` or whose `collection` is not the configured user collecti
   read. That query is plain Payload behaviour: it is not subject to the related collection's
   row-level `read` rule, and Payload checks only field-level `read` access on the path. Set
   field-level `read` access on fields of the related collection that must not be tested.
-- Fields with `admin.hidden` are returned by `getDocument` and `findDocuments`, though
-  `describeSchema` omits them. Only Payload's top-level `hidden` withholds a value. Set `hidden`
-  or field-level `read` access on values that must not reach clients.
+- Rich text is not walked, so fields of block nodes and documents populated in nodes keep their
+  `admin.hidden` fields. Set `hidden` or field-level `read` access on values that must not reach
+  clients.
 - With `versions: true`, old versions are governed by the collection's `access.readVersions`, not
   by its `read` rule. Payload lets any logged-in user through by default. See
   [Version history](#version-history) for a `readVersions` filter.
+- `admin.hidden` set on a row, collapsible, unnamed group or tab is not applied to the fields
+  inside it, in the schema or in reads; set it on the fields themselves.

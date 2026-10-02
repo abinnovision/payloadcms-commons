@@ -67,7 +67,7 @@ describe("hidden fields on an exposed collection", () => {
 			expect(result.text).not.toContain(API_HIDDEN);
 		});
 
-		it.fails(`returns a field with admin.hidden through ${tool}`, async () => {
+		it(`leaves out a field with admin.hidden through ${tool}`, async () => {
 			const result = await read();
 
 			expect(result.isError).toBe(false);

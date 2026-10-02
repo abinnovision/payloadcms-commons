@@ -1,3 +1,4 @@
+export * from "./admin-hidden.js";
 export * from "./describe.js";
 export * from "./errors.js";
 export * from "./lexical-pointer.js";

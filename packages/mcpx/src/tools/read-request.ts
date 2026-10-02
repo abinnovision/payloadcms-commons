@@ -36,14 +36,11 @@ const LOADER_KEY = ((): { slug: number; id: number } => {
 })();
 
 /**
- * The request a read tool hands to Payload, populating relations only into
- * collections this key may read. Relationships, uploads, joins and rich text
- * all populate through `req.payloadDataLoader`, so a loader of its own on an
- * isolated request bounds every depth without touching the request custom
- * tools share. A refused relation resolves to its own id, as at depth 0: rich
- * text would set `null` if the loader answered nothing.
+ * A read request that populates only into collections this key may read, at
+ * every depth, through a data loader of its own. A refused relation resolves to
+ * its id. Each call returns a fresh request.
  */
-export const readRequest = (scope: McpxToolScope): PayloadRequest => {
+export const mcpxReadRequest = (scope: McpxToolScope): PayloadRequest => {
 	const req = isolateObjectProperty(scope.req, "payloadDataLoader");
 	const loader = getDataLoader(req);
 	const load = loader.load.bind(loader);

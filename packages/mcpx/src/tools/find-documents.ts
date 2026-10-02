@@ -2,10 +2,11 @@ import { z } from "zod";
 
 import { resolveEntity } from "./document.js";
 import { assertQueryable } from "./query-paths.js";
-import { readRequest } from "./read-request.js";
+import { mcpxReadRequest } from "./read-request.js";
 import { slugEnum, depthShape, localeOf, localeShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
+import { stripAdminHidden } from "../schema/index.js";
 
 import type { SelectType, Where } from "payload";
 
@@ -78,7 +79,7 @@ export const findDocuments = defineMcpxTool({
 			draft: args.draft ?? true,
 			limit: args.limit ?? 10,
 			overrideAccess: false,
-			req: readRequest(scope),
+			req: mcpxReadRequest(scope),
 			...(args.page === undefined ? {} : { page: args.page }),
 			...(args.sort === undefined ? {} : { sort: args.sort }),
 			...(args.where === undefined ? {} : { where: args.where as Where }),
@@ -89,7 +90,13 @@ export const findDocuments = defineMcpxTool({
 		});
 
 		return jsonResult({
-			docs: result.docs,
+			docs: result.docs.map((doc) =>
+				stripAdminHidden(
+					scope.req.payload.config,
+					{ kind: "collection", slug: args.collection },
+					doc,
+				),
+			),
 			totalDocs: result.totalDocs,
 			page: result.page,
 			totalPages: result.totalPages,

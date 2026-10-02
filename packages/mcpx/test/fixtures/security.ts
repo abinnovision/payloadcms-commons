@@ -66,6 +66,37 @@ export const dossiers: CollectionConfig = {
 };
 
 /**
+ * Fields hidden from the admin panel at the top level, in a group and in an
+ * array row, plus relations whose populated documents carry their own.
+ */
+export const casefiles: CollectionConfig = {
+	slug: "casefiles",
+	versions: { drafts: true },
+	fields: [
+		{ name: "title", type: "text" },
+		{ name: "note", type: "text", admin: { hidden: true } },
+		{
+			name: "details",
+			type: "group",
+			fields: [
+				{ name: "label", type: "text" },
+				{ name: "internal", type: "text", admin: { hidden: true } },
+			],
+		},
+		{
+			name: "entries",
+			type: "array",
+			fields: [
+				{ name: "label", type: "text" },
+				{ name: "internal", type: "text", admin: { hidden: true } },
+			],
+		},
+		{ name: "dossier", type: "relationship", relationTo: "dossiers" },
+		{ name: "cover", type: "upload", relationTo: "media" },
+	],
+};
+
+/**
  * Read access is a filter on the current state, so an old version may hold a
  * state the filter excludes. A slug and a `readVersions` rule make the variants.
  */

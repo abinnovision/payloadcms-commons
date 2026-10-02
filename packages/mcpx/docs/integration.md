@@ -170,4 +170,8 @@ an entity sets `versions: true`. Set `access.readVersions` before opting in if t
 rule depends on document content, since old versions follow `readVersions` and Payload defaults it
 to any logged-in user. See [security.md](./security.md#version-history).
 
+`getDocument` and `findDocuments` no longer return fields with `admin.hidden`, and `findDocuments`
+refuses a `where` or `sort` that names one. Payload's own upload fields are still returned.
+Drop `admin.hidden` from a field whose value clients need.
+
 `PublishBlocker` is no longer exported.

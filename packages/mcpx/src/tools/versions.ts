@@ -1,7 +1,8 @@
 import { hasDraftsEnabled } from "payload/shared";
 import { createPatch, Pointer } from "rfc6902";
 
-import { readRequest } from "./read-request.js";
+import { mcpxReadRequest } from "./read-request.js";
+import { stripAdminHidden } from "../schema/index.js";
 
 import type { DocumentId, DocumentRef } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
@@ -27,7 +28,7 @@ const NOISE = ["id", "globalType", "createdAt", "updatedAt", "_status"];
 // Newest first, with the id breaking ties between saves in the same instant.
 const NEWEST_FIRST = ["-updatedAt", "-id"];
 
-/** The document or global as the key's user sees it. */
+/** The document or global as the key's user sees it, without `admin.hidden` fields. */
 export const readLive = async (
 	scope: McpxToolScope,
 	read: VersionRead,
@@ -37,19 +38,35 @@ export const readLive = async (
 		depth: read.depth,
 		draft: options.draft,
 		overrideAccess: false,
-		req: readRequest(scope),
+		req: mcpxReadRequest(scope),
 		...(options.select === undefined ? {} : { select: options.select }),
 		...(read.locale === undefined ? {} : { locale: read.locale }),
 	};
 
-	return await (read.target.kind === "collection"
+	const doc = await (read.target.kind === "collection"
 		? scope.req.payload.findByID({
 				...shared,
 				collection: read.target.slug,
 				id: read.target.id,
 			})
 		: scope.req.payload.findGlobal({ ...shared, slug: read.target.slug }));
+
+	return stripAdminHidden(scope.req.payload.config, read.target, doc);
 };
+
+// A stored version with the `admin.hidden` fields of its body removed.
+const withoutHidden = (
+	scope: McpxToolScope,
+	read: VersionRead,
+	stored: StoredVersion,
+): StoredVersion => ({
+	...stored,
+	version: stripAdminHidden(
+		scope.req.payload.config,
+		read.target,
+		stored.version,
+	),
+});
 
 /*
  * Payload checks only `readVersions` on a version read, never `read`, so the
@@ -98,7 +115,7 @@ export const loadVersion = async (
 		depth: read.depth,
 		disableErrors: true,
 		overrideAccess: false,
-		req: readRequest(scope),
+		req: mcpxReadRequest(scope),
 		...(read.locale === undefined ? {} : { locale: read.locale }),
 	};
 
@@ -120,7 +137,7 @@ export const loadVersion = async (
 		return null;
 	}
 
-	return version;
+	return withoutHidden(scope, read, version);
 };
 
 /** One page of a document's or global's history, newest first. */
@@ -144,7 +161,7 @@ export const queryVersions = async (
 		limit: options.limit,
 		sort: NEWEST_FIRST,
 		overrideAccess: false,
-		req: readRequest(scope),
+		req: mcpxReadRequest(scope),
 		where,
 		...(options.page === undefined ? {} : { page: options.page }),
 		...(read.locale === undefined ? {} : { locale: read.locale }),
@@ -176,7 +193,9 @@ export const loadPublished = async (
 		limit: 1,
 	});
 
-	return result.docs[0] ?? null;
+	const [newest] = result.docs;
+
+	return newest ? withoutHidden(scope, read, newest) : null;
 };
 
 const strip = (doc: Record<string, unknown>): Record<string, unknown> =>
