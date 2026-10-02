@@ -111,39 +111,70 @@ describe("json-rpc batches", () => {
 		);
 	});
 
-	it("keeps the first write of a batch when the second one fails", async () => {
-		const create = (title: string, frozen: boolean) =>
-			booted.payload.create({
-				collection: "ledgers" as never,
-				data: { title, frozen },
-			});
+	const createLedger = (title: string, frozen: boolean) =>
+		booted.payload.create({
+			collection: "ledgers" as never,
+			data: { title, frozen },
+		});
 
-		const open = await create("Open before", false);
-		const frozen = await create("Frozen before", true);
+	const retitle = (id: number | string, title: string) => ({
+		name: "patchDocument",
+		args: {
+			collection: "ledgers",
+			id,
+			locale: "en",
+			patches: [{ op: "replace", path: "/title", value: title }],
+		},
+	});
+
+	it("keeps the first write of a batch when the second one fails", async () => {
+		const open = await createLedger("Open before", false);
+		const frozen = await createLedger("Frozen before", true);
 
 		const results = await mcp.batch([
-			{
-				name: "patchDocument",
-				args: {
-					collection: "ledgers",
-					id: open.id,
-					locale: "en",
-					patches: [{ op: "replace", path: "/title", value: "Open after" }],
-				},
-			},
-			{
-				name: "patchDocument",
-				args: {
-					collection: "ledgers",
-					id: frozen.id,
-					locale: "en",
-					patches: [{ op: "replace", path: "/title", value: "Frozen after" }],
-				},
-			},
+			retitle(open.id, "Open after"),
+			retitle(frozen.id, "Frozen after"),
 		]);
 
 		expect(results.map((result) => result.isError)).toEqual([false, true]);
 		expect(await draftTitle(frozen.id)).toBe("Frozen before");
 		expect(await draftTitle(open.id)).toBe("Open after");
+	});
+
+	it("keeps the second write of a batch when the first one fails", async () => {
+		const frozen = await createLedger("Frozen before", true);
+		const open = await createLedger("Open before", false);
+
+		const results = await mcp.batch([
+			retitle(frozen.id, "Frozen after"),
+			retitle(open.id, "Open after"),
+		]);
+
+		expect(results.map((result) => result.isError)).toEqual([true, false]);
+		expect(await draftTitle(frozen.id)).toBe("Frozen before");
+		expect(await draftTitle(open.id)).toBe("Open after");
+	});
+
+	it("lets a call see the write of the call before it", async () => {
+		const ledger = await createLedger("Zero", false);
+
+		const results = await mcp.batch([
+			retitle(ledger.id, "One"),
+			{
+				name: "patchDocument",
+				args: {
+					collection: "ledgers",
+					id: ledger.id,
+					locale: "en",
+					patches: [
+						{ op: "test", path: "/title", value: "One" },
+						{ op: "replace", path: "/title", value: "Two" },
+					],
+				},
+			},
+		]);
+
+		expect(results.map((result) => result.isError)).toEqual([false, false]);
+		expect(await draftTitle(ledger.id)).toBe("Two");
 	});
 });

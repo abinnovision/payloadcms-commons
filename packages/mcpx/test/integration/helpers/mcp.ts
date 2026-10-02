@@ -140,9 +140,8 @@ export const createMcpClient = (booted: Booted, key?: string) => {
 		},
 
 		/**
-		 * Sends several tool calls in one JSON-RPC batch, which the transport
-		 * dispatches concurrently on a single PayloadRequest. Returns the results
-		 * in request order.
+		 * Sends several tool calls in one JSON-RPC batch, which the server runs
+		 * in order. Returns the results in request order.
 		 */
 		batch: async (
 			calls: { name: string; args?: Record<string, unknown> }[],

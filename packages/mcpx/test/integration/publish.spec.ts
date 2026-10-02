@@ -296,16 +296,15 @@ describe("publishDocument", () => {
 	});
 
 	/*
-	 * Both calls share one PayloadRequest, and the transport dispatches the
-	 * messages of a batch without awaiting each one, so they overlap. They also
-	 * name the same document, which is what makes this discriminating: an intent
-	 * held anywhere but on the write itself is reachable by the patch, and the
-	 * patch is then the write that goes live while the publish is refused.
+	 * Both calls share one PayloadRequest and name the same document. An intent
+	 * held anywhere but on the publish write itself would still be reachable by
+	 * the patch that follows, which would then go live.
 	 */
 	it("does not leak the publish intent to a sibling call in the same batch", async () => {
 		const id = await createPage(completePage("Batched"));
 
 		const results = await publisher.batch([
+			{ name: "publishDocument", args: { collection: "pages", id } },
 			{
 				name: "patchDocument",
 				args: {
@@ -315,7 +314,6 @@ describe("publishDocument", () => {
 					patches: [{ op: "replace", path: "/title", value: "Still a draft" }],
 				},
 			},
-			{ name: "publishDocument", args: { collection: "pages", id } },
 		]);
 
 		expect(results.map((result) => result.isError)).toEqual([false, false]);

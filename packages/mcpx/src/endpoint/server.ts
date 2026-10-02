@@ -38,7 +38,8 @@ export const isToolEnabled = (
 /**
  * One server per request. Builtin and configured tools take the same route,
  * each registered against the key's capabilities, so `tools/list` shows exactly
- * what the key may call.
+ * what the key may call. The tool handlers of one JSON-RPC batch run one at a time,
+ * so a failed call cannot roll back a write another call reported as done.
  */
 export const createMcpServer = (
 	scope: McpxToolScope,
@@ -46,6 +47,7 @@ export const createMcpServer = (
 ): McpServer => {
 	const { req } = scope;
 	const { logger } = req.payload;
+	let queue: Promise<unknown> = Promise.resolve();
 
 	const server = new McpServer(
 		{ name: options.serverInfo.name, version: options.serverInfo.version },
@@ -66,12 +68,23 @@ export const createMcpServer = (
 				inputSchema: toolInputSchema(tool, scope),
 				...(tool.annotations ? { annotations: tool.annotations } : {}),
 			},
-			async (args, extra): Promise<CallToolResult> => {
-				try {
-					return await tool.handler({ args: args as never, scope, req, extra });
-				} catch (error) {
-					return toToolError(error, logger);
-				}
+			(args, extra): Promise<CallToolResult> => {
+				const result = queue.then(async (): Promise<CallToolResult> => {
+					try {
+						return await tool.handler({
+							args: args as never,
+							scope,
+							req,
+							extra,
+						});
+					} catch (error) {
+						return toToolError(error, logger);
+					}
+				});
+
+				queue = result.catch(() => undefined);
+
+				return result;
 			},
 		);
 	}
