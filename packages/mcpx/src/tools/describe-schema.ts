@@ -77,6 +77,8 @@ export const describeSchema = defineMcpxTool({
 			expanded?.paths ??
 			(args.paths && args.paths.length > 0 ? args.paths : [""]);
 
+		const failures: unknown[] = [];
+
 		const nodes: unknown[] = requested.map((schemaPath) => {
 			try {
 				return describeNode(config, ref, schemaPath);
@@ -85,14 +87,19 @@ export const describeSchema = defineMcpxTool({
 					return { error: error.message, schemaPath };
 				}
 
-				scope.req.payload.logger.error({
-					err: error,
-					msg: "[payloadcms-mcpx] Describing a schema path failed.",
-				});
+				failures.push(error);
 
 				return { error: "Internal error", schemaPath };
 			}
 		});
+
+		// One root cause usually fails every path, so it is logged once.
+		if (failures.length > 0) {
+			scope.req.payload.logger.error({
+				err: failures[0],
+				msg: `[payloadcms-mcpx] Describing ${String(failures.length)} schema paths failed.`,
+			});
+		}
 
 		/*
 		 * Stated once for the whole response, not per field, because what a node

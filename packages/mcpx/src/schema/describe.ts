@@ -79,8 +79,9 @@ const stepThroughBlocks = ({
 }: StepAt): Step => {
 	const field = findBlocksField(fields, match);
 
+	// The match came from these fields, so a miss is a fault in the walk.
 	if (!field) {
-		throw new SchemaError(`"${joinPath(match)}" could not be resolved.`);
+		throw new Error(`"${joinPath(match)}" could not be resolved.`);
 	}
 
 	const slug = remaining.at(match.length);
@@ -119,8 +120,9 @@ const stepThroughLexical = ({
 }: StepAt): Step => {
 	const field = findRichTextField(fields, match);
 
+	// The match came from these fields, so a miss is a fault in the walk.
 	if (!field) {
-		throw new SchemaError(`"${joinPath(match)}" could not be resolved.`);
+		throw new Error(`"${joinPath(match)}" could not be resolved.`);
 	}
 
 	const available = subSchemaNodeTypes(field).join(", ") || "none";

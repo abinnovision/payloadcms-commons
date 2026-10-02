@@ -35,6 +35,12 @@ export const EMPTY_ROOT =
 const quoted = (properties: readonly string[]): string =>
 	properties.map((property) => `"${property}"`).join(", ");
 
+// The client's `blockType` may be anything, and not every value can be printed.
+const refusedSlug = (slug: unknown): string =>
+	typeof slug === "string"
+		? `"${slug}" is not allowed here`
+		: `"blockType" must be a string naming a block`;
+
 /*
  * A position in an incoming value, and where problems are collected. `pointer`
  * is the value's address in the document, reported to the client. `prefix` is
@@ -93,7 +99,7 @@ const checkNodeFields = (
 
 	if (!block) {
 		scope.problems.push(
-			`${scope.pointer}/fields: "${String(slug)}" is not allowed here. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
+			`${scope.pointer}/fields: ${refusedSlug(slug)}. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
 		);
 
 		return;
@@ -280,7 +286,7 @@ const checkNodeProperty = (
 		return;
 	}
 
-	if (position.isRoot && !(property in ROOT_PROPERTIES)) {
+	if (position.isRoot && !Object.hasOwn(ROOT_PROPERTIES, property)) {
 		scope.problems.push(
 			`${scope.pointer}: no such property on the root node. Available: ${Object.keys(ROOT_PROPERTIES).join(", ")}`,
 		);
@@ -296,7 +302,18 @@ const checkNodeProperty = (
 		);
 	}
 
-	const values = editor.nodeOptions?.[type]?.[property];
+	/*
+	 * Both keys come from the client, the node type possibly from the value
+	 * itself, so a name such as "toString" must not reach the prototype.
+	 */
+	const narrowed =
+		editor.nodeOptions && Object.hasOwn(editor.nodeOptions, type)
+			? editor.nodeOptions[type]
+			: undefined;
+	const values =
+		narrowed && Object.hasOwn(narrowed, property)
+			? narrowed[property]
+			: undefined;
 
 	if (values) {
 		checkNarrowedProperty(
@@ -404,7 +421,7 @@ const checkLeafValue = (
 
 		if (!block) {
 			scope.problems.push(
-				`${scope.pointer}/${String(index)}: "${String(slug)}" is not allowed here. Allowed: ${blockSlugsOf(field).join(", ")}`,
+				`${scope.pointer}/${String(index)}: ${refusedSlug(slug)}. Allowed: ${blockSlugsOf(field).join(", ")}`,
 			);
 
 			return;

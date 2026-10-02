@@ -101,6 +101,21 @@ describe("validateWriteValue", () => {
 		]);
 	});
 
+	it("rejects a blockType that is not a string", () => {
+		expect(
+			check("/layout/sections/0/modules", [
+				{ blockType: { toString: 1 } },
+				{ title: "no slug" },
+			]),
+		).toEqual([
+			'/layout/sections/0/modules/0: "blockType" must be a string naming a block. Allowed: hero, richText',
+			'/layout/sections/0/modules/1: "blockType" must be a string naming a block. Allowed: hero, richText',
+		]);
+		expect(checkPost(blockNode({ blockType: { toString: 1 } }))).toEqual([
+			'/content/root/children/0/fields: "blockType" must be a string naming a block. Allowed: callout',
+		]);
+	});
+
 	it("rejects a node the field's editor cannot produce", () => {
 		expect(
 			check("/layout/sections/0/modules", [
@@ -415,6 +430,22 @@ describe("validateWriteValue at a position inside an editor state", () => {
 		expect(checkAt("/content/root/spacing", 1)).toEqual([
 			expect.stringContaining("no such property on the root node"),
 		]);
+	});
+
+	it("reads a name Object.prototype also has as an ordinary name", () => {
+		const held = state([node("paragraph")]);
+
+		expect(checkAt("/summary/root/children/0/toString", "x")).toEqual([]);
+		expect(checkAt("/content/root/children/0/toString", 5)).toEqual([]);
+		expect(
+			checkAt("/summary/root/children/-/name", { type: "constructor" }),
+		).toEqual([]);
+		expect(checkAt("/content/root/toString", 5)).toEqual([
+			expect.stringContaining("no such property on the root node"),
+		]);
+		expect(checkPost({ ...held, root: { ...held.root, toString: 5 } })).toEqual(
+			[expect.stringContaining("/content/root/toString: no such property")],
+		);
 	});
 
 	it("expects a list where the pointer addresses one", () => {

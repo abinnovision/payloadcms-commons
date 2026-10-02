@@ -5,7 +5,7 @@ import {
 	resolveDataPointer,
 	validateWriteValue,
 	EMPTY_ROOT,
-	describeAddressableFields,
+	descriptorsUnder,
 	isIndexSegment,
 	joinPath,
 	prototypeSegmentProblem,
@@ -79,14 +79,11 @@ const resolvesReadOnly = (resolution: PointerResolution): boolean => {
 		return resolution.descriptor.readOnly === true;
 	}
 
-	const below = describeAddressableFields(resolution.fields).filter(
-		(descriptor) =>
-			resolution.prefix.every(
-				(part, offset) => part === splitPath(descriptor.path)[offset],
-			),
-	);
+	const below = descriptorsUnder(resolution.fields, resolution.prefix);
 
-	return below.length > 0 && below.every((descriptor) => descriptor.readOnly);
+	return (
+		below.length > 0 && below.every(({ descriptor }) => descriptor.readOnly)
+	);
 };
 
 // An element has no descriptor, so its field is read one segment up.

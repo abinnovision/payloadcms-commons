@@ -72,7 +72,10 @@ const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
 		globals: scope.publishableGlobals,
 	});
 
-/** Stated in every tool that addresses one document of either kind. */
+/**
+ * Stated by the tools that address one document by id. findVersions words the
+ * same rule its own way.
+ */
 export const ONE_DOCUMENT_RULE = `Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
 /**

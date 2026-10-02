@@ -149,6 +149,30 @@ describe("patchDocument on fields and blocks", () => {
 		expect((await readPage(page.id)).title).toBe("Atomic");
 	});
 
+	it("refuses a blockType that is not a string as the operation's problem", async () => {
+		const page = await createPage({ title: "Odd slug", slug: "odd-slug" });
+		const before = await readPage(page.id);
+		const result = await mcp.call("patchDocument", {
+			collection: "pages",
+			id: page.id,
+			locale: "en",
+			patches: [
+				{
+					op: "add",
+					path: "/layout/sections/-",
+					value: { blockType: { toString: 1 } },
+				},
+			],
+		});
+
+		expect(result.isError).toBe(true);
+		expect(result.data["error"]).toBe("No operation was applied.");
+		expect(result.data["problems"]).toEqual([
+			'patches[0]: "blockType" must be a string naming a block at "/layout/sections". Allowed: sectionWrapper, richText',
+		]);
+		expect(await readPage(page.id)).toEqual(before);
+	});
+
 	it("refuses remove on a field but allows it on a list element", async () => {
 		const page = await createPage({
 			title: "Remove",

@@ -139,16 +139,22 @@ const stepIntoBlock = (at: {
 
 	const existing =
 		Array.isArray(rows) && index !== "-"
-			? (rows[Number(index)] as { blockType?: string } | undefined)
+			? (rows[Number(index)] as { blockType?: unknown } | undefined)
 			: undefined;
 
 	const slug =
 		existing?.blockType ??
-		(addedValue as { blockType?: string } | undefined)?.blockType;
+		(addedValue as { blockType?: unknown } | undefined)?.blockType;
 
 	if (!field || slug === undefined) {
 		throw new SchemaError(
 			`Cannot tell which block "${descriptor.path}/${index}" is. Supply a "blockType" on the value, one of: ${field ? blockSlugsOf(field).join(", ") : ""}`,
+		);
+	}
+
+	if (typeof slug !== "string") {
+		throw new SchemaError(
+			`"blockType" must be a string naming a block at "${descriptor.path}". Allowed: ${blockSlugsOf(field).join(", ")}`,
 		);
 	}
 
@@ -226,10 +232,9 @@ export const resolveDataPointer = (
 		if (match.descriptor.type === "richText") {
 			const field = findRichTextField(fields, splitPath(match.descriptor.path));
 
+			// The descriptor came from these fields, so a miss is a fault in the walk.
 			if (!field) {
-				throw new SchemaError(
-					`"${match.descriptor.path}" could not be resolved.`,
-				);
+				throw new Error(`"${match.descriptor.path}" could not be resolved.`);
 			}
 
 			const step = resolveLexicalPointer({

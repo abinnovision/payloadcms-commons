@@ -107,12 +107,12 @@ export const createDocument = defineMcpxTool({
 			...(locale === undefined ? {} : { locale }),
 		})) as Record<string, unknown>;
 
-		const document: DocumentRef =
+		const createdRef: DocumentRef =
 			target.kind === "collection"
 				? { ...target, id: created["id"] as DocumentId }
 				: target;
 		const saved = await readDraft(scope, {
-			target: document,
+			target: createdRef,
 			locale,
 			privileged: true,
 		});

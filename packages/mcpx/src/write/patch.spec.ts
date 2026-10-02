@@ -521,14 +521,16 @@ describe("applyPatchOperations when the schema walk throws", () => {
 		});
 
 	it("reports a schema failure as the operation's problem", () => {
-		const unknown = applyPatchOperations(config, {
+		const refused = applyPatchOperations(config, {
 			doc: DOC,
-			patches: [{ op: "replace", path: "/title", value: "Renamed" }],
-			ref: { kind: "collection", slug: "missing" },
+			patches: [{ op: "replace", path: "/nope", value: "Renamed" }],
+			ref: { kind: "collection", slug: "pages" },
 		});
 
-		expect(unknown).toEqual({
-			problems: ['patches[0]: Unknown collection "missing".'],
+		expect(refused).toEqual({
+			problems: [
+				'patches[0]: "/nope" is not a field here. Available: /title, /slug, /layout/color, /layout/sections, /meta/title',
+			],
 		});
 	});
 

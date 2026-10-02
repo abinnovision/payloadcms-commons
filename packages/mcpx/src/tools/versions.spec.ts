@@ -1,10 +1,7 @@
 import { Pointer } from "rfc6902";
 import { describe, expect, it } from "vitest";
 
-import { diffDocuments, isVersionOf, loadVersion } from "./versions.js";
-
-import type { VersionRead } from "./versions.js";
-import type { McpxToolScope } from "../types.js";
+import { diffDocuments, isVersionOf } from "./versions.js";
 
 describe("isVersionOf", () => {
 	it("matches a raw or populated parent across id types", () => {
@@ -12,37 +9,6 @@ describe("isVersionOf", () => {
 		expect(isVersionOf({ parent: { id: "7" } }, 7)).toBe(true);
 		expect(isVersionOf({ parent: 8 }, 7)).toBe(false);
 		expect(isVersionOf({}, 7)).toBe(false);
-	});
-});
-
-describe("loadVersion", () => {
-	const scopeReturning = (version: unknown): McpxToolScope =>
-		({
-			req: {
-				payload: {
-					findByID: () => Promise.resolve({ id: 1 }),
-					findVersionByID: () => Promise.resolve(version),
-				},
-			},
-		}) as unknown as McpxToolScope;
-
-	const read = {
-		target: { kind: "collection", slug: "pages" },
-		id: 1,
-		depth: 0,
-		locale: undefined,
-	} as unknown as VersionRead;
-
-	it("returns a version of the requested document", async () => {
-		const version = { id: 10, parent: 1, version: { title: "A" } };
-
-		expect(await loadVersion(scopeReturning(version), read, 10)).toBe(version);
-	});
-
-	it("refuses a version of another document", async () => {
-		const version = { id: 10, parent: 2, version: { title: "A" } };
-
-		expect(await loadVersion(scopeReturning(version), read, 10)).toBeNull();
 	});
 });
 

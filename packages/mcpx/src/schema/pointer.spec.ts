@@ -113,6 +113,14 @@ describe("resolveDataPointer", () => {
 		);
 	});
 
+	it("refuses a blockType that is not a string", () => {
+		for (const blockType of [{ toString: 1 }, 5, null]) {
+			expect(() => resolve("/layout/sections/-", { blockType })).toThrow(
+				'"blockType" must be a string naming a block at "/layout/sections". Allowed: sectionWrapper, richText',
+			);
+		}
+	});
+
 	it("lists the available fields when a path does not resolve", () => {
 		expect(() => resolve("/nope")).toThrow(
 			'"/nope" is not a field here. Available: /title, /slug, /layout/color, /layout/sections, /meta/title',
@@ -296,6 +304,17 @@ describe("resolveDataPointer inside a rich text field", () => {
 		);
 		expect(() => inPost("/content/root/children/0/fields/url")).toThrow(
 			/carry no addressable fields/,
+		);
+	});
+
+	it("refuses a block node whose blockType is not a string", () => {
+		expect(() =>
+			inPost("/content/root/children/-/fields/tone", {
+				fields: { blockType: { toString: 1 } },
+				type: "block",
+			}),
+		).toThrow(
+			'"blockType" must be a string naming a block in a "block" node here. Allowed: callout',
 		);
 	});
 

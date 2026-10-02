@@ -83,9 +83,15 @@ const stepIntoFields = (at: {
 		(isPlainObject(data) ? data["blockType"] : undefined) ??
 		(isPlainObject(added) ? added["blockType"] : undefined);
 
-	if (typeof slug !== "string") {
+	if (slug === undefined) {
 		throw new SchemaError(
 			`Cannot tell which block a "${nodeType}" node holds. Supply a "blockType" on the value, one of: ${blockSlugsOf(sub.blocksField).join(", ")}`,
+		);
+	}
+
+	if (typeof slug !== "string") {
+		throw new SchemaError(
+			`"blockType" must be a string naming a block in a "${nodeType}" node here. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
 		);
 	}
 

@@ -161,7 +161,6 @@ export const getDocument = defineMcpxTool({
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "read");
-		const id = target.kind === "collection" ? target.id : undefined;
 
 		assertVersionArgs(scope, target, args);
 
@@ -183,7 +182,6 @@ export const getDocument = defineMcpxTool({
 
 		const read = {
 			target,
-			id,
 			depth: args.depth ?? 0,
 			locale: localeOf(scope, args.locale),
 		};
@@ -217,7 +215,7 @@ export const getDocument = defineMcpxTool({
 		const value = pointer.get(doc) as unknown;
 
 		const envelope = {
-			...identityOf(target, id),
+			...identityOf(target, args.id),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			path,

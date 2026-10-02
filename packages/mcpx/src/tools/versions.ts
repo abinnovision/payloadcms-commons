@@ -2,7 +2,7 @@ import { createPatch, Pointer } from "rfc6902";
 
 import { readRequest } from "./shared.js";
 
-import type { DocumentId, ResolvedEntity } from "../entity.js";
+import type { DocumentId, DocumentRef } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 import type { PaginatedDocs, SelectType, TypedLocale, Where } from "payload";
 import type { Operation } from "rfc6902";
@@ -14,9 +14,8 @@ type StoredVersion = Record<string, unknown> & {
 };
 
 export interface VersionRead {
-	target: ResolvedEntity;
-	/** The document the version must belong to; `undefined` for a global. */
-	id: DocumentId | undefined;
+	/** For a collection, also the document every version must belong to. */
+	target: DocumentRef;
 	depth: number;
 	locale: TypedLocale | undefined;
 }
@@ -46,7 +45,7 @@ export const readLive = async (
 		? scope.req.payload.findByID({
 				...shared,
 				collection: read.target.slug,
-				id: read.id as DocumentId,
+				id: read.target.id,
 			})
 		: scope.req.payload.findGlobal({ ...shared, slug: read.target.slug }));
 };
@@ -113,7 +112,10 @@ export const loadVersion = async (
 		return null;
 	}
 
-	if (read.id !== undefined && !isVersionOf(version, read.id)) {
+	if (
+		read.target.kind === "collection" &&
+		!isVersionOf(version, read.target.id)
+	) {
 		return null;
 	}
 
@@ -129,7 +131,9 @@ export const queryVersions = async (
 	await assertReadable(scope, read);
 
 	const where: Where = {
-		...(read.id === undefined ? {} : { parent: { equals: read.id } }),
+		...(read.target.kind === "collection"
+			? { parent: { equals: read.target.id } }
+			: {}),
 		...(options.status === undefined
 			? {}
 			: { "version._status": { equals: options.status } }),

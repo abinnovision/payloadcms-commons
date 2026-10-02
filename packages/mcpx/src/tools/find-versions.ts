@@ -58,11 +58,10 @@ export const findVersions = defineMcpxTool({
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "versions");
-		const id = target.kind === "collection" ? target.id : undefined;
 
 		const result = await queryVersions(
 			scope,
-			{ target, id, depth: 0, locale: localeOf(scope, args.locale) },
+			{ target, depth: 0, locale: localeOf(scope, args.locale) },
 			{
 				limit: args.limit ?? 10,
 				...(args.page === undefined ? {} : { page: args.page }),

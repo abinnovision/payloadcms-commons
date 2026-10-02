@@ -1,5 +1,7 @@
 import { flattenAllFields } from "payload";
 
+import { isPlainObject } from "../guards.js";
+
 import type {
 	Field,
 	FlattenedBlocksField,
@@ -157,8 +159,7 @@ const KINDS = {
 		needs: "a number",
 	},
 	object: {
-		accepts: (value: unknown) =>
-			typeof value === "object" && value !== null && !Array.isArray(value),
+		accepts: isPlainObject,
 		needs: "an object",
 	},
 	optionalObject: {
@@ -356,7 +357,7 @@ export const rootProblems = (
 ): PropertyProblems & { unexpected: string[] } => ({
 	...check(root, ROOT_PROPERTIES),
 	unexpected: Object.keys(root).filter(
-		(property) => !(property in ROOT_PROPERTIES),
+		(property) => !Object.hasOwn(ROOT_PROPERTIES, property),
 	),
 });
 
@@ -378,7 +379,10 @@ export const propertyProblem = (
 					...(REQUIRED_NODE_PROPERTIES[nodeType] ?? {}),
 				};
 
-	const constraint = constraints[property];
+	// The property is a pointer segment, so it may name a prototype member.
+	const constraint = Object.hasOwn(constraints, property)
+		? constraints[property]
+		: undefined;
 
 	return constraint === undefined || accepts(constraint, value)
 		? undefined
