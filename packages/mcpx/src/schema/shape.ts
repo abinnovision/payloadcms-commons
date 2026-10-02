@@ -6,6 +6,7 @@ import {
 	rootProblems,
 	ROOT_PROPERTIES,
 } from "./lexical.js";
+import { splitPath } from "./path.js";
 import {
 	ARRAY_MARKER,
 	blockOf,
@@ -14,7 +15,6 @@ import {
 	findBlocksField,
 	findRichTextField,
 	isPlainObject,
-	splitPath,
 } from "./walk.js";
 
 import type { LexicalPosition } from "./lexical-pointer.js";
@@ -44,7 +44,7 @@ const quoted = (properties: readonly string[]): string =>
  * client. `prefix` is where the value sits inside `fields`, held as segments
  * because nothing outside this walk reads it.
  */
-interface CheckScope {
+interface ValueCheck {
 	config: SanitizedConfig;
 	fields: FlattenedField[];
 	pointer: string;
@@ -57,7 +57,7 @@ interface CheckScope {
  * position, are both left alone.
  */
 const checkNodeFields = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	field: RichTextField,
 	node: { fields: unknown; type: string },
 ): void => {
@@ -121,7 +121,7 @@ interface EditorScope {
  * one of "h3".
  */
 const checkNarrowedProperty = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	at: { pointer: string; type: string; values: readonly string[] },
 	value: unknown,
 ): void => {
@@ -151,7 +151,7 @@ const checkNarrowedProperty = (
  * stored and then throws when the editor opens it.
  */
 const checkNode = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	editor: EditorScope,
 	node: unknown,
 	pointer: string,
@@ -208,7 +208,7 @@ const checkNode = (
 
 /** `pointer` addresses the list. A node holding none is left alone. */
 const checkNodes = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	editor: EditorScope,
 	nodes: unknown,
 	pointer: string,
@@ -223,7 +223,7 @@ const checkNodes = (
 };
 
 const checkRichText = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	editor: EditorScope,
 	value: unknown,
 ): void => {
@@ -271,7 +271,7 @@ const checkRichText = (
  * feature may put any property on a node.
  */
 const checkNodeProperty = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	editor: EditorScope,
 	position: LexicalPosition & { kind: "property" },
 	value: unknown,
@@ -318,7 +318,7 @@ const checkNodeProperty = (
  * whole state.
  */
 const checkLexicalWrite = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	position: LexicalPosition,
 	value: unknown,
 ): void => {
@@ -364,7 +364,7 @@ const checkLexicalWrite = (
 };
 
 const checkLeafValue = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	descriptor: FieldDescriptor,
 	value: unknown,
 ): void => {
@@ -441,7 +441,7 @@ const checkLeafValue = (
  * field. Without this pass a misspelled field inside a new block would be
  * stripped in silence.
  */
-const checkValue = (scope: CheckScope, value: unknown): void => {
+const checkValue = (scope: ValueCheck, value: unknown): void => {
 	if (!isPlainObject(value)) {
 		return;
 	}
@@ -519,7 +519,7 @@ export const validateWriteValue = (
 ): string[] => {
 	const problems: string[] = [];
 
-	const scope: CheckScope = {
+	const scope: ValueCheck = {
 		config,
 		fields: target.resolution.fields,
 		pointer: target.pointer,

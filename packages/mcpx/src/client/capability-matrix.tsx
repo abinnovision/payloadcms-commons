@@ -9,28 +9,26 @@ import {
 } from "@payloadcms/ui";
 import React, { useCallback, useMemo } from "react";
 
-/*
- * Deep imports on purpose: the `api-keys` barrel pulls server-only Payload code
- * into this client entry. Both modules below are plain data and pure functions.
- */
 import {
-	buildToggleActions,
 	CAPABILITY_OPERATIONS,
 	capabilityPaths,
 	cellPath,
-	columnState,
-	rowState,
 	toolPath,
-	toolsState,
 } from "../api-keys/capability-matrix.js";
 import { CAPABILITIES_FIELD } from "../capabilities.js";
+import {
+	buildToggleActions,
+	columnState,
+	rowState,
+	toolsState,
+} from "./capability-toggles.js";
 
 import type {
-	CapabilityMatrix,
 	CapabilityValues,
 	ColumnState,
 	ToggleIntent,
-} from "../api-keys/capability-matrix.js";
+} from "./capability-toggles.js";
+import type { CapabilityMatrix } from "../api-keys/capability-matrix.js";
 
 interface McpxCapabilityMatrixProps {
 	/** Built from the plugin options at config time. */

@@ -1,4 +1,5 @@
 import { resolveLexicalPointer } from "./lexical-pointer.js";
+import { isIndexSegment, joinPath, splitPath } from "./path.js";
 import {
 	ARRAY_MARKER,
 	blockOf,
@@ -6,14 +7,12 @@ import {
 	describeAddressableFields,
 	findBlocksField,
 	findRichTextField,
-	isIndexSegment,
-	joinPath,
-	splitPath,
-	targetOf,
+	schemaOf,
 } from "./walk.js";
 
 import type { LexicalPosition } from "./lexical-pointer.js";
-import type { FieldDescriptor, TargetRef } from "./walk.js";
+import type { FieldDescriptor } from "./walk.js";
+import type { EntityRef } from "../entity.js";
 import type { FlattenedField, SanitizedConfig } from "payload";
 
 /**
@@ -49,11 +48,11 @@ export interface PointerResolution {
  * `addedValue` supplies the block discriminant for an `add` at a position the
  * document does not have yet.
  */
-interface PointerTarget {
+interface PointerInput {
 	addedValue?: unknown;
 	doc: unknown;
 	pointer: string;
-	ref: TargetRef;
+	ref: EntityRef;
 }
 
 const partMatches = (part: string, segment: string | undefined): boolean =>
@@ -177,9 +176,9 @@ const stepIntoBlock = (at: {
  */
 export const resolveDataPointer = (
 	config: SanitizedConfig,
-	target: PointerTarget,
+	target: PointerInput,
 ): PointerResolution => {
-	let fields = targetOf(config, target.ref).flattenedFields;
+	let fields = schemaOf(config, target.ref).flattenedFields;
 	let data: unknown = target.doc;
 	let blockType: string | undefined;
 	let segments = splitPath(target.pointer);

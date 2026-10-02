@@ -2,22 +2,14 @@ import {
 	createDataloaderCacheKey,
 	getDataLoader,
 	isolateObjectProperty,
-	NotFound,
 } from "payload";
 import { z } from "zod";
 
 import { canCreate, canPublish, isLiveWrite } from "../capabilities.js";
-import { translateStatic } from "../i18n.js";
 
-import type { ResolvedTarget } from "./target.js";
+import type { DocumentId } from "../entity.js";
 import type { McpxExposedEntity, McpxToolScope } from "../types.js";
-import type {
-	LabelFunction,
-	PayloadRequest,
-	StaticLabel,
-	TypedLocale,
-	TypeWithID,
-} from "payload";
+import type { PayloadRequest, TypedLocale, TypeWithID } from "payload";
 
 export type McpxOperation =
 	"create" | "publish" | "read" | "versions" | "write";
@@ -30,7 +22,7 @@ export const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
 	z.enum(slugs as [string, ...string[]]);
 
 /** Payload's id type follows the adapter, so both forms are handed on as read. */
-export const idSchema = z
+export const idSchema: z.ZodType<DocumentId> = z
 	.union([z.string(), z.number()])
 	.describe("Document id.");
 
@@ -103,11 +95,6 @@ export const draftSentence = (scope: McpxToolScope): string => {
 	return `${base} ${publishing}`;
 };
 
-/** The value a client read back is a string; what it meets may be a Date. */
-export const sameInstant = (left: unknown, right: string): boolean =>
-	typeof left === "string" &&
-	new Date(left).getTime() === new Date(right).getTime();
-
 /*
  * The supersets the shape helpers below produce. Which keys a helper actually
  * emits depends on the scope. `global` is left out when the key can reach no
@@ -115,11 +102,11 @@ export const sameInstant = (left: unknown, right: string): boolean =>
  * what a handler must cope with. These types do, and a tool's arguments are
  * inferred from them, which is what keeps the two from drifting apart. The
  * cross-field rules they cannot state ("exactly one of collection and global",
- * "id required with collection") are enforced by `resolveTarget` and
+ * "id required with collection") are enforced by `resolveEntity` and
  * `requireIdFor` at call time.
  */
 /* eslint-disable @typescript-eslint/consistent-type-definitions */
-type TargetShape = {
+type EntityShape = {
 	collection: z.ZodOptional<SlugEnum>;
 	global: z.ZodOptional<SlugEnum>;
 };
@@ -146,7 +133,7 @@ type Branch<Full extends z.ZodRawShape> = {
 const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
 	branch as unknown as Full;
 
-/** The one list the shape helpers and {@link resolveTarget} both read. */
+/** The one list the shape helpers and {@link resolveEntity} both read. */
 export const slugsFor = (
 	scope: McpxToolScope,
 	operation: McpxOperation,
@@ -190,26 +177,26 @@ export const slugsFor = (
  * required, so a deployment without globals sees an unchanged schema. Only the
  * mixed case makes either optional, and the handler enforces exclusivity there.
  */
-export const targetShape = (
+export const entityShape = (
 	scope: McpxToolScope,
 	operation: McpxOperation,
 	descriptions: { collection: string; global: string },
-): TargetShape => {
+): EntityShape => {
 	const { collections, globals } = slugsFor(scope, operation);
 
 	if (globals.length === 0) {
-		return widen<TargetShape>({
+		return widen<EntityShape>({
 			collection: slugEnum(collections).describe(descriptions.collection),
 		});
 	}
 
 	if (collections.length === 0) {
-		return widen<TargetShape>({
+		return widen<EntityShape>({
 			global: slugEnum(globals).describe(descriptions.global),
 		});
 	}
 
-	return widen<TargetShape>({
+	return widen<EntityShape>({
 		collection: slugEnum(collections)
 			.optional()
 			.describe(descriptions.collection),
@@ -355,70 +342,4 @@ export const localeOf = (
 			: scope.defaultLocale;
 
 	return chosen ?? undefined;
-};
-
-/**
- * Reads the current draft in a fixed locale with no fallback, which is the
- * shape that may be written back or validated without mixing locales.
- */
-export const readTarget = async (
-	scope: McpxToolScope,
-	args: {
-		target: ResolvedTarget;
-		id?: number | string | undefined;
-		locale: TypedLocale | undefined;
-		privileged?: boolean;
-	},
-): Promise<Record<string, unknown>> => {
-	const { payload } = scope.req;
-	const privileged = args.privileged === true;
-	const shared = {
-		depth: 0,
-		draft: true,
-		...(args.locale === undefined
-			? {}
-			: { locale: args.locale, fallbackLocale: false as const }),
-		overrideAccess: privileged,
-		showHiddenFields: privileged,
-		req: scope.req,
-	};
-
-	if (args.target.kind === "collection") {
-		const doc = (await payload.findByID({
-			...shared,
-			collection: args.target.slug,
-			id: args.id as number | string,
-			disableErrors: true,
-		})) as null | Record<string, unknown>;
-
-		if (!doc) {
-			throw new NotFound(scope.req.t);
-		}
-
-		return doc;
-	}
-
-	/*
-	 * `disableErrors` stays off for a global so Payload distinguishes the two
-	 * cases itself: denied access throws `NotFound`, while a global that has
-	 * simply never been saved comes back as an empty document. That empty
-	 * document is a valid starting point, because a global always exists
-	 * conceptually and refusing it would make the first write to one
-	 * impossible.
-	 */
-	return await payload.findGlobal({
-		...shared,
-		slug: args.target.slug,
-	});
-};
-
-export const translateLabel = (
-	scope: McpxToolScope,
-	label: LabelFunction | StaticLabel | undefined,
-	fallback: string,
-): string => {
-	const { i18n, t } = scope.req;
-	const resolved = typeof label === "function" ? label({ i18n, t }) : label;
-
-	return translateStatic(resolved, i18n) ?? fallback;
 };

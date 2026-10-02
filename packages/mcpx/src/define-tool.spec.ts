@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 
-import { defineMcpxTool } from "./types.js";
+import { defineMcpxTool } from "./define-tool.js";
 
 import type { McpxAnyTool } from "./types.js";
 

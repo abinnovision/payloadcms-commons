@@ -1,11 +1,6 @@
 import { lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
-import {
-	blockOf,
-	blockSlugsOf,
-	isIndexSegment,
-	isPlainObject,
-	joinPath,
-} from "./walk.js";
+import { isIndexSegment, joinPath } from "./path.js";
+import { blockOf, blockSlugsOf, isPlainObject } from "./walk.js";
 
 import type { FieldDescriptor } from "./walk.js";
 import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";

@@ -5,9 +5,17 @@ import {
 
 import { pointerFromPayloadPath } from "../schema/index.js";
 
-import type { ResolvedTarget } from "../tools/target.js";
-import type { PublishBlocker } from "../types.js";
+import type { DocumentId, ResolvedEntity } from "../entity.js";
 import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
+
+/** One reason a human could not publish the draft as it stands. */
+export interface PublishBlocker {
+	/** Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title". */
+	field?: string;
+	message: string;
+	/** JSON Pointer to the offending value, e.g. "/layout/2/title". */
+	path: string;
+}
 
 /**
  * Runs Payload's own field validation over a draft without saving anything.
@@ -26,14 +34,14 @@ import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
  */
 export const collectPublishBlockers = async (
 	req: PayloadRequest,
-	target: { doc: JsonObject; entity: ResolvedTarget },
+	target: { doc: JsonObject; entity: ResolvedEntity },
 ): Promise<{ blockers: PublishBlocker[]; unavailable?: true }> => {
 	const { doc, entity } = target;
 	/*
 	 * A global doc has no id, so the guard below simply omits it, which is
 	 * what the traversal wants for a global.
 	 */
-	const id = doc["id"] as number | string | undefined;
+	const id = doc["id"] as DocumentId | undefined;
 	const errors: ValidationFieldError[] = [];
 	const data: JsonObject = { ...structuredClone(doc), _status: "published" };
 	const context = { ...req.context };

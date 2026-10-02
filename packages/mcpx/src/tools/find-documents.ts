@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { resolveEntity } from "./entity.js";
 import {
 	slugEnum,
 	depthShape,
@@ -7,9 +8,8 @@ import {
 	localeShape,
 	readRequest,
 } from "./shared.js";
-import { resolveTarget } from "./target.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
 
 import type { SelectType, Where } from "payload";
 
@@ -63,7 +63,7 @@ export const findDocuments = defineMcpxTool({
 			.describe("Include the latest drafts. Default true."),
 	}),
 	handler: async ({ args, scope }) => {
-		resolveTarget(scope, { collection: args.collection }, "read");
+		resolveEntity(scope, { collection: args.collection }, "read");
 
 		const locale = localeOf(scope, args.locale);
 		const result = await scope.req.payload.find({

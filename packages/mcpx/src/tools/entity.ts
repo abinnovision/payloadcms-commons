@@ -1,21 +1,13 @@
-import { APIError, Forbidden } from "payload";
+import { APIError, Forbidden, NotFound } from "payload";
 
 import { slugsFor } from "./shared.js";
 
 import type { McpxOperation } from "./shared.js";
-import type { TargetRef } from "../schema/index.js";
+import type { DocumentId, EntityRef, ResolvedEntity } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
-import type { SanitizedCollectionConfig, SanitizedGlobalConfig } from "payload";
+import type { TypedLocale } from "payload";
 
-/**
- * Discriminated so a caller that must hand Payload a real config can narrow,
- * while one that only needs `flattenedFields` can ignore the discriminant.
- */
-export type ResolvedTarget =
-	| { kind: "collection"; slug: string; config: SanitizedCollectionConfig }
-	| { kind: "global"; slug: string; config: SanitizedGlobalConfig };
-
-export const refOf = (target: ResolvedTarget): TargetRef => ({
+export const refOf = (target: ResolvedEntity): EntityRef => ({
 	kind: target.kind,
 	slug: target.slug,
 });
@@ -25,11 +17,11 @@ export const refOf = (target: ResolvedTarget): TargetRef => ({
  * collection and global", so the rule is enforced here, with a message naming
  * the offending arguments.
  */
-export const resolveTarget = (
+export const resolveEntity = (
 	scope: McpxToolScope,
 	args: { collection?: string | undefined; global?: string | undefined },
 	operation: McpxOperation,
-): ResolvedTarget => {
+): ResolvedEntity => {
 	const { collection, global } = args;
 	const allowedSlugs = slugsFor(scope, operation);
 
@@ -76,9 +68,9 @@ export const resolveTarget = (
  * dependency, so it is stated here and in every affected tool description.
  */
 export const requireIdFor = (
-	target: ResolvedTarget,
-	id: number | string | undefined,
-): number | string | undefined => {
+	target: ResolvedEntity,
+	id: DocumentId | undefined,
+): DocumentId | undefined => {
 	if (target.kind === "collection" && id === undefined) {
 		throw new APIError(
 			`"id" is required when "collection" is "${target.slug}".`,
@@ -94,4 +86,64 @@ export const requireIdFor = (
 	}
 
 	return target.kind === "collection" ? id : undefined;
+};
+
+/** The value a client read back is a string; what it meets may be a Date. */
+export const sameInstant = (left: unknown, right: string): boolean =>
+	typeof left === "string" &&
+	new Date(left).getTime() === new Date(right).getTime();
+
+/**
+ * Reads the current draft in a fixed locale with no fallback, which is the
+ * shape that may be written back or validated without mixing locales.
+ */
+export const readDraft = async (
+	scope: McpxToolScope,
+	args: {
+		target: ResolvedEntity;
+		id?: DocumentId | undefined;
+		locale: TypedLocale | undefined;
+		privileged?: boolean;
+	},
+): Promise<Record<string, unknown>> => {
+	const { payload } = scope.req;
+	const privileged = args.privileged === true;
+	const shared = {
+		depth: 0,
+		draft: true,
+		...(args.locale === undefined
+			? {}
+			: { locale: args.locale, fallbackLocale: false as const }),
+		overrideAccess: privileged,
+		showHiddenFields: privileged,
+		req: scope.req,
+	};
+
+	if (args.target.kind === "collection") {
+		const doc = (await payload.findByID({
+			...shared,
+			collection: args.target.slug,
+			id: args.id as DocumentId,
+			disableErrors: true,
+		})) as null | Record<string, unknown>;
+
+		if (!doc) {
+			throw new NotFound(scope.req.t);
+		}
+
+		return doc;
+	}
+
+	/*
+	 * `disableErrors` stays off for a global so Payload distinguishes the two
+	 * cases itself: denied access throws `NotFound`, while a global that has
+	 * simply never been saved comes back as an empty document. That empty
+	 * document is a valid starting point, because a global always exists
+	 * conceptually and refusing it would make the first write to one
+	 * impossible.
+	 */
+	return await payload.findGlobal({
+		...shared,
+		slug: args.target.slug,
+	});
 };

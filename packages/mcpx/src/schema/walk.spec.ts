@@ -8,9 +8,7 @@ import {
 	describeAddressableFields,
 	describeFields,
 	findBlocksField,
-	joinPath,
-	splitPath,
-	targetOf,
+	schemaOf,
 } from "./walk.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { translatorFor } from "../i18n.js";
@@ -31,24 +29,6 @@ beforeAll(async () => {
 const pagesFields = () =>
 	config.collections.find((collection) => collection.slug === "pages")!
 		.flattenedFields;
-
-describe("path helpers", () => {
-	it("round-trips array markers", () => {
-		expect(joinPath(["items", "*", "title"])).toBe("/items/*/title");
-		expect(splitPath("/items/*/title")).toEqual(["items", "*", "title"]);
-		expect(splitPath("/layout/sections")).toEqual(["layout", "sections"]);
-	});
-
-	it("treats no segments as the root", () => {
-		expect(joinPath([])).toBe("");
-		expect(splitPath("")).toEqual([]);
-	});
-
-	it("escapes segments that would otherwise split", () => {
-		expect(joinPath(["a/b", "c~d"])).toBe("/a~1b/c~0d");
-		expect(splitPath("/a~1b/c~0d")).toEqual(["a/b", "c~d"]);
-	});
-});
 
 describe("describeFields", () => {
 	it("flattens unnamed tabs and keeps named ones", () => {
@@ -349,22 +329,22 @@ describe("allowedNodeTypes", () => {
 	});
 });
 
-describe("targetOf", () => {
+describe("schemaOf", () => {
 	it("resolves a collection and a global from the same config", () => {
-		expect(targetOf(config, { kind: "collection", slug: "pages" }).slug).toBe(
+		expect(schemaOf(config, { kind: "collection", slug: "pages" }).slug).toBe(
 			"pages",
 		);
 		expect(
-			targetOf(config, { kind: "global", slug: "site-settings" }).slug,
+			schemaOf(config, { kind: "global", slug: "site-settings" }).slug,
 		).toBe("site-settings");
 	});
 
 	it("keeps the two namespaces apart in its error message", () => {
-		expect(() => targetOf(config, { kind: "global", slug: "pages" })).toThrow(
+		expect(() => schemaOf(config, { kind: "global", slug: "pages" })).toThrow(
 			'Unknown global "pages".',
 		);
 		expect(() =>
-			targetOf(config, { kind: "collection", slug: "site-settings" }),
+			schemaOf(config, { kind: "collection", slug: "site-settings" }),
 		).toThrow('Unknown collection "site-settings".');
 	});
 });

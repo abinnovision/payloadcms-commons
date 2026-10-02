@@ -2,26 +2,28 @@ import { Pointer } from "rfc6902";
 import { z } from "zod";
 
 import {
+	readDraft,
+	refOf,
+	requireIdFor,
+	resolveEntity,
+	sameInstant,
+} from "./entity.js";
+import {
 	draftSentence,
 	idShape,
 	localeOf,
 	localeShape,
-	readTarget,
-	sameInstant,
-	targetShape,
+	entityShape,
 } from "./shared.js";
-import { refOf, requireIdFor, resolveTarget } from "./target.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { errorResult, jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
-import {
-	applyPatchOperations,
-	buildWriteData,
-	isElementPointer,
-	PATCH_OPERATION_SCHEMA,
-} from "../write/patch.js";
+import { JSON_POINTER_PATTERN } from "../schema/index.js";
+import { applyPatchOperations, isElementPointer } from "../write/patch.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { withTransaction } from "../write/transaction.js";
+import { buildWriteData } from "../write/write-data.js";
 
+import type { DocumentId } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 import type { PatchOperation } from "../write/patch.js";
 
@@ -42,6 +44,28 @@ Inside a rich text field a pointer keeps going: "/content/root/children/2" is a 
 Node positions shift as soon as anything is added or removed, so read immediately before patching, order removals from the last index to the first, and use a "test" operation on "/content/root/children/2/type" to assert a position is what you think it is before writing to it.
 
 A successful write may come back with "publishBlockers": everything still wrong with the draft, such as required fields left empty. Those do not fail the write, because a draft is allowed to be incomplete, but the document cannot be published until the list is empty. "notApplied" lists pointers whose value Payload kept unchanged, which happens when field-level access denies the update. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing about whether the document is publishable.`;
+
+const POINTER = z.string().regex(JSON_POINTER_PATTERN);
+
+/** Discriminated on `op`, so an operation carries only its own members. */
+export const PATCH_OPERATION_SCHEMA = z
+	.discriminatedUnion("op", [
+		z.strictObject({ op: z.literal("add"), path: POINTER, value: z.unknown() }),
+		z.strictObject({ op: z.literal("remove"), path: POINTER }),
+		z.strictObject({
+			op: z.literal("replace"),
+			path: POINTER,
+			value: z.unknown(),
+		}),
+		z.strictObject({ from: POINTER, op: z.literal("move"), path: POINTER }),
+		z.strictObject({ from: POINTER, op: z.literal("copy"), path: POINTER }),
+		z.strictObject({
+			op: z.literal("test"),
+			path: POINTER,
+			value: z.unknown(),
+		}),
+	])
+	.describe("An RFC 6902 operation.");
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -123,7 +147,7 @@ export const patchDocument = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.writable.length + scope.writableGlobals.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "write", {
+		...entityShape(scope, "write", {
 			collection: "Collection holding the document.",
 			global: "Global to patch.",
 		}),
@@ -145,7 +169,7 @@ export const patchDocument = defineMcpxTool({
 			),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "write");
+		const target = resolveEntity(scope, args, "write");
 		const id = requireIdFor(target, args.id);
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
@@ -157,7 +181,7 @@ export const patchDocument = defineMcpxTool({
 		const patches = args.patches as PatchOperation[];
 
 		return await withTransaction(scope.req, async () => {
-			const doc = await readTarget(scope, { target, id, locale });
+			const doc = await readDraft(scope, { target, id, locale });
 
 			if (
 				args.expectedUpdatedAt !== undefined &&
@@ -194,7 +218,7 @@ export const patchDocument = defineMcpxTool({
 				await payload.update({
 					...write,
 					collection: target.slug,
-					id: id as number | string,
+					id: id as DocumentId,
 				});
 			} else {
 				/*
@@ -210,7 +234,7 @@ export const patchDocument = defineMcpxTool({
 				});
 			}
 
-			const saved = await readTarget(scope, {
+			const saved = await readDraft(scope, {
 				target,
 				id,
 				locale,

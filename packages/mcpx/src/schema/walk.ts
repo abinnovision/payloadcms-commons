@@ -1,9 +1,11 @@
 import { fieldIsHiddenOrDisabled, fieldIsVirtual } from "payload/shared";
 
 import { allowedNodeTypes, nodeOptions } from "./lexical.js";
+import { joinPath } from "./path.js";
 import { translateAny } from "../i18n.js";
 
 import type { NodeOptions } from "./lexical.js";
+import type { EntityRef } from "../entity.js";
 import type { Translate } from "../i18n.js";
 import type {
 	Field,
@@ -65,37 +67,10 @@ export const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
  */
 export const ARRAY_MARKER = "*";
 
-export const JSON_POINTER_PATTERN = /^(\/([^~/]|~[01])*)*$/;
-
-/** No segments is the root pointer, `""`. */
-export const joinPath = (parts: readonly string[]): string =>
-	parts
-		.map((part) => `/${part.replace(/~/g, "~0").replace(/\//g, "~1")}`)
-		.join("");
-
-/** Unescapes `~1` and `~0`. The root pointer yields no segments. */
-export const splitPath = (path: string): string[] =>
-	path
-		.split("/")
-		.slice(1)
-		.map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
-
-/** `-` included, since RFC 6901 reads it as the position after the last. */
-export const isIndexSegment = (segment: string): boolean =>
-	segment === "-" || /^\d+$/.test(segment);
-
 export const isPlainObject = (
 	value: unknown,
 ): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
-
-/**
- * A path Payload reports on a validation error (`layout.0.title`) as a JSON
- * Pointer, so everything handed back addresses documents the same way. The
- * path already carries real indices, so it maps directly.
- */
-export const pointerFromPayloadPath = (path: string): string =>
-	path ? joinPath(path.split(".")) : "";
 
 /** On a flattened field, whichever of `blockReferences` and `blocks` was declared. */
 export const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
@@ -390,21 +365,11 @@ export const findRichTextField = (
 ): RichTextField | undefined => findFieldAt(fields, path, "richText");
 
 /**
- * Names a collection or a global before its config is looked up. Everything in
- * the schema layer is written against this rather than a bare slug, because a
- * slug alone cannot say which of the two namespaces it belongs to.
- */
-export interface TargetRef {
-	kind: "collection" | "global";
-	slug: string;
-}
-
-/**
  * The part of a sanitized config the schema walkers actually consume. Both
  * `SanitizedCollectionConfig` and `SanitizedGlobalConfig` satisfy it, so
- * `targetOf` returns without a cast and no caller has to narrow.
+ * `schemaOf` returns without a cast and no caller has to narrow.
  */
-export interface SchemaTarget {
+export interface EntitySchema {
 	fields: Field[];
 	flattenedFields: FlattenedField[];
 	slug: string;
@@ -412,14 +377,14 @@ export interface SchemaTarget {
 
 /**
  * Looks up the sanitized config for a collection or global, as a
- * {@link SchemaTarget}. Throws on an unknown slug rather than returning
+ * {@link EntitySchema}. Throws on an unknown slug rather than returning
  * undefined, because a reference reaching here has already been checked against
  * the key's capabilities and a miss means the config changed underneath it.
  */
-export const targetOf = (
+export const schemaOf = (
 	config: SanitizedConfig,
-	ref: TargetRef,
-): SchemaTarget => {
+	ref: EntityRef,
+): EntitySchema => {
 	const found =
 		ref.kind === "collection"
 			? config.collections.find((candidate) => candidate.slug === ref.slug)

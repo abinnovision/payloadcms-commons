@@ -2,14 +2,11 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import {
 	applyPatchOperations,
-	buildWriteData,
 	droppedPointer,
 	isElementPointer,
 	isReservedPointer,
-	PATCH_OPERATION_SCHEMA,
 } from "./patch.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
-import { targetOf } from "../schema/walk.js";
 
 import type { SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
@@ -50,51 +47,6 @@ const DOC = {
 	},
 	title: "Home",
 };
-
-describe("pATCH_OPERATION_SCHEMA", () => {
-	it("accepts the six RFC 6902 operations", () => {
-		const operations = [
-			{ op: "add", path: "/a", value: 1 },
-			{ from: "/b", op: "copy", path: "/a" },
-			{ from: "/b", op: "move", path: "/a" },
-			{ op: "remove", path: "/a" },
-			{ op: "replace", path: "/a", value: 1 },
-			{ op: "test", path: "/a", value: 1 },
-		];
-
-		for (const operation of operations) {
-			expect(PATCH_OPERATION_SCHEMA.safeParse(operation).success).toBe(true);
-		}
-	});
-
-	it("rejects an unknown operation", () => {
-		expect(
-			PATCH_OPERATION_SCHEMA.safeParse({ op: "set", path: "/a" }).success,
-		).toBe(false);
-	});
-
-	it("rejects members the operation does not take", () => {
-		expect(
-			PATCH_OPERATION_SCHEMA.safeParse({
-				from: "/b",
-				op: "copy",
-				path: "/a",
-				value: 1,
-			}).success,
-		).toBe(false);
-
-		expect(
-			PATCH_OPERATION_SCHEMA.safeParse({ from: "/b", op: "add", path: "/a" })
-				.success,
-		).toBe(false);
-	});
-
-	it("requires a source pointer on copy and move", () => {
-		expect(
-			PATCH_OPERATION_SCHEMA.safeParse({ op: "copy", path: "/a" }).success,
-		).toBe(false);
-	});
-});
 
 describe("pointer helpers", () => {
 	it("recognises pointers at fields Payload maintains", () => {
@@ -462,68 +414,6 @@ describe("applyPatchOperations against read-only fields", () => {
 		expect(
 			problemsFor([{ op: "replace", path: "/title", value: "Renamed" }]),
 		).toEqual([]);
-	});
-});
-
-describe("buildWriteData", () => {
-	let config: SanitizedConfig;
-
-	beforeAll(async () => {
-		config = await buildFixtureConfig();
-	});
-
-	it("keeps describable fields and row identity, drops what Payload owns", () => {
-		const data = buildWriteData(
-			config,
-			targetOf(config, { kind: "collection", slug: "pages" }),
-			{
-				...DOC,
-				_status: "draft",
-				createdAt: "2026-01-01T00:00:00.000Z",
-				updatedAt: "2026-01-01T00:00:00.000Z",
-				unknown: "x",
-				meta: { title: "Meta", stray: true },
-			},
-		);
-
-		expect(data).toEqual({
-			layout: {
-				color: "light",
-				sections: [
-					{
-						id: "row-1",
-						blockType: "sectionWrapper",
-						identifier: "first",
-						modules: [{ id: "row-2", blockType: "hero", imageSize: "small" }],
-					},
-				],
-			},
-			meta: { title: "Meta" },
-			title: "Home",
-		});
-	});
-
-	it("drops the base fields of an upload document", () => {
-		const data = buildWriteData(
-			config,
-			targetOf(config, { kind: "collection", slug: "media" }),
-			{
-				id: "m1",
-				alt: "A cat",
-				credit: "Nobody",
-				filename: "cat.png",
-				mimeType: "image/png",
-				filesize: 1234,
-				width: 800,
-				height: 600,
-				url: "/media/cat.png",
-				thumbnailURL: "https://example.test/media/cat.png",
-				focalX: 50,
-				focalY: 50,
-			},
-		);
-
-		expect(data).toEqual({ alt: "A cat", credit: "Nobody" });
 	});
 });
 

@@ -1,6 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
-import { resolveApiKeyAuth } from "../auth/index.js";
+import { resolveApiKeyAuth } from "../auth/resolve.js";
 import {
 	publishableGlobalSlugs,
 	publishableSlugs,

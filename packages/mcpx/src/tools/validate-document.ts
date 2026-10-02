@@ -1,13 +1,7 @@
-import {
-	idShape,
-	localeOf,
-	localeShape,
-	readTarget,
-	targetShape,
-} from "./shared.js";
-import { requireIdFor, resolveTarget } from "./target.js";
+import { readDraft, requireIdFor, resolveEntity } from "./entity.js";
+import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
@@ -32,7 +26,7 @@ export const validateDocument = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.writable.length + scope.writableGlobals.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "write", {
+		...entityShape(scope, "write", {
 			collection: "Collection holding the document.",
 			global: "Global to validate.",
 		}),
@@ -43,14 +37,14 @@ export const validateDocument = defineMcpxTool({
 		}),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "write");
+		const target = resolveEntity(scope, args, "write");
 		const id = requireIdFor(target, args.id);
 		const locale = localeOf(scope, args.locale);
 
 		// The first read checks the key's access; the second sees every field.
-		await readTarget(scope, { target, id, locale });
+		await readDraft(scope, { target, id, locale });
 
-		const doc = await readTarget(scope, {
+		const doc = await readDraft(scope, {
 			target,
 			id,
 			locale,

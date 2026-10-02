@@ -1,17 +1,18 @@
 import { z } from "zod";
 
 import {
-	idShape,
-	localeOf,
-	readTarget,
+	readDraft,
+	requireIdFor,
+	resolveEntity,
 	sameInstant,
-	targetShape,
-} from "./shared.js";
-import { requireIdFor, resolveTarget } from "./target.js";
+} from "./entity.js";
+import { idShape, localeOf, entityShape } from "./shared.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { errorResult, jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
 import { withPublishIntent } from "../write/publish-intent.js";
 import { withTransaction } from "../write/transaction.js";
+
+import type { DocumentId } from "../entity.js";
 
 const DESCRIPTION = `Publishes the current draft, which changes what the public sees. This is the only tool that does; every other write lands as a draft. Call validateDocument first: a document that still has publish blockers is refused, and nothing is written.
 
@@ -33,7 +34,7 @@ export const publishDocument = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.publishable.length + scope.publishableGlobals.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "publish", {
+		...entityShape(scope, "publish", {
 			collection: "Collection holding the document.",
 			global: "Global to publish.",
 		}),
@@ -46,7 +47,7 @@ export const publishDocument = defineMcpxTool({
 			),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "publish");
+		const target = resolveEntity(scope, args, "publish");
 		const id = requireIdFor(target, args.id);
 		const { payload } = scope.req;
 		/*
@@ -57,7 +58,7 @@ export const publishDocument = defineMcpxTool({
 		const locale = localeOf(scope, undefined);
 
 		return await withTransaction(scope.req, async () => {
-			const doc = await readTarget(scope, { target, id, locale });
+			const doc = await readDraft(scope, { target, id, locale });
 
 			if (
 				args.expectedUpdatedAt !== undefined &&
@@ -89,13 +90,13 @@ export const publishDocument = defineMcpxTool({
 				await payload.update({
 					...write,
 					collection: target.slug,
-					id: id as number | string,
+					id: id as DocumentId,
 				});
 			} else {
 				await payload.updateGlobal({ ...write, slug: target.slug });
 			}
 
-			const saved = await readTarget(scope, {
+			const saved = await readDraft(scope, {
 				target,
 				id,
 				locale,

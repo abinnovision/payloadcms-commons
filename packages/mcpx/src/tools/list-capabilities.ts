@@ -1,14 +1,27 @@
 import { hasDraftValidationEnabled } from "payload/shared";
 
-import { translateLabel } from "./shared.js";
 import { canCreate } from "../capabilities.js";
-import { translatorFor } from "../i18n.js";
+import { defineMcpxTool } from "../define-tool.js";
+import { translateStatic, translatorFor } from "../i18n.js";
 import { jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
+
+import type { McpxToolScope } from "../types.js";
+import type { LabelFunction, StaticLabel } from "payload";
 
 const DESCRIPTION = `Lists what this key may do: the collections and globals it can read or write, whether a collection can also be created in, their draft behaviour and id type, the configured locales, the limits in force and the custom tools available. Call it first to orient; nothing here changes with the content model.
 
 A global is a singleton: it has no id, is not listed by findDocuments and cannot be created. Address one with the "global" argument where a collection document would take "collection" and "id".`;
+
+const translateLabel = (
+	scope: McpxToolScope,
+	label: LabelFunction | StaticLabel | undefined,
+	fallback: string,
+): string => {
+	const { i18n, t } = scope.req;
+	const resolved = typeof label === "function" ? label({ i18n, t }) : label;
+
+	return translateStatic(resolved, i18n) ?? fallback;
+};
 
 /**
  * Registered for every key, including one with no capabilities ticked, so a

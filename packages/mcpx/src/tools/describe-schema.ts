@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-import { targetShape } from "./shared.js";
-import { refOf, resolveTarget } from "./target.js";
+import { refOf, resolveEntity } from "./entity.js";
+import { entityShape } from "./shared.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { translatorFor } from "../i18n.js";
 import { jsonResult } from "../result.js";
 import {
@@ -10,7 +11,6 @@ import {
 	REACHABLE_PATHS_LIMIT,
 	reachableSchemaPaths,
 } from "../schema/index.js";
-import { defineMcpxTool } from "../types.js";
 
 import type { FieldDescriptor } from "../schema/index.js";
 
@@ -44,7 +44,7 @@ export const describeSchema = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.readable.length + scope.readableGlobals.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "read", {
+		...entityShape(scope, "read", {
 			collection: "Collection to describe.",
 			global: "Global to describe.",
 		}),
@@ -62,7 +62,7 @@ export const describeSchema = defineMcpxTool({
 			),
 	}),
 	handler: ({ args, scope }) => {
-		const ref = refOf(resolveTarget(scope, args, "read"));
+		const ref = refOf(resolveEntity(scope, args, "read"));
 
 		const { config } = scope.req.payload;
 		const describeNode = nodeDescriber(translatorFor(scope.req.i18n));

@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
+/*
+ * The clause before `from` is limited to what an import or re-export clause
+ * can hold. Any wider, and a declaration such as `export type X = ...` would
+ * run on to the next `from` followed by a quote and capture source text.
+ */
 const SPECIFIER_RE =
-	/(?:^|\n)\s*(?:import|export)\b(?:[\s\S]*?\bfrom\s*)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
+	/(?:^|\n)\s*(?:import|export)\b(?:[\w$*{},\s]*?\bfrom)?\s*["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
 const TYPE_ONLY_RE = /^\s*(?:import|export)\s+type\b/;
 
 const resolveRelative = (fromFile: string, specifier: string): string => {
@@ -22,6 +27,8 @@ const resolveRelative = (fromFile: string, specifier: string): string => {
 export interface ModuleGraph {
 	files: Set<string>;
 	bareSpecifiers: Set<string>;
+	/** The files each walked file imports directly. */
+	imports: Map<string, Set<string>>;
 }
 
 export interface WalkOptions {
@@ -54,6 +61,7 @@ export const walkModuleGraph = (
 ): ModuleGraph => {
 	const files = new Set<string>();
 	const bareSpecifiers = new Set<string>();
+	const imports = new Map<string, Set<string>>();
 	const queue = [entryFile];
 
 	while (queue.length > 0) {
@@ -63,6 +71,9 @@ export const walkModuleGraph = (
 		}
 
 		files.add(file);
+
+		const own = new Set<string>();
+		imports.set(file, own);
 
 		/*
 		 * Scanned over the whole source rather than line by line: a re-export
@@ -84,12 +95,15 @@ export const walkModuleGraph = (
 			}
 
 			if (specifier.startsWith(".")) {
-				queue.push(resolveRelative(file, specifier));
+				const resolved = resolveRelative(file, specifier);
+
+				own.add(resolved);
+				queue.push(resolved);
 			} else {
 				bareSpecifiers.add(specifier);
 			}
 		}
 	}
 
-	return { files, bareSpecifiers };
+	return { files, bareSpecifiers, imports };
 };

@@ -1,16 +1,16 @@
 import { z } from "zod";
 
+import { requireIdFor, resolveEntity } from "./entity.js";
 import {
 	idShape,
 	localeOf,
 	localeShape,
 	slugsFor,
-	targetShape,
+	entityShape,
 } from "./shared.js";
-import { requireIdFor, resolveTarget } from "./target.js";
 import { queryVersions } from "./versions.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
 
 const DESCRIPTION = `Lists the version history of one document or global, newest first. Returns metadata only; read a version's body with getDocument and "versionId", or what changed with "diffFrom".
 
@@ -31,7 +31,7 @@ export const findVersions = defineMcpxTool({
 		return collections.length + globals.length > 0;
 	},
 	inputSchema: (scope) => ({
-		...targetShape(scope, "versions", {
+		...entityShape(scope, "versions", {
 			collection: "Collection holding the document.",
 			global: "Global whose history to list.",
 		}),
@@ -57,7 +57,7 @@ export const findVersions = defineMcpxTool({
 		}),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "versions");
+		const target = resolveEntity(scope, args, "versions");
 		const id = requireIdFor(target, args.id);
 
 		const result = await queryVersions(

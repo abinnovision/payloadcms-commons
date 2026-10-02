@@ -1,21 +1,21 @@
 import { z } from "zod";
 
+import { readDraft, resolveEntity } from "./entity.js";
 import {
 	draftSentence,
 	localeOf,
 	localeShape,
 	patchOnlySlugs,
-	readTarget,
 	slugEnum,
 	slugsFor,
 } from "./shared.js";
-import { resolveTarget } from "./target.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { errorResult, jsonResult } from "../result.js";
 import { validateWriteValue } from "../schema/index.js";
-import { defineMcpxTool } from "../types.js";
-import { stripRowIds } from "../write/patch.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
+import { stripRowIds } from "../write/row-ids.js";
 
+import type { DocumentId } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 
 /** Names the writable slugs this tool leaves out, so the gap reads as intent. */
@@ -65,7 +65,7 @@ export const createDocument = defineMcpxTool({
 			.describe("Initial field values, as describeSchema lists them."),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(
+		const target = resolveEntity(
 			scope,
 			{ collection: args.collection },
 			"create",
@@ -107,9 +107,9 @@ export const createDocument = defineMcpxTool({
 			...(locale === undefined ? {} : { locale }),
 		})) as Record<string, unknown>;
 
-		const saved = await readTarget(scope, {
+		const saved = await readDraft(scope, {
 			target,
-			id: created["id"] as number | string,
+			id: created["id"] as DocumentId,
 			locale,
 			privileged: true,
 		});

@@ -1,18 +1,18 @@
 import { lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
+import { joinPath, splitPath } from "./path.js";
 import {
 	blockOf,
 	blockSlugsOf,
 	describeFields,
 	findBlocksField,
 	findRichTextField,
-	joinPath,
-	splitPath,
-	targetOf,
+	schemaOf,
 } from "./walk.js";
 import { translateAny } from "../i18n.js";
 
+import type { FieldDescriptor, EntitySchema } from "./walk.js";
+import type { EntityRef } from "../entity.js";
 import type { Translate } from "../i18n.js";
-import type { FieldDescriptor, SchemaTarget, TargetRef } from "./walk.js";
 import type { FlattenedField, SanitizedConfig } from "payload";
 
 /**
@@ -176,7 +176,7 @@ const stepThroughLexical = ({
  */
 const fieldsAtSchemaPath = (
 	config: SanitizedConfig,
-	target: SchemaTarget,
+	target: EntitySchema,
 	schemaPath: string,
 ): { blockType?: string; fields: FlattenedField[] } => {
 	let fields = target.flattenedFields;
@@ -264,12 +264,12 @@ export const nodeDescriber =
 	(translate: Translate = translateAny) =>
 	(
 		config: SanitizedConfig,
-		ref: TargetRef,
+		ref: EntityRef,
 		schemaPath = "",
 	): NodeDescriptor => {
 		const { blockType, fields } = fieldsAtSchemaPath(
 			config,
-			targetOf(config, ref),
+			schemaOf(config, ref),
 			schemaPath,
 		);
 
@@ -303,7 +303,7 @@ export const REACHABLE_PATHS_LIMIT = 400;
  */
 export const reachableSchemaPaths = (
 	config: SanitizedConfig,
-	ref: TargetRef,
+	ref: EntityRef,
 ): { paths: string[]; truncated: boolean } => {
 	const seen: string[] = [];
 	let truncated = false;
@@ -319,7 +319,7 @@ export const reachableSchemaPaths = (
 
 		const { fields } = fieldsAtSchemaPath(
 			config,
-			targetOf(config, ref),
+			schemaOf(config, ref),
 			schemaPath,
 		);
 

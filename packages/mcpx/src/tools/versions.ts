@@ -2,21 +2,21 @@ import { createPatch, Pointer } from "rfc6902";
 
 import { readRequest } from "./shared.js";
 
-import type { ResolvedTarget } from "./target.js";
+import type { DocumentId, ResolvedEntity } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 import type { PaginatedDocs, SelectType, TypedLocale, Where } from "payload";
 import type { Operation } from "rfc6902";
 
 /** A stored version: its metadata plus the document body under `version`. */
 export type StoredVersion = Record<string, unknown> & {
-	id: number | string;
+	id: DocumentId;
 	version: Record<string, unknown>;
 };
 
 export interface VersionRead {
-	target: ResolvedTarget;
+	target: ResolvedEntity;
 	/** The document the version must belong to; `undefined` for a global. */
-	id: number | string | undefined;
+	id: DocumentId | undefined;
 	depth: number;
 	locale: TypedLocale | undefined;
 }
@@ -46,7 +46,7 @@ export const readLive = async (
 		? scope.req.payload.findByID({
 				...shared,
 				collection: read.target.slug,
-				id: read.id as number | string,
+				id: read.id as DocumentId,
 			})
 		: scope.req.payload.findGlobal({ ...shared, slug: read.target.slug }));
 };
@@ -65,7 +65,7 @@ const assertReadable = async (
 /** `parent` comes back as a raw id or, populated, as the document itself. */
 export const isVersionOf = (
 	version: Record<string, unknown>,
-	id: number | string,
+	id: DocumentId,
 ): boolean => {
 	const parent = version["parent"];
 	const parentId =
@@ -88,7 +88,7 @@ export const isVersionOf = (
 export const loadVersion = async (
 	scope: McpxToolScope,
 	read: VersionRead,
-	versionId: number | string,
+	versionId: DocumentId,
 ): Promise<null | StoredVersion> => {
 	await assertReadable(scope, read);
 

@@ -1,18 +1,19 @@
-import { hashApiKey } from "../api-keys/index.js";
+import { hashApiKey } from "../api-keys/key.js";
 
+import type { DocumentId } from "../entity.js";
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAuthResult } from "../types.js";
 import type { PayloadRequest } from "payload";
 
 const BEARER = /^Bearer\s+(\S+)\s*$/i;
 
-const relationId = (value: unknown): number | string | undefined => {
+const relationId = (value: unknown): DocumentId | undefined => {
 	if (typeof value === "string" || typeof value === "number") {
 		return value;
 	}
 
 	if (typeof value === "object" && value !== null && "id" in value) {
-		return (value as { id: number | string }).id;
+		return (value as { id: DocumentId }).id;
 	}
 
 	return undefined;
@@ -57,7 +58,7 @@ export const resolveApiKeyAuth = async (
 
 	const keyDoc = docs[0] as
 		| {
-				id: number | string;
+				id: DocumentId;
 				enabled?: boolean;
 				user?: unknown;
 				capabilities?: unknown;

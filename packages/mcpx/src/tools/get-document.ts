@@ -2,6 +2,7 @@ import { APIError } from "payload";
 import { Pointer } from "rfc6902";
 import { z } from "zod";
 
+import { refOf, requireIdFor, resolveEntity } from "./entity.js";
 import {
 	depthShape,
 	idSchema,
@@ -9,15 +10,15 @@ import {
 	localeOf,
 	localeShape,
 	slugsFor,
-	targetShape,
+	entityShape,
 } from "./shared.js";
-import { refOf, requireIdFor, resolveTarget } from "./target.js";
 import {
 	diffDocuments,
 	loadPublished,
 	loadVersion,
 	readLive,
 } from "./versions.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { errorResult, jsonResult } from "../result.js";
 import {
 	findRichTextField,
@@ -26,9 +27,8 @@ import {
 	resolveDataPointer,
 	splitPath,
 } from "../schema/index.js";
-import { defineMcpxTool } from "../types.js";
 
-import type { ResolvedTarget } from "./target.js";
+import type { DocumentId, ResolvedEntity } from "../entity.js";
 import type { VersionRead } from "./versions.js";
 import type { McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -47,11 +47,11 @@ On an entity with versions, "versionId" (from findVersions) reads that version i
 /** Refuses `versionId` and `diffFrom` where they cannot apply. */
 const assertVersionArgs = (
 	scope: McpxToolScope,
-	target: ResolvedTarget,
+	target: ResolvedEntity,
 	args: {
 		draft?: boolean | undefined;
-		versionId?: number | string | undefined;
-		diffFrom?: number | string | undefined;
+		versionId?: DocumentId | undefined;
+		diffFrom?: DocumentId | undefined;
 		outline?: boolean | undefined;
 	},
 ): void => {
@@ -79,8 +79,8 @@ const diffResult = async (
 	scope: McpxToolScope,
 	read: VersionRead,
 	diff: {
-		from: number | string;
-		to: number | string | undefined;
+		from: DocumentId;
+		to: DocumentId | undefined;
 		pointer: Pointer | undefined;
 	},
 	doc: Record<string, unknown>,
@@ -118,7 +118,7 @@ export const getDocument = defineMcpxTool({
 	isEnabled: (scope) =>
 		scope.readable.length + scope.readableGlobals.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "read", {
+		...entityShape(scope, "read", {
 			collection: "Collection holding the document.",
 			global: "Global to read.",
 		}),
@@ -157,7 +157,7 @@ export const getDocument = defineMcpxTool({
 			),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "read");
+		const target = resolveEntity(scope, args, "read");
 		const id = requireIdFor(target, args.id);
 
 		assertVersionArgs(scope, target, args);
