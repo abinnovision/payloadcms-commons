@@ -70,17 +70,34 @@ export const resolveApiKeyAuth = async (
 	}
 
 	const userCollection = payload.collections[options.userCollection];
-	const user = await payload.findByID({
+	const lookup = {
 		collection: options.userCollection,
 		id: userId,
-		depth: userCollection?.config.auth.depth ?? 0,
 		overrideAccess: true,
 		disableErrors: true,
-	});
+	} as const;
+	const [user, lock] = await Promise.all([
+		payload.findByID({
+			...lookup,
+			depth: userCollection?.config.auth.depth ?? 0,
+		}),
+		/*
+		 * `lockUntil` is hidden, so it is read on its own: showing hidden fields
+		 * on the user itself would hand its hash, salt and tokens to every tool.
+		 */
+		payload.findByID({
+			...lookup,
+			depth: 0,
+			showHiddenFields: true,
+			select: { lockUntil: true },
+		}),
+	]);
 
+	// An adapter may hand back a Date where the bundled ones give a string.
+	const storedLock: unknown = lock?.["lockUntil"];
 	const lockUntil =
-		typeof user?.["lockUntil"] === "string"
-			? Date.parse(user["lockUntil"])
+		typeof storedLock === "string" || storedLock instanceof Date
+			? new Date(storedLock).getTime()
 			: Number.NaN;
 
 	if (!user || user["_verified"] === false || lockUntil > Date.now()) {

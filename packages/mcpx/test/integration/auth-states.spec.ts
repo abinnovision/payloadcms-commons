@@ -1,12 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { rpc } from "./helpers/mcp.js";
+import { callTool, rpc } from "./helpers/mcp.js";
 import { bootPayload, createKey } from "./helpers/payload.js";
+import { defineMcpxTool } from "../../src/index.js";
 import { verifiedUsers } from "../fixtures/security.js";
 
 import type { Booted } from "./helpers/payload.js";
 
 const CAPABILITIES = { collections: { tags: { read: true } } };
+
+const userFieldsTool = defineMcpxTool({
+	name: "userFields",
+	description: "Lists the fields of the user the request acts as.",
+	handler: ({ req }) => ({
+		content: [
+			{ type: "text", text: JSON.stringify(Object.keys(req.user ?? {})) },
+		],
+	}),
+});
 
 describe("default key resolution against the user's state", () => {
 	const CACHE_KEY = "mcpx-integration-auth-states";
@@ -14,7 +25,11 @@ describe("default key resolution against the user's state", () => {
 	let seq = 0;
 
 	beforeAll(async () => {
-		booted = await bootPayload({ key: CACHE_KEY, users: verifiedUsers });
+		booted = await bootPayload({
+			key: CACHE_KEY,
+			users: verifiedUsers,
+			plugin: { tools: [userFieldsTool] },
+		});
 	});
 
 	afterAll(async () => {
@@ -103,7 +118,7 @@ describe("default key resolution against the user's state", () => {
 		expect(body.error?.code).toBe(-32001);
 	});
 
-	it.fails("accepts a key whose user is locked out", async () => {
+	it("refuses a key whose user is locked out", async () => {
 		const userId = await makeUser(true);
 		const key = await createKey(booted.payload, {
 			userId,
@@ -133,5 +148,41 @@ describe("default key resolution against the user's state", () => {
 
 		expect(status).toBe(401);
 		expect(body.error?.code).toBe(-32001);
+	});
+
+	it("hands tools a user without its hidden auth fields", async () => {
+		const userId = await makeUser(true);
+		const key = await createKey(booted.payload, {
+			userId,
+			label: "expired-lock",
+			capabilities: { ...CAPABILITIES, tools: { userFields: true } },
+		});
+
+		// An expired lock, so the row carries a `lockUntil` that admits the key.
+		await booted.payload.db.updateOne({
+			collection: "users",
+			id: userId,
+			data: {
+				lockUntil: new Date(Date.now() - 60 * 1000).toISOString(),
+				loginAttempts: 5,
+			},
+		});
+
+		const result = await callTool(
+			booted.config,
+			key,
+			"userFields",
+			{},
+			CACHE_KEY,
+		);
+		const fields = JSON.parse(result.text ?? "[]") as string[];
+
+		expect(result.isError).toBe(false);
+		expect(fields).toContain("email");
+		expect(fields).not.toContain("hash");
+		expect(fields).not.toContain("salt");
+		expect(fields).not.toContain("lockUntil");
+		expect(fields).not.toContain("loginAttempts");
+		expect(fields).not.toContain("_verificationToken");
 	});
 });
