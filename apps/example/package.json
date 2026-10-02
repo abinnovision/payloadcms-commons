@@ -30,6 +30,7 @@
 		"@abinnovision/payloadcms-colophon": "workspace:*",
 		"@abinnovision/payloadcms-mcpx": "workspace:*",
 		"@abinnovision/payloadcms-montage": "workspace:*",
+		"@abinnovision/payloadcms-tags": "workspace:*",
 		"@abinnovision/payloadcms-viewfinder": "workspace:*",
 		"@abinnovision/payloadcms-wayfinder": "workspace:*",
 		"@payloadcms/db-sqlite": "3.89.0",
