@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { resolveEntity } from "./document.js";
+import { assertQueryable } from "./query-paths.js";
 import { readRequest } from "./read-request.js";
 import { slugEnum, depthShape, localeOf, localeShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
@@ -63,6 +64,14 @@ export const findDocuments = defineMcpxTool({
 		resolveEntity(scope, { collection: args.collection }, "read");
 
 		const locale = localeOf(scope, args.locale);
+
+		assertQueryable(scope, {
+			collection: args.collection,
+			where: args.where,
+			sort: args.sort,
+			locale,
+		});
+
 		const result = await scope.req.payload.find({
 			collection: args.collection,
 			depth: args.depth ?? 0,
