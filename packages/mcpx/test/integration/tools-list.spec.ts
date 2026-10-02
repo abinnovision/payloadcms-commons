@@ -98,7 +98,7 @@ describe("tools/list and initialize", () => {
 		const tools = await toolsList(booted.config, keys[label]!, CACHE_KEY);
 
 		await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(
-			`${SNAPSHOTS}.${label}.tools.json`,
+			`${SNAPSHOTS}.${label}.tools.snap`,
 		);
 	});
 
