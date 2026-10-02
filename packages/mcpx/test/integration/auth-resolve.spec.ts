@@ -1,11 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createMcpClient, mcpPost } from "./helpers/mcp.js";
-import { bootPayload, seedKeysFor } from "./helpers/payload.js";
+import { bootPayload, seedKeysFor, storedState } from "./helpers/payload.js";
 
 import type { Booted } from "./helpers/payload.js";
+import type { McpxAuthResult } from "../../src/index.js";
 
-const CAPABILITIES = { collections: { tags: { read: true } } };
+const CAPABILITIES = {
+	collections: { tags: { read: true }, pages: { read: true, write: true } },
+};
 
 describe("configured key resolution", () => {
 	const CACHE_KEY = "mcpx-integration-auth-resolve";
@@ -16,12 +19,43 @@ describe("configured key resolution", () => {
 	beforeAll(async () => {
 		booted = await bootPayload({
 			key: CACHE_KEY,
+			collections: [{ slug: "editors", auth: true, fields: [] }],
 			plugin: {
 				auth: {
-					resolve: ({ req }) =>
-						req.headers.get("x-resolve") === "throw"
-							? Promise.reject(new Error(THROWN))
-							: Promise.resolve(null),
+					resolve: async ({ req, resolveDefault }) => {
+						const mode = req.headers.get("x-resolve");
+
+						if (mode === "throw") {
+							throw new Error(THROWN);
+						}
+
+						if (mode === null) {
+							return null;
+						}
+
+						const auth = await resolveDefault();
+
+						if (!auth || mode === "wrap") {
+							return auth;
+						}
+
+						const { user, apiKeyId, ...rest } = auth;
+						const collections: Record<string, string> = {
+							editors: "editors",
+							unknown: "unknown",
+						};
+
+						const broken: Record<string, unknown> = {
+							...rest,
+							user:
+								mode === "no-id"
+									? { collection: user.collection }
+									: { ...user, collection: collections[mode] },
+							apiKeyId: mode === "no-key-id" ? undefined : apiKeyId,
+						};
+
+						return broken as unknown as McpxAuthResult;
+					},
 				},
 			},
 		});
@@ -33,6 +67,28 @@ describe("configured key resolution", () => {
 	afterAll(async () => {
 		await booted.payload.destroy();
 	});
+
+	const createPage = (mode: string) =>
+		mcpPost(booted, {
+			key,
+			headers: { "x-resolve": mode },
+			body: {
+				jsonrpc: "2.0",
+				id: 1,
+				method: "tools/call",
+				params: {
+					name: "createDocument",
+					arguments: {
+						collection: "pages",
+						locale: "en",
+						data: { title: "Written" },
+					},
+				},
+			},
+		});
+
+	const pages = async () =>
+		(await storedState(booted.payload, { collections: ["pages"] }))["pages"];
 
 	it("answers 401 when the resolver returns null, even for a valid key", async () => {
 		const { status, body } = await createMcpClient(booted, key).rpc(
@@ -54,5 +110,28 @@ describe("configured key resolution", () => {
 		expect(response.status).toBe(500);
 		expect(text).not.toContain(THROWN);
 		expect(text).not.toMatch(/\bat .+:\d+:\d+/);
+	});
+
+	it.each([
+		["a user without an id", "no-id"],
+		["a user of another auth collection", "editors"],
+		["a user with an unknown collection", "unknown"],
+		["a missing apiKeyId", "no-key-id"],
+	])("answers 401, logs once and writes nothing for %s", async (_, mode) => {
+		const before = await pages();
+		const error = vi.spyOn(booted.payload.logger, "error");
+
+		expect((await createPage(mode)).status).toBe(401);
+		expect(await pages()).toEqual(before);
+		expect(error).toHaveBeenCalledWith(
+			expect.stringContaining("auth.resolve returned an invalid result"),
+		);
+
+		error.mockRestore();
+	});
+
+	it("serves a resolver that wraps the default resolver", async () => {
+		expect((await createPage("wrap")).status).toBe(200);
+		expect(await pages()).toMatchObject({ docs: [expect.anything()] });
 	});
 });

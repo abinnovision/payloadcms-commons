@@ -1,6 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
-import { resolveApiKeyAuth } from "../auth/resolve.js";
+import { isValidAuthResult, resolveApiKeyAuth } from "../auth/resolve.js";
 import { resolveCapabilities, slugsWith } from "../capabilities.js";
 import { jsonRpcError } from "./errors.js";
 import { createMcpServer } from "./server.js";
@@ -99,11 +99,18 @@ export const createMcpxHandler =
 		const resolveDefault = (): ReturnType<typeof resolveApiKeyAuth> =>
 			resolveApiKeyAuth(req, options);
 
-		const auth = options.auth?.resolve
+		// Typed as unknown because a custom resolver's result is not trusted.
+		const auth: unknown = options.auth?.resolve
 			? await options.auth.resolve({ req, resolveDefault })
 			: await resolveDefault();
 
-		if (!auth) {
+		if (!isValidAuthResult(auth, options)) {
+			if (auth) {
+				req.payload.logger.error(
+					"[payloadcms-mcpx] auth.resolve returned an invalid result: it needs a user of the user collection with an id, and an apiKeyId.",
+				);
+			}
+
 			return jsonRpcError({
 				status: 401,
 				code: -32001,

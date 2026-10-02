@@ -186,7 +186,11 @@ export type McpxPluginOptions = {
 	};
 	tools?: McpxAnyTool[];
 	auth?: {
-		/** Replace or wrap the default key resolution. Return `null` for 401. */
+		/**
+		 * Replace or wrap the default key resolution. Return `null` for 401. A
+		 * result whose user has no `id` or whose `collection` is not the user
+		 * collection, or that has no `apiKeyId`, is also answered with 401.
+		 */
 		resolve?: (args: {
 			req: PayloadRequest;
 			resolveDefault: () => Promise<McpxAuthResult | null>;

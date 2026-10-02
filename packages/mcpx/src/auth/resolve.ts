@@ -1,4 +1,5 @@
 import { hashApiKey } from "../api-keys/key.js";
+import { isPlainObject } from "../guards.js";
 
 import type { DocumentId } from "../entity.js";
 import type { NormalizedOptions } from "../options.js";
@@ -27,6 +28,28 @@ export const parseBearer = (headers: Headers): null | string => {
 	}
 
 	return BEARER.exec(header.trim())?.[1] ?? null;
+};
+
+const isId = (value: unknown): value is number | string =>
+	typeof value === "string" || typeof value === "number";
+
+/**
+ * Whether a resolved auth, from the default or a custom resolver, may become
+ * `req.user`: a user of the configured user collection with an id, and a key id.
+ */
+export const isValidAuthResult = (
+	auth: unknown,
+	options: Pick<NormalizedOptions, "userCollection">,
+): auth is McpxAuthResult => {
+	if (!isPlainObject(auth) || !isPlainObject(auth["user"])) {
+		return false;
+	}
+
+	return (
+		isId(auth["user"]["id"]) &&
+		auth["user"]["collection"] === options.userCollection &&
+		isId(auth["apiKeyId"])
+	);
 };
 
 /**
