@@ -35,14 +35,14 @@ const LAYERS: Record<string, number> = {
 };
 
 /**
- * `./client` ships to the browser, so it stands outside the layering and may
+ * `./admin` ships to the browser, so it stands outside the layering and may
  * reach only these, all plain data and pure functions. The list is written
  * twice more: the `no-restricted-imports` rule in eslint.config.ts, and the
- * walk src/client/module-boundary.spec.ts expects. A change belongs in all
+ * walk src/admin/module-boundary.spec.ts expects. A change belongs in all
  * three.
  */
-const CLIENT = "client/";
-const CLIENT_MAY_IMPORT = [
+const ADMIN = "admin/";
+const ADMIN_MAY_IMPORT = [
 	"api-keys/capability-matrix.ts",
 	"api-keys/setup-guide.ts",
 	"capabilities.ts",
@@ -56,7 +56,7 @@ const layerOf = (file: string): number | undefined => {
 	return LAYERS[path] ?? LAYERS[`${path.split("/")[0]!}/`];
 };
 
-const isClient = (file: string): boolean => pathOf(file).startsWith(CLIENT);
+const isAdmin = (file: string): boolean => pathOf(file).startsWith(ADMIN);
 
 const sourceFiles = readdirSync(here, { recursive: true, encoding: "utf8" })
 	.filter((name) => /\.tsx?$/.test(name) && !name.includes(".spec."))
@@ -75,35 +75,35 @@ const importsOf = (file: string): string[] => [
 
 const forbiddenImports = (file: string, layer: number): string[] =>
 	importsOf(file)
-		.filter((target) => isClient(target) || (layerOf(target) ?? 0) > layer)
+		.filter((target) => isAdmin(target) || (layerOf(target) ?? 0) > layer)
 		.map((target) => `${pathOf(file)} -> ${pathOf(target)}`);
 
-const forbiddenClientImports = (
+const forbiddenAdminImports = (
 	file: string,
-	allowed: string[] = CLIENT_MAY_IMPORT,
+	allowed: string[] = ADMIN_MAY_IMPORT,
 ): string[] =>
 	importsOf(file)
-		.filter((target) => !isClient(target) && !allowed.includes(pathOf(target)))
+		.filter((target) => !isAdmin(target) && !allowed.includes(pathOf(target)))
 		.map((target) => `${pathOf(file)} -> ${pathOf(target)}`);
 
 describe("layer boundaries", () => {
-	it("finds server and client files to check", () => {
-		expect(sourceFiles.filter((file) => !isClient(file))).not.toEqual([]);
-		expect(sourceFiles.filter(isClient)).not.toEqual([]);
+	it("finds server and admin files to check", () => {
+		expect(sourceFiles.filter((file) => !isAdmin(file))).not.toEqual([]);
+		expect(sourceFiles.filter(isAdmin)).not.toEqual([]);
 	});
 
 	it("names only files and directories that exist", () => {
 		expect(
-			[...Object.keys(LAYERS), ...CLIENT_MAY_IMPORT].filter(
+			[...Object.keys(LAYERS), ...ADMIN_MAY_IMPORT].filter(
 				(path) => !existsSync(resolve(here, path)),
 			),
 		).toEqual([]);
 	});
 
-	it("assigns every source file to a layer or to client", () => {
+	it("assigns every source file to a layer or to admin", () => {
 		expect(
 			sourceFiles
-				.filter((file) => !isClient(file) && layerOf(file) === undefined)
+				.filter((file) => !isAdmin(file) && layerOf(file) === undefined)
 				.map(pathOf),
 		).toEqual([]);
 	});
@@ -111,16 +111,16 @@ describe("layer boundaries", () => {
 	it("imports only the same or lower layers", () => {
 		expect(
 			sourceFiles
-				.filter((file) => !isClient(file))
+				.filter((file) => !isAdmin(file))
 				.flatMap((file) => forbiddenImports(file, layerOf(file)!)),
 		).toEqual([]);
 	});
 
-	it("keeps client to its allowed imports", () => {
+	it("keeps admin to its allowed imports", () => {
 		expect(
 			sourceFiles
-				.filter(isClient)
-				.flatMap((file) => forbiddenClientImports(file)),
+				.filter(isAdmin)
+				.flatMap((file) => forbiddenAdminImports(file)),
 		).toEqual([]);
 	});
 
@@ -139,12 +139,12 @@ describe("layer boundaries", () => {
 		);
 	});
 
-	it("sees a client import outside the allowed list", () => {
+	it("sees an admin import outside the allowed list", () => {
 		expect(
-			forbiddenClientImports(
-				resolve(here, "client", "capability-matrix.tsx"),
+			forbiddenAdminImports(
+				resolve(here, "admin", "capability-matrix.tsx"),
 				[],
 			),
-		).toContain("client/capability-matrix.tsx -> capabilities.ts");
+		).toContain("admin/capability-matrix.tsx -> capabilities.ts");
 	});
 });

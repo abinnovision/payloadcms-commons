@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import * as entry from "./index.js";
@@ -50,5 +51,15 @@ describe('the "." entrypoint', () => {
 		expectTypeOf<McpxToolScope>().not.toBeAny();
 		expectTypeOf<McpxWriteMode>().toEqualTypeOf<"draft" | "live" | false>();
 		expectTypeOf<PublishBlocker>().toHaveProperty("message");
+	});
+});
+
+describe("package exports", () => {
+	it("lists only the root and admin entrypoints", () => {
+		const { exports } = JSON.parse(
+			readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+		) as { exports: Record<string, unknown> };
+
+		expect(Object.keys(exports)).toEqual([".", "./admin"]);
 	});
 });

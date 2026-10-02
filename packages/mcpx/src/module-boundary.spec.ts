@@ -12,7 +12,7 @@ const entry = resolve(here, "index.ts");
 describe('the "." module boundary', () => {
 	/*
 	 * The plugin is imported from the server config, which the CLI loads
-	 * without React or the admin UI. Both belong to `./client` alone.
+	 * without React or the admin UI. Both belong to `./admin` alone.
 	 */
 	it("reaches no .tsx file", () => {
 		for (const file of walkModuleGraph(entry).files) {

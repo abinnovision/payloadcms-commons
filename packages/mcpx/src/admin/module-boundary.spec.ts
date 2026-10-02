@@ -9,7 +9,7 @@ import { walkModuleGraph } from "../../test/module-graph.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = resolve(here, "index.ts");
 
-describe("./client module boundary", () => {
+describe("./admin module boundary", () => {
 	/*
 	 * This entrypoint is mounted through the admin import map and ships to the
 	 * browser, so nothing server-side may be reachable as a value import.
@@ -41,7 +41,7 @@ describe("./client module boundary", () => {
 		}
 	});
 
-	it("actually walks the client surface (sanity check against a vacuous pass)", () => {
+	it("actually walks the admin surface (sanity check against a vacuous pass)", () => {
 		const { bareSpecifiers, files } = walkModuleGraph(entry);
 		const names = [...files].map((file) => file.split("/").pop());
 

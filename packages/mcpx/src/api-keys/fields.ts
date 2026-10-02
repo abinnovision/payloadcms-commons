@@ -133,7 +133,7 @@ export const withSetupGuideTab = (
 								disableListColumn: true,
 								components: {
 									Field: {
-										path: "@abinnovision/payloadcms-mcpx/client",
+										path: "@abinnovision/payloadcms-mcpx/admin",
 										exportName: "McpxSetupGuide",
 										clientProps: { endpointPath: options.endpointPath },
 									},
@@ -216,7 +216,7 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 				 */
 				components: {
 					Field: {
-						path: "@abinnovision/payloadcms-mcpx/client",
+						path: "@abinnovision/payloadcms-mcpx/admin",
 						exportName: "McpxCapabilityMatrix",
 						/*
 						 * `withinTab` is needed because Payload drops a group's outer

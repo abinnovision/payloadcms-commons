@@ -18,8 +18,8 @@ export default defineConfig([
 		},
 	},
 	{
-		files: ["src/client/**/*.{ts,tsx}"],
-		ignores: ["src/client/**/*.spec.{ts,tsx}"],
+		files: ["src/admin/**/*.{ts,tsx}"],
+		ignores: ["src/admin/**/*.spec.{ts,tsx}"],
 		rules: {
 			"@typescript-eslint/no-restricted-imports": [
 				"error",
@@ -29,7 +29,7 @@ export default defineConfig([
 							group: ["payload", "payload/*"],
 							allowTypeImports: true,
 							message:
-								"./client ships to the browser through the admin import map. Only `import type` may cross into it from payload.",
+								"./admin ships to the browser through the admin import map. Only `import type` may cross into it from payload.",
 						},
 						{
 							group: [
@@ -40,13 +40,13 @@ export default defineConfig([
 								"@modelcontextprotocol/sdk/*",
 							],
 							message:
-								"./client ships to the browser through the admin import map, so nothing server-side may reach it.",
+								"./admin ships to the browser through the admin import map, so nothing server-side may reach it.",
 						},
 						{
 							regex:
 								"^\\.\\./(?!(?:api-keys/capability-matrix|api-keys/setup-guide|capabilities)\\.js$)",
 							message:
-								"./client may import only api-keys/capability-matrix, api-keys/setup-guide and capabilities from the rest of src/, which are plain data and pure functions.",
+								"./admin may import only api-keys/capability-matrix, api-keys/setup-guide and capabilities from the rest of src/, which are plain data and pure functions.",
 						},
 					],
 				},

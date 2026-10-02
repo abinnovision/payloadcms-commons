@@ -12,7 +12,7 @@ A unit spec may build the fixture config but never boots Payload. A structural r
 as a config and a logger, is fine. If the test needs a fake with behaviour, such as a database or
 Payload operations, it belongs in integration. The one exception is `src/write/transaction.spec.ts`,
 which uses a database fake because two of its branches, an adapter without transactions and an
-outer transaction, cannot be reached through integration. `@payloadcms/ui` may be mocked in client
+outer transaction, cannot be reached through integration. `@payloadcms/ui` may be mocked in admin
 specs.
 
 A builder used by two specs moves to `test/builders`.

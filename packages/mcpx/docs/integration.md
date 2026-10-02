@@ -96,7 +96,7 @@ HTTP transport with the same URL and header.
 ### Admin components
 
 The key form renders the capability matrix and the setup guide from
-`@abinnovision/payloadcms-mcpx/client`, so both must be in the import map:
+`@abinnovision/payloadcms-mcpx/admin`, so both must be in the import map:
 
 ```sh
 payload generate:importmap
@@ -138,3 +138,12 @@ a resolver cannot grant what the config does not expose. Do not authenticate fro
 
 The handler stamps `req.context.mcpx` with the key id and the resolved capabilities.
 `isMcpxRequest(req)` reads that stamp, so your own hooks can tell an MCP write from any other.
+
+## Upgrading to 2.0
+
+The admin components moved from `@abinnovision/payloadcms-mcpx/client` to
+`@abinnovision/payloadcms-mcpx/admin`. There is no `/client` alias.
+
+- Rerun `payload generate:importmap` and commit the result.
+- Change direct imports of `McpxCapabilityMatrix` or `McpxSetupGuide` to
+  `@abinnovision/payloadcms-mcpx/admin`.

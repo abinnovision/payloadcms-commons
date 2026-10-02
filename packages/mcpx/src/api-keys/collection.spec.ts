@@ -140,6 +140,18 @@ describe("api keys collection", () => {
 		expect(findField(collection.fields, "setupGuide")?.type).toBe("ui");
 	});
 
+	it("mounts both admin components from the admin entrypoint", () => {
+		for (const name of ["capabilities", "setupGuide"]) {
+			expect(findField(collection.fields, name)).toMatchObject({
+				admin: {
+					components: {
+						Field: { path: "@abinnovision/payloadcms-mcpx/admin" },
+					},
+				},
+			});
+		}
+	});
+
 	it("passes a custom endpoint path to the component", async () => {
 		const built = await buildFixtureConfig({
 			plugin: { endpoint: { path: "/mcp" } },
