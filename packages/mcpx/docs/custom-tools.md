@@ -44,7 +44,8 @@ capabilities. It is the same object as `scope.req`. `extra` is the MCP SDK's req
 key id is a `McpxDocumentId`, which is `number | string` because it follows the database adapter.
 
 `scope` describes what the key may touch: the slugs it may read, write and publish, for
-`collections` and for `globals` (`readable`, `writable`, `publishable` in each), the full resolved
+`collections` and for `globals` (`readable`, `writable`, `publishable` in each, typed
+`McpxScopeSlugs`), the full resolved
 `capabilities`, the configured `localization` (`locales` and `defaultLocale`, or `null` when
 localization is off), the `limits` in force, and the exposed collections and globals under
 `exposure`.
@@ -85,8 +86,7 @@ export const listPages = defineMcpxTool({
 
 Use it for reads only; writes keep `req`. It bounds population, not output: neither `req` nor
 `mcpxReadRequest(scope)` removes `admin.hidden` fields, so a tool that must withhold them filters
-its own output. A virtual field is judged by its own `admin.hidden`, not by the field it points
-at, for read output; `where` and `sort` through it are refused when it points at a hidden field.
+its own output. See [security.md](./security.md#hidden-fields).
 
 ## Schemas built per request
 

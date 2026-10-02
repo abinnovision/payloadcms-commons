@@ -88,10 +88,11 @@ are still described.
 
 The response carries the document's `id` (or the global's slug), `status` and `updatedAt`, plus:
 
-- `publishBlockers`: what still prevents publishing, each with a pointer, a message and the field
-  label. See [Drafts and publishing](#drafts-and-publishing).
-- `notApplied`: pointers whose value Payload kept unchanged, which happens when field-level access
-  denies the update.
+- `publishBlockers`: what still prevents publishing, each with a `path` pointer, a `message` and
+  the `field` label. See [Drafts and publishing](#drafts-and-publishing).
+- `notApplied`: pointers whose value did not change or cannot be read back by the user, as when
+  field-level access denies the update. It is compared against the user's read; see
+  [security.md](./security.md#privileged-reads).
 - `publishBlockersUnavailable`: the blocker check failed, so an empty list says nothing.
 
 `createDocument` takes a seed in `data`, checked against the collection's fields before the
@@ -193,8 +194,9 @@ and lists what it does not cover.
 
 `publishDocument` is the one way to publish. It publishes the whole document, as the admin
 Publish button does, and is refused when the document fails validation. Payload validates only
-the locale the publish runs in; see [limitations.md](./limitations.md#known-gaps). Publishing an unchanged document is accepted and writes another version. There is no
-unpublish tool; reverting a published document to a draft is done in the admin panel.
+the locale the publish runs in; see [limitations.md](./limitations.md#known-gaps). Publishing an
+unchanged document is accepted and writes another version. There is no unpublish tool; reverting a
+published document to a draft is done in the admin panel.
 
 While someone has a collection document open in the admin panel, every MCP write to it is
 refused, publishing included. Globals are not checked; see

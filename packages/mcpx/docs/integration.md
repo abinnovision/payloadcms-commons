@@ -135,7 +135,8 @@ mcpxPlugin({
 
 `McpxAuthResult` carries `user` (with its `collection`), `apiKeyId` and `capabilities`, the
 capability group as stored on a key document. The capabilities still pass through the config, so
-a resolver cannot grant what the config does not expose. Do not authenticate from `req.user`; see
+a resolver cannot grant what the config does not expose. A result whose user has no `id` or is
+not from the user collection, or that has no `apiKeyId`, is answered with 401. Do not authenticate from `req.user`; see
 [security.md](./security.md#custom-tools-and-custom-auth).
 
 The handler stamps `req.context.mcpx` with the key id and the resolved capabilities.
@@ -143,14 +144,34 @@ The handler stamps `req.context.mcpx` with the key id and the resolved capabilit
 
 ## Upgrading to 2.0
 
-The admin components moved from `@abinnovision/payloadcms-mcpx/client` to
-`@abinnovision/payloadcms-mcpx/admin`. There is no `/client` alias.
+### The `./admin` entrypoint
 
-- Rerun `payload generate:importmap` and commit the result.
-- Change direct imports of `McpxCapabilityMatrix` or `McpxSetupGuide` to
-  `@abinnovision/payloadcms-mcpx/admin`.
+`@abinnovision/payloadcms-mcpx/client` is now `@abinnovision/payloadcms-mcpx/admin`, with no alias.
+Change direct imports, then rerun `payload generate:importmap` and commit the result.
 
-`McpxToolScope` groups its slugs and its locale settings. Rename the fields in custom tools:
+```ts
+// before
+import { McpxCapabilityMatrix } from "@abinnovision/payloadcms-mcpx/client";
+// after
+import { McpxCapabilityMatrix } from "@abinnovision/payloadcms-mcpx/admin";
+```
+
+### Version history needs `versions: true`
+
+`findVersions`, `versionId` and `diffFrom` are refused until an entity opts in. The entity must
+have Payload `versions` and must not set `read: false`, or startup fails. Set `access.readVersions` first; see
+[security.md](./security.md#version-history).
+
+```ts
+mcpxPlugin({
+  collections: { pages: { read: true, versions: true } },
+});
+```
+
+### Custom tools: `McpxToolScope`
+
+The slugs sit under `collections` and `globals`, and the locale settings under `localization`,
+which is `null` when localization is off. `McpxScopeSlugs` types the slug groups.
 
 ```ts
 // before
@@ -165,13 +186,47 @@ scope.localization?.locales;
 scope.localization?.defaultLocale;
 ```
 
-Version history is hidden by default. `findVersions`, `versionId` and `diffFrom` are refused until
-an entity sets `versions: true`. Set `access.readVersions` before opting in if the entity's `read`
-rule depends on document content, since old versions follow `readVersions` and Payload defaults it
-to any logged-in user. See [security.md](./security.md#version-history).
+### Custom tools: `PublishBlocker`
+
+The type is no longer exported. A blocker is `{ path: string; message: string; field?: string }`.
+Declare that shape where you need it.
+
+### Custom tools: `mcpxReadRequest`
+
+A read on `req` populates relations into every collection the user may read. Pass
+`mcpxReadRequest(scope)` as `req` on reads to populate only into collections the key may read; see
+[custom-tools.md](./custom-tools.md#reads). Keep `req` on writes.
+
+### Relation filters
+
+`findDocuments` refuses a `where` or `sort` that goes through a relation into a collection the key
+cannot read, with a 400 error that names the path. Expose that collection with `read` and tick it
+on the key, or filter on the relation's `id`.
+
+### Hidden fields
 
 `getDocument` and `findDocuments` no longer return fields with `admin.hidden`, and `findDocuments`
-refuses a `where` or `sort` that names one. Payload's own upload fields are still returned.
-Drop `admin.hidden` from a field whose value clients need.
+refuses a `where` or `sort` that names one. Drop `admin.hidden` from a field whose value clients
+need. Custom tools are not filtered; see [security.md](./security.md#hidden-fields).
 
-`PublishBlocker` is no longer exported.
+### `notApplied`
+
+`patchDocument` computes `notApplied` from a read with the user's access, so a field the user cannot read
+gives the same answer whatever value was sent. It is left out when the patch leaves the document
+unreadable to the user.
+
+### Batches
+
+The calls in a JSON-RPC batch run one at a time, in order. Nothing to change unless a client
+relied on calls overlapping.
+
+### Tool descriptions
+
+Tool descriptions and the server instructions are reworded. A client or test that matches their
+text needs updating. The tools and their arguments are unchanged.
+
+### Custom `auth.resolve`
+
+A result that fails the checks in [Custom key resolution](#custom-key-resolution) now gets a 401
+and one logged error. Check that your resolver returns a user with `id` and `collection` and an
+`apiKeyId`.

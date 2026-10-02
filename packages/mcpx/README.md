@@ -67,8 +67,7 @@ The key form uses two admin components, so regenerate the import map:
 payload generate:importmap
 ```
 
-Without it, the key form loses the capability editor, so no key can be granted anything from the
-admin panel. The endpoint itself is unaffected.
+Without it, no key can be granted anything from the admin panel. The endpoint is unaffected.
 
 Then create a key in the admin panel under MCP > API Keys, tick what it may do, save, and copy
 the key from the saved document. Every checkbox starts unticked, so a new key can only call
@@ -107,9 +106,8 @@ Claude Desktop and the MCP Inspector are covered in
 
 `write: "draft"` needs `versions.drafts` on the entity. `write: "live"` on an entity with drafts
 exposes `publishDocument`; on one without drafts it lets writes change the live document.
-`versions: true` exposes `findVersions` and the `versionId` and `diffFrom` arguments of
-`getDocument` to keys that may read the entity. Old versions are then governed by the collection's
-`access.readVersions`; see [`docs/security.md`](./docs/security.md#version-history).
+Old versions follow the collection's `access.readVersions`, so read
+[version history](./docs/security.md#version-history) before setting `versions: true`.
 Mistakes in the options fail at startup. [`docs/integration.md`](./docs/integration.md) lists
 every check.
 
@@ -157,20 +155,22 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
   the REST or GraphQL API.
 - A key acts as its user, and Payload access control applies to what its tools read and write.
 - Relations are populated only into collections the key can read.
-- After a write, the tools re-read the document with full access to report `notApplied` and
-  publish blockers. Blocker messages can name fields the user cannot read.
+- The read tools leave out fields with `admin.hidden`. `findDocuments` refuses a `where` or `sort`
+  that names one, or that goes through a relation into a collection the key cannot read.
+- After a write, the tools re-read the document with full access to report publish blockers.
+  Blocker messages can name fields the user cannot read.
 - The request body is limited to 4 MB, a JSON-RPC batch to 10 messages, `patchDocument` to 500
   operations and `describeSchema` to 400 paths.
-- `findDocuments` refuses a `where` or `sort` that goes through a relation into a collection the
-  key cannot read. Through a collection the key can read, Payload applies only field-level `read`
-  access to the path. See [known limitations](./docs/security.md#known-limitations).
-- The read tools leave out fields with `admin.hidden`, and `findDocuments` refuses a `where` or
-  `sort` that names one. See [hidden fields](./docs/security.md#hidden-fields).
 - Custom tools are trusted code and must apply access control themselves.
 
-Details and known limitations: [`docs/security.md`](./docs/security.md).
+Open limitations: a filter through a relation into a readable collection ignores that collection's
+row-level `read` rule, rich text is not walked for hidden fields, and `admin.hidden` on a row, tab
+or collapsible does not reach the fields inside it. Details:
+[`docs/security.md`](./docs/security.md).
 
 ## Documentation
+
+Upgrading from 1.x: [Upgrading to 2.0](./docs/integration.md#upgrading-to-20).
 
 - [`docs/concepts.md`](./docs/concepts.md): tool arguments, schema paths and pointers, patching,
   rich text, globals, uploads, drafts and publishing, versions and diffs.

@@ -67,24 +67,20 @@ it comes back without a value.
 field into a collection the key cannot read, with a 400 error that names the path. This covers
 the `__` form of a path, `and` and `or` clauses at any depth, comma separated sort fields, and a
 `virtual` field whose path resolves through such a relation. Naming the relation field itself, its
-`id` (a join's too), or a polymorphic relation's `value` and `relationTo` is allowed, and so is a path through a
-collection the key can read. A path that matches no field is left to Payload.
+`id` (a join's too), or a polymorphic relation's `value` and `relationTo` is allowed, and so is a
+path through a collection the key can read; see [known limitations](#known-limitations). A path
+that matches no field is left to Payload.
 
 ### Hidden fields
 
 `getDocument` and `findDocuments` leave out fields with `admin.hidden`, as `describeSchema` does.
 This holds in groups, tabs, array rows, the rows of a `blocks` field, populated relationship, upload
-and join documents, and the body of a version read by `versionId` or `diffFrom`. `admin.hidden`
-set on a row, collapsible, unnamed group or tab is not applied to the fields inside it, in the
-schema or in reads; set it on the fields themselves. A virtual field is judged by its own
-`admin.hidden`, not by the field it points at, for read output. `findDocuments` also refuses a
-`where` or `sort` that names a hidden field, or a virtual field that points at one, with the same
-400 error as a path through an unreadable relation. The fields Payload adds to an upload
-collection (`url`, `filename`, `sizes` and the rest) are returned, and the `id` of array and block
-rows stays.
-
-Neither `req` nor `mcpxReadRequest(scope)` removes `admin.hidden` fields for a custom tool. A
-custom tool that must withhold them filters its own output.
+and join documents, and the body of a version read by `versionId` or `diffFrom`. A virtual field is
+judged by its own `admin.hidden`, not by the field it points at, for read output. `findDocuments`
+also refuses a `where` or `sort` that names a hidden field, or a virtual field that points at one,
+with the same 400 error as a path through an unreadable relation. The fields Payload adds to an
+upload collection (`url`, `filename`, `sizes` and the rest) are returned, and the `id` of array and
+block rows stays. For what this does not cover, see [known limitations](#known-limitations).
 
 ### Version history
 
@@ -148,7 +144,8 @@ These limits are fixed, not configurable, and checked after authentication:
 
 A body that declares a larger `Content-Length` is refused unread. A body without one is read
 until it passes 4 MB and then refused. `limits.maxLimit` and `limits.maxDepth` cap `limit` and
-`depth` on the read tools. The tool handlers of a JSON-RPC batch run one at a time, each in its own transaction.
+`depth` on the read tools. The tool handlers of a JSON-RPC batch run one at a time, each in its own
+transaction.
 
 ## Input checks
 
@@ -186,10 +183,10 @@ The guard does not cover:
 
 Custom tools are trusted code. A handler receives the raw request with `req.user` set to the
 key's user. Payload's Local API skips access control by default, so the tool must pass
-`overrideAccess: false` and `req` to every call. Custom tools are covered by the population bound
-when the read passes `mcpxReadRequest(scope)`; a read on the plain `req` populates relations into
-any collection the user's access allows. A tool
-that defines `isEnabled` without checking its own checkbox is available to every key.
+`overrideAccess: false` and `req` to every call. A read that passes `mcpxReadRequest(scope)` is
+held to the population bound; a read on the plain `req` populates relations into any collection
+the user's access allows. A tool that defines `isEnabled` without checking its own checkbox is
+available to every key.
 
 A custom `auth.resolve` must not trust `req.user`. Payload sets it from cookies before the handler
 runs, and the handler only replaces it after `auth.resolve` returns. The handler refuses a result
@@ -210,3 +207,5 @@ whose user has no `id` or whose `collection` is not the configured user collecti
   [Version history](#version-history) for a `readVersions` filter.
 - `admin.hidden` set on a row, collapsible, unnamed group or tab is not applied to the fields
   inside it, in the schema or in reads; set it on the fields themselves.
+- Custom tools are not stripped of `admin.hidden` fields, with `req` or `mcpxReadRequest(scope)`.
+  A tool that must withhold them filters its own output.
