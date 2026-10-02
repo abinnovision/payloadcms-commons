@@ -89,3 +89,64 @@ export const ledgers: CollectionConfig = {
 		{ name: "frozen", type: "checkbox" },
 	],
 };
+
+/**
+ * Relates to users through every field shape Payload populates, to media
+ * through an upload field, and to articles, which relate to users in turn.
+ * The rich text field uses the config's default editor, which carries the
+ * relationship, upload and link nodes.
+ */
+export const dispatches: CollectionConfig = {
+	slug: "dispatches",
+	versions: { drafts: true },
+	fields: [
+		{ name: "title", type: "text" },
+		{
+			name: "reviewers",
+			type: "relationship",
+			relationTo: "users",
+			hasMany: true,
+		},
+		{
+			name: "subjects",
+			type: "relationship",
+			relationTo: ["users", "articles"],
+			hasMany: true,
+		},
+		{ name: "article", type: "relationship", relationTo: "articles" },
+		{ name: "attachment", type: "upload", relationTo: "media" },
+		{
+			name: "meta",
+			type: "group",
+			fields: [{ name: "owner", type: "relationship", relationTo: "users" }],
+		},
+		{
+			name: "entries",
+			type: "array",
+			fields: [{ name: "person", type: "relationship", relationTo: "users" }],
+		},
+		{
+			name: "sections",
+			type: "blocks",
+			blocks: [
+				{
+					slug: "mention",
+					fields: [
+						{ name: "person", type: "relationship", relationTo: "users" },
+					],
+				},
+			],
+		},
+		{ name: "body", type: "richText" },
+		{ name: "remarks", type: "join", collection: "remarks", on: "dispatch" },
+	],
+};
+
+/** The other side of the join on `dispatches`. */
+export const remarks: CollectionConfig = {
+	slug: "remarks",
+	fields: [
+		{ name: "text", type: "text" },
+		{ name: "dispatch", type: "relationship", relationTo: "dispatches" },
+	],
+};

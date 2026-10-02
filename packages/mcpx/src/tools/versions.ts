@@ -1,5 +1,7 @@
 import { createPatch, Pointer } from "rfc6902";
 
+import { readRequest } from "./shared.js";
+
 import type { ResolvedTarget } from "./target.js";
 import type { McpxToolScope } from "../types.js";
 import type { PaginatedDocs, SelectType, TypedLocale, Where } from "payload";
@@ -35,7 +37,7 @@ export const readLive = async (
 		depth: read.depth,
 		draft: options.draft,
 		overrideAccess: false,
-		req: scope.req,
+		req: readRequest(scope),
 		...(options.select === undefined ? {} : { select: options.select }),
 		...(read.locale === undefined ? {} : { locale: read.locale }),
 	};
@@ -96,7 +98,7 @@ export const loadVersion = async (
 		depth: read.depth,
 		disableErrors: true,
 		overrideAccess: false,
-		req: scope.req,
+		req: readRequest(scope),
 		...(read.locale === undefined ? {} : { locale: read.locale }),
 	};
 
@@ -137,7 +139,7 @@ export const queryVersions = async (
 		limit: options.limit,
 		sort: NEWEST_FIRST,
 		overrideAccess: false,
-		req: scope.req,
+		req: readRequest(scope),
 		where,
 		...(options.page === undefined ? {} : { page: options.page }),
 		...(read.locale === undefined ? {} : { locale: read.locale }),

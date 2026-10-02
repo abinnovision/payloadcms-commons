@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-import { slugEnum, depthShape, localeOf, localeShape } from "./shared.js";
+import {
+	slugEnum,
+	depthShape,
+	localeOf,
+	localeShape,
+	readRequest,
+} from "./shared.js";
 import { resolveTarget } from "./target.js";
 import { jsonResult } from "../result.js";
 import { defineMcpxTool } from "../types.js";
@@ -66,7 +72,7 @@ export const findDocuments = defineMcpxTool({
 			draft: args.draft ?? true,
 			limit: args.limit ?? 10,
 			overrideAccess: false,
-			req: scope.req,
+			req: readRequest(scope),
 			...(args.page === undefined ? {} : { page: args.page }),
 			...(args.sort === undefined ? {} : { sort: args.sort }),
 			...(args.where === undefined ? {} : { where: args.where as Where }),

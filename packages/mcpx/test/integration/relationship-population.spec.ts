@@ -20,12 +20,14 @@ const textOf = (result: CallResult): string =>
 
 /**
  * Exposure stops at the allow-list, but a relationship reaches past it: an
- * exposed document may point at a user, and population returns what that user
- * document holds under Payload's own access rules.
+ * exposed document may point at a user. Population stops at the collections
+ * the key may read, while a where or sort through the relation still reaches
+ * the user document under Payload's own access rules.
  */
 describe("relationships into the user collection", () => {
 	let booted: Booted;
 	let key: string;
+	let authorId: number | string;
 	let articleId: number | string;
 	let otherArticleId: number | string;
 	let versionId: number | string;
@@ -73,6 +75,7 @@ describe("relationships into the user collection", () => {
 			data: { title: "Other", author: otherAuthor.id },
 		});
 
+		authorId = author.id;
 		articleId = article.id;
 		otherArticleId = other.id;
 
@@ -124,7 +127,7 @@ describe("relationships into the user collection", () => {
 		],
 	];
 
-	it("populates the author at depth 1", async () => {
+	it("returns the author as its id at depth 1", async () => {
 		const result = await call("getDocument", {
 			collection: "articles",
 			id: articleId,
@@ -132,29 +135,23 @@ describe("relationships into the user collection", () => {
 		});
 
 		expect(result.isError).toBe(false);
-		expect(typeof result.data["author"]).toBe("object");
+		expect(result.data["author"]).toBe(authorId);
 	});
 
 	for (const [tool, read] of reads) {
-		it.fails(
-			`returns the related user's Payload API key at depth 1 through ${tool}`,
-			async () => {
-				const result = await read();
+		it(`withholds the related user's Payload API key at depth 1 through ${tool}`, async () => {
+			const result = await read();
 
-				expect(result.isError).toBe(false);
-				expect(textOf(result)).not.toContain(AUTHOR.apiKey);
-			},
-		);
+			expect(result.isError).toBe(false);
+			expect(textOf(result)).not.toContain(AUTHOR.apiKey);
+		});
 
-		it.fails(
-			`returns the related user's email at depth 1 through ${tool}`,
-			async () => {
-				const result = await read();
+		it(`withholds the related user's email at depth 1 through ${tool}`, async () => {
+			const result = await read();
 
-				expect(result.isError).toBe(false);
-				expect(textOf(result)).not.toContain(AUTHOR.email);
-			},
-		);
+			expect(result.isError).toBe(false);
+			expect(textOf(result)).not.toContain(AUTHOR.email);
+		});
 	}
 
 	const idsOf = (result: CallResult): unknown[] =>

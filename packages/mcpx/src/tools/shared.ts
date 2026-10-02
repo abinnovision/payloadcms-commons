@@ -1,4 +1,9 @@
-import { NotFound } from "payload";
+import {
+	createDataloaderCacheKey,
+	getDataLoader,
+	isolateObjectProperty,
+	NotFound,
+} from "payload";
 import { z } from "zod";
 
 import { canCreate, canPublish, isLiveWrite } from "../capabilities.js";
@@ -6,7 +11,13 @@ import { translateStatic } from "../i18n.js";
 
 import type { ResolvedTarget } from "./target.js";
 import type { McpxExposedEntity, McpxToolScope } from "../types.js";
-import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
+import type {
+	LabelFunction,
+	PayloadRequest,
+	StaticLabel,
+	TypedLocale,
+	TypeWithID,
+} from "payload";
 
 export type McpxOperation =
 	"create" | "publish" | "read" | "versions" | "write";
@@ -265,6 +276,65 @@ export const depthShape = (scope: McpxToolScope): DepthShape => ({
 			`Relationship population depth. Default 0, at most ${String(scope.limits.maxDepth)}.`,
 		),
 });
+
+/**
+ * Where the data loader's cache key holds the collection slug and document id,
+ * found by probing rather than assumed. A layout the probe cannot read leaves
+ * both at -1, which refuses every population.
+ */
+const LOADER_KEY = ((): { slug: number; id: number } => {
+	const slug = "\u0000slug";
+	const id = "\u0000id";
+	const parts: unknown = JSON.parse(
+		createDataloaderCacheKey({
+			collectionSlug: slug,
+			currentDepth: 0,
+			depth: 0,
+			docID: id,
+			draft: false,
+			fallbackLocale: false,
+			locale: "",
+			overrideAccess: false,
+			showHiddenFields: false,
+			transactionID: "",
+		}),
+	);
+
+	return Array.isArray(parts)
+		? { slug: parts.indexOf(slug), id: parts.indexOf(id) }
+		: { slug: -1, id: -1 };
+})();
+
+/**
+ * The request a read tool hands to Payload, populating relations only into
+ * collections this key may read. Relationship and upload fields, joins and
+ * rich text nodes all populate through `req.payloadDataLoader`, and the loader
+ * runs its finds on the request it was made for, so a loader of its own on an
+ * isolated request bounds every depth without touching the request custom
+ * tools share.
+ *
+ * A refused relation resolves to its own id: relationship fields keep the id
+ * when the loader answers with nothing, but rich text sets the node's value to
+ * `null`, and the id is what depth 0 returns in both.
+ */
+export const readRequest = (scope: McpxToolScope): PayloadRequest => {
+	const req = isolateObjectProperty(scope.req, "payloadDataLoader");
+	const loader = getDataLoader(req);
+	const load = loader.load.bind(loader);
+
+	loader.load = (key) => {
+		const parts = JSON.parse(key) as unknown[];
+		const collection = parts[LOADER_KEY.slug];
+
+		return typeof collection === "string" && scope.readable.includes(collection)
+			? load(key)
+			: Promise.resolve(parts[LOADER_KEY.id] as TypeWithID);
+	};
+
+	req.payloadDataLoader = loader;
+
+	return req;
+};
 
 /**
  * The locale to operate on: the explicit argument, else the request's, else
