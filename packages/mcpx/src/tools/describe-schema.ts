@@ -34,11 +34,11 @@ Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed an
 const PATHS_LIMIT = 400;
 
 /**
- * Describes each requested path independently and returns a per
- * path error object instead of failing the call, so a client exploring several
- * branches at once keeps the nodes that did resolve. `expand` swaps the
- * requested paths for every node reachable from the root and appends a
- * truncation notice past {@link REACHABLE_PATHS_LIMIT}.
+ * Describes each requested path independently and returns a per-path error
+ * object instead of failing the call, so a client exploring several branches
+ * keeps the nodes that resolved. `expand` replaces the requested paths with
+ * every node reachable from the root and adds a truncation notice past
+ * {@link REACHABLE_PATHS_LIMIT}.
  */
 export const describeSchema = defineMcpxTool({
 	name: "describeSchema",
@@ -77,7 +77,6 @@ export const describeSchema = defineMcpxTool({
 			expanded?.paths ??
 			(args.paths && args.paths.length > 0 ? args.paths : [""]);
 
-		// One bad path returns its own message rather than failing the batch.
 		const nodes: unknown[] = requested.map((schemaPath) => {
 			try {
 				return describeNode(config, ref, schemaPath);
@@ -96,9 +95,9 @@ export const describeSchema = defineMcpxTool({
 		});
 
 		/*
-		 * Stated once for the whole response rather than on each field, because
-		 * what a node type has to carry does not vary by where it is written.
-		 * A field's own "nodes" says which of these apply to it.
+		 * Stated once for the whole response, not per field, because what a node
+		 * type must carry does not vary with where it is written. A field's own
+		 * "nodes" says which of these apply to it.
 		 */
 		const nodeTypes = nodes.flatMap((node) =>
 			((node as { fields?: FieldDescriptor[] }).fields ?? []).flatMap(

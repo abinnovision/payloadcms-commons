@@ -17,35 +17,36 @@ import type { EntityRef } from "../entity.js";
 import type { FlattenedField, SanitizedConfig } from "payload";
 
 /**
- * `descriptor` is set when the pointer addresses one field exactly. Otherwise
- * the pointer addresses a subtree (a whole group, an array element or a block
- * element) and `fields`/`prefix` describe what may appear beneath it. `prefix`
- * is held as segments, since it is a position inside `fields` rather than an
- * address a client could use.
- *
- * `lexical` accompanies `descriptor` when the pointer runs on into a rich text
- * field's editor state. The descriptor stays the field's own, so read-only and
- * the editor's node list apply to every position inside it.
- *
- * `readOnly` records a flag picked up on the way down. A block's fields and a
- * Lexical node's fields are each walked as a fresh schema, which is where a
- * read-only ancestor would otherwise be forgotten.
- *
- * `inLexical` marks a position reached through an editor state even though it
- * ended up on an ordinary field, which a node's own fields are. What may be
- * done to a field differs there, so the distinction has to survive the walk.
+ * Where a pointer lands: on one field exactly, or on a subtree (a group, an
+ * array element or a block element) where `fields` and `prefix` describe what
+ * may appear beneath it.
  */
 export interface PointerResolution {
 	blockType?: string;
+	/** Set when the pointer addresses one field exactly. */
 	descriptor?: FieldDescriptor;
 	fields: FlattenedField[];
+	/**
+	 * Reached through an editor state but ended on an ordinary field, such as a
+	 * node's own fields. What may be done to it differs there.
+	 */
 	inLexical?: true;
+	/**
+	 * Set with `descriptor` when the pointer runs on into an editor state. The
+	 * descriptor stays the field's own, so read-only and the node list apply to
+	 * every position inside it.
+	 */
 	lexical?: LexicalPosition;
+	/** Segments, since it is a position inside `fields`, not a client address. */
 	prefix: readonly string[];
+	/**
+	 * Picked up on the way down. Blocks and Lexical nodes are walked as fresh
+	 * schemas, where a read-only ancestor would otherwise be forgotten.
+	 */
 	readOnly?: true;
 }
 
-/**
+/*
  * `addedValue` supplies the block discriminant for an `add` at a position the
  * document does not have yet.
  */
@@ -60,9 +61,7 @@ const partMatches = (part: string, segment: string | undefined): boolean =>
 	segment !== undefined &&
 	(part === ARRAY_MARKER ? isIndexSegment(segment) : part === segment);
 
-/**
- * Longest descriptor whose path is fully consumed by the leading segments.
- */
+// Longest descriptor whose path is fully consumed by the leading segments.
 const longestMatch = (
 	descriptors: FieldDescriptor[],
 	segments: readonly string[],
@@ -78,7 +77,7 @@ const longestMatch = (
 		)
 		.sort((left, right) => right.consumed - left.consumed)[0];
 
-/** Stopping part-way through a descriptor's path means a subtree, not a field. */
+// Stopping part-way through a descriptor's path means a subtree, not a field.
 const isSubtreePrefix = (
 	descriptors: FieldDescriptor[],
 	segments: readonly string[],
@@ -96,9 +95,9 @@ const isSubtreePrefix = (
 		);
 	});
 
-/**
+/*
  * Unlike a descriptor path, the segments carry real indices, so intervening
- * array fields are descended through rather than skipped.
+ * array fields are descended through instead of skipped.
  */
 const valueAtSegments = (data: unknown, segments: readonly string[]): unknown =>
 	segments.reduce<unknown>(
@@ -109,10 +108,10 @@ const valueAtSegments = (data: unknown, segments: readonly string[]): unknown =>
 		data,
 	);
 
-/**
+/*
  * The stored row decides which block sits at an index, since a blocks field
- * admits many shapes at the same position. A row the document does not have
- * yet takes its slug from the value being added.
+ * admits many shapes at the same position. A row the document does not have yet
+ * takes its slug from the value being added.
  */
 const stepIntoBlock = (at: {
 	addedValue?: unknown;
@@ -170,10 +169,9 @@ const stepIntoBlock = (at: {
 };
 
 /**
- * The stored document chooses the branch at every blocks element, and is
- * required rather than optional: `/layout/sections/3/modules/1`
- * can only be resolved by reading `blockType` off `sections[3]`, since a blocks
- * field admits many shapes at the same index.
+ * The stored document is required because it chooses the branch at every blocks
+ * element: `/layout/sections/3/modules/1` can only be resolved by reading
+ * `blockType` off `sections[3]`.
  */
 export const resolveDataPointer = (
 	config: SanitizedConfig,
@@ -257,8 +255,8 @@ export const resolveDataPointer = (
 			}
 
 			/*
-			 * A node's `fields` is ordinary Payload field-land, so the walk
-			 * resumes rather than growing a second traversal beside it.
+			 * A node's `fields` are ordinary Payload fields, so the walk resumes
+			 * instead of adding a second traversal.
 			 */
 			inLexical = true;
 			readOnly = match.descriptor.readOnly ?? readOnly;

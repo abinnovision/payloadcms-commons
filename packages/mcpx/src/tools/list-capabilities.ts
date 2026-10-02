@@ -24,11 +24,11 @@ const translateLabel = (
 };
 
 /**
- * Registered for every key, including one with no capabilities ticked, so a
- * client always has something to call and gets an empty surface described
- * rather than an empty tool list. The response is assembled from the request
- * scope and the sanitized config, never from the content model, so it stays the
- * same size as a deployment grows.
+ * Registered for every key, even one with no capabilities ticked, so a client
+ * always has a tool to call and gets an empty surface described instead of an
+ * empty tool list. The response comes from the request scope and the sanitized
+ * config, not the content model, so it stays the same size as a deployment
+ * grows.
  */
 export const listCapabilities = defineMcpxTool({
 	name: "listCapabilities",

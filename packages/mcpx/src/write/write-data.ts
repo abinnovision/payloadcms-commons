@@ -10,7 +10,7 @@ import {
 
 import type { FlattenedField, JsonObject, SanitizedConfig } from "payload";
 
-/**
+/*
  * Everything Payload maintains or derives (`_status`, timestamps, join and
  * virtual fields, upload base fields) is left out, so the write-back carries
  * only what a client could have set.

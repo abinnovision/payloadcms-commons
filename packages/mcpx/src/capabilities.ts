@@ -10,11 +10,11 @@ import type {
 /** Group field holding the capability checkboxes on an API key document. */
 export const CAPABILITIES_FIELD = "capabilities";
 
-/** Whatever the write lands on; {@link isLiveWrite} tells the two apart. */
+/** Covers draft and live writes; {@link isLiveWrite} separates them. */
 export const canWrite = (entity: McpxExposedEntity): boolean =>
 	entity.write !== false;
 
-/** The config lets MCP change live content and there is a draft to promote. */
+/** The config lets MCP change live content and a draft exists to promote. */
 export const canPublish = (entity: McpxExposedEntity): boolean =>
 	entity.write === "live" && entity.hasDrafts;
 
@@ -26,8 +26,8 @@ export const canCreate = (entity: McpxExposedEntity): boolean =>
 	canWrite(entity) && !entity.isUpload;
 
 /**
- * With no versions there is no draft to land on, so `write: "live"` permits the
- * write at all and every write is live.
+ * Without versions there is no draft, so `write: "live"` is what permits
+ * writing and every write is live.
  */
 export const isLiveWrite = (entity: McpxExposedEntity): boolean =>
 	entity.write === "live" && !entity.hasDrafts;
@@ -35,10 +35,10 @@ export const isLiveWrite = (entity: McpxExposedEntity): boolean =>
 const flag = (group: unknown, name: string): boolean =>
 	isPlainObject(group) && group[name] === true;
 
-/**
- * Publishing is an extension of writing, never a capability of its own: a key
- * that may publish may also edit the draft it publishes. Both checkboxes are
- * therefore required, on top of the config exposing publishing at all.
+/*
+ * Publishing extends writing: a key that may publish may also edit the draft it
+ * publishes. Both checkboxes are required, as well as the config exposing
+ * publishing.
  */
 const publishFlag = (entity: McpxExposedEntity, group: unknown): boolean =>
 	canPublish(entity) && flag(group, "write") && flag(group, "publish");
@@ -91,9 +91,8 @@ export const resolveCapabilities = (
 };
 
 /**
- * The slugs tools read to narrow their enums. Derived from
- * {@link resolveCapabilities}, so config and checkbox have both been applied
- * by the time a slug appears in one.
+ * The slugs tools use to narrow their enums. Taken from the output of
+ * {@link resolveCapabilities}, so config and checkbox are already applied.
  */
 export const slugsWith = (
 	entries: Record<string, McpxEntityCapabilities>,

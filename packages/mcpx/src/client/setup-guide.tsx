@@ -18,10 +18,10 @@ interface McpxSetupGuideProps {
 const asString = (value: unknown): string | undefined =>
 	typeof value === "string" ? value : undefined;
 
-/**
- * Reads `serverURL` when the config sets one and falls back to the browser's
- * origin. The fallback has to wait for mount: this component is server-rendered
- * first, where `window` does not exist.
+/*
+ * Uses `serverURL` when the config sets one, else the browser's origin. The
+ * fallback waits for mount because the component renders on the server first,
+ * where `window` does not exist.
  */
 const useOrigin = (serverUrl: string): string => {
 	const [origin, setOrigin] = useState(serverUrl);
@@ -35,9 +35,9 @@ const useOrigin = (serverUrl: string): string => {
 	return origin;
 };
 
-/**
- * Payload's own theme variables, so the panel follows the admin's light and
- * dark themes without shipping a stylesheet consumers would have to transpile.
+/*
+ * Payload's theme variables, so the panel follows the admin's light and dark
+ * themes without a stylesheet that consumers would have to transpile.
  */
 const styles = {
 	lead: { marginBottom: "calc(var(--base) * 0.75)" },

@@ -19,10 +19,10 @@ const DEFAULT_MAX_DEPTH = 1;
 const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
 /**
- * The plugin options after validation and defaulting, which is the only shape
- * the rest of the plugin reads. Every shorthand in {@link McpxPluginOptions}
- * has been expanded here and every slug checked against the config, so nothing
- * downstream has to handle a missing collection or an implicit default.
+ * The plugin options after validation and defaulting, the only shape the rest
+ * of the plugin reads. Shorthands from {@link McpxPluginOptions} are expanded
+ * and slugs are checked against the config, so nothing downstream handles a
+ * missing collection or an implicit default.
  */
 export interface NormalizedOptions {
 	collections: McpxExposedEntity[];
@@ -50,7 +50,7 @@ export const toCamelCase = (value: string): string =>
 		)
 		.replace(/^(.)/, (_, char: string) => char.toLowerCase());
 
-/**
+/*
  * Auth collections carry credentials: `useAPIKey` stores a key that decrypts on
  * read, and email or lockout state is PII either way. Refused for read too.
  */
@@ -71,7 +71,7 @@ const assertExposable = (
 	}
 };
 
-/** Checked at runtime too: for a JS caller a typo would silently mean "no write". */
+// Checked at runtime too: for a JS caller a typo would silently mean "no write".
 const normalizeWriteMode = (
 	kind: string,
 	slug: string,
@@ -90,12 +90,12 @@ const normalizeWriteMode = (
 	);
 };
 
-/**
- * `localizeStatus` makes `_status` a localized field, which flips Payload's
- * `publishAllLocales` default to false and turns `_status` into a locale-keyed
- * object. Publishing would then cover one locale while reporting success, and
- * the tool responses model `_status` as a string. Refused until both are
- * handled.
+/*
+ * `localizeStatus` makes `_status` a localized field: Payload's
+ * `publishAllLocales` default flips to false and `_status` becomes a
+ * locale-keyed object. A publish would cover one locale while reporting
+ * success, and the tool responses model `_status` as a string. The combination
+ * is refused.
  */
 const assertWritable = (
 	kind: string,
@@ -115,7 +115,7 @@ const assertWritable = (
 	}
 };
 
-/** Globals cannot be auth or upload, so only the reserved namespace is left. */
+// Globals cannot be auth or upload, so only the reserved namespace is left.
 const assertGlobalExposable = (global: GlobalConfig): void => {
 	if (global.slug.startsWith("payload-")) {
 		fail(`Global "${global.slug}" cannot be exposed.`);

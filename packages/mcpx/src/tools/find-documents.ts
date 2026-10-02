@@ -18,10 +18,10 @@ const DESCRIPTION = `Finds documents in a collection. "where" is a Payload query
 /**
  * Collection-only: a global is a singleton, so there is nothing to list.
  *
- * The query goes to Payload with `overrideAccess: false`, so the collection's
- * own access control decides what comes back. `limit` and `depth` are bounded
- * by the configured limits in the schema itself, which puts the ceiling in
- * front of the client rather than silently clamping behind it.
+ * The query uses `overrideAccess: false`, so the collection's own access
+ * control decides what comes back. The schema bounds `limit` and `depth` by the
+ * configured limits, so the client sees the ceiling instead of being clamped
+ * silently.
  */
 export const findDocuments = defineMcpxTool({
 	name: "findDocuments",

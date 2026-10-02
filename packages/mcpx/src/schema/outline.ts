@@ -4,7 +4,7 @@ import { isPlainObject } from "../guards.js";
 import type { NodeOptions } from "./lexical.js";
 import type { RichTextField } from "payload";
 
-/**
+/*
  * One node in a rich text field's editor state, positioned so it can be
  * patched without re-reading the whole field first.
  */
@@ -20,15 +20,15 @@ interface LexicalOutlineEntry {
 	version?: number;
 }
 
-/**
- * Long enough to identify a paragraph, short enough that an outline of a real
- * document stays a fraction of the size of its editor state.
+/*
+ * Long enough to identify a paragraph, short enough that an outline stays a
+ * fraction of the size of the editor state.
  */
 const TEXT_PREVIEW_LENGTH = 80;
 
-/**
+/*
  * Every descendant text node contributes, not only direct children, since a
- * link or a formatting mark nests the text a level deeper.
+ * link or a formatting mark nests the text deeper.
  */
 const collectText = (node: Record<string, unknown>): string => {
 	if (node["type"] === "text") {
@@ -50,10 +50,10 @@ const preview = (text: string): string =>
 		? `${text.slice(0, TEXT_PREVIEW_LENGTH)}…`
 		: text;
 
-/**
- * Only the properties a feature actually narrows for this node type, and only
- * where the node carries a string for one. A node missing the property, or
- * carrying something the feature never produces, says nothing worth reporting.
+/*
+ * Only the properties a feature narrows for this node type, and only where the
+ * node carries a string for one. A missing property, or a value the feature
+ * never produces, is not worth reporting.
  */
 const narrowedOptions = (
 	node: Record<string, unknown>,
@@ -80,7 +80,7 @@ const walk = (
 ): void => {
 	const type = node["type"];
 
-	/* A node written before the shape check landed may carry none. */
+	// Stored nodes are not guaranteed to carry a `type`.
 	if (typeof type !== "string") {
 		return;
 	}

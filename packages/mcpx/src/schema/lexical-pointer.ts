@@ -7,12 +7,10 @@ import { isPlainObject } from "../guards.js";
 import type { FieldDescriptor } from "./walk.js";
 import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
 
-/**
- * A position inside a Lexical editor state.
- *
- * `descriptor` is the rich text field's own descriptor rather than anything
- * synthesised for the node, so the editor's node list and the field's
- * read-only flag travel with every position inside it.
+/*
+ * A position inside a Lexical editor state. `descriptor` is the rich text
+ * field's own descriptor, not one synthesised for the node, so the editor's
+ * node list and the field's read-only flag apply to every position inside it.
  */
 interface LexicalPositionBase {
 	descriptor: FieldDescriptor;
@@ -38,7 +36,7 @@ export type LexicalPosition =
 			property: string;
 	  });
 
-/**
+/*
  * Either the pointer ends inside the state, or it reaches a node's `fields`,
  * where ordinary Payload fields resume and the caller's walk takes over again.
  */
@@ -52,10 +50,10 @@ type LexicalStep =
 			rest: string[];
 	  };
 
-/**
- * A node's `fields` is ordinary Payload field-land, reached either through the
- * schema a feature declares for the node or, where the node picks a block by
- * slug, through that block.
+/*
+ * A node's `fields` are ordinary Payload fields, reached through the schema a
+ * feature declares for the node or, where the node picks a block by slug,
+ * through that block.
  */
 const stepIntoFields = (at: {
 	addedValue: unknown;
@@ -110,12 +108,10 @@ const stepIntoFields = (at: {
 
 /**
  * Walks the segments left over once a pointer has reached a rich text field.
- *
- * The stored state chooses the branch at every index, exactly as the stored
- * document chooses it at a blocks element: an editor state admits many node
- * shapes at the same position, and only what is there says which one it is.
- * A position the document does not have yet takes its type from the value
- * being added, and is addressable no further.
+ * The stored state chooses the branch at every index, as the stored document
+ * does at a blocks element: an editor state admits many node shapes at the same
+ * position. A position the document does not have yet takes its type from the
+ * value being added and is addressable no further.
  */
 export const resolveLexicalPointer = (at: {
 	addedValue?: unknown;
@@ -145,7 +141,7 @@ export const resolveLexicalPointer = (at: {
 	let node: Record<string, unknown> | undefined = state["root"];
 	let nodeType = "root";
 	let segments: string[] = rest;
-	/* Reported back to the client, so it is built the way the client wrote it. */
+	// Reported back to the client, so it is built the way the client wrote it.
 	let walked: string[] = ["root"];
 
 	for (;;) {

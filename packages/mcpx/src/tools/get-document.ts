@@ -47,7 +47,7 @@ Set "outline" on a rich text "path" to get a compact positional listing of its n
 
 On an entity with versions, "versionId" (from findVersions) reads that version instead. "diffFrom" returns the RFC 6902 operations turning a version, or "published" (the newest version with published status, regardless of locale), into the document read, in the pointer syntax patchDocument takes and limited to "path" when given. To revert, pass the old version as "versionId" and the latest one from findVersions as "diffFrom", then apply the patch with patchDocument.`;
 
-/** Refuses `versionId` and `diffFrom` where they cannot apply. */
+// Refuses `versionId` and `diffFrom` where they cannot apply.
 const assertVersionArgs = (
 	scope: McpxToolScope,
 	target: ResolvedEntity,
@@ -111,8 +111,8 @@ const diffResult = async (
 
 /**
  * With `path` the handler returns the subtree plus the `id`, `_status` and
- * `updatedAt` a client needs to write back, so a caller reading one branch
- * still gets the timestamp `expectedUpdatedAt` wants without a second call.
+ * `updatedAt` a client needs to write back, so reading one branch still gives
+ * the `expectedUpdatedAt` timestamp without a second call.
  */
 export const getDocument = defineMcpxTool({
 	name: "getDocument",
@@ -227,7 +227,7 @@ export const getDocument = defineMcpxTool({
 			return jsonResult({ ...envelope, value });
 		}
 
-		/* The resolver throws for a path no field answers to. */
+		// The resolver throws for a path no field answers to.
 		let resolution;
 
 		try {
@@ -245,8 +245,8 @@ export const getDocument = defineMcpxTool({
 		}
 
 		/*
-		 * A pointer running on into the state resolves to the same descriptor,
-		 * and outlining one node of it would answer with nothing.
+		 * A pointer that continues into the editor state resolves to the same
+		 * descriptor, and outlining a node of it would return nothing.
 		 */
 		const field =
 			resolution.descriptor?.type === "richText" && !resolution.lexical

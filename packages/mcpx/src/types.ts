@@ -30,9 +30,9 @@ declare module "payload" {
  * - `false`: no write tool touches it.
  * - `"draft"`: writes land as drafts and nothing MCP does changes what the
  *   public sees. Requires `versions.drafts`.
- * - `"live"`: MCP may change live content. On an entity with drafts that means
- *   `publishDocument` is exposed; on one without, where there is no draft to
- *   land on, it means the write itself is permitted and lands live.
+ * - `"live"`: MCP may change live content. On an entity with drafts that
+ *   exposes `publishDocument`. On one without, there is no draft, so the write
+ *   itself is permitted and lands live.
  */
 export type McpxWriteMode = "draft" | "live" | false;
 
@@ -109,7 +109,7 @@ export interface McpxTool<
 > {
 	/** camelCase, unique, not one of the builtin tool names. */
 	name: string;
-	/** Built per request so it can state what this key's writes actually do. */
+	/** Built per request so it can state what this key's writes do. */
 	description: string | ((scope: McpxToolScope) => string);
 	annotations?: ToolAnnotations;
 	/**
@@ -121,7 +121,7 @@ export interface McpxTool<
 	/**
 	 * Built per request so enums can be narrowed to what the key may touch.
 	 * Registered strictly either way: an unknown argument is rejected by name
-	 * rather than stripped.
+	 * instead of stripped.
 	 */
 	inputSchema?: Shape | ((scope: McpxToolScope) => z.ZodRawShape);
 	/*
@@ -203,7 +203,7 @@ export interface McpxCollectionCapabilities {
 	publish: boolean;
 }
 
-/** In force for one request: plugin config AND key checkboxes. */
+/** In force for one request: the plugin config and the key checkboxes together. */
 export interface McpxResolvedCapabilities {
 	collections: Record<string, McpxCollectionCapabilities>;
 	globals: Record<string, McpxCollectionCapabilities>;

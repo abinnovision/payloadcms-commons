@@ -18,7 +18,7 @@ import { stripRowIds } from "../write/row-ids.js";
 import type { DocumentId, DocumentRef } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 
-/** Names the writable slugs this tool leaves out, so the gap reads as intent. */
+// Names the writable slugs this tool leaves out, so the gap reads as intent.
 const uploadSentence = (scope: McpxToolScope): string => {
 	const slugs = patchOnlySlugs(scope);
 
@@ -33,14 +33,14 @@ const DESCRIPTION = (scope: McpxToolScope): string =>
 ${draftSentence(scope)}${uploadSentence(scope)}`;
 
 /**
- * Collection-only, because a global always exists, and never reaches an upload
- * collection, because a create there would have to carry the file.
+ * Collection-only, because a global always exists. Upload collections are
+ * excluded because a create there would need the file.
  *
- * The seed is checked against the collection's fields before the create, so an
- * unknown key is refused with its valid siblings rather than dropped. Row ids
- * in the seed are stripped and a top-level `id` is refused outright. The new
- * document is re-read privileged afterwards to collect publish blockers, which
- * is why an incomplete seed still succeeds and comes back with a checklist.
+ * The seed is checked against the collection's fields first, so an unknown key
+ * is refused along with its valid siblings. Row ids in the seed are stripped
+ * and a top-level `id` is refused. The new document is re-read privileged to
+ * collect publish blockers, so an incomplete seed still succeeds and returns a
+ * checklist.
  */
 export const createDocument = defineMcpxTool({
 	name: "createDocument",
@@ -74,9 +74,9 @@ export const createDocument = defineMcpxTool({
 		const locale = localeOf(scope, args.locale);
 
 		/*
-		 * A top-level id is Payload's to assign. The shape walker tolerates `id`
-		 * at every level, for the row ids a client echoes back, so a supplied one
-		 * is refused here rather than dropped in silence.
+		 * A top-level id is Payload's to assign. The shape walker accepts `id` at
+		 * every level, for row ids a client echoes back, so a supplied one is
+		 * refused here instead of silently dropped.
 		 */
 		if ("id" in args.data) {
 			return errorResult("Nothing was created.", {

@@ -44,10 +44,10 @@ const slugsWhere = (
 	];
 };
 
-/**
+/*
  * Slugs this key may write whose writes land live rather than as a draft. An
- * entity without versions has no draft to land on, so `write: "live"` there
- * makes every write a live one. Empty for every key that can only write drafts.
+ * entity without versions has no draft, so `write: "live"` there makes every
+ * write live. Empty for a key that can only write drafts.
  */
 const liveWriteSlugs = (scope: McpxToolScope): string[] =>
 	slugsWhere(scope, isLiveWrite, {
@@ -65,7 +65,7 @@ export const patchOnlySlugs = (scope: McpxToolScope): string[] =>
 		globals: [],
 	});
 
-/** Slugs this key may write and, separately, publish. */
+// Slugs this key may write and, separately, publish.
 const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
 	slugsWhere(scope, canPublish, {
 		collections: scope.publishable,
@@ -76,10 +76,10 @@ const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
 export const ONE_DOCUMENT_RULE = `Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.`;
 
 /**
- * What a write actually does for this key, and what it takes to make it public.
- * A live-write slug has no draft and no publish step; a publishable one has
- * both. Stated per key so a client is never told its writes are drafts while
- * they are not, nor that publishing is out of reach when it is not.
+ * What a write does for this key, and what it takes to make it public. A
+ * live-write slug has no draft and no publish step; a publishable one has both.
+ * Stated per key so a client is not told its writes are drafts when they are
+ * not, or that publishing is out of reach when it is not.
  */
 export const draftSentence = (scope: McpxToolScope): string => {
 	const live = liveWriteSlugs(scope);
@@ -99,14 +99,12 @@ export const draftSentence = (scope: McpxToolScope): string => {
 };
 
 /*
- * The supersets the shape helpers below produce. Which keys a helper actually
- * emits depends on the scope. `global` is left out when the key can reach no
- * global, `locale` when localization is off, so no single branch describes
- * what a handler must cope with. These types do, and a tool's arguments are
- * inferred from them, which is what keeps the two from drifting apart. The
- * cross-field rules they cannot state ("exactly one of collection and global",
- * "id required with collection") are enforced by `resolveEntity` and
- * `resolveDocument` at call time.
+ * The supersets the shape helpers below produce. Which keys a helper emits
+ * depends on the scope (`global` is left out when the key reaches no global,
+ * `locale` when localization is off), so no single branch describes what a
+ * handler must cope with. A tool's arguments are inferred from these types, so
+ * shape and arguments cannot drift apart. The cross-field rules they cannot
+ * state are enforced by `resolveEntity` and `resolveDocument` at call time.
  */
 /* eslint-disable @typescript-eslint/consistent-type-definitions */
 type EntityShape = {
@@ -118,11 +116,10 @@ type LocaleShape = { locale: z.ZodOptional<SlugEnum> };
 type DepthShape = { depth: z.ZodOptional<z.ZodNumber> };
 /* eslint-enable @typescript-eslint/consistent-type-definitions */
 
-/**
- * One scope-dependent branch of a superset. It may leave a key out, and may
- * emit the required form of a key the superset marks optional, but it cannot
- * invent a key or change one's type: those are the ways a shape and the
- * arguments inferred from it would drift apart.
+/*
+ * One scope-dependent branch of a superset. It may omit a key or emit the
+ * required form of an optional one, but cannot add a key or change a type,
+ * since that would let the shape and its inferred arguments drift apart.
  */
 type Branch<Full extends z.ZodRawShape> = {
 	[K in keyof Full]?: Full[K] extends z.ZodOptional<
@@ -132,7 +129,7 @@ type Branch<Full extends z.ZodRawShape> = {
 		: Full[K];
 };
 
-/** Unchecked, because the runtime shape really does vary; `Branch` guards it. */
+// Unchecked because the runtime shape varies; `Branch` guards it.
 const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
 	branch as unknown as Full;
 
@@ -267,10 +264,10 @@ export const depthShape = (scope: McpxToolScope): DepthShape => ({
 		),
 });
 
-/**
- * Where the data loader's cache key holds the collection slug and document id,
- * found by probing rather than assumed. A layout the probe cannot read leaves
- * both at -1, which refuses every population.
+/*
+ * Positions of the collection slug and document id in the data loader's cache
+ * key, found by probing rather than assumed. If the layout cannot be read both
+ * are -1, which refuses every population.
  */
 const LOADER_KEY = ((): { slug: number; id: number } => {
 	const slug = "\u0000slug";
@@ -297,15 +294,14 @@ const LOADER_KEY = ((): { slug: number; id: number } => {
 
 /**
  * The request a read tool hands to Payload, populating relations only into
- * collections this key may read. Relationship and upload fields, joins and
- * rich text nodes all populate through `req.payloadDataLoader`, and the loader
- * runs its finds on the request it was made for, so a loader of its own on an
- * isolated request bounds every depth without touching the request custom
- * tools share.
+ * collections this key may read. Relationships, uploads, joins and rich text
+ * nodes all populate through `req.payloadDataLoader`, which runs on the request
+ * it was made for. A loader of its own on an isolated request bounds every
+ * depth without touching the request that custom tools share.
  *
- * A refused relation resolves to its own id: relationship fields keep the id
- * when the loader answers with nothing, but rich text sets the node's value to
- * `null`, and the id is what depth 0 returns in both.
+ * A refused relation resolves to its own id, which is what depth 0 returns.
+ * Relationship fields keep the id when the loader answers nothing, but rich
+ * text sets `null`, so the loader must return the id itself.
  */
 export const readRequest = (scope: McpxToolScope): PayloadRequest => {
 	const req = isolateObjectProperty(scope.req, "payloadDataLoader");

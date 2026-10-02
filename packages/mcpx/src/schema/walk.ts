@@ -19,18 +19,15 @@ import type {
 } from "payload";
 
 /**
- * One writable field, addressed relative to the node that declares it.
+ * One writable field, addressed relative to the node that declares it. `path`
+ * is a JSON Pointer with every construct that does not nest in the stored
+ * document already resolved, so replacing each {@link ARRAY_MARKER} with an
+ * index gives a document pointer.
  *
- * `path` uses JSON Pointer syntax and is already resolved through every
- * construct that does not nest in the stored document, so it becomes a pointer
- * into a document by replacing each {@link ARRAY_MARKER} with an index.
- *
- * Inside a rich text field that substitution does not apply. A path there names
- * the node type, and a block node its slug, where a pointer enters the stored
- * state at `root` and walks `children` by an index counted over every child at
- * that level, not over the blocks among them, carrying the node's own fields
- * under `fields`: `/content/block/practice-note/variant` is written at
- * `/content/root/children/7/fields/variant`.
+ * That does not apply inside rich text. A path there names the node type (for a
+ * block node, its slug), while a document pointer enters the state at `root`
+ * and walks `children` by index: `/content/block/practice-note/variant` is
+ * written at `/content/root/children/7/fields/variant`.
  */
 export interface FieldDescriptor {
 	blocks?: string[];
@@ -87,7 +84,7 @@ export const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
 /**
  * An inlined definition wins over the registry (`config.blocks`). A block's own
  * fields are identical wherever it appears, but the blocks its children accept
- * are not, so an inline definition has to be read at its position.
+ * are not, so an inline definition must be read at its position.
  */
 export const blockOf = (
 	config: SanitizedConfig,
@@ -110,14 +107,14 @@ export const blockOf = (
 		: undefined;
 };
 
-/**
+/*
  * Payload's `fieldIsHiddenOrDisabled` reads `hidden` and `admin.disabled`, not
- * `admin.hidden`, which is what its own upload base fields carry.
+ * `admin.hidden`, which its own upload base fields carry.
  */
 const isAdminHidden = (field: FlattenedField): boolean =>
 	"admin" in field && field.admin.hidden === true;
 
-/** A field kept out of the admin panel is kept out of the MCP surface too. */
+// A field kept out of the admin panel is kept out of the MCP surface too.
 const isSkipped = (field: FlattenedField): boolean =>
 	!("name" in field) ||
 	field.type === "join" ||
@@ -129,7 +126,7 @@ const isSkipped = (field: FlattenedField): boolean =>
 const isReadOnly = (field: FlattenedField): boolean =>
 	"admin" in field && field.admin.readOnly === true;
 
-/**
+/*
  * Where one field sits in the walk: its resolved path, whether anything above
  * it is read-only, and the translator resolving its description.
  */
@@ -230,17 +227,17 @@ const withRows = (
 	...(field.maxRows === undefined ? {} : { maxRows: field.maxRows }),
 });
 
-/**
- * A container describes a position rather than a value, so everything resolving
- * a path to something writable skips it. Only {@link nodeDescriber} reports one,
- * to carry what the container itself declares.
+/*
+ * A container describes a position, not a value, so anything resolving a path
+ * to something writable skips it. Only {@link nodeDescriber} reports one, to
+ * carry what the container declares.
  */
 const isContainer = (descriptor: FieldDescriptor): boolean =>
 	descriptor.type === "array" ||
 	descriptor.type === "group" ||
 	descriptor.type === "tab";
 
-/**
+/*
  * Whether a container declares anything a client could not infer from the
  * fields beneath it. A group that exists only to nest is not worth reporting.
  */
@@ -250,18 +247,14 @@ const isInformative = (descriptor: FieldDescriptor): boolean =>
 	descriptor.localized === true;
 
 /**
- * Flattens a field list into descriptors addressed relative to the node.
+ * Flattens a field list into descriptors addressed relative to the node. Named
+ * tabs, groups and arrays add a path segment and are described themselves only
+ * when they declare something of their own: an array always, since its row
+ * counts live nowhere else.
  *
- * The input is Payload's own flattened shape, so the admin-only constructs
- * (unnamed tabs and groups, `row`, `collapsible`, `ui`) are already gone. Named
- * tabs, groups and arrays contribute a path segment, and are described in their
- * own right when they declare something of their own: an array always, since
- * its row counts live nowhere else, a group or tab only when it carries a
- * description or a constraint. The walk stops at every blocks field and names
- * the slugs, which keeps a node proportional to the number of blocks it allows
- * rather than to the size of their definitions.
- *
- * Omitting `translate` costs language selection, never the description itself.
+ * The walk stops at every blocks field and names the slugs, so a node's size
+ * follows the number of blocks it allows, not their definitions. Omitting
+ * `translate` costs language selection, never the description itself.
  */
 export const describeFields = (
 	fields: FlattenedField[],
@@ -313,9 +306,9 @@ export const describeFields = (
 };
 
 /**
- * The descriptors that address a value, which is what every walk resolving a
- * path against a document needs. A container describes a position rather than
- * a value, so only {@link nodeDescriber} reports one.
+ * The descriptors that address a value, which every walk resolving a path
+ * against a document needs. Containers are left out, since only
+ * {@link nodeDescriber} reports one.
  */
 export const describeAddressableFields = (
 	fields: FlattenedField[],
@@ -372,8 +365,8 @@ export const findBlocksField = (
 ): FlattenedBlocksField | undefined => findFieldAt(fields, path, "blocks");
 
 /**
- * Locates the rich text field that a resolved descriptor path refers to, so
- * its editor can be introspected for the fields its nodes carry.
+ * Locates the rich text field a resolved descriptor path refers to, so its
+ * editor can be introspected for the fields its nodes carry.
  */
 export const findRichTextField = (
 	fields: FlattenedField[],
@@ -381,9 +374,9 @@ export const findRichTextField = (
 ): RichTextField | undefined => findFieldAt(fields, path, "richText");
 
 /**
- * The part of a sanitized config the schema walkers actually consume. Both
- * `SanitizedCollectionConfig` and `SanitizedGlobalConfig` satisfy it, so
- * `schemaOf` returns without a cast and no caller has to narrow.
+ * The part of a sanitized config the schema walkers consume. Collection and
+ * global configs both satisfy it, so `schemaOf` needs no cast and no caller has
+ * to narrow.
  */
 export interface EntitySchema {
 	fields: Field[];
@@ -392,10 +385,10 @@ export interface EntitySchema {
 }
 
 /**
- * Looks up the sanitized config for a collection or global, as a
- * {@link EntitySchema}. Throws on an unknown slug rather than returning
- * undefined, because a reference reaching here has already been checked against
- * the key's capabilities and a miss means the config changed underneath it.
+ * Looks up the sanitized config for a collection or global as an
+ * {@link EntitySchema}. Throws on an unknown slug instead of returning
+ * undefined: a reference reaching here was already checked against the key's
+ * capabilities, so a miss means the config changed underneath it.
  */
 export const schemaOf = (
 	config: SanitizedConfig,

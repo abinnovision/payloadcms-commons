@@ -60,8 +60,8 @@ const stateOf = (paths: string[], values: CapabilityValues): ColumnState => {
 };
 
 /**
- * Whether a column's bulk toggle reads as on, off or indeterminate. Non-exposed
- * cells are ignored: a column of two granted cells and one dash is fully on.
+ * Whether a column's bulk toggle reads as on, off or indeterminate. Cells the
+ * config does not expose are ignored: two granted cells and one dash read as on.
  */
 export const columnState = (
 	matrix: CapabilityMatrix,
@@ -104,11 +104,10 @@ export const toolsState = (
 		values,
 	);
 
-/**
- * Publishing is an extension of writing, and `publishFlag` in `capabilities.ts`
- * discards a publish without a write. Ticking publish therefore ticks write,
- * and clearing write clears publish, so the form cannot save a combination the
- * server ignores.
+/*
+ * `publishFlag` in `capabilities.ts` discards a publish without a write. So
+ * ticking publish ticks write and clearing write clears publish, which keeps
+ * the form from saving a combination the server ignores.
  */
 const reconcile = (
 	next: Record<CapabilityOperation, boolean>,
@@ -146,7 +145,7 @@ const rowActions = (
 	for (const operation of CAPABILITY_OPERATIONS) {
 		const change = changes[operation.id];
 
-		/* A change to an operation the config does not expose has nowhere to go. */
+		// A change to an operation the config does not expose has nowhere to go.
 		if (change !== undefined && row[operation.id]) {
 			next[operation.id] = change;
 			touched.add(operation.id);
@@ -166,12 +165,12 @@ const rowActions = (
 };
 
 /**
- * The form-state updates one click implies, as literal actions. Every toggle in
- * the matrix — cell, row, column or tool — comes through here, so the publish
- * rule holds for bulk grants as much as for a single box.
+ * The form-state updates one click implies, as literal actions. Every toggle
+ * (cell, row, column or tool) comes through here, so the publish rule applies
+ * to bulk grants too.
  *
- * Only cells whose value actually changes get an action, which keeps a bulk
- * toggle from marking the form modified when it changes nothing.
+ * Only cells whose value changes get an action, so a bulk toggle that changes
+ * nothing does not mark the form modified.
  */
 export const buildToggleActions = (
 	matrix: CapabilityMatrix,

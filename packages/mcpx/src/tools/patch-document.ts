@@ -70,11 +70,11 @@ export const PATCH_OPERATION_SCHEMA = z
 	])
 	.describe("An RFC 6902 operation.");
 
-/**
- * Whether the intended value survived the write. The saved document is
- * allowed to carry more than was sent: Payload assigns fresh row ids and
- * backfills defaults and nulls on save, so `id` keys are ignored and only
- * the keys the client sent are compared. Null and absent count as equal.
+/*
+ * Whether the intended value survived the write. The saved document may carry
+ * more than was sent: Payload assigns fresh row ids and backfills defaults and
+ * nulls on save, so `id` keys are ignored and only the keys the client sent are
+ * compared. Null and absent count as equal.
  */
 const survives = (expected: unknown, actual: unknown): boolean => {
 	if (expected === undefined || expected === null) {
@@ -103,9 +103,9 @@ const survives = (expected: unknown, actual: unknown): boolean => {
 		: JSON.stringify(expected) === JSON.stringify(actual);
 };
 
-/**
- * Pointers whose intended value did not survive the write. Element pointers
- * are skipped: an append pointer (`/-`) does not resolve against the saved
+/*
+ * Pointers whose intended value did not survive the write. Element pointers are
+ * skipped because an append pointer (`/-`) does not resolve against the saved
  * document.
  */
 const notAppliedPointers = (
@@ -130,10 +130,10 @@ const notAppliedPointers = (
 
 /**
  * The handler validates the whole batch against the schema and the current
- * document before it writes anything, runs the write in a transaction, then
+ * document before writing anything, runs the write in a transaction, then
  * re-reads the saved document to report which pointers survived and what still
- * blocks publishing. Nothing here decides where the write lands: the draft
- * guard does that on the Payload operation.
+ * blocks publishing. The draft guard, not this tool, decides where the write
+ * lands.
  */
 export const patchDocument = defineMcpxTool({
 	name: "patchDocument",
@@ -175,8 +175,8 @@ export const patchDocument = defineMcpxTool({
 		const locale = localeOf(scope, args.locale);
 		/*
 		 * `z.unknown()` cannot say "present, any value", so the schema leaves
-		 * `value` optional where rfc6902's own union requires it. Narrowing
-		 * states that gap once instead of at each use.
+		 * `value` optional where rfc6902's union requires it. The cast states that
+		 * gap once instead of at each use.
 		 */
 		const patches = args.patches as PatchOperation[];
 
@@ -221,10 +221,10 @@ export const patchDocument = defineMcpxTool({
 				});
 			} else {
 				/*
-				 * `updateGlobal` passes `fallbackLocale` straight through to the read
-				 * it merges the write onto, and Payload defaults that to the default
-				 * locale. Without this, a value missing in the written locale would be
-				 * backfilled from another one and persisted here.
+				 * `updateGlobal` passes `fallbackLocale` through to the read it merges
+				 * the write onto, and Payload defaults that to the default locale.
+				 * Without this, a value missing in the written locale would be
+				 * backfilled from another locale and persisted.
 				 */
 				await payload.updateGlobal({
 					...write,

@@ -13,11 +13,11 @@ const BODY_BYTES_LIMIT = 4 * 1024 * 1024;
 
 const BATCH_MESSAGES_LIMIT = 10;
 
-/**
+/*
  * The body as text, `null` once it passes {@link BODY_BYTES_LIMIT}, or
  * `undefined` when there is none. A declared length over the limit is refused
- * unread; a chunked body declares none, so bytes are counted as they arrive
- * and reading stops at the limit instead of buffering the rest.
+ * unread. A chunked body declares none, so bytes are counted as they arrive and
+ * reading stops at the limit.
  */
 const readBody = async (
 	req: PayloadRequest,

@@ -1,6 +1,6 @@
 import type { PayloadRequest } from "payload";
 
-/**
+/*
  * Payload has already folded `config.i18n.fallbackLanguage` into the request,
  * so no config lookup is needed.
  */
@@ -19,7 +19,7 @@ const stringRecord = (value: unknown): Record<string, string> | undefined =>
 		? (value as Record<string, string>)
 		: undefined;
 
-/** Treats an empty value as absent, so the fallback chain continues. */
+// An empty value counts as absent, so the fallback chain continues.
 const pick = (
 	record: Record<string, string>,
 	language: string | string[],
@@ -36,13 +36,13 @@ const pick = (
 };
 
 /**
- * Resolves a static label or `admin.description` to the one string a client
- * can use: the request's language, then the fallback language configured for
- * the deployment, then whichever entry the record declares first.
+ * Resolves a static label or `admin.description` to one string: the request's
+ * language, then the configured fallback language, then the first entry the
+ * record declares.
  *
  * Anything that is not a string or a string-valued record is dropped. A
- * description written as a function or a React component is an admin-UI
- * construct that may reach client-only i18n, so it is never invoked here.
+ * function or React component description may reach client-only i18n, so it is
+ * never invoked.
  */
 export const translateStatic = (
 	value: unknown,
@@ -65,13 +65,13 @@ export const translateStatic = (
 	);
 };
 
-/** Bound to one request's language, so a walk carries no request of its own. */
+// Bound to one request's language, so a walk needs no request of its own.
 export const translatorFor =
 	(i18n: RequestLanguage): Translate =>
 	(value) =>
 		translateStatic(value, i18n);
 
-/** For callers with no request: both keys miss, so the first entry wins. */
+/** For callers with no request. Both languages miss, so the first entry wins. */
 export const translateAny: Translate = translatorFor({
 	fallbackLanguage: "",
 	language: "",

@@ -9,7 +9,7 @@ import type { NormalizedOptions } from "../options.js";
 import type { McpxAnyTool, McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-/** Strict, so an unknown argument is rejected by name rather than stripped. */
+/** Strict, so an unknown argument is rejected by name instead of stripped. */
 export const toolInputSchema = (
 	tool: McpxAnyTool,
 	scope: McpxToolScope,
@@ -20,7 +20,7 @@ export const toolInputSchema = (
 			: (tool.inputSchema ?? {}),
 	);
 
-/** May be built from the scope, to name the targets this key writes live. */
+// May be built from the scope, to name the entities this key writes live.
 const toolDescription = (tool: McpxAnyTool, scope: McpxToolScope): string =>
 	typeof tool.description === "function"
 		? tool.description(scope)

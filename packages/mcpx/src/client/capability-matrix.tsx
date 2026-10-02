@@ -49,10 +49,10 @@ const NOT_EXPOSED = "The plugin config does not expose this.";
 const BASE_CLASS = "mcpx-capabilities";
 
 /*
- * Three rules that inline styles cannot express. A hover band across the row
- * is what makes a label and its checkboxes scan as one line, which is why the
- * rows carry no striping or rules of their own. The last table drops its
- * margin because `.render-fields` already spaces this field from the next.
+ * Three rules that inline styles cannot express. The hover band across a row
+ * makes a label and its checkboxes scan as one line, so rows carry no striping
+ * or rules of their own. The last table drops its margin because
+ * `.render-fields` already spaces the field from the next.
  */
 const SHEET = `
 .${BASE_CLASS} tbody tr:hover { background: var(--theme-elevation-50); }
@@ -61,31 +61,27 @@ const SHEET = `
 `;
 
 /*
- * Payload's table metrics, so a row is as tall as one anywhere else in the
- * admin and the checkbox sits in it with the same air around it: cells at
- * `base(0.6)`, the outer edges at `base(0.8)`, and a checkbox of `$baseline`
- * square in the middle of them.
+ * Payload's table metrics, so a row is as tall as one elsewhere in the admin:
+ * cells at `base(0.6)`, outer edges at `base(0.8)` and a checkbox of
+ * `$baseline` square in between.
  */
 const CELL_PADDING = "calc(var(--base) * 0.6)";
 const EDGE_PADDING = "calc(var(--base) * 0.8)";
 
-/**
- * Payload's own theme variables, so the matrix follows the admin's light and
- * dark themes without shipping a stylesheet consumers would have to transpile.
- * The header block borrows the admin table's treatment: muted, raised a step
- * off the page and closed with a rule.
- *
- * The only literal left is the small-caps section heading, which has no
- * counterpart in the admin to borrow from.
+/*
+ * Payload's theme variables, so the matrix follows the admin's light and dark
+ * themes without a stylesheet that consumers would have to transpile. The
+ * header block copies the admin table: muted, raised a step off the page and
+ * closed with a rule. The small-caps section heading is the only literal, as
+ * the admin has nothing to borrow it from.
  */
 const styles = {
 	section: { marginBottom: "var(--base)" },
 	/*
-	 * Sized to its columns rather than to the form: stretched full width the
-	 * checkboxes end up an arm's length from the row they belong to. Separate
-	 * borders keep the header's corner radii reliable, and the layout is fixed
-	 * because a cell's `min-width` is advisory in an auto layout and the tables
-	 * have to line their columns up with each other.
+	 * Sized to its columns, not the form: at full width the checkboxes end up
+	 * far from their row. Separate borders keep the header's corner radii
+	 * reliable. The layout is fixed because a cell's `min-width` is advisory in
+	 * an auto layout, and the tables must line their columns up with each other.
 	 */
 	table: {
 		tableLayout: "fixed",
@@ -95,7 +91,7 @@ const styles = {
 		textAlign: "left",
 	},
 	head: { background: "var(--theme-elevation-50)" },
-	/** The section name, which heads the label column instead of a stray title. */
+	// The section name heads the label column in place of a separate title.
 	headTitle: {
 		padding: `${CELL_PADDING} ${CELL_PADDING} ${CELL_PADDING} ${EDGE_PADDING}`,
 		verticalAlign: "middle",
@@ -119,7 +115,7 @@ const styles = {
 		color: "var(--theme-elevation-500)",
 		fontWeight: "normal",
 	},
-	/** Closes the header block, across every column rather than the first. */
+	// Closes the header block across every column, not only the first.
 	rule: { borderBottom: "1px solid var(--theme-border-color)" },
 	topStart: { borderStartStartRadius: "var(--style-radius-s)" },
 	topEnd: { borderStartEndRadius: "var(--style-radius-s)" },
@@ -129,7 +125,7 @@ const styles = {
 		fontWeight: "normal",
 		wordBreak: "break-word",
 	},
-	/* Underlined on hover only: six dotted labels read as six mistakes. */
+	// Underlined on hover only, so a column of labels does not read as errors.
 	rowButton: {
 		padding: 0,
 		border: 0,
@@ -153,10 +149,10 @@ const styles = {
 	dash: { color: "var(--theme-elevation-400)", cursor: "help" },
 } as const satisfies Record<string, React.CSSProperties>;
 
-/**
- * Payload's own checkbox, which carries the admin's styling and the partial
- * state the column and row toggles need. `name` is what it renders as the
- * input's `title`, so it doubles as the control's accessible name.
+/*
+ * Payload's checkbox, which carries the admin's styling and the partial state
+ * the column and row toggles need. `name` becomes the input's `title`, so it is
+ * also the accessible name.
  */
 const Box: React.FC<{
 	label: string;
@@ -173,11 +169,11 @@ const Box: React.FC<{
 	/>
 );
 
-/** Both in `--base` multiples, so the columns keep Payload's rhythm. */
+// Both in `--base` multiples, so the columns keep Payload's rhythm.
 const LABEL_WIDTH = "calc(var(--base) * 9)";
 const OPERATION_WIDTH = "calc(var(--base) * 3.5)";
 
-/** Fixed widths, so every table lines its columns up with the ones above it. */
+// Fixed widths, so every table lines its columns up with the others.
 const Columns: React.FC<{ count: number }> = ({ count }) => (
 	<colgroup>
 		<col style={{ width: LABEL_WIDTH }} />
@@ -187,7 +183,7 @@ const Columns: React.FC<{ count: number }> = ({ count }) => (
 	</colgroup>
 );
 
-/** The rightmost cell carries the table's outer padding, as Payload's does. */
+// The rightmost cell carries the table's outer padding, as in Payload.
 const cellStyle = (isLast: boolean): React.CSSProperties =>
 	isLast ? { ...styles.cell, ...styles.lastCell } : styles.cell;
 
@@ -205,12 +201,12 @@ interface TableProps {
 	values: CapabilityValues;
 }
 
-/** One namespace: a row per entity, a column per operation. */
+// One namespace: a row per entity, a column per operation.
 const NamespaceTable: React.FC<
 	TableProps & { namespace: { id: CapabilityNamespace; title: string } }
 > = ({ matrix, namespace, path, readOnly, toggle, values }) => {
 	const rows = matrix[namespace.id];
-	/* A column no row exposes is dropped, so dashes mark real exceptions. */
+	// A column no row exposes is dropped, so dashes mark real exceptions.
 	const columns = CAPABILITY_OPERATIONS.filter((operation) =>
 		rows.some((row) => row[operation.id]),
 	);
@@ -433,9 +429,8 @@ const ToolsTable: React.FC<TableProps> = ({
 
 /**
  * What an API key may do, as one table per namespace: a row per entity, a
- * column per operation, and a bulk toggle in each column header. The nested
- * checkbox fields this replaces still back every cell, so the stored document
- * is unchanged; only the rendering is.
+ * column per operation and a bulk toggle in each column header. The nested
+ * checkbox fields back every cell, so the stored document is unaffected.
  */
 export const McpxCapabilityMatrix: React.FC<McpxCapabilityMatrixProps> = ({
 	field,

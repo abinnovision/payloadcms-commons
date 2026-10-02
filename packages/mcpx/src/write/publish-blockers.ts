@@ -18,29 +18,21 @@ export interface PublishBlocker {
 }
 
 /**
- * Runs Payload's own field validation over a draft without saving anything.
+ * Runs Payload's field validation over a draft without saving. `beforeValidate`
+ * runs first because some field hooks (Lexical's) prepare `context` state that
+ * `beforeChange` needs. `data` and the context are copies, so nothing is
+ * written.
  *
- * The same traversal a real save runs, exported from `payload` and called with
- * `skipValidation: false` so it collects into `errors` instead of throwing. The
- * `beforeValidate` pass runs first because some field hooks (Lexical's) prepare
- * state in `context` that their `beforeChange` counterpart depends on.
- *
- * Nothing is written: `data` is a copy, the context is a scratch copy and the
- * locale merge actions are discarded. `overrideAccess` is true because the
- * question is "could this be published", not "may this client write it".
- *
- * `unavailable` marks a traversal that threw, which is not the same answer as a
- * document with nothing wrong with it.
+ * `overrideAccess` is true because the question is whether the draft could be
+ * published, not whether this client may write it. `unavailable` means the
+ * traversal threw, which is not the same as a clean document.
  */
 export const collectPublishBlockers = async (
 	req: PayloadRequest,
 	target: { doc: JsonObject; entity: ResolvedEntity },
 ): Promise<{ blockers: PublishBlocker[]; unavailable?: true }> => {
 	const { doc, entity } = target;
-	/*
-	 * A global doc has no id, so the guard below simply omits it, which is
-	 * what the traversal wants for a global.
-	 */
+	// A global has no id. The guard below omits it, as the traversal expects.
 	const id = doc["id"] as DocumentId | undefined;
 	const errors: ValidationFieldError[] = [];
 	const data: JsonObject = { ...structuredClone(doc), _status: "published" };

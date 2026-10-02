@@ -67,10 +67,9 @@ export const publishDocument = defineMcpxTool({
 			}
 
 			/*
-			 * The marker is the whole request to publish; `_status` is written by
-			 * the draft guard, which is the only thing that may grant it. Neither
-			 * goes through `buildWriteData`, which strips reserved fields and would
-			 * leave nothing behind.
+			 * The marker alone requests the publish, and the draft guard writes
+			 * `_status`. Neither goes through `buildWriteData`, which strips
+			 * reserved fields and would leave nothing.
 			 */
 			const write = {
 				data: withPublishIntent({}),

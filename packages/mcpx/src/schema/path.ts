@@ -16,9 +16,9 @@ export const splitPath = (path: string): string[] =>
 const PROTOTYPE_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
 
 /**
- * No field or node property carries one of these names, and rfc6902 skips
- * them as intermediate tokens but writes them as a final key, so a pointer
- * holding one is refused before anything resolves it.
+ * No field or node property has one of these names. rfc6902 skips them as
+ * intermediate tokens but writes them as a final key, so a pointer containing
+ * one is refused before anything resolves it.
  */
 export const prototypeSegmentProblem = (pointer: string): string | undefined =>
 	splitPath(pointer).some((segment) => PROTOTYPE_SEGMENTS.has(segment))

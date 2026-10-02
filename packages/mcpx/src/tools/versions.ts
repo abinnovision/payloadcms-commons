@@ -7,7 +7,7 @@ import type { McpxToolScope } from "../types.js";
 import type { PaginatedDocs, SelectType, TypedLocale, Where } from "payload";
 import type { Operation } from "rfc6902";
 
-/** A stored version: its metadata plus the document body under `version`. */
+// A stored version: its metadata plus the document body under `version`.
 type StoredVersion = Record<string, unknown> & {
 	id: DocumentId;
 	version: Record<string, unknown>;
@@ -21,10 +21,10 @@ export interface VersionRead {
 	locale: TypedLocale | undefined;
 }
 
-/** Bookkeeping that differs between saves without saying anything about content. */
+// Bookkeeping that differs between saves without saying anything about content.
 const NOISE = ["id", "globalType", "createdAt", "updatedAt", "_status"];
 
-/** Newest first, with the id breaking ties between saves in the same instant. */
+// Newest first, with the id breaking ties between saves in the same instant.
 const NEWEST_FIRST = ["-updatedAt", "-id"];
 
 /** The document or global as the key's user sees it. */
@@ -51,7 +51,7 @@ export const readLive = async (
 		: scope.req.payload.findGlobal({ ...shared, slug: read.target.slug }));
 };
 
-/**
+/*
  * Payload checks only `readVersions` on a version read, never `read`, so the
  * document itself is read first and throws when the key's user may not see it.
  */

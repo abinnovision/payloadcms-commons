@@ -70,9 +70,9 @@ export const resolveEntity = (
 };
 
 /**
- * Resolves the target and checks `id` against it. A collection document needs
+ * Resolves the entity and checks `id` against it. A collection document needs
  * one; a global is a singleton and must not carry one. The schema cannot
- * express the dependency, so it is stated here and in every affected tool
+ * express that, so it is checked here and stated in every affected tool
  * description.
  */
 export const resolveDocument = (
@@ -114,7 +114,7 @@ export const identityOf = (
 ): { id: unknown } | { global: string } =>
 	target.kind === "collection" ? { id } : { global: target.slug };
 
-/** The value a client read back is a string; what it meets may be a Date. */
+// The client's value is a string, but the stored one may be a Date.
 const sameInstant = (left: unknown, right: string): boolean =>
 	typeof left === "string" &&
 	new Date(left).getTime() === new Date(right).getTime();
@@ -171,12 +171,10 @@ export const readDraft = async (
 	}
 
 	/*
-	 * `disableErrors` stays off for a global so Payload distinguishes the two
-	 * cases itself: denied access throws `NotFound`, while a global that has
-	 * simply never been saved comes back as an empty document. That empty
-	 * document is a valid starting point, because a global always exists
-	 * conceptually and refusing it would make the first write to one
-	 * impossible.
+	 * `disableErrors` stays off for a global so Payload can tell the cases apart:
+	 * denied access throws `NotFound`, while a global that was never saved comes
+	 * back empty. The empty document is a valid starting point, since refusing it
+	 * would make the first write to a global impossible.
 	 */
 	return await payload.findGlobal({
 		...shared,

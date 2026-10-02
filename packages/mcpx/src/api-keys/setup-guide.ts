@@ -4,7 +4,7 @@
  */
 export const KEY_PLACEHOLDER = "<your-key>";
 
-/** What the guide needs to know about one key to write its snippets. */
+// What the guide needs to know about one key to write its snippets.
 interface SetupGuideInput {
 	/** Absolute MCP endpoint URL. */
 	endpointUrl: string;
@@ -14,7 +14,7 @@ interface SetupGuideInput {
 	label?: null | string | undefined;
 }
 
-/** One instruction block, rendered behind its own copy button. */
+// One instruction block, rendered behind its own copy button.
 interface SetupGuideSection {
 	/** Stable key for rendering and for tests. */
 	id: string;

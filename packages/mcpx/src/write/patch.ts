@@ -40,11 +40,10 @@ export const isElementPointer = (pointer: string): boolean => {
 	return isIndexSegment(pointer.split("/").pop() ?? "");
 };
 
-/**
- * The operation as it is applied: values are cloned so the written document
- * never shares references with the caller's operations, and a `replace` of a
- * field the target locale has no value for becomes an `add`, which is what
- * RFC 6902 requires when nothing is there to replace.
+/*
+ * Clones values so the written document shares no references with the caller's
+ * operations. A `replace` of a field the target locale has no value for becomes
+ * an `add`, as RFC 6902 requires when there is nothing to replace.
  */
 const prepare = (operation: Operation, doc: JsonObject): Operation => {
 	const cloned =
@@ -59,7 +58,7 @@ const prepare = (operation: Operation, doc: JsonObject): Operation => {
 		: cloned;
 };
 
-/** The one it carries, or the one it takes from `from`. `remove` writes nothing. */
+// The value it carries, or the one it copies from `from`. `remove` writes nothing.
 const effectiveValue = (operation: Operation, doc: JsonObject): unknown => {
 	if ("value" in operation) {
 		return operation.value;
@@ -70,7 +69,7 @@ const effectiveValue = (operation: Operation, doc: JsonObject): unknown => {
 		: undefined;
 };
 
-/** A pointer stopping short addresses a subtree; the fields beneath decide. */
+// A pointer that stops short addresses a subtree, so the fields beneath decide.
 const resolvesReadOnly = (resolution: PointerResolution): boolean => {
 	if (resolution.readOnly) {
 		return true;
@@ -90,7 +89,7 @@ const resolvesReadOnly = (resolution: PointerResolution): boolean => {
 	return below.length > 0 && below.every((descriptor) => descriptor.readOnly);
 };
 
-/** An element has no descriptor, so its field is read one segment up. */
+// An element has no descriptor, so its field is read one segment up.
 const isReadOnlyPointer = (
 	config: SanitizedConfig,
 	target: { doc: JsonObject; pointer: string; ref: EntityRef },
@@ -105,7 +104,7 @@ const isReadOnlyPointer = (
 		}),
 	);
 
-/** Unresolvable pointers say nothing here; the caller reports them anyway. */
+// Unresolvable pointers say nothing here; the caller reports them anyway.
 const resolutionAt = (
 	config: SanitizedConfig,
 	target: { doc: JsonObject; pointer: string; ref: EntityRef },
@@ -121,11 +120,10 @@ const resolutionAt = (
 	}
 };
 
-/**
- * Removing a field does nothing, but removing part of an editor state does
- * something, and something worse: a node written without the properties its
- * class hydrates from throws when the admin editor opens it. Both are refused,
- * and only the reason differs.
+/*
+ * Removing a field has no effect. Removing part of an editor state is worse: a
+ * node written without the properties its class hydrates from throws when the
+ * admin editor opens it. Both are refused, with different reasons.
  */
 const droppedFieldProblem = (
 	config: SanitizedConfig,
@@ -145,10 +143,10 @@ const droppedFieldProblem = (
 	return `"${target.pointer}" is a field, not a list element, and removing it would do nothing. The patched document is written whole, and Payload keeps any field absent from a write rather than clearing it. Use "replace" with null to clear a field, or with [] to empty a list.`;
 };
 
-/**
+/*
  * Dropping the only node under a root empties the state, which Lexical refuses
- * to hydrate. Checked here rather than on the written value, because a
- * `remove` carries none.
+ * to hydrate. Checked here, not on the written value, because a `remove`
+ * carries none.
  */
 const emptiesTheRoot = (
 	config: SanitizedConfig,
@@ -166,9 +164,9 @@ const emptiesTheRoot = (
 	return Array.isArray(nodes) && nodes.length === 1;
 };
 
-/**
- * Checked against the document as it stands when this operation runs: both
- * pointers must resolve, the written value must pass write validation, and what
+/*
+ * Checked against the document as it stands when the operation runs: both
+ * pointers must resolve, the written value must pass write validation and what
  * it drops must not sit in a read-only field.
  */
 const findOperationProblems = (
@@ -266,10 +264,9 @@ const findOperationProblems = (
 };
 
 /**
- * One evolving copy, so an operation depending on an earlier one resolves
- * against the shape it actually modifies, and a failure leaves the original
- * untouched. The caller writes nothing unless the whole batch came back
- * applied, so a partial batch is never persisted.
+ * Works on one evolving copy, so each operation resolves against the result of
+ * the earlier ones and a failure leaves the original untouched. The caller
+ * writes only when the whole batch applied, so a partial batch is never saved.
  */
 export const applyPatchOperations = (
 	config: SanitizedConfig,

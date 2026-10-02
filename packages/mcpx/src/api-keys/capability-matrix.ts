@@ -9,17 +9,16 @@ import type { NormalizedOptions } from "../options.js";
 import type { McpxExposedEntity } from "../types.js";
 
 /**
- * The group's `admin.description`, which the matrix renders in Payload's own
- * description slot under the heading. It is the one place the two markings in
- * the table are explained, so both belong in it.
+ * The group's `admin.description`, rendered by the matrix in Payload's
+ * description slot. It explains both markings in the table: an unticked box
+ * and a dash.
  */
 export const CAPABILITIES_DESCRIPTION =
 	"What this key may do. An unticked box is a refusal, and a dash means the plugin config does not expose that operation at all.";
 
 /**
- * The three operations a collection or global can expose, described once. The
- * generated checkboxes and the matrix column headers both read these, so the
- * wording a key's owner sees cannot drift from what the field config carries.
+ * The operations a collection or global can expose. The generated checkboxes
+ * and the matrix column headers share this wording.
  */
 export const CAPABILITY_OPERATIONS = [
 	{ id: "read", label: "Read", description: "Describe, find and read." },
@@ -41,9 +40,9 @@ export type CapabilityOperation = (typeof CAPABILITY_OPERATIONS)[number]["id"];
 export type CapabilityNamespace = "collections" | "globals";
 
 /**
- * One entity's row. The three booleans say what the plugin config exposes, not
- * what the key has been granted: a `false` renders as a dash rather than an
- * empty box, so absence reads as a refusal by config rather than a gap.
+ * One entity's row. The booleans say what the plugin config exposes, not what
+ * the key was granted. A `false` renders as a dash, so absence reads as a
+ * refusal by config rather than a gap.
  */
 export interface CapabilityRow {
 	fieldName: string;
@@ -63,8 +62,8 @@ interface CapabilityTool {
 
 /**
  * Everything the admin component needs to draw the matrix, derived from the
- * plugin options at config time. Crosses the server/client boundary as a client
- * prop, so every leaf has to stay JSON-serializable.
+ * plugin options at config time. Passed as a client prop, so every leaf must be
+ * JSON-serializable.
  */
 export interface CapabilityMatrix {
 	collections: CapabilityRow[];
@@ -89,8 +88,8 @@ const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 
 /**
  * The single description of what the config exposes. `createCapabilityFields`
- * generates its checkboxes from this, and the admin component draws from it, so
- * a cell can never appear without a field behind it.
+ * and the admin component both draw from it, so a cell cannot appear without a
+ * field behind it.
  */
 export const createCapabilityMatrix = (
 	options: NormalizedOptions,
@@ -99,7 +98,7 @@ export const createCapabilityMatrix = (
 	globals: options.globals.map(toRow),
 	/*
 	 * A description built per request has no scope at config time, so the row
-	 * falls back to the tool's name.
+	 * falls back to the tool name.
 	 */
 	tools: options.tools.map((tool) => ({
 		name: tool.name,

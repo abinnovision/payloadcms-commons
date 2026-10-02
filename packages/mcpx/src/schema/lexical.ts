@@ -7,7 +7,7 @@ import type {
 	RichTextField,
 } from "payload";
 
-/**
+/*
  * `editorConfig.features.nodes` lists only what a feature contributed, so a
  * field whose editor enables nothing but text formatting reports none at all.
  */
@@ -19,21 +19,21 @@ const LEXICAL_CORE_NODES: readonly string[] = [
 	"tab",
 ];
 
-/**
- * Sub-fields exist but cannot be addressed by a schema path. Asked without a
- * node, `upload` answers with every enabled collection's upload fields
- * concatenated, so the result describes no single position.
+/*
+ * Sub-fields exist but cannot be addressed by a schema path. Without a node,
+ * `upload` returns every enabled collection's upload fields concatenated, which
+ * describes no single position.
  */
 const OPAQUE_NODE_TYPES: ReadonlySet<string> = new Set(["upload"]);
 
-/**
+/*
  * Typed structurally so the plugin does not depend on
  * `@payloadcms/richtext-lexical`.
  *
  * `getSubFields` is the hook Payload uses to populate and run hooks on the
  * fields a node carries. Called without a node it returns every sub-field the
- * node can hold, which is exactly a schema. It is keyed by node type and fed
- * by any feature that declares one, so custom features need no special case.
+ * node can hold, which is a schema. It is keyed by node type and filled by any
+ * feature that declares one, so custom features need no special case.
  */
 interface LexicalLikeEditor {
 	editorConfig?: {
@@ -51,20 +51,19 @@ interface LexicalLikeEditor {
 	};
 }
 
-/**
- * `blocks` covers nodes that pick a definition by slug, which is how the
- * Lexical block features report themselves, so the walkers treat it exactly
- * like a Payload blocks field. `fields` covers everything else, a link node
- * being the common case.
+/*
+ * `blocks` covers nodes that pick a definition by slug, as the Lexical block
+ * features do, so the walkers treat it like a Payload blocks field. `fields`
+ * covers everything else, such as a link node.
  */
 type LexicalSubSchema =
 	| { blocksField: FlattenedBlocksField; kind: "blocks" }
 	| { fields: FlattenedField[]; kind: "fields" };
 
-/**
+/*
  * `null` records a node type that was asked and has nothing to describe, so it
- * is asked only once. Worth caching because describe and validate resolve the
- * same field repeatedly and the block features rebuild their answer every call.
+ * is asked only once. Cached because describe and validate resolve the same
+ * field repeatedly and the block features rebuild their answer on every call.
  */
 const subSchemaCache = new WeakMap<
 	RichTextField,
@@ -131,7 +130,7 @@ export const subSchemaNodeTypes = (field: RichTextField): string[] =>
 		(nodeType) => lexicalSubSchema(field, nodeType) !== undefined,
 	);
 
-/**
+/*
  * What a serialized property has to be. A name is a kind; `{ is }` pins an
  * exact value, which a node class occasionally demands.
  */
@@ -139,9 +138,9 @@ type Constraint = Kind | { is: number | string };
 
 type Kind = keyof typeof KINDS;
 
-/**
- * `direction` carries Payload's own declaration for it, `oneOf` the two
- * directions or null, rather than a looser "string or null".
+/*
+ * `direction` follows Payload's own declaration (`"ltr"`, `"rtl"` or null)
+ * instead of a looser "string or null".
  */
 const KINDS = {
 	array: {
@@ -189,7 +188,7 @@ const ELEMENT_PROPERTIES = {
 	indent: "number",
 } as const satisfies Record<string, Constraint>;
 
-/** A text node and everything built on one. */
+// A text node and everything built on one.
 const TEXT_PROPERTIES = {
 	detail: "number",
 	format: "number",
@@ -198,15 +197,14 @@ const TEXT_PROPERTIES = {
 	text: "string",
 } as const satisfies Record<string, Constraint>;
 
-/**
+/*
  * Carried by every node, whatever its type.
  *
- * Aligned with Payload rather than measured: its `outputSchema` declares `type`
- * and `version` required for every node in the tree, and that declaration is
- * what types the field in `payload-types.ts`. Lexical itself hydrates a node
- * without a `version`, or with the wrong kind of one, unchanged - but a
- * consumer reading the document through the generated types has been promised
- * an integer, and `BlockNode.importJSON` migrates on it.
+ * Aligned with Payload, not measured: its `outputSchema` declares `type` and
+ * `version` required for every node, and that types the field in
+ * `payload-types.ts`. Lexical hydrates a node with a missing or mistyped
+ * `version` unchanged, but a consumer reading through the generated types is
+ * promised an integer, and `BlockNode.importJSON` migrates on it.
  */
 const UNIVERSAL_PROPERTIES = { version: "number" } as const satisfies Record<
 	string,
@@ -214,8 +212,8 @@ const UNIVERSAL_PROPERTIES = { version: "number" } as const satisfies Record<
 >;
 
 /**
- * The root, as Payload declares it and as an editor exports it: these six
- * properties, these kinds, and nothing else.
+ * The root as Payload declares it and an editor exports it: these six
+ * properties, these kinds, nothing else.
  */
 export const ROOT_PROPERTIES: Readonly<Record<string, Constraint>> = {
 	children: "array",
@@ -228,20 +226,15 @@ export const ROOT_PROPERTIES: Readonly<Record<string, Constraint>> = {
 
 /**
  * What a serialized node must carry beyond {@link UNIVERSAL_PROPERTIES}, keyed
- * by node type.
+ * by node type. Payload stores an editor state without hydrating it, so a node
+ * missing these only fails later in the admin editor. Payload declares nothing
+ * per node type, so the table is measured: an entry belongs only if breaking it
+ * makes Lexical throw or changes what the editor reads back. `lexical.spec.ts`
+ * checks every entry against the node classes `@payloadcms/richtext-lexical`
+ * ships, so extend that test first.
  *
- * Payload stores an editor state without hydrating it, so a node written
- * without these, or with the wrong kind of value, is accepted and only fails
- * later, in the admin editor. Payload declares nothing per node type, so this
- * table is measured instead: an entry belongs here only if breaking it makes
- * Lexical throw, or changes what the editor reads back. An element's `format`
- * and a paragraph's text defaults are absent for that reason.
- * `lexical.spec.ts` holds every entry to the rule against the node classes
- * `@payloadcms/richtext-lexical` ships, so extend that test first.
- *
- * A node type with no entry is checked for the universal properties only.
- * Guessing at the requirements of a project's own nodes would reject content
- * that works.
+ * A type with no entry gets the universal properties only: guessing at a
+ * project's own nodes would reject content that works.
  */
 export const REQUIRED_NODE_PROPERTIES: Readonly<
 	Record<string, Readonly<Record<string, Constraint>>>
@@ -257,23 +250,22 @@ export const REQUIRED_NODE_PROPERTIES: Readonly<
 	quote: ELEMENT_PROPERTIES,
 	relationship: { relationTo: "string", value: "number" },
 	/*
-	 * A tab is a text node holding one tab character, and its class refuses to
-	 * be told otherwise: both of these are exact because `setDetail` and
-	 * `setTextContent` throw for any other value.
+	 * A tab is a text node holding one tab character. Both values are exact
+	 * because `setDetail` and `setTextContent` throw for any other value.
 	 */
 	tab: { ...TEXT_PROPERTIES, detail: { is: 2 }, text: { is: "\t" } },
 	text: TEXT_PROPERTIES,
 	/*
-	 * An upload node's sub-fields depend on the collection it points at and are
-	 * not addressable through a schema path, so "fields" is usually written as
-	 * null. It is still required: Lexical reads the node back without it.
+	 * An upload node's sub-fields depend on the collection it points at and
+	 * cannot be addressed through a schema path, so "fields" is usually null. It
+	 * is still required: Lexical reads the node back without it.
 	 */
 	upload: { fields: "optionalObject", relationTo: "string", value: "number" },
 };
 
 /**
- * Whether the table already says what a node type's `fields` has to be, so the
- * sub-field walk does not report the same problem a second time.
+ * Whether the table already says what a node type's `fields` must be, so the
+ * sub-field walk does not report the same problem twice.
  */
 export const constrainsFields = (type: string): boolean =>
 	"fields" in (REQUIRED_NODE_PROPERTIES[type] ?? {});
@@ -288,20 +280,14 @@ const describeConstraints = (
 	);
 
 /**
- * What each of the given node types has to carry, phrased the way the write
- * side phrases it when it refuses one, so the listing and the error message
- * never disagree. Read straight off the tables above, which is what keeps it
- * true: nothing here is stated a second time.
+ * What each of the given node types must carry, phrased as the write side
+ * phrases its refusals so the two never disagree. Keyed by node type, not per
+ * field, because what a `text` node must carry is the same wherever it is
+ * written.
  *
- * Keyed by node type rather than reported per field, because that is what it
- * depends on. A field says which types it allows, in its `nodes`; what a `text`
- * node has to carry is the same wherever one is written, so a response that
- * describes twenty rich text fields still states it once.
- *
- * `type` is listed although {@link UNIVERSAL_PROPERTIES} omits it. The
- * validator never reports it missing, because a node's `type` is how it finds
- * the entry to check against, but a client assembling a node from this listing
- * still has to write one.
+ * `type` is listed although {@link UNIVERSAL_PROPERTIES} omits it: the
+ * validator never reports it missing, since it finds the entry by `type`, but a
+ * client building a node must still write one.
  */
 export const nodePropertiesFor = (
 	types: readonly string[],
@@ -310,7 +296,7 @@ export const nodePropertiesFor = (
 		[...new Set(types)].sort().map((type) => [
 			type,
 			describeConstraints(
-				/* The root is closed rather than extended: these six and nothing else. */
+				// The root is closed, not extended: these six and nothing else.
 				type === "root"
 					? ROOT_PROPERTIES
 					: {
@@ -322,7 +308,7 @@ export const nodePropertiesFor = (
 		]),
 	);
 
-/**
+/*
  * A property that is absent, and one that is present but cannot be what the
  * node class does with it.
  */
@@ -331,7 +317,7 @@ interface PropertyProblems {
 	rejected: { needs: string; property: string }[];
 }
 
-/** Present but `null` counts as present: `direction` is serialized that way. */
+// Present but `null` counts as present: `direction` is serialized that way.
 const check = (
 	node: Record<string, unknown>,
 	constraints: Readonly<Record<string, Constraint>>,
@@ -362,8 +348,8 @@ export const nodeProblems = (node: Record<string, unknown>): PropertyProblems =>
 
 /**
  * The root is the one node Payload describes itself, down to refusing an
- * unknown property, so it is checked against that description rather than
- * against the walk's table.
+ * unknown property, so it is checked against that description instead of the
+ * walk's table.
  */
 export const rootProblems = (
 	root: Record<string, unknown>,
@@ -375,12 +361,9 @@ export const rootProblems = (
 });
 
 /**
- * What one serialized property has to be, for a write addressing a property
- * rather than a whole node.
- *
- * Absent where the table says nothing, which is the same tolerance the node
- * walk shows: a project's own node may carry any property, and guessing at one
- * would reject content that works.
+ * What one serialized property must be, for a write addressing a property
+ * instead of a whole node. Absent where the table says nothing, matching the
+ * node walk: a project's own node may carry any property.
  */
 export const propertyProblem = (
 	nodeType: string,
@@ -408,12 +391,11 @@ export const propertyProblem = (
  */
 export type NodeOptions = Record<string, Record<string, string[]>>;
 
-/**
+/*
  * One node property a feature narrows, and where its setting is configured.
- *
- * `defaults` is what the feature falls back to, because a feature added without
- * arguments records nothing: the default lives in the feature's own
- * destructuring and never reaches its props.
+ * `defaults` is what the feature falls back to: a feature added without
+ * arguments records nothing, because the default lives in its own destructuring
+ * and never reaches its props.
  */
 interface NodeOptionSource {
 	defaults: readonly string[];
@@ -423,7 +405,7 @@ interface NodeOptionSource {
 	nodeType: string;
 }
 
-/**
+/*
  * Only properties a feature narrows and Lexical does not check on its own
  * belong here. Everything else a feature restricts is already visible: a
  * link's targets through its sub-schema, a block node's choices through the
@@ -439,7 +421,7 @@ const NODE_OPTION_SOURCES: readonly NodeOptionSource[] = [
 	},
 ];
 
-/**
+/*
  * The props a feature was resolved with.
  *
  * Sanitizing the editor drops every feature's props from `editorConfig.features`

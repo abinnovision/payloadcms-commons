@@ -16,7 +16,7 @@ import type { EntityRef } from "../entity.js";
 import type { Translate } from "../i18n.js";
 import type { FlattenedField, SanitizedConfig } from "payload";
 
-/**
+/*
  * A collection root or a single block, described without inlining anything
  * reachable through a blocks field.
  */
@@ -32,7 +32,7 @@ interface NodeDescriptor {
 	schemaPath: string;
 }
 
-/**
+/*
  * One drill-down out of a node: the schema path leading there, and the token
  * {@link reachableSchemaPaths} tracks to stop a definition reachable from
  * itself from being enumerated forever.
@@ -42,7 +42,7 @@ interface Branch {
 	token: string;
 }
 
-/** Blocks and rich text are both leaves of the walk, so at most one matches. */
+// Blocks and rich text are both leaves of the walk, so at most one matches.
 const longestMatch = (
 	descriptors: FieldDescriptor[],
 	remaining: readonly string[],
@@ -54,7 +54,7 @@ const longestMatch = (
 		)
 		.sort((left, right) => right.length - left.length)[0];
 
-/**
+/*
  * A position mid-walk: the fields in scope, the descriptor path matched there,
  * and the segments still to consume.
  */
@@ -106,10 +106,10 @@ const stepThroughBlocks = ({
 	};
 };
 
-/**
- * A node that picks a block by slug takes one segment more, so `/content/block`
+/*
+ * A node that picks a block by slug takes one more segment, so `/content/block`
  * addresses the choice and `/content/block/callout` the definition. Everything
- * else, a link node being the usual case, resolves in a single segment.
+ * else, such as a link node, resolves in one segment.
  */
 const stepThroughLexical = ({
 	config,
@@ -169,13 +169,13 @@ const stepThroughLexical = ({
 	};
 };
 
-/**
+/*
  * A schema path alternates a blocks field's own path with the slug of one of
  * the blocks it accepts, so `/layout/sections/sectionWrapper/modules/hero`
- * reaches `hero` as it exists under `pages` specifically. The slug sits where
- * a pointer into a document would carry the element's index. A rich text
- * field's path continues the same way, naming a Lexical node type and, for the
- * block nodes, the slug it holds.
+ * reaches `hero` as it exists under `pages` specifically. The slug sits where a
+ * document pointer would carry the element's index. A rich text field's path
+ * continues the same way, naming a Lexical node type and, for block nodes, the
+ * slug it holds.
  */
 const fieldsAtSchemaPath = (
 	config: SanitizedConfig,
@@ -192,10 +192,10 @@ const fieldsAtSchemaPath = (
 				descriptor.type === "blocks" || descriptor.type === "richText",
 		);
 
-		/**
+		/*
 		 * A field's own path may span several segments (`/layout/sections`), so
-		 * the longest matching one is taken. Blocks and rich text fields are both
-		 * leaves of the walk, so no two of these paths overlap.
+		 * the longest match is taken. Blocks and rich text fields are leaves of
+		 * the walk, so no two of these paths overlap.
 		 */
 		const match = longestMatch(descendable, remaining);
 
@@ -221,7 +221,7 @@ const fieldsAtSchemaPath = (
 	return { ...(blockType === undefined ? {} : { blockType }), fields };
 };
 
-/**
+/*
  * Where a descriptor can be drilled into: one branch per block a blocks field
  * accepts, and one per Lexical node type that carries fields.
  */
@@ -293,8 +293,8 @@ export const nodeDescriber =
 	};
 
 /**
- * Ceiling on the paths `reachableSchemaPaths` enumerates. The cycle guard only
- * bounds each individual path, so mutually referencing blocks can otherwise
+ * Ceiling on the paths `reachableSchemaPaths` enumerates. The cycle guard
+ * bounds each path individually, so mutually referencing blocks could otherwise
  * explode into permutations. Far beyond any real content model.
  */
 export const REACHABLE_PATHS_LIMIT = 400;

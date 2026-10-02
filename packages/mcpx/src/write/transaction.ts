@@ -3,14 +3,13 @@ import { commitTransaction, initTransaction, killTransaction } from "payload";
 import type { PayloadRequest } from "payload";
 
 /**
- * Adapters without transaction support, or a request that already owns one, run
- * `fn` as is.
+ * Runs `fn` in a transaction. Adapters without transaction support, or a
+ * request that already owns one, run `fn` as is.
  *
- * Atomicity, not isolation: neither SQLite nor Postgres at read committed locks
- * the row on the read, so an `expectedUpdatedAt` check remains best effort. Nor
- * is this safe across the tool calls of one JSON-RPC batch, which share a
- * request: the second caller joins the first's transaction, so one tool's
- * rollback takes the other's work with it.
+ * This gives atomicity, not isolation: SQLite and Postgres at read committed do
+ * not lock the row on read, so an `expectedUpdatedAt` check stays best effort.
+ * Tool calls in one JSON-RPC batch share a request, so the second joins the
+ * first's transaction and one rollback takes both tools' work with it.
  */
 export const withTransaction = async <T>(
 	req: PayloadRequest,

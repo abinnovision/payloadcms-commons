@@ -11,10 +11,10 @@ import { validateDocument } from "./validate-document.js";
 import type { McpxAnyTool } from "../types.js";
 
 /**
- * The builtin tools, in registration order. Fixed: adding a collection, block
- * or field never changes the surface. They differ from a custom tool only in
- * `isEnabled`, which derives from the key's capabilities rather than a
- * checkbox of their own.
+ * The builtin tools, in registration order. The set is fixed, so adding a
+ * collection, block or field never changes it. They differ from custom tools
+ * only in `isEnabled`, which derives from the key's capabilities instead of a
+ * checkbox of its own.
  */
 export const BUILTIN_TOOLS: McpxAnyTool[] = [
 	listCapabilities,

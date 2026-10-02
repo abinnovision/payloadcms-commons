@@ -2,11 +2,11 @@ import { isPlainObject } from "../guards.js";
 
 import type { JsonObject } from "payload";
 
-/** Its nodes manage their own ids, so it is never descended into. */
+// A rich text state's nodes manage their own ids, so it is never descended into.
 const isRichTextState = (value: Record<string, unknown>): boolean =>
 	isPlainObject(value["root"]) && Array.isArray(value["root"]["children"]);
 
-/** A row is a plain object carrying `blockType`, or one sitting in an array. */
+// A row is a plain object carrying `blockType`, or one sitting in an array.
 const walkRows = (
 	value: unknown,
 	visit: (row: Record<string, unknown>) => void,
@@ -34,13 +34,12 @@ const walkRows = (
 };
 
 /**
- * Keeps a row id only when the stored document already has it and no earlier
- * row in the write claimed it; every other id is dropped so Payload assigns a
- * fresh one.
+ * Keeps a row id only when the stored document has it and no earlier row in the
+ * write claimed it. Other ids are dropped so Payload assigns a fresh one.
  *
  * A kept id makes Payload update the row in place, which preserves the other
- * locales of any localized field inside it. A duplicated id (a copied row) or
- * an id from elsewhere would violate a SQL primary key, so those never pass.
+ * locales of localized fields inside it. A duplicated id (a copied row) or a
+ * foreign id would violate a SQL primary key.
  */
 export const reconcileRowIds = (next: JsonObject, stored: JsonObject): void => {
 	const known = new Set<unknown>();
