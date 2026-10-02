@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
+import { createMcpClient } from "./helpers/mcp.js";
 import { bootPayload, seedKeys } from "./helpers/payload.js";
 import { reachableSchemaPaths } from "../../src/schema/describe.js";
 
-import type { Booted, Seeded } from "./helpers/payload.js";
+import type { McpClient } from "./helpers/mcp.js";
+import type { Booted } from "./helpers/payload.js";
 
 interface Node {
 	collection: string;
@@ -31,22 +32,19 @@ const nodes = (data: Record<string, unknown>): Node[] =>
 
 describe("describeSchema", () => {
 	let booted: Booted;
-	let seeded: Seeded;
+	let mcp: McpClient;
 
 	beforeAll(async () => {
 		booted = await bootPayload();
-		seeded = await seedKeys(booted.payload);
+		mcp = createMcpClient(booted, (await seedKeys(booted.payload)).keys.full);
 	});
 
 	afterAll(async () => {
 		await booted.payload.destroy();
 	});
 
-	const describe_ = (args: Record<string, unknown>) =>
-		callTool(booted.config, seeded.keys.full, "describeSchema", args);
-
 	it("describes the collection root without nesting blocks", async () => {
-		const result = await describe_({ collection: "pages" });
+		const result = await mcp.call("describeSchema", { collection: "pages" });
 		const [root] = nodes(result.data);
 
 		expect(result.isError).toBe(false);
@@ -70,7 +68,7 @@ describe("describeSchema", () => {
 	});
 
 	it("rejects an unknown argument by name", async () => {
-		const result = await describe_({
+		const result = await mcp.call("describeSchema", {
 			collection: "pages",
 			schemaPath: "/layout/sections/sectionWrapper",
 		});
@@ -80,7 +78,7 @@ describe("describeSchema", () => {
 	});
 
 	it("describes a block in the context of its position", async () => {
-		const result = await describe_({
+		const result = await mcp.call("describeSchema", {
 			collection: "pages",
 			paths: ["/layout/sections/sectionWrapper"],
 		});
@@ -98,7 +96,10 @@ describe("describeSchema", () => {
 	});
 
 	it("expands to every reachable node", async () => {
-		const result = await describe_({ collection: "pages", expand: true });
+		const result = await mcp.call("describeSchema", {
+			collection: "pages",
+			expand: true,
+		});
 		const config = await booted.config;
 
 		/* The response carries the node-type listing too, which names no path. */
@@ -112,7 +113,7 @@ describe("describeSchema", () => {
 	});
 
 	it("reports an unresolvable path per node", async () => {
-		const result = await describe_({
+		const result = await mcp.call("describeSchema", {
 			collection: "pages",
 			paths: ["", "/layout/sections/carousel"],
 		});
@@ -124,7 +125,9 @@ describe("describeSchema", () => {
 	});
 
 	it("carries the constraints a field declares", async () => {
-		const root = nodes((await describe_({ collection: "posts" })).data)[0];
+		const root = nodes(
+			(await mcp.call("describeSchema", { collection: "posts" })).data,
+		)[0];
 		const at = (path: string) => root?.fields?.find((f) => f.path === path);
 
 		expect(at("/items")).toMatchObject({
@@ -137,13 +140,20 @@ describe("describeSchema", () => {
 	});
 
 	it("drills into the fields a Lexical node carries", async () => {
-		const root = nodes((await describe_({ collection: "posts" })).data)[0];
+		const root = nodes(
+			(await mcp.call("describeSchema", { collection: "posts" })).data,
+		)[0];
 
 		expect(root?.next).toContain("/content/link");
 		expect(root?.next).toContain("/content/block/callout");
 
 		const link = nodes(
-			(await describe_({ collection: "posts", paths: ["/content/link"] })).data,
+			(
+				await mcp.call("describeSchema", {
+					collection: "posts",
+					paths: ["/content/link"],
+				})
+			).data,
 		)[0];
 
 		expect(link?.fields?.map((f) => f.path)).toContain("/rel");
@@ -155,7 +165,9 @@ describe("describeSchema", () => {
 	 * not on which field the node is written into.
 	 */
 	it("states what each Lexical node type has to carry, once", async () => {
-		const answered = nodes((await describe_({ collection: "posts" })).data);
+		const answered = nodes(
+			(await mcp.call("describeSchema", { collection: "posts" })).data,
+		);
 		const listing = answered.filter((node) => node.nodeProperties);
 
 		expect(listing).toHaveLength(1);
@@ -184,7 +196,12 @@ describe("describeSchema", () => {
 
 	it("omits the listing where no rich text was described", async () => {
 		const answered = nodes(
-			(await describe_({ collection: "posts", paths: ["/content/link"] })).data,
+			(
+				await mcp.call("describeSchema", {
+					collection: "posts",
+					paths: ["/content/link"],
+				})
+			).data,
 		);
 
 		expect(answered.filter((node) => node.nodeProperties)).toEqual([]);

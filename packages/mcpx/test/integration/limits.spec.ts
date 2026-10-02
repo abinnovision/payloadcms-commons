@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool, mcpPost } from "./helpers/mcp.js";
+import { createMcpClient, mcpPost } from "./helpers/mcp.js";
 import {
 	bootPayload,
-	createKey,
 	FULL_CAPABILITIES,
+	seedKeysFor,
 } from "./helpers/payload.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-limits";
@@ -30,21 +31,15 @@ const createOfSize = (size: number): string =>
 describe("endpoint limits", () => {
 	let booted: Booted;
 	let key: string;
+	let mcp: McpClient;
 	let postId: number | string;
 
 	beforeAll(async () => {
 		booted = await bootPayload({ key: CACHE_KEY });
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: { email: "limits@example.com", password: "limits-secret" },
-		});
-
-		key = await createKey(booted.payload, {
-			userId: user.id,
-			label: "limits",
-			capabilities: FULL_CAPABILITIES,
-		});
+		key = (await seedKeysFor(booted.payload, { limits: FULL_CAPABILITIES }))
+			.keys.limits;
+		mcp = createMcpClient(booted, key);
 
 		const post = await booted.payload.create({
 			collection: "posts",
@@ -87,8 +82,7 @@ describe("endpoint limits", () => {
 	it("refuses a declared Content-Length over 4 MB and creates nothing", async () => {
 		const before = await postCount();
 
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
+		const response = await mcpPost(booted, {
 			key,
 			rawBody: CREATE,
 			headers: { "content-length": String(BODY_LIMIT + 1) },
@@ -101,8 +95,7 @@ describe("endpoint limits", () => {
 	it("refuses a body over 4 MB and creates nothing", async () => {
 		const before = await postCount();
 
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
+		const response = await mcpPost(booted, {
 			key,
 			rawBody: createOfSize(BODY_LIMIT + 1),
 		});
@@ -136,8 +129,7 @@ describe("endpoint limits", () => {
 			},
 		});
 
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
+		const response = await mcpPost(booted, {
 			key,
 			rawBody: stream,
 		});
@@ -150,8 +142,7 @@ describe("endpoint limits", () => {
 	it("accepts a body of exactly 4 MB", async () => {
 		const before = await postCount();
 
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
+		const response = await mcpPost(booted, {
 			key,
 			rawBody: createOfSize(BODY_LIMIT),
 		});
@@ -165,22 +156,16 @@ describe("endpoint limits", () => {
 	it("refuses more than 500 patches and changes nothing", async () => {
 		const before = await stored();
 
-		const result = await callTool(
-			booted.config,
-			key,
-			"patchDocument",
-			{
-				collection: "posts",
-				id: postId,
-				locale: "en",
-				patches: Array.from({ length: 501 }, () => ({
-					op: "replace",
-					path: "/title",
-					value: "Too many",
-				})),
-			},
-			CACHE_KEY,
-		);
+		const result = await mcp.call("patchDocument", {
+			collection: "posts",
+			id: postId,
+			locale: "en",
+			patches: Array.from({ length: 501 }, () => ({
+				op: "replace",
+				path: "/title",
+				value: "Too many",
+			})),
+		});
 
 		expect(result.isError).toBe(true);
 		expect(result.text).toContain("500");
@@ -188,22 +173,16 @@ describe("endpoint limits", () => {
 	});
 
 	it("applies 500 patches", async () => {
-		const result = await callTool(
-			booted.config,
-			key,
-			"patchDocument",
-			{
-				collection: "posts",
-				id: postId,
-				locale: "en",
-				patches: Array.from({ length: 500 }, (_, index) => ({
-					op: "replace",
-					path: "/title",
-					value: `Patch ${String(index)}`,
-				})),
-			},
-			CACHE_KEY,
-		);
+		const result = await mcp.call("patchDocument", {
+			collection: "posts",
+			id: postId,
+			locale: "en",
+			patches: Array.from({ length: 500 }, (_, index) => ({
+				op: "replace",
+				path: "/title",
+				value: `Patch ${String(index)}`,
+			})),
+		});
 
 		expect(result.isError).toBe(false);
 		expect(((await stored()) as { title?: unknown }).title).toBe("Patch 499");
@@ -212,13 +191,10 @@ describe("endpoint limits", () => {
 	it("refuses more than 400 describeSchema paths and changes nothing", async () => {
 		const before = await stored();
 
-		const result = await callTool(
-			booted.config,
-			key,
-			"describeSchema",
-			{ collection: "posts", paths: Array.from({ length: 401 }, () => "") },
-			CACHE_KEY,
-		);
+		const result = await mcp.call("describeSchema", {
+			collection: "posts",
+			paths: Array.from({ length: 401 }, () => ""),
+		});
 
 		expect(result.isError).toBe(true);
 		expect(result.text).toContain("400");
@@ -226,13 +202,10 @@ describe("endpoint limits", () => {
 	});
 
 	it("describes 400 paths", async () => {
-		const result = await callTool(
-			booted.config,
-			key,
-			"describeSchema",
-			{ collection: "posts", paths: Array.from({ length: 400 }, () => "") },
-			CACHE_KEY,
-		);
+		const result = await mcp.call("describeSchema", {
+			collection: "posts",
+			paths: Array.from({ length: 400 }, () => ""),
+		});
 
 		expect(result.isError).toBe(false);
 		expect(Array.isArray(result.data)).toBe(true);

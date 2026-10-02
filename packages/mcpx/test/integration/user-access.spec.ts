@@ -1,23 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
+import { createMcpClient, responseText } from "./helpers/mcp.js";
 import { bootPayload, createKey } from "./helpers/payload.js";
 import { diaries } from "../fixtures/security.js";
 
-import type { CallResult } from "./helpers/mcp.js";
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-user-access";
 
 interface Seeded {
-	key: string;
+	mcp: McpClient;
 	diaryId: number | string;
 	versionId: number | string;
 	title: string;
 }
-
-const textOf = (result: CallResult): string =>
-	`${result.text ?? ""} ${result.rpcError?.message ?? ""}`;
 
 /**
  * The key narrows what its user may do; it never widens it. Two users with
@@ -61,11 +58,14 @@ describe("keys of users with different read access", () => {
 			});
 
 			return {
-				key: await createKey(payload, {
-					userId: user.id,
-					label: name,
-					capabilities: { collections: { diaries: { read: true } } },
-				}),
+				mcp: createMcpClient(
+					booted,
+					await createKey(payload, {
+						userId: user.id,
+						label: name,
+						capabilities: { collections: { diaries: { read: true } } },
+					}),
+				),
 				diaryId: diary.id,
 				versionId: versions.docs[0]?.id as number | string,
 				title,
@@ -80,27 +80,24 @@ describe("keys of users with different read access", () => {
 		await booted.payload.destroy();
 	});
 
-	const call = (key: string, name: string, args: Record<string, unknown>) =>
-		callTool(booted.config, key, name, args, CACHE_KEY);
-
 	it("lists only the documents the key's user may read", async () => {
 		for (const [own, other] of [
 			[alice, bob],
 			[bob, alice],
 		] as const) {
-			const result = await call(own.key, "findDocuments", {
+			const result = await own.mcp.call("findDocuments", {
 				collection: "diaries",
 			});
 			const docs = result.data["docs"] as { id: unknown; title: string }[];
 
 			expect(result.isError).toBe(false);
 			expect(docs.map((doc) => doc.id)).toEqual([own.diaryId]);
-			expect(textOf(result)).not.toContain(other.title);
+			expect(responseText(result)).not.toContain(other.title);
 		}
 	});
 
 	it("reads an own document and refuses another user's", async () => {
-		const own = await call(alice.key, "getDocument", {
+		const own = await alice.mcp.call("getDocument", {
 			collection: "diaries",
 			id: alice.diaryId,
 		});
@@ -108,17 +105,17 @@ describe("keys of users with different read access", () => {
 		expect(own.isError).toBe(false);
 		expect(own.data["title"]).toBe(alice.title);
 
-		const other = await call(alice.key, "getDocument", {
+		const other = await alice.mcp.call("getDocument", {
 			collection: "diaries",
 			id: bob.diaryId,
 		});
 
 		expect(other.isError).toBe(true);
-		expect(textOf(other)).not.toContain("bob's private diary");
+		expect(responseText(other)).not.toContain("bob's private diary");
 	});
 
 	it("lists an own document's history and refuses another user's", async () => {
-		const own = await call(alice.key, "findVersions", {
+		const own = await alice.mcp.call("findVersions", {
 			collection: "diaries",
 			id: alice.diaryId,
 		});
@@ -126,7 +123,7 @@ describe("keys of users with different read access", () => {
 		expect(own.isError).toBe(false);
 		expect(own.data["totalDocs"]).toBe(2);
 
-		const other = await call(alice.key, "findVersions", {
+		const other = await alice.mcp.call("findVersions", {
 			collection: "diaries",
 			id: bob.diaryId,
 		});
@@ -137,14 +134,14 @@ describe("keys of users with different read access", () => {
 
 	it("refuses another user's version, under either document id", async () => {
 		for (const id of [alice.diaryId, bob.diaryId]) {
-			const result = await call(alice.key, "getDocument", {
+			const result = await alice.mcp.call("getDocument", {
 				collection: "diaries",
 				id,
 				versionId: bob.versionId,
 			});
 
 			expect(result.isError).toBe(true);
-			expect(textOf(result)).not.toContain("bob's private diary");
+			expect(responseText(result)).not.toContain("bob's private diary");
 		}
 	});
 });

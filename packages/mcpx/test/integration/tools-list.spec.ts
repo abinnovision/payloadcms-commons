@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { instructionsFor, toolsList } from "./helpers/mcp.js";
-import { bootPayload, createKey, USER } from "./helpers/payload.js";
+import { createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 
 import type { Booted, KeyCapabilities } from "./helpers/payload.js";
 
@@ -54,7 +54,7 @@ const KEYS: Record<string, KeyCapabilities> = {
 
 describe("tools/list and initialize", () => {
 	let booted: Booted;
-	const keys: Record<string, string> = {};
+	let keys: Record<string, string>;
 
 	beforeAll(async () => {
 		booted = await bootPayload({
@@ -76,18 +76,7 @@ describe("tools/list and initialize", () => {
 			},
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: USER,
-		});
-
-		for (const [label, capabilities] of Object.entries(KEYS)) {
-			keys[label] = await createKey(booted.payload, {
-				userId: user.id,
-				label,
-				capabilities,
-			});
-		}
+		({ keys } = await seedKeysFor(booted.payload, KEYS));
 	});
 
 	afterAll(async () => {
@@ -95,7 +84,7 @@ describe("tools/list and initialize", () => {
 	});
 
 	it.each(Object.keys(KEYS))("lists the tools a %s key sees", async (label) => {
-		const tools = await toolsList(booted.config, keys[label]!, CACHE_KEY);
+		const tools = await createMcpClient(booted, keys[label]).list();
 
 		await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(
 			`${SNAPSHOTS}.${label}.tools.snap`,
@@ -105,11 +94,10 @@ describe("tools/list and initialize", () => {
 	it.each(Object.keys(KEYS))(
 		"states the instructions a %s key receives",
 		async (label) => {
-			const instructions = await instructionsFor(
-				booted.config,
-				keys[label]!,
-				CACHE_KEY,
-			);
+			const instructions = await createMcpClient(
+				booted,
+				keys[label],
+			).instructions();
 
 			expect(instructions).not.toBe("");
 			await expect(instructions).toMatchFileSnapshot(

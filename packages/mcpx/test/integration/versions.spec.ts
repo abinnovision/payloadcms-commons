@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool, collectionEnumOf, toolsList } from "./helpers/mcp.js";
-import { bootPayload, createKey, section, USER } from "./helpers/payload.js";
+import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
+import { section } from "../builders/blocks.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-versions";
@@ -16,9 +18,9 @@ interface Version {
 
 describe("version history", () => {
 	let booted: Booted;
-	let editor: string;
-	let postsOnly: string;
-	let tagsOnly: string;
+	let editor: McpClient;
+	let postsOnly: McpClient;
+	let tagsOnly: McpClient;
 	let pageId: number | string;
 	let otherPageId: number | string;
 	let history: Version[];
@@ -37,36 +39,23 @@ describe("version history", () => {
 			},
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: USER,
-		});
-
-		editor = await createKey(booted.payload, {
-			userId: user.id,
-			label: "editor",
-			capabilities: {
+		const { keys } = await seedKeysFor(booted.payload, {
+			editor: {
 				collections: {
 					pages: { read: true, write: true, publish: true },
 					snippets: { read: true, write: true },
 				},
 				globals: { siteSettings: { read: true, write: true, publish: true } },
 			},
+			postsOnly: { collections: { posts: { read: true } } },
+			tagsOnly: { collections: { tags: { read: true } } },
 		});
 
-		postsOnly = await createKey(booted.payload, {
-			userId: user.id,
-			label: "posts-only",
-			capabilities: { collections: { posts: { read: true } } },
-		});
+		editor = createMcpClient(booted, keys.editor);
+		postsOnly = createMcpClient(booted, keys.postsOnly);
+		tagsOnly = createMcpClient(booted, keys.tagsOnly);
 
-		tagsOnly = await createKey(booted.payload, {
-			userId: user.id,
-			label: "tags-only",
-			capabilities: { collections: { tags: { read: true } } },
-		});
-
-		const created = await call("createDocument", {
+		const created = await editor.call("createDocument", {
 			collection: "pages",
 			locale: "en",
 			data: {
@@ -79,7 +68,7 @@ describe("version history", () => {
 		pageId = created.data["id"] as number | string;
 
 		for (const title of ["Second", "Third"]) {
-			await call("patchDocument", {
+			await editor.call("patchDocument", {
 				collection: "pages",
 				id: pageId,
 				locale: "en",
@@ -87,9 +76,9 @@ describe("version history", () => {
 			});
 		}
 
-		await call("publishDocument", { collection: "pages", id: pageId });
+		await editor.call("publishDocument", { collection: "pages", id: pageId });
 
-		const other = await call("createDocument", {
+		const other = await editor.call("createDocument", {
 			collection: "pages",
 			locale: "en",
 			data: { title: "Other", slug: "other" },
@@ -97,7 +86,7 @@ describe("version history", () => {
 
 		otherPageId = other.data["id"] as number | string;
 
-		const listed = await call("findVersions", {
+		const listed = await editor.call("findVersions", {
 			collection: "pages",
 			id: pageId,
 		});
@@ -108,9 +97,6 @@ describe("version history", () => {
 	afterAll(async () => {
 		await booted.payload.destroy();
 	});
-
-	const call = (name: string, args: Record<string, unknown>, key = editor) =>
-		callTool(booted.config, key, name, args, CACHE_KEY);
 
 	it("lists a document's versions newest first, without bodies", () => {
 		expect(history.map((version) => version.status)).toEqual([
@@ -124,7 +110,7 @@ describe("version history", () => {
 	});
 
 	it("filters by status", async () => {
-		const { data } = await call("findVersions", {
+		const { data } = await editor.call("findVersions", {
 			collection: "pages",
 			id: pageId,
 			status: "published",
@@ -136,7 +122,7 @@ describe("version history", () => {
 	it("reads an old version, and a subtree of it", async () => {
 		const oldest = history.at(-1)?.versionId;
 
-		const whole = await call("getDocument", {
+		const whole = await editor.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			locale: "en",
@@ -146,7 +132,7 @@ describe("version history", () => {
 		expect(whole.isError).toBe(false);
 		expect(whole.data["title"]).toBe("First");
 
-		const subtree = await call("getDocument", {
+		const subtree = await editor.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			locale: "en",
@@ -159,14 +145,14 @@ describe("version history", () => {
 	});
 
 	it("diffs the current draft against the published version", async () => {
-		await call("patchDocument", {
+		await editor.call("patchDocument", {
 			collection: "pages",
 			id: pageId,
 			locale: "en",
 			patches: [{ op: "replace", path: "/title", value: "Fourth" }],
 		});
 
-		const result = await call("getDocument", {
+		const result = await editor.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			locale: "en",
@@ -182,7 +168,7 @@ describe("version history", () => {
 	});
 
 	it("limits a diff to a path, and finds nothing outside it", async () => {
-		const result = await call("getDocument", {
+		const result = await editor.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			locale: "en",
@@ -194,7 +180,7 @@ describe("version history", () => {
 	});
 
 	it("refuses a version of another document", async () => {
-		const result = await call("getDocument", {
+		const result = await editor.call("getDocument", {
 			collection: "pages",
 			id: otherPageId,
 			versionId: history[0]?.versionId,
@@ -205,7 +191,7 @@ describe("version history", () => {
 	});
 
 	it("refuses versionId together with draft", async () => {
-		const result = await call("getDocument", {
+		const result = await editor.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			versionId: history[0]?.versionId,
@@ -216,9 +202,9 @@ describe("version history", () => {
 	});
 
 	it("offers only readable slugs that keep versions", async () => {
-		const forEditor = await toolsList(booted.config, editor, CACHE_KEY);
-		const forPostsOnly = await toolsList(booted.config, postsOnly, CACHE_KEY);
-		const forTagsOnly = await toolsList(booted.config, tagsOnly, CACHE_KEY);
+		const forEditor = await editor.list();
+		const forPostsOnly = await postsOnly.list();
+		const forTagsOnly = await tagsOnly.list();
 
 		expect(
 			collectionEnumOf(forEditor.find((tool) => tool.name === "findVersions")),
@@ -230,11 +216,10 @@ describe("version history", () => {
 		).toEqual(["posts"]);
 		expect(forTagsOnly.map((tool) => tool.name)).not.toContain("findVersions");
 
-		const refused = await call(
-			"findVersions",
-			{ collection: "pages", id: pageId },
-			postsOnly,
-		);
+		const refused = await postsOnly.call("findVersions", {
+			collection: "pages",
+			id: pageId,
+		});
 
 		expect(refused.isError).toBe(true);
 	});
@@ -245,38 +230,41 @@ describe("version history", () => {
 			data: { name: "Tag" },
 		});
 
-		const result = await call(
-			"getDocument",
-			{ collection: "tags", id: tag.id, versionId: 1 },
-			tagsOnly,
-		);
+		const result = await tagsOnly.call("getDocument", {
+			collection: "tags",
+			id: tag.id,
+			versionId: 1,
+		});
 
 		expect(result.isError).toBe(true);
 		expect(result.data["error"]).toMatch(/keeps no versions/);
 	});
 
 	it("covers a collection with versions but no drafts", async () => {
-		const created = await call("createDocument", {
+		const created = await editor.call("createDocument", {
 			collection: "snippets",
 			locale: "en",
 			data: { body: "Before" },
 		});
 		const id = created.data["id"] as number | string;
 
-		await call("patchDocument", {
+		await editor.call("patchDocument", {
 			collection: "snippets",
 			id,
 			locale: "en",
 			patches: [{ op: "replace", path: "/body", value: "After" }],
 		});
 
-		const { data } = await call("findVersions", { collection: "snippets", id });
+		const { data } = await editor.call("findVersions", {
+			collection: "snippets",
+			id,
+		});
 		const versions = data["versions"] as Version[];
 
 		expect(versions).toHaveLength(2);
 		expect(versions[0]?.status).toBeNull();
 
-		const diff = await call("getDocument", {
+		const diff = await editor.call("getDocument", {
 			collection: "snippets",
 			id,
 			diffFrom: versions[1]?.versionId,
@@ -286,7 +274,7 @@ describe("version history", () => {
 			{ op: "replace", path: "/body", value: "After" },
 		]);
 
-		const published = await call("getDocument", {
+		const published = await editor.call("getDocument", {
 			collection: "snippets",
 			id,
 			diffFrom: "published",
@@ -305,11 +293,11 @@ describe("version history", () => {
 			where: { parent: { equals: hidden.id } },
 		});
 
-		const listed = await call("findVersions", {
+		const listed = await editor.call("findVersions", {
 			collection: "snippets",
 			id: hidden.id,
 		});
-		const read = await call("getDocument", {
+		const read = await editor.call("getDocument", {
 			collection: "snippets",
 			id: hidden.id,
 			versionId: stored.docs[0]?.id,
@@ -321,7 +309,7 @@ describe("version history", () => {
 
 	it("lists and diffs a global's versions", async () => {
 		for (const title of ["Old", "New"]) {
-			await call("patchDocument", {
+			await editor.call("patchDocument", {
 				global: "site-settings",
 				locale: "en",
 				patches: [
@@ -331,12 +319,14 @@ describe("version history", () => {
 			});
 		}
 
-		const { data } = await call("findVersions", { global: "site-settings" });
+		const { data } = await editor.call("findVersions", {
+			global: "site-settings",
+		});
 		const versions = data["versions"] as Version[];
 
 		expect(versions.length).toBeGreaterThanOrEqual(2);
 
-		const diff = await call("getDocument", {
+		const diff = await editor.call("getDocument", {
 			global: "site-settings",
 			locale: "en",
 			diffFrom: versions[1]?.versionId,

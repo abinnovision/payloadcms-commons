@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
+import { createMcpClient, responseText } from "./helpers/mcp.js";
 import { API_KEYS_SLUG, bootPayload, createKey } from "./helpers/payload.js";
 
 import type { CallResult } from "./helpers/mcp.js";
@@ -34,9 +34,6 @@ const FORGED_COLLECTIONS = {
 
 const refused = (result: CallResult): boolean =>
 	result.isError || result.rpcError !== undefined;
-
-const responseText = (result: CallResult): string =>
-	`${result.text ?? ""} ${result.rpcError?.message ?? ""}`;
 
 describe("collections the config does not expose", () => {
 	let booted: Booted;
@@ -190,12 +187,8 @@ describe("collections the config does not expose", () => {
 	};
 
 	it("authenticates the forged key and lists only exposed collections", async () => {
-		const { isError, data } = await callTool(
-			booted.config,
-			forgedKey,
+		const { isError, data } = await createMcpClient(booted, forgedKey).call(
 			"listCapabilities",
-			{},
-			CACHE_KEY,
 		);
 		const slugs = (data["collections"] as { slug: string }[]).map(
 			(entry) => entry.slug,
@@ -215,12 +208,9 @@ describe("collections the config does not expose", () => {
 				const before = await snapshot();
 
 				for (const call of callsFor(slug)) {
-					const result = await callTool(
-						booted.config,
-						keyOf(),
+					const result = await createMcpClient(booted, keyOf()).call(
 						call.name,
 						call.args,
-						CACHE_KEY,
 					);
 					const text = responseText(result);
 

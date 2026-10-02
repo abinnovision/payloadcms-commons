@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callToolBatch, mcpPost } from "./helpers/mcp.js";
-import { bootPayload, createKey } from "./helpers/payload.js";
+import { createMcpClient, mcpPost } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 import { ledgers } from "../fixtures/security.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-batch";
@@ -28,6 +29,7 @@ const removeDbFiles = async (): Promise<void> => {
 describe("json-rpc batches", () => {
 	let booted: Booted;
 	let key: string;
+	let mcp: McpClient;
 
 	beforeAll(async () => {
 		await removeDbFiles();
@@ -42,16 +44,12 @@ describe("json-rpc batches", () => {
 			plugin: { collections: { ledgers: { read: true, write: "draft" } } },
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: { email: "batch@example.com", password: "batch-secret" },
-		});
-
-		key = await createKey(booted.payload, {
-			userId: user.id,
-			label: "batch",
-			capabilities: { collections: { ledgers: { read: true, write: true } } },
-		});
+		key = (
+			await seedKeysFor(booted.payload, {
+				batch: { collections: { ledgers: { read: true, write: true } } },
+			})
+		).keys.batch;
+		mcp = createMcpClient(booted, key);
 	});
 
 	afterAll(async () => {
@@ -77,11 +75,7 @@ describe("json-rpc batches", () => {
 			params: { name: "listCapabilities", arguments: {} },
 		}));
 
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
-			key,
-			body: messages,
-		});
+		const response = await mcpPost(booted, { key, body: messages });
 		const body = (await response.json()) as unknown;
 
 		expect(response.status >= 400 || !Array.isArray(body)).toBe(true);
@@ -105,11 +99,7 @@ describe("json-rpc batches", () => {
 			},
 		}));
 
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
-			key,
-			body: messages,
-		});
+		const response = await mcpPost(booted, { key, body: messages });
 
 		expect(response.status).toBe(400);
 		expect(await response.json()).toEqual({
@@ -126,11 +116,8 @@ describe("json-rpc batches", () => {
 	});
 
 	it("answers a batch of 10 messages", async () => {
-		const results = await callToolBatch(
-			booted.config,
-			key,
+		const results = await mcp.batch(
 			Array.from({ length: 10 }, () => ({ name: "listCapabilities" })),
-			CACHE_KEY,
 		);
 
 		expect(results.map((result) => result.isError)).toEqual(
@@ -148,31 +135,26 @@ describe("json-rpc batches", () => {
 		const open = await create("Open before", false);
 		const frozen = await create("Frozen before", true);
 
-		const results = await callToolBatch(
-			booted.config,
-			key,
-			[
-				{
-					name: "patchDocument",
-					args: {
-						collection: "ledgers",
-						id: open.id,
-						locale: "en",
-						patches: [{ op: "replace", path: "/title", value: "Open after" }],
-					},
+		const results = await mcp.batch([
+			{
+				name: "patchDocument",
+				args: {
+					collection: "ledgers",
+					id: open.id,
+					locale: "en",
+					patches: [{ op: "replace", path: "/title", value: "Open after" }],
 				},
-				{
-					name: "patchDocument",
-					args: {
-						collection: "ledgers",
-						id: frozen.id,
-						locale: "en",
-						patches: [{ op: "replace", path: "/title", value: "Frozen after" }],
-					},
+			},
+			{
+				name: "patchDocument",
+				args: {
+					collection: "ledgers",
+					id: frozen.id,
+					locale: "en",
+					patches: [{ op: "replace", path: "/title", value: "Frozen after" }],
 				},
-			],
-			CACHE_KEY,
-		);
+			},
+		]);
 
 		expect(results.map((result) => result.isError)).toEqual([false, true]);
 		expect(await draftTitle(frozen.id)).toBe("Frozen before");

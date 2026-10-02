@@ -1,20 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
+import { createMcpClient } from "./helpers/mcp.js";
 import { bootPayload, seedKeys } from "./helpers/payload.js";
 
-import type { Booted, Seeded } from "./helpers/payload.js";
+import type { McpClient } from "./helpers/mcp.js";
+import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-schema-errors";
 
 describe("schema errors", () => {
 	let booted: Booted;
-	let seeded: Seeded;
+	let mcp: McpClient;
 	let postId: number | string;
 
 	beforeAll(async () => {
 		booted = await bootPayload({ key: CACHE_KEY });
-		seeded = await seedKeys(booted.payload);
+		mcp = createMcpClient(booted, (await seedKeys(booted.payload)).keys.full);
 
 		const post = await booted.payload.create({
 			collection: "posts",
@@ -28,9 +29,6 @@ describe("schema errors", () => {
 	afterAll(async () => {
 		await booted.payload.destroy();
 	});
-
-	const call = (name: string, args: Record<string, unknown>) =>
-		callTool(booted.config, seeded.keys.full, name, args, CACHE_KEY);
 
 	/*
 	 * Replaces the entry the plugin's schema walk reads with one it cannot
@@ -56,7 +54,7 @@ describe("schema errors", () => {
 
 	describe("describeSchema", () => {
 		it("gives a path its own schema message without failing the others", async () => {
-			const result = await call("describeSchema", {
+			const result = await mcp.call("describeSchema", {
 				collection: "posts",
 				paths: ["", "/nope"],
 			});
@@ -73,7 +71,10 @@ describe("schema errors", () => {
 
 		it("reports any other failure as an internal error per path", async () => {
 			const result = await withUnreadableSchema("posts", () =>
-				call("describeSchema", { collection: "posts", paths: ["", "/title"] }),
+				mcp.call("describeSchema", {
+					collection: "posts",
+					paths: ["", "/title"],
+				}),
 			);
 
 			expect(result.isError).toBe(false);
@@ -86,7 +87,7 @@ describe("schema errors", () => {
 
 	describe("getDocument with outline", () => {
 		it("returns a schema message for a path no field answers to", async () => {
-			const result = await call("getDocument", {
+			const result = await mcp.call("getDocument", {
 				collection: "posts",
 				id: postId,
 				path: "/nope",
@@ -99,7 +100,7 @@ describe("schema errors", () => {
 
 		it("reports any other failure as an internal error", async () => {
 			const result = await withUnreadableSchema("posts", () =>
-				call("getDocument", {
+				mcp.call("getDocument", {
 					collection: "posts",
 					id: postId,
 					path: "/summary",

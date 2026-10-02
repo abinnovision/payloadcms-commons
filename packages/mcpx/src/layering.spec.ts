@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -36,7 +36,10 @@ const LAYERS: Record<string, number> = {
 
 /**
  * `./client` ships to the browser, so it stands outside the layering and may
- * reach only these, all plain data and pure functions.
+ * reach only these, all plain data and pure functions. The list is written
+ * twice more: the `no-restricted-imports` rule in eslint.config.ts, and the
+ * walk src/client/module-boundary.spec.ts expects. A change belongs in all
+ * three.
  */
 const CLIENT = "client/";
 const CLIENT_MAY_IMPORT = [
@@ -75,7 +78,28 @@ const forbiddenImports = (file: string, layer: number): string[] =>
 		.filter((target) => isClient(target) || (layerOf(target) ?? 0) > layer)
 		.map((target) => `${pathOf(file)} -> ${pathOf(target)}`);
 
+const forbiddenClientImports = (
+	file: string,
+	allowed: string[] = CLIENT_MAY_IMPORT,
+): string[] =>
+	importsOf(file)
+		.filter((target) => !isClient(target) && !allowed.includes(pathOf(target)))
+		.map((target) => `${pathOf(file)} -> ${pathOf(target)}`);
+
 describe("layer boundaries", () => {
+	it("finds server and client files to check", () => {
+		expect(sourceFiles.filter((file) => !isClient(file))).not.toEqual([]);
+		expect(sourceFiles.filter(isClient)).not.toEqual([]);
+	});
+
+	it("names only files and directories that exist", () => {
+		expect(
+			[...Object.keys(LAYERS), ...CLIENT_MAY_IMPORT].filter(
+				(path) => !existsSync(resolve(here, path)),
+			),
+		).toEqual([]);
+	});
+
 	it("assigns every source file to a layer or to client", () => {
 		expect(
 			sourceFiles
@@ -94,25 +118,33 @@ describe("layer boundaries", () => {
 
 	it("keeps client to its allowed imports", () => {
 		expect(
-			sourceFiles.filter(isClient).flatMap((file) =>
-				importsOf(file)
-					.filter(
-						(target) =>
-							!isClient(target) && !CLIENT_MAY_IMPORT.includes(pathOf(target)),
-					)
-					.map((target) => `${pathOf(file)} -> ${pathOf(target)}`),
-			),
+			sourceFiles
+				.filter(isClient)
+				.flatMap((file) => forbiddenClientImports(file)),
 		).toEqual([]);
 	});
 
-	it("sees a forbidden edge if one is introduced (sanity check)", () => {
-		/*
-		 * Guards against the assertions above passing because the walk found
-		 * nothing. Held to layer 1, patchDocument's imports of write/ must be
-		 * flagged, which proves cross-layer edges are visible at all.
-		 */
+	/*
+	 * Guards against the layer check passing because type-only edges are
+	 * invisible: auth/resolve.ts reaches options.ts through `import type`
+	 * alone, which must be flagged once the file is held to layer 0.
+	 */
+	it("sees a forbidden type-only edge", () => {
+		const resolver = resolve(here, "auth", "resolve.ts");
+		const valueImports = walkModuleGraph(resolver).imports.get(resolver);
+
+		expect([...(valueImports ?? [])].map(pathOf)).not.toContain("options.ts");
+		expect(forbiddenImports(resolver, 0)).toContain(
+			"auth/resolve.ts -> options.ts",
+		);
+	});
+
+	it("sees a client import outside the allowed list", () => {
 		expect(
-			forbiddenImports(resolve(here, "tools", "patch-document.ts"), 1),
-		).toContain("tools/patch-document.ts -> write/patch.ts");
+			forbiddenClientImports(
+				resolve(here, "client", "capability-matrix.tsx"),
+				[],
+			),
+		).toContain("client/capability-matrix.tsx -> capabilities.ts");
 	});
 });

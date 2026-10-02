@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
-import { bootPayload, createKey, USER } from "./helpers/payload.js";
+import { createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, createKey, seedKeysFor } from "./helpers/payload.js";
 
 import type { CallResult } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
@@ -64,10 +64,6 @@ describe("tool responses", () => {
 			},
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: USER,
-		});
 		const capabilities = {
 			collections: {
 				pages: { read: true, write: true, publish: true },
@@ -78,13 +74,13 @@ describe("tool responses", () => {
 			globals: { siteSettings: { read: true, write: true, publish: true } },
 		};
 
-		full = await createKey(booted.payload, {
-			userId: user.id,
-			label: "full",
-			capabilities,
+		const { userId, keys } = await seedKeysFor(booted.payload, {
+			full: capabilities,
 		});
+
+		full = keys.full;
 		disabled = await createKey(booted.payload, {
-			userId: user.id,
+			userId,
 			label: "disabled",
 			capabilities,
 			enabled: false,
@@ -99,7 +95,7 @@ describe("tool responses", () => {
 		name: string,
 		args: Record<string, unknown>,
 		key = full,
-	) => reply(await callTool(booted.config, key, name, args, CACHE_KEY));
+	) => reply(await createMcpClient(booted, key).call(name, args));
 
 	const seedTag = (name: string) =>
 		booted.payload.create({ collection: "tags", data: { name } });

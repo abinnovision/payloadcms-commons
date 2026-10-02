@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool, rpc } from "./helpers/mcp.js";
+import { createMcpClient } from "./helpers/mcp.js";
 import { bootPayload, createKey } from "./helpers/payload.js";
 import { defineMcpxTool } from "../../src/index.js";
 import { verifiedUsers } from "../fixtures/security.js";
@@ -50,9 +50,6 @@ describe("default key resolution against the user's state", () => {
 		return user.id;
 	};
 
-	const listTools = (key: string) =>
-		rpc(booted.config, key, "tools/list", undefined, CACHE_KEY);
-
 	it("accepts a key whose user is verified and unlocked", async () => {
 		const userId = await makeUser(true);
 		const key = await createKey(booted.payload, {
@@ -61,7 +58,9 @@ describe("default key resolution against the user's state", () => {
 			capabilities: CAPABILITIES,
 		});
 
-		expect((await listTools(key)).status).toBe(200);
+		expect((await createMcpClient(booted, key).rpc("tools/list")).status).toBe(
+			200,
+		);
 	});
 
 	it("refuses a key whose user was deleted", async () => {
@@ -98,7 +97,9 @@ describe("default key resolution against the user's state", () => {
 			}),
 		).toBeNull();
 
-		const { status, body } = await listTools(key);
+		const { status, body } = await createMcpClient(booted, key).rpc(
+			"tools/list",
+		);
 
 		expect(status).toBe(401);
 		expect(body.error?.code).toBe(-32001);
@@ -112,7 +113,9 @@ describe("default key resolution against the user's state", () => {
 			capabilities: CAPABILITIES,
 		});
 
-		const { status, body } = await listTools(key);
+		const { status, body } = await createMcpClient(booted, key).rpc(
+			"tools/list",
+		);
 
 		expect(status).toBe(401);
 		expect(body.error?.code).toBe(-32001);
@@ -144,7 +147,9 @@ describe("default key resolution against the user's state", () => {
 
 		expect(Date.parse(String(stored["lockUntil"]))).toBeGreaterThan(Date.now());
 
-		const { status, body } = await listTools(key);
+		const { status, body } = await createMcpClient(booted, key).rpc(
+			"tools/list",
+		);
 
 		expect(status).toBe(401);
 		expect(body.error?.code).toBe(-32001);
@@ -168,13 +173,7 @@ describe("default key resolution against the user's state", () => {
 			},
 		});
 
-		const result = await callTool(
-			booted.config,
-			key,
-			"userFields",
-			{},
-			CACHE_KEY,
-		);
+		const result = await createMcpClient(booted, key).call("userFields");
 		const fields = JSON.parse(result.text ?? "[]") as string[];
 
 		expect(result.isError).toBe(false);

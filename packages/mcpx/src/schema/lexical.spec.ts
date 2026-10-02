@@ -1,4 +1,5 @@
 import { getEnabledNodes } from "@payloadcms/richtext-lexical";
+import { getRegisteredNode } from "@payloadcms/richtext-lexical/lexical";
 import { createHeadlessEditor } from "@payloadcms/richtext-lexical/lexical/headless";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -10,10 +11,16 @@ import {
 	REQUIRED_NODE_PROPERTIES,
 	ROOT_PROPERTIES,
 } from "./lexical.js";
-import { buildFixtureConfig } from "../../test/fixtures/config.js";
+import { blockOf, findBlocksField } from "./walk.js";
+import { node, state, text } from "../../test/builders/lexical.js";
+import { buildFixtureConfig, fieldOf } from "../../test/fixtures/config.js";
 
 import type { LexicalEditor } from "@payloadcms/richtext-lexical/lexical";
-import type { RichTextField, SanitizedConfig } from "payload";
+import type {
+	FlattenedBlocksField,
+	RichTextField,
+	SanitizedConfig,
+} from "payload";
 
 /**
  * Holds {@link REQUIRED_NODE_PROPERTIES} to the rule it states, against the
@@ -30,15 +37,8 @@ let describable: RichTextField;
 
 beforeAll(async () => {
 	config = await buildFixtureConfig();
-
-	const posts = config.collections.find(({ slug }) => slug === "posts");
-	const named = (name: string) =>
-		posts?.flattenedFields.find(
-			(candidate) => "name" in candidate && candidate.name === name,
-		) as RichTextField;
-
-	field = named("content");
-	describable = named("summary");
+	field = fieldOf(config, "posts", "content") as RichTextField;
+	describable = fieldOf(config, "posts", "summary") as RichTextField;
 });
 
 /**
@@ -79,17 +79,23 @@ interface LexicalEditorField {
  * the error Lexical reported. Lexical routes a failed update to `onError`
  * rather than rethrowing, so the handler is where a throw shows up.
  */
+const editorFor = (
+	target: RichTextField,
+	onError: (error: unknown) => void = () => undefined,
+): LexicalEditor =>
+	createHeadlessEditor({
+		nodes: getEnabledNodes({
+			editorConfig: (target as unknown as LexicalEditorField).editor
+				.editorConfig,
+		}),
+		onError,
+	});
+
 const hydrate = (state: unknown): { error?: string; exported?: unknown } => {
 	let failure: unknown;
 
-	const editor: LexicalEditor = createHeadlessEditor({
-		nodes: getEnabledNodes({
-			editorConfig: (field as unknown as LexicalEditorField).editor
-				.editorConfig,
-		}),
-		onError: (error: unknown) => {
-			failure ??= error;
-		},
+	const editor = editorFor(field, (error) => {
+		failure ??= error;
 	});
 
 	try {
@@ -114,30 +120,6 @@ const stable = (value: unknown): string =>
 		key === "id" && typeof entry === "string" ? "<id>" : entry,
 	);
 
-const text = (value = "hi") => ({
-	detail: 0,
-	format: 0,
-	mode: "normal",
-	style: "",
-	text: value,
-	type: "text",
-	version: 1,
-});
-
-const element = (
-	type: string,
-	extra: Record<string, unknown> = {},
-	children: unknown[] = [text()],
-) => ({
-	children,
-	direction: "ltr",
-	format: "",
-	indent: 0,
-	type,
-	version: 1,
-	...extra,
-});
-
 /**
  * One fully serialized node per table entry, as the editor would export it,
  * and the state it has to sit in to be legal.
@@ -147,10 +129,12 @@ const SAMPLES: Record<
 	{ node: Record<string, unknown>; wrap?: (node: unknown) => unknown }
 > = {
 	autolink: {
-		node: element("autolink", {
-			fields: { linkType: "custom", url: "https://example.dev" },
-		}),
-		wrap: (node) => element("paragraph", {}, [node]),
+		node: node(
+			"autolink",
+			{ fields: { linkType: "custom", url: "https://example.dev" } },
+			[text()],
+		),
+		wrap: (sample) => node("paragraph", {}, [sample]),
 	},
 	block: {
 		node: {
@@ -160,35 +144,37 @@ const SAMPLES: Record<
 			version: 2,
 		},
 	},
-	heading: { node: element("heading", { tag: "h2" }) },
+	heading: { node: node("heading", { tag: "h2" }, [text()]) },
 	inlineBlock: {
 		node: {
 			fields: { blockType: "badge", label: "new" },
 			type: "inlineBlock",
 			version: 1,
 		},
-		wrap: (node) => element("paragraph", {}, [node]),
+		wrap: (sample) => node("paragraph", {}, [sample]),
 	},
 	link: {
-		node: element("link", {
-			fields: { linkType: "custom", newTab: false, url: "/x" },
-		}),
-		wrap: (node) => element("paragraph", {}, [node]),
+		node: node(
+			"link",
+			{ fields: { linkType: "custom", newTab: false, url: "/x" } },
+			[text()],
+		),
+		wrap: (sample) => node("paragraph", {}, [sample]),
 	},
 	list: {
-		node: element("list", { listType: "bullet", start: 1, tag: "ul" }, [
-			element("listitem", { value: 1 }),
+		node: node("list", { listType: "bullet", start: 1, tag: "ul" }, [
+			node("listitem", { value: 1 }, [text()]),
 		]),
 	},
 	listitem: {
-		node: element("listitem", { value: 1 }),
-		wrap: (node) =>
-			element("list", { listType: "bullet", start: 1, tag: "ul" }, [node]),
+		node: node("listitem", { value: 1 }, [text()]),
+		wrap: (sample) =>
+			node("list", { listType: "bullet", start: 1, tag: "ul" }, [sample]),
 	},
 	paragraph: {
-		node: element("paragraph", { textFormat: 0, textStyle: "" }),
+		node: node("paragraph", { textFormat: 0, textStyle: "" }, [text()]),
 	},
-	quote: { node: element("quote") },
+	quote: { node: node("quote", {}, [text()]) },
 	relationship: {
 		node: {
 			format: "",
@@ -208,9 +194,9 @@ const SAMPLES: Record<
 			type: "tab",
 			version: 1,
 		},
-		wrap: (node) => element("paragraph", {}, [node]),
+		wrap: (sample) => node("paragraph", {}, [sample]),
 	},
-	text: { node: text(), wrap: (node) => element("paragraph", {}, [node]) },
+	text: { node: text(), wrap: (sample) => node("paragraph", {}, [sample]) },
 	upload: {
 		node: {
 			fields: null,
@@ -235,90 +221,88 @@ const rejected = (constraint: unknown): unknown => {
 	return constraint === "number" ? "0" : constraint === "direction" ? 0 : 0;
 };
 
-const stateOf = (type: string, node: unknown) => ({
-	root: {
-		children: [SAMPLES[type]?.wrap?.(node) ?? node],
-		direction: "ltr",
-		format: "",
-		indent: 0,
-		type: "root",
-		version: 1,
-	},
-});
+const stateOf = (type: string, sample: unknown) =>
+	state([SAMPLES[type]?.wrap?.(sample) ?? sample]);
 
-describe("rEQUIRED_NODE_PROPERTIES", () => {
+describe("the required node properties table", () => {
 	it("covers every node type it claims with a sample", () => {
 		expect(Object.keys(SAMPLES).sort()).toEqual(
 			Object.keys(REQUIRED_NODE_PROPERTIES).sort(),
 		);
 	});
 
-	describe.each(Object.entries(SAMPLES))("a %s node", (type, { node }) => {
-		const baseline = () => {
-			const result = hydrate(stateOf(type, node));
+	describe.each(Object.entries(SAMPLES))(
+		"a %s node",
+		(type, { node: sample }) => {
+			const baseline = () => {
+				const result = hydrate(stateOf(type, sample));
 
-			expect(result.error).toBeUndefined();
+				expect(result.error).toBeUndefined();
 
-			return stable(result.exported);
-		};
+				return stable(result.exported);
+			};
 
-		const without = (property: string) => {
-			const stripped = Object.fromEntries(
-				Object.entries(node).filter(([key]) => key !== property),
+			const without = (property: string) => {
+				const stripped = Object.fromEntries(
+					Object.entries(sample).filter(([key]) => key !== property),
+				);
+
+				return hydrate(stateOf(type, stripped));
+			};
+
+			it("hydrates as written", () => {
+				expect(baseline()).toBeTypeOf("string");
+			});
+
+			const required = REQUIRED_NODE_PROPERTIES[type] ?? {};
+
+			it.each(Object.keys(required))(
+				'is not the same node without "%s"',
+				(property) => {
+					const complete = baseline();
+					const result = without(property);
+
+					expect(
+						result.error === undefined && stable(result.exported) === complete,
+					).toBe(false);
+				},
 			);
 
-			return hydrate(stateOf(type, stripped));
-		};
+			it.each(Object.keys(required))(
+				'is not the same node with the wrong "%s"',
+				(property) => {
+					const complete = baseline();
+					const result = hydrate(
+						stateOf(type, {
+							...sample,
+							[property]: rejected(required[property]),
+						}),
+					);
 
-		it("hydrates as written", () => {
-			expect(baseline()).toBeTypeOf("string");
-		});
+					expect(
+						result.error === undefined && stable(result.exported) === complete,
+					).toBe(false);
+				},
+			);
 
-		const required = REQUIRED_NODE_PROPERTIES[type] ?? {};
+			/*
+			 * "version" lands here on purpose. The plugin requires it because
+			 * Payload declares it, not because Lexical reacts to it, and this is
+			 * where that distinction is visible.
+			 */
+			const optional = Object.keys(sample).filter(
+				(property) => property !== "type" && !(property in required),
+			);
 
-		it.each(Object.keys(required))(
-			'is not the same node without "%s"',
-			(property) => {
+			it.each(optional)('reads back unchanged without "%s"', (property) => {
 				const complete = baseline();
 				const result = without(property);
 
-				expect(
-					result.error === undefined && stable(result.exported) === complete,
-				).toBe(false);
-			},
-		);
-
-		it.each(Object.keys(required))(
-			'is not the same node with the wrong "%s"',
-			(property) => {
-				const complete = baseline();
-				const result = hydrate(
-					stateOf(type, { ...node, [property]: rejected(required[property]) }),
-				);
-
-				expect(
-					result.error === undefined && stable(result.exported) === complete,
-				).toBe(false);
-			},
-		);
-
-		/*
-		 * "version" lands here on purpose. The plugin requires it because
-		 * Payload declares it, not because Lexical reacts to it, and this is
-		 * where that distinction is visible.
-		 */
-		const optional = Object.keys(node).filter(
-			(property) => property !== "type" && !(property in required),
-		);
-
-		it.each(optional)('reads back unchanged without "%s"', (property) => {
-			const complete = baseline();
-			const result = without(property);
-
-			expect(result.error).toBeUndefined();
-			expect(stable(result.exported)).toBe(complete);
-		});
-	});
+				expect(result.error).toBeUndefined();
+				expect(stable(result.exported)).toBe(complete);
+			});
+		},
+	);
 });
 
 /**
@@ -347,8 +331,8 @@ describe("what Payload declares", () => {
 
 		/*
 		 * "type" is refused earlier, by the node type check, so only "version"
-		 * reaches the property check - for a node the measured table covers and
-		 * one it does not.
+		 * reaches the property check, for a node the measured table covers and
+		 * for one it does not.
 		 */
 		expect(nodeProblems({ type: "horizontalrule" }).missing).toEqual([
 			"version",
@@ -426,24 +410,9 @@ describe("nodePropertiesFor", () => {
 /**
  * Lexical registers the core nodes whatever the features do, so
  * `allowedNodeTypes` states them itself. That is a hardcoded list about someone
- * else's library, and this is what keeps it honest.
+ * else's library, and the first case is what keeps it honest.
  */
 describe("allowedNodeTypes", () => {
-	/** The node types an editor built from this field can actually hydrate. */
-	const registeredFor = (target: RichTextField): string[] => {
-		const editor = createHeadlessEditor({
-			nodes: getEnabledNodes({
-				editorConfig: (target as unknown as LexicalEditorField).editor
-					.editorConfig,
-			}),
-			onError: () => undefined,
-		});
-
-		return [
-			...(editor as unknown as { _nodes: Map<string, unknown> })._nodes.keys(),
-		].sort();
-	};
-
 	/* Resolved in the test body: the fields do not exist until `beforeAll`. */
 	const CASES: [string, () => RichTextField][] = [
 		["an editor with every feature", () => field],
@@ -451,28 +420,14 @@ describe("allowedNodeTypes", () => {
 	];
 
 	it.each(CASES)("allows nothing %s cannot hydrate", (_label, target) => {
-		const registered = registeredFor(target());
+		const editor = editorFor(target());
 
 		expect(
-			allowedNodeTypes(target()).filter((type) => !registered.includes(type)),
+			allowedNodeTypes(target()).filter(
+				(type) => getRegisteredNode(editor, type) === undefined,
+			),
 		).toEqual([]);
 	});
-
-	/*
-	 * The gap in the other direction is deliberate but has to stay this small:
-	 * "artificial" is Lexical's own internal node, never content. A new name
-	 * here is a decision to make, not a result to accept.
-	 */
-	it.each(CASES)(
-		"rejects only Lexical's internal node of %s",
-		(_label, target) => {
-			const allowed = allowedNodeTypes(target());
-
-			expect(
-				registeredFor(target()).filter((type) => !allowed.includes(type)),
-			).toEqual(["artificial"]);
-		},
-	);
 
 	it("states the core nodes no feature contributes", () => {
 		/* The two-feature editor's features register only "heading". */
@@ -483,6 +438,38 @@ describe("allowedNodeTypes", () => {
 			"root",
 			"tab",
 			"text",
+		]);
+	});
+
+	it("reports the nodes a field's editor enables", () => {
+		const sections = findBlocksField(
+			config.collections.find((collection) => collection.slug === "pages")!
+				.flattenedFields,
+			["layout", "sections"],
+		)!;
+		const wrapper = blockOf(config, sections, "sectionWrapper")!;
+		const modules = wrapper.flattenedFields.find(
+			(candidate) => candidate.type === "blocks",
+		) as FlattenedBlocksField;
+		const hero = blockOf(config, modules, "hero")!;
+		const heroField = (name: string) =>
+			hero.flattenedFields.find(
+				(candidate) => "name" in candidate && candidate.name === name,
+			) as RichTextField;
+
+		expect(allowedNodeTypes(heroField("title"))).not.toContain("heading");
+		expect(allowedNodeTypes(heroField("title"))).toContain("paragraph");
+		expect(allowedNodeTypes(heroField("body"))).toContain("heading");
+		expect(allowedNodeTypes(heroField("body"))).toContain("link");
+	});
+
+	it("falls back to the core nodes for unknown editors", () => {
+		expect(allowedNodeTypes({ name: "x", type: "richText" })).toEqual([
+			"root",
+			"paragraph",
+			"text",
+			"linebreak",
+			"tab",
 		]);
 	});
 });

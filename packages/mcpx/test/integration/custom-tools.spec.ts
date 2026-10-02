@@ -1,11 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-	callTool,
-	collectionEnumOf,
-	toolNames,
-	toolsList,
-} from "./helpers/mcp.js";
+import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
 import {
 	bootPayload,
 	createKey,
@@ -35,14 +30,19 @@ describe("custom tools", () => {
 			capabilities: { ...FULL_CAPABILITIES, tools: {} },
 		});
 
-		expect(await toolNames(booted.config, seeded.keys.full)).toContain("echo");
-		expect(await toolNames(booted.config, without)).not.toContain("echo");
+		expect(await createMcpClient(booted, seeded.keys.full).names()).toContain(
+			"echo",
+		);
+		expect(await createMcpClient(booted, without).names()).not.toContain(
+			"echo",
+		);
 	});
 
 	it("hands the handler the acting user and the key id", async () => {
-		const result = await callTool(booted.config, seeded.keys.full, "echo", {
-			message: "hi",
-		});
+		const result = await createMcpClient(booted, seeded.keys.full).call(
+			"echo",
+			{ message: "hi" },
+		);
 
 		expect(result.isError).toBe(false);
 		expect(result.data["message"]).toBe("hi");
@@ -51,7 +51,7 @@ describe("custom tools", () => {
 	});
 
 	it("narrows a scope-built enum to what the key may read", async () => {
-		const full = await toolsList(booted.config, seeded.keys.full);
+		const full = await createMcpClient(booted, seeded.keys.full).list();
 
 		expect(
 			collectionEnumOf(full.find((tool) => tool.name === "whichCollection")),
@@ -60,16 +60,16 @@ describe("custom tools", () => {
 		 * The tags-only key has no `whichCollection` checkbox, so the tool is
 		 * absent rather than narrowed: the checkbox and the scope both gate it.
 		 */
-		expect(await toolNames(booted.config, seeded.keys.tagsOnly)).not.toContain(
-			"whichCollection",
-		);
+		expect(
+			await createMcpClient(booted, seeded.keys.tagsOnly).names(),
+		).not.toContain("whichCollection");
 	});
 
 	it("rejects an unknown argument by name", async () => {
-		const result = await callTool(booted.config, seeded.keys.full, "echo", {
-			message: "hi",
-			mesage: "typo",
-		});
+		const result = await createMcpClient(booted, seeded.keys.full).call(
+			"echo",
+			{ message: "hi", mesage: "typo" },
+		);
 
 		expect(result.rpcError?.message ?? result.text).toMatch(/mesage/);
 	});

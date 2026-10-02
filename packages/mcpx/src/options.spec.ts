@@ -31,7 +31,7 @@ describe("toCamelCase", () => {
 	});
 });
 
-describe("bUILTIN_TOOL_NAMES", () => {
+describe("the builtin tool names", () => {
 	it("names every builtin tool", () => {
 		expect([...BUILTIN_TOOL_NAMES]).toEqual(
 			BUILTIN_TOOLS.map((tool) => tool.name),

@@ -1,7 +1,6 @@
 import { flattenAllFields } from "payload";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { allowedNodeTypes } from "./lexical.js";
 import {
 	blockOf,
 	blockSlugsOf,
@@ -13,12 +12,7 @@ import {
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { translatorFor } from "../i18n.js";
 
-import type {
-	Field,
-	FlattenedBlocksField,
-	RichTextField,
-	SanitizedConfig,
-} from "payload";
+import type { Field, SanitizedConfig } from "payload";
 
 let config: SanitizedConfig;
 
@@ -293,39 +287,6 @@ describe("blocks helpers", () => {
 		);
 		expect(modules && blockOf(config, modules, "hero")?.slug).toBe("hero");
 		expect(modules && blockOf(config, modules, "other")).toBeUndefined();
-	});
-});
-
-describe("allowedNodeTypes", () => {
-	it("reports the nodes a field's editor enables", () => {
-		const sections = findBlocksField(pagesFields(), ["layout", "sections"])!;
-		const wrapper = blockOf(config, sections, "sectionWrapper")!;
-		const modules = wrapper.flattenedFields.find(
-			(field) => field.type === "blocks",
-		) as FlattenedBlocksField;
-		const hero = blockOf(config, modules, "hero")!;
-
-		const title = hero.flattenedFields.find(
-			(field) => "name" in field && field.name === "title",
-		) as RichTextField;
-		const body = hero.flattenedFields.find(
-			(field) => "name" in field && field.name === "body",
-		) as RichTextField;
-
-		expect(allowedNodeTypes(title)).not.toContain("heading");
-		expect(allowedNodeTypes(title)).toContain("paragraph");
-		expect(allowedNodeTypes(body)).toContain("heading");
-		expect(allowedNodeTypes(body)).toContain("link");
-	});
-
-	it("falls back to the core nodes for unknown editors", () => {
-		expect(allowedNodeTypes({ name: "x", type: "richText" })).toEqual([
-			"root",
-			"paragraph",
-			"text",
-			"linebreak",
-			"tab",
-		]);
 	});
 });
 

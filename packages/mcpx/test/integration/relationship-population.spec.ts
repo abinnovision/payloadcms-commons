@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
-import { bootPayload, createKey } from "./helpers/payload.js";
+import { createMcpClient, responseText } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 import { apiKeyUsers, articles } from "../fixtures/security.js";
 
-import type { CallResult } from "./helpers/mcp.js";
+import type { CallResult, McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-relationship-population";
@@ -15,9 +15,6 @@ const AUTHOR = {
 };
 const OTHER_AUTHOR_EMAIL = "zzz-author@example.com";
 
-const textOf = (result: CallResult): string =>
-	`${result.text ?? ""} ${result.rpcError?.message ?? ""}`;
-
 /**
  * Exposure stops at the allow-list, but a relationship reaches past it: an
  * exposed document may point at a user. Population stops at the collections
@@ -26,7 +23,7 @@ const textOf = (result: CallResult): string =>
  */
 describe("relationships into the user collection", () => {
 	let booted: Booted;
-	let key: string;
+	let mcp: McpClient;
 	let authorId: number | string;
 	let articleId: number | string;
 	let otherArticleId: number | string;
@@ -41,10 +38,6 @@ describe("relationships into the user collection", () => {
 		});
 
 		const { payload } = booted;
-		const reader = await payload.create({
-			collection: "users",
-			data: { email: "reader@example.com", password: "reader-secret" },
-		});
 		const author = await payload.create({
 			collection: "users",
 			data: {
@@ -87,25 +80,22 @@ describe("relationships into the user collection", () => {
 
 		versionId = versions.docs[0]?.id as number | string;
 
-		key = await createKey(payload, {
-			userId: reader.id,
-			label: "reader",
-			capabilities: { collections: { articles: { read: true } } },
+		const { keys } = await seedKeysFor(payload, {
+			reader: { collections: { articles: { read: true } } },
 		});
+
+		mcp = createMcpClient(booted, keys.reader);
 	});
 
 	afterAll(async () => {
 		await booted.payload.destroy();
 	});
 
-	const call = (name: string, args: Record<string, unknown>) =>
-		callTool(booted.config, key, name, args, CACHE_KEY);
-
 	const reads: [string, () => Promise<CallResult>][] = [
 		[
 			"getDocument",
 			() =>
-				call("getDocument", {
+				mcp.call("getDocument", {
 					collection: "articles",
 					id: articleId,
 					depth: 1,
@@ -113,12 +103,12 @@ describe("relationships into the user collection", () => {
 		],
 		[
 			"findDocuments",
-			() => call("findDocuments", { collection: "articles", depth: 1 }),
+			() => mcp.call("findDocuments", { collection: "articles", depth: 1 }),
 		],
 		[
 			"getDocument with versionId",
 			() =>
-				call("getDocument", {
+				mcp.call("getDocument", {
 					collection: "articles",
 					id: articleId,
 					versionId,
@@ -128,7 +118,7 @@ describe("relationships into the user collection", () => {
 	];
 
 	it("returns the author as its id at depth 1", async () => {
-		const result = await call("getDocument", {
+		const result = await mcp.call("getDocument", {
 			collection: "articles",
 			id: articleId,
 			depth: 1,
@@ -143,14 +133,14 @@ describe("relationships into the user collection", () => {
 			const result = await read();
 
 			expect(result.isError).toBe(false);
-			expect(textOf(result)).not.toContain(AUTHOR.apiKey);
+			expect(responseText(result)).not.toContain(AUTHOR.apiKey);
 		});
 
 		it(`withholds the related user's email at depth 1 through ${tool}`, async () => {
 			const result = await read();
 
 			expect(result.isError).toBe(false);
-			expect(textOf(result)).not.toContain(AUTHOR.email);
+			expect(responseText(result)).not.toContain(AUTHOR.email);
 		});
 	}
 
@@ -163,11 +153,11 @@ describe("relationships into the user collection", () => {
 		matching: Record<string, unknown>,
 		notMatching: Record<string, unknown>,
 	): Promise<boolean> => {
-		const hit = await call("findDocuments", {
+		const hit = await mcp.call("findDocuments", {
 			collection: "articles",
 			...matching,
 		});
-		const miss = await call("findDocuments", {
+		const miss = await mcp.call("findDocuments", {
 			collection: "articles",
 			...notMatching,
 		});
@@ -207,7 +197,7 @@ describe("relationships into the user collection", () => {
 	});
 
 	it("finds both articles without a filter", async () => {
-		const all = await call("findDocuments", { collection: "articles" });
+		const all = await mcp.call("findDocuments", { collection: "articles" });
 
 		expect(idsOf(all).sort()).toEqual([articleId, otherArticleId].sort());
 	});

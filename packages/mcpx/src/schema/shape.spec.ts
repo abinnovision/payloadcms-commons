@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { resolveDataPointer } from "./pointer.js";
 import { validateWriteValue } from "./shape.js";
+import { node, state, text } from "../../test/builders/lexical.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type { Field, SanitizedConfig } from "payload";
@@ -22,43 +23,7 @@ const DOC = {
 	title: "Home",
 };
 
-const textNode = (value: string) => ({
-	detail: 0,
-	format: 0,
-	mode: "normal",
-	style: "",
-	text: value,
-	type: "text",
-	version: 1,
-});
-
-/** As Lexical serializes it, so only what a case is about is ever missing. */
-const node = (
-	type: string,
-	extra: Record<string, unknown> = {},
-	children: unknown[] = [],
-) => ({
-	children,
-	direction: "ltr",
-	format: "",
-	indent: 0,
-	type,
-	version: 1,
-	...extra,
-});
-
-const state = (children: unknown[]) => ({
-	root: {
-		children,
-		direction: "ltr",
-		format: "",
-		indent: 0,
-		type: "root",
-		version: 1,
-	},
-});
-
-const lexical = (type: string) => state([node(type, {}, [textNode("hi")])]);
+const lexical = (type: string) => state([node(type, {}, [text()])]);
 
 const POST = { content: { root: { children: [], type: "root" } } };
 
@@ -171,7 +136,7 @@ describe("validateWriteValue", () => {
 			'/summary/root/children/0/tag: "h3" is not available for a "heading" node in this field\'s editor. Allowed: h4',
 		]);
 
-		/* A value of the wrong kind used to skip the check and reach the document. */
+		/* A value of the wrong kind is held to the narrowing as well. */
 		expect(summary(state([node("heading", { tag: 3 })]))).toEqual([
 			'/summary/root/children/0/tag: a "heading" node needs a string here.',
 			'/summary/root/children/0/tag: 3 is not available for a "heading" node in this field\'s editor. Allowed: h4',
@@ -183,7 +148,7 @@ describe("validateWriteValue", () => {
 	});
 
 	it("rejects a node missing what its class hydrates from", () => {
-		const listItem = node("listitem", { value: 1 }, [textNode("hi")]);
+		const listItem = node("listitem", { value: 1 }, [text()]);
 
 		delete (listItem as Partial<typeof listItem>).indent;
 
@@ -206,7 +171,7 @@ describe("validateWriteValue", () => {
 		const item = (indent: unknown) =>
 			state([
 				node("list", { listType: "bullet", start: 1, tag: "ul" }, [
-					{ ...node("listitem", { value: 1 }, [textNode("hi")]), indent },
+					{ ...node("listitem", { value: 1 }, [text()]), indent },
 				]),
 			]);
 
@@ -372,8 +337,8 @@ describe("validateWriteValue", () => {
 
 /** A stored state, since a position is only resolvable against what is there. */
 const STORED = {
-	content: state([node("paragraph", {}, [textNode("hi")])]),
-	summary: state([node("heading", { tag: "h4" }, [textNode("hi")])]),
+	content: state([node("paragraph", {}, [text()])]),
+	summary: state([node("heading", { tag: "h4" }, [text()])]),
 };
 
 const checkAt = (pointer: string, value: unknown) =>
@@ -396,7 +361,7 @@ describe("validateWriteValue at a position inside an editor state", () => {
 		expect(
 			checkAt(
 				"/content/root/children/-",
-				node("paragraph", {}, [textNode("next")]),
+				node("paragraph", {}, [text("next")]),
 			),
 		).toEqual([]);
 	});

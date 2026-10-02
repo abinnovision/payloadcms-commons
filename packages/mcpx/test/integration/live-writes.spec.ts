@@ -1,16 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool, instructionsFor, toolsList } from "./helpers/mcp.js";
-import { bootPayload, createKey, USER } from "./helpers/payload.js";
+import { createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-live-writes";
 
 describe("live writes", () => {
 	let booted: Booted;
-	let live: string;
-	let draftsOnly: string;
+	let live: McpClient;
+	let draftsOnly: McpClient;
 
 	beforeAll(async () => {
 		booted = await bootPayload({
@@ -24,63 +25,47 @@ describe("live writes", () => {
 			},
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: USER,
-		});
-
-		live = await createKey(booted.payload, {
-			userId: user.id,
-			label: "live",
-			capabilities: {
+		const { keys } = await seedKeysFor(booted.payload, {
+			live: {
 				collections: {
 					pages: { read: true, write: true },
 					tags: { read: true, write: true },
 				},
 				globals: { banner: { read: true, write: true } },
 			},
+			draftsOnly: { collections: { pages: { read: true, write: true } } },
 		});
 
-		draftsOnly = await createKey(booted.payload, {
-			userId: user.id,
-			label: "drafts-only",
-			capabilities: { collections: { pages: { read: true, write: true } } },
-		});
+		live = createMcpClient(booted, keys.live);
+		draftsOnly = createMcpClient(booted, keys.draftsOnly);
 	});
 
 	afterAll(async () => {
 		await booted.payload.destroy();
 	});
 
-	const descriptionOf = async (name: string, key: string): Promise<string> => {
-		const tools = await toolsList(booted.config, key, CACHE_KEY);
-
-		return tools.find((tool) => tool.name === name)?.description ?? "";
-	};
+	const descriptionOf = async (name: string, mcp: McpClient): Promise<string> =>
+		(await mcp.list()).find((tool) => tool.name === name)?.description ?? "";
 
 	it("names the targets that write live in the server instructions", async () => {
-		const instructions = await instructionsFor(booted.config, live, CACHE_KEY);
+		const instructions = await live.instructions();
 
 		expect(instructions).toContain("tags");
 		expect(instructions).toContain("banner");
 	});
 
 	it("keeps the draft-only promise for a key that cannot write live", async () => {
-		const instructions = await instructionsFor(
-			booted.config,
-			draftsOnly,
-			CACHE_KEY,
-		);
+		const instructions = await draftsOnly.instructions();
 
 		expect(instructions).toContain("lands as a draft");
 		expect(instructions).not.toContain("tags");
 		expect(instructions).not.toContain("banner");
 	});
 
-	const writeDescriptions = (key: string): Promise<string[]> =>
+	const writeDescriptions = (mcp: McpClient): Promise<string[]> =>
 		Promise.all(
 			["patchDocument", "createDocument"].map((name) =>
-				descriptionOf(name, key),
+				descriptionOf(name, mcp),
 			),
 		);
 
@@ -99,13 +84,11 @@ describe("live writes", () => {
 	});
 
 	it("writes a collection without drafts live, as the description says", async () => {
-		const result = await callTool(
-			booted.config,
-			live,
-			"createDocument",
-			{ collection: "tags", locale: "en", data: { name: "Live" } },
-			CACHE_KEY,
-		);
+		const result = await live.call("createDocument", {
+			collection: "tags",
+			locale: "en",
+			data: { name: "Live" },
+		});
 
 		expect(result.isError).toBe(false);
 

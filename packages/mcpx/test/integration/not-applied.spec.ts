@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
-import { bootPayload, createKey } from "./helpers/payload.js";
+import { createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 import { ledgers } from "../fixtures/security.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-not-applied";
@@ -12,7 +13,7 @@ const SECRET = "stored ledger secret";
 
 describe("notApplied on a field closed to the key's user", () => {
 	let booted: Booted;
-	let key: string;
+	let mcp: McpClient;
 
 	beforeAll(async () => {
 		booted = await bootPayload({
@@ -21,16 +22,11 @@ describe("notApplied on a field closed to the key's user", () => {
 			plugin: { collections: { ledgers: { read: true, write: "draft" } } },
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: { email: "ledger@example.com", password: "ledger-secret" },
+		const { keys } = await seedKeysFor(booted.payload, {
+			ledger: { collections: { ledgers: { read: true, write: true } } },
 		});
 
-		key = await createKey(booted.payload, {
-			userId: user.id,
-			label: "ledger",
-			capabilities: { collections: { ledgers: { read: true, write: true } } },
-		});
+		mcp = createMcpClient(booted, keys.ledger);
 	});
 
 	afterAll(async () => {
@@ -56,18 +52,12 @@ describe("notApplied on a field closed to the key's user", () => {
 			});
 
 			const patch = async (value: string) => {
-				const result = await callTool(
-					booted.config,
-					key,
-					"patchDocument",
-					{
-						collection: "ledgers",
-						id: ledger.id,
-						locale: "en",
-						patches: [{ op: "replace", path: "/secret", value }],
-					},
-					CACHE_KEY,
-				);
+				const result = await mcp.call("patchDocument", {
+					collection: "ledgers",
+					id: ledger.id,
+					locale: "en",
+					patches: [{ op: "replace", path: "/secret", value }],
+				});
 				const { updatedAt: _updatedAt, ...rest } = result.data;
 
 				return { isError: result.isError, rest };

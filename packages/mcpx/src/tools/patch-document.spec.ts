@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { PATCH_OPERATION_SCHEMA } from "./patch-document.js";
 
-describe("pATCH_OPERATION_SCHEMA", () => {
+describe("the patch operation schema", () => {
 	it("accepts the six RFC 6902 operations", () => {
 		const operations = [
 			{ op: "add", path: "/a", value: 1 },

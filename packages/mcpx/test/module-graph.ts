@@ -1,14 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-
-/*
- * The clause before `from` is limited to what an import or re-export clause
- * can hold. Any wider, and a declaration such as `export type X = ...` would
- * run on to the next `from` followed by a quote and capture source text.
- */
-const SPECIFIER_RE =
-	/(?:^|\n)\s*(?:import|export)\b(?:[\w$*{},\s]*?\bfrom)?\s*["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
-const TYPE_ONLY_RE = /^\s*(?:import|export)\s+type\b/;
+import ts from "typescript";
 
 const resolveRelative = (fromFile: string, specifier: string): string => {
 	const base = resolve(dirname(fromFile), specifier);
@@ -24,6 +16,57 @@ const resolveRelative = (fromFile: string, specifier: string): string => {
 	}
 };
 
+interface Specifier {
+	text: string;
+	typeOnly: boolean;
+}
+
+/*
+ * Parsed rather than matched, so every form the compiler accepts is seen:
+ * clauses spanning lines or holding comments, string-named specifiers and
+ * dynamic imports alike. `import { type A }` counts as a value import, the
+ * conservative reading: whether the statement survives depends on the
+ * compiler settings.
+ */
+const specifiersOf = (file: string): Specifier[] => {
+	const source = ts.createSourceFile(
+		file,
+		readFileSync(file, "utf8"),
+		ts.ScriptTarget.Latest,
+		false,
+		file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+	);
+	const found: Specifier[] = [];
+
+	const visit = (node: ts.Node): void => {
+		if (
+			(ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+			node.moduleSpecifier &&
+			ts.isStringLiteral(node.moduleSpecifier)
+		) {
+			found.push({
+				text: node.moduleSpecifier.text,
+				typeOnly: ts.isImportDeclaration(node)
+					? node.importClause?.phaseModifier === ts.SyntaxKind.TypeKeyword
+					: node.isTypeOnly,
+			});
+		} else if (
+			ts.isCallExpression(node) &&
+			node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+			node.arguments[0] &&
+			ts.isStringLiteral(node.arguments[0])
+		) {
+			found.push({ text: node.arguments[0].text, typeOnly: false });
+		}
+
+		ts.forEachChild(node, visit);
+	};
+
+	visit(source);
+
+	return found;
+};
+
 export interface ModuleGraph {
 	files: Set<string>;
 	bareSpecifiers: Set<string>;
@@ -33,27 +76,25 @@ export interface ModuleGraph {
 
 export interface WalkOptions {
 	/**
-	 * Follow `import type` as well.
+	 * Follow `import type` and `export type` as well.
 	 *
-	 * Off by default, because a type-only import erases and therefore cannot
-	 * affect a consumer's bundle - which is what the per-entrypoint boundary
-	 * assertions are about. The layering assertions are about design rather
-	 * than bundling: a lower layer naming a higher layer's type is still a
-	 * dependency in the direction the layering forbids, and leaving it
-	 * invisible would let that assertion pass vacuously.
+	 * Off by default, because a type-only import erases and so cannot reach a
+	 * consumer's bundle, which is what the entrypoint boundary assertions are
+	 * about. The layering assertions are about design: a lower layer naming a
+	 * higher layer's type is a dependency in the forbidden direction all the
+	 * same.
 	 */
 	includeTypeImports?: boolean;
 }
 
 /**
- * Walks the value-import graph reachable from `entryFile`. Type-only imports
- * and exports erase at compile time, so they are excluded: only they may
- * legally cross an entrypoint boundary.
+ * Walks the import graph reachable from `entryFile`. Type-only imports and
+ * exports are left out unless `includeTypeImports` is set.
  *
  * This duplicates what the eslint `no-restricted-imports` patterns express,
  * on purpose. The lint rule constrains one file at a time; this constrains
  * everything an entrypoint transitively pulls in, which is the property that
- * actually matters to a consumer's bundler.
+ * matters to a consumer's bundler.
  */
 export const walkModuleGraph = (
 	entryFile: string,
@@ -75,32 +116,18 @@ export const walkModuleGraph = (
 		const own = new Set<string>();
 		imports.set(file, own);
 
-		/*
-		 * Scanned over the whole source rather than line by line: a re-export
-		 * spanning several lines (`export {\n a,\n b,\n} from "./x.js"`) is
-		 * invisible to a per-line regex, which would drop that file from the
-		 * graph and let the boundary assertions pass vacuously.
-		 */
-		const source = readFileSync(file, "utf8");
-		SPECIFIER_RE.lastIndex = 0;
-		let match: RegExpExecArray | null;
-		while ((match = SPECIFIER_RE.exec(source))) {
-			if (!options.includeTypeImports && TYPE_ONLY_RE.test(match[0])) {
+		for (const { text, typeOnly } of specifiersOf(file)) {
+			if (typeOnly && !options.includeTypeImports) {
 				continue;
 			}
 
-			const specifier = match[1] ?? match[2];
-			if (!specifier) {
-				continue;
-			}
-
-			if (specifier.startsWith(".")) {
-				const resolved = resolveRelative(file, specifier);
+			if (text.startsWith(".")) {
+				const resolved = resolveRelative(file, text);
 
 				own.add(resolved);
 				queue.push(resolved);
 			} else {
-				bareSpecifiers.add(specifier);
+				bareSpecifiers.add(text);
 			}
 		}
 	}

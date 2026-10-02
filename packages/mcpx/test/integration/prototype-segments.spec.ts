@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool, mcpPost } from "./helpers/mcp.js";
+import { createMcpClient, mcpPost } from "./helpers/mcp.js";
 import {
 	bootPayload,
-	createKey,
 	FULL_CAPABILITIES,
-	paragraph,
+	seedKeysFor,
 } from "./helpers/payload.js";
+import { paragraph } from "../builders/lexical.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-prototype-segments";
@@ -38,21 +39,15 @@ const isPolluted = (): boolean =>
 describe("prototype segments in writes", () => {
 	let booted: Booted;
 	let key: string;
+	let mcp: McpClient;
 	let postId: number | string;
 
 	beforeAll(async () => {
 		booted = await bootPayload({ key: CACHE_KEY });
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: { email: "proto@example.com", password: "proto-secret" },
-		});
-
-		key = await createKey(booted.payload, {
-			userId: user.id,
-			label: "proto",
-			capabilities: FULL_CAPABILITIES,
-		});
+		key = (await seedKeysFor(booted.payload, { proto: FULL_CAPABILITIES })).keys
+			.proto;
+		mcp = createMcpClient(booted, key);
 
 		const post = await booted.payload.create({
 			collection: "posts",
@@ -94,18 +89,12 @@ describe("prototype segments in writes", () => {
 	const patchAt = async (op: "add" | "replace", pointer: string) => {
 		const before = await stored();
 
-		const result = await callTool(
-			booted.config,
-			key,
-			"patchDocument",
-			{
-				collection: "posts",
-				id: postId,
-				locale: "en",
-				patches: [{ op, path: pointer, value: { polluted: "yes" } }],
-			},
-			CACHE_KEY,
-		);
+		const result = await mcp.call("patchDocument", {
+			collection: "posts",
+			id: postId,
+			locale: "en",
+			patches: [{ op, path: pointer, value: { polluted: "yes" } }],
+		});
 
 		return {
 			refused: result.isError || result.rpcError !== undefined,
@@ -140,18 +129,12 @@ describe("prototype segments in writes", () => {
 		it(`refuses ${op} from a prototype segment and changes nothing`, async () => {
 			const before = await stored();
 
-			const result = await callTool(
-				booted.config,
-				key,
-				"patchDocument",
-				{
-					collection: "posts",
-					id: postId,
-					locale: "en",
-					patches: [{ op, from: NODE_PROTOTYPE, path: "/title" }],
-				},
-				CACHE_KEY,
-			);
+			const result = await mcp.call("patchDocument", {
+				collection: "posts",
+				id: postId,
+				locale: "en",
+				patches: [{ op, from: NODE_PROTOTYPE, path: "/title" }],
+			});
 
 			expect(result.isError).toBe(true);
 			expect(result.data["problems"]).toEqual([
@@ -166,13 +149,12 @@ describe("prototype segments in writes", () => {
 		it(`refuses to read ${pointer} and changes nothing`, async () => {
 			const before = await stored();
 
-			const result = await callTool(
-				booted.config,
-				key,
-				"getDocument",
-				{ collection: "posts", id: postId, locale: "en", path: pointer },
-				CACHE_KEY,
-			);
+			const result = await mcp.call("getDocument", {
+				collection: "posts",
+				id: postId,
+				locale: "en",
+				path: pointer,
+			});
 
 			expect(result.isError).toBe(true);
 			expect(result.data["error"]).toBe(
@@ -189,8 +171,7 @@ describe("prototype segments in writes", () => {
 	 */
 	it("creates a document from data carrying a __proto__ key without that key", async () => {
 		// The literal is sent as JSON text so `__proto__` arrives as an own key.
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
+		const response = await mcpPost(booted, {
 			key,
 			rawBody: `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"createDocument","arguments":{"collection":"posts","locale":"en","data":{"title":"Proto create","__proto__":{"polluted":"yes"}}}}}`,
 		});

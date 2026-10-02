@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
-import { bootPayload, createKey } from "./helpers/payload.js";
+import { createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 import { dossiers } from "../fixtures/security.js";
 
-import type { CallResult } from "./helpers/mcp.js";
+import type { CallResult, McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-hidden-fields";
@@ -14,7 +14,7 @@ const API_HIDDEN = "value hidden from the api";
 
 describe("hidden fields on an exposed collection", () => {
 	let booted: Booted;
-	let key: string;
+	let mcp: McpClient;
 	let dossierId: number | string;
 
 	beforeAll(async () => {
@@ -25,11 +25,6 @@ describe("hidden fields on an exposed collection", () => {
 		});
 
 		const { payload } = booted;
-		const user = await payload.create({
-			collection: "users",
-			data: { email: "hidden@example.com", password: "hidden-secret" },
-		});
-
 		const dossier = await payload.create({
 			collection: "dossiers" as never,
 			data: {
@@ -41,11 +36,11 @@ describe("hidden fields on an exposed collection", () => {
 
 		dossierId = dossier.id;
 
-		key = await createKey(payload, {
-			userId: user.id,
-			label: "hidden",
-			capabilities: { collections: { dossiers: { read: true } } },
+		const { keys } = await seedKeysFor(payload, {
+			hidden: { collections: { dossiers: { read: true } } },
 		});
+
+		mcp = createMcpClient(booted, keys.hidden);
 	});
 
 	afterAll(async () => {
@@ -55,25 +50,11 @@ describe("hidden fields on an exposed collection", () => {
 	const reads: [string, () => Promise<CallResult>][] = [
 		[
 			"getDocument",
-			() =>
-				callTool(
-					booted.config,
-					key,
-					"getDocument",
-					{ collection: "dossiers", id: dossierId },
-					CACHE_KEY,
-				),
+			() => mcp.call("getDocument", { collection: "dossiers", id: dossierId }),
 		],
 		[
 			"findDocuments",
-			() =>
-				callTool(
-					booted.config,
-					key,
-					"findDocuments",
-					{ collection: "dossiers" },
-					CACHE_KEY,
-				),
+			() => mcp.call("findDocuments", { collection: "dossiers" }),
 		],
 	];
 

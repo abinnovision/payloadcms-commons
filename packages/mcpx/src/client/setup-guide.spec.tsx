@@ -39,7 +39,7 @@ const { McpxSetupGuide } = await import("./setup-guide.js");
 const render = () =>
 	renderToStaticMarkup(<McpxSetupGuide endpointPath="/mcpx" />);
 
-describe("mcpxSetupGuide", () => {
+describe("the McpxSetupGuide component", () => {
 	beforeEach(() => {
 		state.id = 1;
 		state.serverURL = "https://cms.example.com";

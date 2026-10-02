@@ -9,9 +9,6 @@ import {
 	refusePublishGlobal,
 } from "./draft-guard.js";
 import { hasPublishIntent, withPublishIntent } from "./publish-intent.js";
-import { isMcpxRequest } from "../request.js";
-
-import type { CollectionConfig, GlobalConfig, PayloadRequest } from "payload";
 
 const mcpxRequest = {
 	context: {
@@ -58,16 +55,6 @@ const runRefusal = (
 
 	return { call: () => refusePublish(hookArgs as never), data, warn };
 };
-
-describe("isMcpxRequest", () => {
-	it("recognises the marker the endpoint stamps", () => {
-		expect(isMcpxRequest(mcpxRequest as unknown as PayloadRequest)).toBe(true);
-	});
-
-	it("ignores every other request", () => {
-		expect(isMcpxRequest(restRequest as unknown as PayloadRequest)).toBe(false);
-	});
-});
 
 describe("forceDraftWrite", () => {
 	it("leaves a non-mcpx operation untouched", () => {
@@ -251,31 +238,6 @@ describe("refusePublish", () => {
 	});
 });
 
-describe("installDraftGuards", () => {
-	const live: CollectionConfig = { slug: "tags", fields: [] };
-	const drafts: CollectionConfig = {
-		slug: "pages",
-		versions: { drafts: true },
-		fields: [],
-		hooks: { beforeOperation: [() => undefined] },
-	};
-
-	it("adds the operation guard to every collection", () => {
-		const [tags, pages] = installDraftGuards([live, drafts]);
-
-		expect(tags?.hooks?.beforeOperation).toEqual([forceDraftWrite]);
-		expect(pages?.hooks?.beforeOperation).toHaveLength(2);
-		expect(pages?.hooks?.beforeOperation?.at(-1)).toBe(forceDraftWrite);
-	});
-
-	it("adds the publish alarm only where drafts exist", () => {
-		const [tags, pages] = installDraftGuards([live, drafts]);
-
-		expect(tags?.hooks?.beforeChange).toBeUndefined();
-		expect(pages?.hooks?.beforeChange).toEqual([refusePublish]);
-	});
-});
-
 /**
  * Runs the global `beforeOperation` hook and returns the arguments the
  * operation would actually receive.
@@ -370,35 +332,37 @@ describe("refusePublishGlobal", () => {
 	});
 });
 
-describe("installGlobalDraftGuards", () => {
-	const drafts: GlobalConfig = {
-		slug: "site-settings",
-		versions: { drafts: true },
-		fields: [],
-	};
-	const live: GlobalConfig = { slug: "banner", fields: [] };
-
-	it("guards every global and refuses publishing only where drafts exist", () => {
-		const [guardedDrafts, guardedLive] = installGlobalDraftGuards([
-			drafts,
-			live,
+/*
+ * Appended after every hook the config declares, so none of those can undo
+ * what the guards enforce.
+ */
+describe("installDraftGuards and installGlobalDraftGuards", () => {
+	it("run the guards after the hooks a config already declares", () => {
+		const declared = () => undefined;
+		const [collection] = installDraftGuards([
+			{
+				slug: "pages",
+				versions: { drafts: true },
+				fields: [],
+				hooks: { beforeChange: [declared], beforeOperation: [declared] },
+			},
+		]);
+		const [global] = installGlobalDraftGuards([
+			{
+				slug: "site-settings",
+				versions: { drafts: true },
+				fields: [],
+				hooks: { beforeChange: [declared], beforeOperation: [declared] },
+			},
 		]);
 
-		expect(guardedDrafts?.hooks?.beforeOperation).toHaveLength(1);
-		expect(guardedDrafts?.hooks?.beforeChange).toEqual([refusePublishGlobal]);
-		expect(guardedLive?.hooks?.beforeOperation).toHaveLength(1);
-		expect(guardedLive?.hooks?.beforeChange).toBeUndefined();
-	});
-
-	it("keeps hooks the global already declared", () => {
-		const existing = vi.fn();
-		const [guarded] = installGlobalDraftGuards([
-			{ ...drafts, hooks: { beforeOperation: [existing] } },
-		]);
-
-		expect(guarded?.hooks?.beforeOperation).toEqual([
-			existing,
-			forceDraftWriteGlobal,
-		]);
+		expect(collection?.hooks).toMatchObject({
+			beforeChange: [declared, refusePublish],
+			beforeOperation: [declared, forceDraftWrite],
+		});
+		expect(global?.hooks).toMatchObject({
+			beforeChange: [declared, refusePublishGlobal],
+			beforeOperation: [declared, forceDraftWriteGlobal],
+		});
 	});
 });

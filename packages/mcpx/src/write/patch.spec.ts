@@ -6,31 +6,14 @@ import {
 	isElementPointer,
 	isReservedPointer,
 } from "./patch.js";
+import { node, state } from "../../test/builders/lexical.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type { SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
 
 /** The smallest state the rich text shape check accepts. */
-const EMPTY_RICH_TEXT = {
-	root: {
-		children: [
-			{
-				children: [],
-				direction: null,
-				format: "",
-				indent: 0,
-				type: "paragraph",
-				version: 1,
-			},
-		],
-		direction: null,
-		format: "",
-		indent: 0,
-		type: "root",
-		version: 1,
-	},
-};
+const EMPTY_RICH_TEXT = state([node("paragraph")]);
 
 const DOC = {
 	id: "p1",
@@ -74,15 +57,10 @@ describe("pointer helpers", () => {
 });
 
 /** A link node, so a read-only field has a node's own fields to address. */
-const LINK_NODE = {
-	children: [],
-	direction: "ltr",
+const LINK_NODE = node("link", {
 	fields: { linkType: "custom", newTab: false, url: "/old" },
-	format: "",
-	indent: 0,
-	type: "link",
 	version: 3,
-};
+});
 
 const POSTS_DOC = {
 	id: "s1",
@@ -424,14 +402,7 @@ describe("dropping a pointer inside an editor state", () => {
 		config = await buildFixtureConfig();
 	});
 
-	const paragraph = {
-		children: [],
-		direction: null,
-		format: "",
-		indent: 0,
-		type: "paragraph",
-		version: 1,
-	};
+	const paragraph = node("paragraph");
 
 	const doc = {
 		id: "p1",
@@ -485,15 +456,10 @@ describe("dropping a pointer inside an editor state", () => {
 				root: {
 					...EMPTY_RICH_TEXT.root,
 					children: [
-						{
-							children: [],
-							direction: "ltr",
+						node("link", {
 							fields: { linkType: "custom", newTab: false, url: "/x" },
-							format: "",
-							indent: 0,
-							type: "link",
 							version: 3,
-						},
+						}),
 					],
 				},
 			},

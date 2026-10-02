@@ -20,6 +20,7 @@ import type { McpxPluginOptions } from "../../src/index.js";
 import type {
 	CollectionConfig,
 	DatabaseAdapterObj,
+	FlattenedField,
 	SanitizedConfig,
 } from "payload";
 
@@ -141,14 +142,24 @@ export const buildFixtureConfig = (
 			...(overrides.collections ?? []),
 		],
 		/*
-		 * Registered on the config but deliberately absent from
-		 * `defaultPluginOptions`: every existing spec then keeps running against
-		 * a collections-only plugin, which is what proves globals changed
-		 * nothing for deployments that do not use them. Globals and upload
-		 * specs opt in through `overrides.plugin`.
+		 * Registered on the config but absent from `defaultPluginOptions`, so the
+		 * default plugin exposes collections only. Globals and upload specs opt
+		 * in through `overrides.plugin`.
 		 */
 		globals: [siteSettings, banner],
 		plugins: [mcpxPlugin({ ...defaultPluginOptions, ...overrides.plugin })],
 		typescript: { autoGenerate: false },
 		graphQL: { disable: true },
 	});
+
+/** A top-level field of a collection in `config`, by name. */
+export const fieldOf = (
+	config: SanitizedConfig,
+	slug: string,
+	name: string,
+): FlattenedField | undefined =>
+	config.collections
+		.find((collection) => collection.slug === slug)
+		?.flattenedFields.find(
+			(candidate) => "name" in candidate && candidate.name === name,
+		);

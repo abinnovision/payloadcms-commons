@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { mcpPost } from "./helpers/mcp.js";
-import { bootPayload, createKey } from "./helpers/payload.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 import { defineMcpxTool } from "../../src/index.js";
 
 import type { Booted } from "./helpers/payload.js";
@@ -26,16 +26,11 @@ describe("internal errors", () => {
 			plugin: { tools: [explodeTool] },
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: { email: "errors@example.com", password: "errors-secret" },
-		});
-
-		key = await createKey(booted.payload, {
-			userId: user.id,
-			label: "errors",
-			capabilities: { tools: { explode: true } },
-		});
+		key = (
+			await seedKeysFor(booted.payload, {
+				errors: { tools: { explode: true } },
+			})
+		).keys.errors;
 	});
 
 	afterAll(async () => {
@@ -43,8 +38,7 @@ describe("internal errors", () => {
 	});
 
 	it("reports a thrown error as a bare internal error", async () => {
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
+		const response = await mcpPost(booted, {
 			key,
 			body: {
 				jsonrpc: "2.0",

@@ -1,10 +1,10 @@
 import { rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
-import { bootPayload, createKey } from "./helpers/payload.js";
+import { createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, createMedia, seedKeysFor } from "./helpers/payload.js";
+import { state } from "../builders/lexical.js";
+import { MEDIA_DIR } from "../fixtures/collections.js";
 import {
 	apiKeyUsers,
 	articles,
@@ -12,6 +12,7 @@ import {
 	remarks,
 } from "../fixtures/security.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-relationship-shapes";
@@ -21,32 +22,13 @@ const AUTHOR = {
 	apiKey: "author-payload-api-key-0000000002",
 };
 
-/** A one-pixel PNG, so a real file lands on disk without needing sharp. */
-const PIXEL = Buffer.from(
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-	"base64",
-);
-
-const lexicalRoot = (
-	children: Record<string, unknown>[],
-): Record<string, unknown> => ({
-	root: {
-		type: "root",
-		version: 1,
-		direction: null,
-		format: "",
-		indent: 0,
-		children,
-	},
-});
-
 /**
  * Every field shape Payload populates, pointed at collections the key cannot
  * read, and a readable collection that points onward at one it cannot.
  */
 describe("relationships across field shapes", () => {
 	let booted: Booted;
-	let key: string;
+	let mcp: McpClient;
 	let authorId: number | string;
 	let mediaId: number | string;
 	let remarkId: number | string;
@@ -78,10 +60,6 @@ describe("relationships across field shapes", () => {
 		});
 
 		const { payload } = booted;
-		const reader = await payload.create({
-			collection: "users",
-			data: { email: "shapes-reader@example.com", password: "reader-secret" },
-		});
 		const author = await payload.create({
 			collection: "users",
 			data: {
@@ -91,16 +69,7 @@ describe("relationships across field shapes", () => {
 				apiKey: AUTHOR.apiKey,
 			},
 		});
-		const media = await payload.create({
-			collection: "media" as never,
-			data: { alt: "Pixel" },
-			file: {
-				data: PIXEL,
-				mimetype: "image/png",
-				name: "pixel.png",
-				size: PIXEL.length,
-			},
-		});
+		const media = await createMedia(payload, "Pixel");
 		const article = await payload.create({
 			collection: "articles" as never,
 			data: { title: "Readable", author: author.id },
@@ -120,7 +89,7 @@ describe("relationships across field shapes", () => {
 				meta: { owner: author.id },
 				entries: [{ person: author.id }],
 				sections: [{ blockType: "mention", person: author.id }],
-				body: lexicalRoot([
+				body: state([
 					{
 						type: "relationship",
 						version: 2,
@@ -195,25 +164,19 @@ describe("relationships across field shapes", () => {
 		closedVersionId = await firstVersion(closed.id);
 		openVersionId = await firstVersion(open.id);
 
-		key = await createKey(payload, {
-			userId: reader.id,
-			label: "shapes-reader",
-			capabilities: {
+		const { keys } = await seedKeysFor(payload, {
+			reader: {
 				collections: { articles: { read: true }, dispatches: { read: true } },
 			},
 		});
+
+		mcp = createMcpClient(booted, keys.reader);
 	});
 
 	afterAll(async () => {
 		await booted.payload.destroy();
-		await rm(join(tmpdir(), "mcpx-fixture-media"), {
-			recursive: true,
-			force: true,
-		});
+		await rm(MEDIA_DIR, { recursive: true, force: true });
 	});
-
-	const call = (name: string, args: Record<string, unknown>) =>
-		callTool(booted.config, key, name, args, CACHE_KEY);
 
 	type Read = (
 		id: number | string,
@@ -226,13 +189,13 @@ describe("relationships across field shapes", () => {
 		[
 			"getDocument",
 			async (id, _versionId, depth) =>
-				(await call("getDocument", { collection: "dispatches", id, depth }))
+				(await mcp.call("getDocument", { collection: "dispatches", id, depth }))
 					.data,
 		],
 		[
 			"findDocuments",
 			async (id, _versionId, depth) => {
-				const result = await call("findDocuments", {
+				const result = await mcp.call("findDocuments", {
 					collection: "dispatches",
 					where: { id: { equals: id } },
 					depth,
@@ -245,7 +208,7 @@ describe("relationships across field shapes", () => {
 			"getDocument with versionId",
 			async (id, versionId, depth) =>
 				(
-					await call("getDocument", {
+					await mcp.call("getDocument", {
 						collection: "dispatches",
 						id,
 						versionId,
@@ -278,7 +241,7 @@ describe("relationships across field shapes", () => {
 	}
 
 	it("returns each unreadable relation as its bare id at depth 1", async () => {
-		const result = await call("getDocument", {
+		const result = await mcp.call("getDocument", {
 			collection: "dispatches",
 			id: closedId,
 			depth: 1,
@@ -311,7 +274,7 @@ describe("relationships across field shapes", () => {
 	/* A draft read goes to the versions table, which holds no join. */
 	it("returns a join into an unreadable collection as ids at depth 1", async () => {
 		const read = (depth: number) =>
-			call("getDocument", {
+			mcp.call("getDocument", {
 				collection: "dispatches",
 				id: closedId,
 				draft: false,
@@ -325,7 +288,7 @@ describe("relationships across field shapes", () => {
 	});
 
 	it("populates relations into readable collections", async () => {
-		const result = await call("getDocument", {
+		const result = await mcp.call("getDocument", {
 			collection: "dispatches",
 			id: openId,
 			depth: 1,

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { canCreate, resolveCapabilities, slugsWith } from "./capabilities.js";
+import { entity } from "../test/builders/scope.js";
 
 import type { NormalizedOptions } from "./options.js";
-import type { McpxExposedEntity } from "./types.js";
 
 const options = {
 	collections: [
@@ -62,10 +62,7 @@ describe("resolveCapabilities", () => {
 	});
 
 	it("closes every global on a key issued before globals existed", () => {
-		/*
-		 * Such a key document has no `globals` group at all, which is the shape
-		 * every pre-existing key has after this feature ships.
-		 */
+		/* Such a key document has no `globals` group at all. */
 		const resolved = resolveCapabilities(options, {
 			collections: { pages: { read: true, write: true } },
 		});
@@ -164,23 +161,10 @@ describe("resolveCapabilities", () => {
 });
 
 describe("canCreate", () => {
-	const entity = (
-		overrides: Partial<McpxExposedEntity>,
-	): McpxExposedEntity => ({
-		slug: "pages",
-		read: true,
-		write: "draft",
-		hasDrafts: true,
-		hasVersions: true,
-		isUpload: false,
-		fieldName: "pages",
-		...overrides,
-	});
-
 	it("follows write everywhere but an upload collection", () => {
-		expect(canCreate(entity({}))).toBe(true);
-		expect(canCreate(entity({ write: "live" }))).toBe(true);
-		expect(canCreate(entity({ write: false }))).toBe(false);
-		expect(canCreate(entity({ isUpload: true }))).toBe(false);
+		expect(canCreate(entity("pages"))).toBe(true);
+		expect(canCreate(entity("pages", { write: "live" }))).toBe(true);
+		expect(canCreate(entity("pages", { write: false }))).toBe(false);
+		expect(canCreate(entity("pages", { isUpload: true }))).toBe(false);
 	});
 });

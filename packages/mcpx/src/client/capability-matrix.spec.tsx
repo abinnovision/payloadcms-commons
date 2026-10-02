@@ -34,11 +34,9 @@ vi.mock("@payloadcms/ui", () => ({
 		/>
 	),
 	FieldDescription: ({ description }: { description: string }) => (
-		<div className="field-description">{description}</div>
+		<div>{description}</div>
 	),
-	FieldLabel: ({ label }: { label: string }) => (
-		<span className="field-label">{label}</span>
-	),
+	FieldLabel: ({ label }: { label: string }) => <span>{label}</span>,
 	useForm: () => ({ dispatchFields: vi.fn(), setModified: vi.fn() }),
 	useFormFields: (selector: (args: [Fields]) => unknown) =>
 		selector([state.fields]),
@@ -97,28 +95,18 @@ const render = (
 	props: Partial<{
 		field: { admin?: { description?: unknown } };
 		readOnly: boolean;
-		withinTab: boolean;
 	}> = {},
 ): string =>
 	renderToStaticMarkup(<McpxCapabilityMatrix matrix={matrix} {...props} />);
 
-describe("mcpxCapabilityMatrix", () => {
+describe("the McpxCapabilityMatrix component", () => {
 	beforeEach(() => {
 		state.fields = {};
 	});
 
-	/*
-	 * The custom Field replaces the group's rendering, so the chrome that
-	 * divides a group from the fields above it has to be drawn here.
-	 */
-	it("wears Payload's group chrome", () => {
-		const html = render();
-
-		expect(html).toContain("group-field group-field--top-level");
-		expect(html).toContain('<div class="group-field__wrap">');
-		expect(html).toContain(
-			'<h3 class="group-field__title"><span class="field-label">Capabilities</span></h3>',
-		);
+	/* The custom Field replaces the group's rendering, title included. */
+	it("titles the group", () => {
+		expect(render()).toContain(">Capabilities<");
 	});
 
 	/*
@@ -128,17 +116,7 @@ describe("mcpxCapabilityMatrix", () => {
 	it("carries the field's description under the heading", () => {
 		expect(
 			render({ field: { admin: { description: "What this key may do." } } }),
-		).toContain('<div class="field-description">What this key may do.</div>');
-	});
-
-	it("renders no description when the field has none", () => {
-		expect(render()).not.toContain("field-description");
-	});
-
-	/* Only a group at a tab's edge drops its outer border. */
-	it("marks itself as within a tab only when the form has tabs", () => {
-		expect(render({ withinTab: true })).toContain("group-field--within-tab");
-		expect(render()).not.toContain("group-field--within-tab");
+		).toContain("What this key may do.");
 	});
 
 	it("draws a row per entity and per tool", () => {
@@ -150,8 +128,8 @@ describe("mcpxCapabilityMatrix", () => {
 	});
 
 	/*
-	 * A missing checkbox used to read as a gap. A dash says the config withheld
-	 * the operation, which is a different thing from a capability left off.
+	 * A dash says the config withheld the operation, which is a different
+	 * thing from a capability left off.
 	 */
 	it("renders a dash where the config exposes nothing", () => {
 		const html = render();

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { mcpPost, rpc } from "./helpers/mcp.js";
-import { bootPayload, createKey } from "./helpers/payload.js";
+import { createMcpClient, mcpPost } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 
 import type { Booted } from "./helpers/payload.js";
 
@@ -26,16 +26,8 @@ describe("configured key resolution", () => {
 			},
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: { email: "resolve@example.com", password: "resolve-secret" },
-		});
-
-		key = await createKey(booted.payload, {
-			userId: user.id,
-			label: "valid",
-			capabilities: CAPABILITIES,
-		});
+		key = (await seedKeysFor(booted.payload, { valid: CAPABILITIES })).keys
+			.valid;
 	});
 
 	afterAll(async () => {
@@ -43,12 +35,8 @@ describe("configured key resolution", () => {
 	});
 
 	it("answers 401 when the resolver returns null, even for a valid key", async () => {
-		const { status, body } = await rpc(
-			booted.config,
-			key,
+		const { status, body } = await createMcpClient(booted, key).rpc(
 			"tools/list",
-			undefined,
-			CACHE_KEY,
 		);
 
 		expect(status).toBe(401);
@@ -56,8 +44,7 @@ describe("configured key resolution", () => {
 	});
 
 	it("does not leak the message of a throwing resolver", async () => {
-		const response = await mcpPost(booted.config, {
-			cacheKey: CACHE_KEY,
+		const response = await mcpPost(booted, {
 			key,
 			headers: { "x-resolve": "throw" },
 			body: { jsonrpc: "2.0", id: 1, method: "tools/list" },
