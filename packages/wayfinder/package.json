@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json.schemastore.org/package.json",
 	"name": "@abinnovision/payloadcms-wayfinder",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"description": "Editor-authored URL routing for Payload: collection-to-path patterns, document-to-href building, path-to-document resolution and a routing-aware link field.",
 	"keywords": [
 		"payload",
