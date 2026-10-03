@@ -3,15 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { walkModuleGraph } from "../test/module-graph.js";
+import { walkModuleGraph } from "./module-graph.js";
 
-import type { WalkOptions } from "../test/module-graph.js";
-
-// Tests test/module-graph.ts, kept in src/ where the unit runner collects specs.
+import type { WalkOptions } from "./module-graph.js";
 
 /** The bare specifiers walked out of one file holding `lines`. */
 const specifiersIn = (lines: string[], options?: WalkOptions): string[] => {
-	const dir = mkdtempSync(join(tmpdir(), "mcpx-graph-"));
+	const dir = mkdtempSync(join(tmpdir(), "module-graph-"));
 	const file = join(dir, "subject.ts");
 
 	try {
@@ -88,5 +86,35 @@ describe("walkModuleGraph", () => {
 				{ includeTypeImports: true },
 			),
 		).toEqual(["payload"]);
+	});
+
+	it("follows multi-line re-exports and skips type-only ones", () => {
+		expect(
+			specifiersIn([
+				"export {",
+				"\ta,",
+				"\tb,",
+				'} from "react";',
+				'export type { Foo } from "payload";',
+			]),
+		).toEqual(["react"]);
+	});
+
+	it("resolves relative imports into files, falling back to .tsx", () => {
+		const dir = mkdtempSync(join(tmpdir(), "module-graph-"));
+
+		try {
+			const entry = join(dir, "entry.ts");
+
+			writeFileSync(entry, 'import "./a.js";\nimport "./view.js";\n');
+			writeFileSync(join(dir, "a.ts"), "export const a = 1;\n");
+			writeFileSync(join(dir, "view.tsx"), "export const view = 2;\n");
+
+			expect(walkModuleGraph(entry).files).toEqual(
+				new Set([entry, join(dir, "a.ts"), join(dir, "view.tsx")]),
+			);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });

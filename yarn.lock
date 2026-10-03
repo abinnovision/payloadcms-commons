@@ -38,6 +38,7 @@ __metadata:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@arethetypeswrong/core": "npm:^0.18.5"
+    "@internal/test-utils": "workspace:*"
     "@payloadcms/ui": "npm:3.89.0"
     "@swc/core": "npm:^1.16.2"
     "@types/node": "npm:^26.5.1"
@@ -96,6 +97,7 @@ __metadata:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@arethetypeswrong/core": "npm:^0.18.5"
+    "@internal/test-utils": "workspace:*"
     "@modelcontextprotocol/sdk": "npm:^1.30.0"
     "@payloadcms/db-sqlite": "npm:3.89.0"
     "@payloadcms/richtext-lexical": "npm:3.89.0"
@@ -135,6 +137,7 @@ __metadata:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@arethetypeswrong/core": "npm:^0.18.5"
+    "@internal/test-utils": "workspace:*"
     "@payloadcms/db-sqlite": "npm:3.89.0"
     "@payloadcms/richtext-lexical": "npm:3.89.0"
     "@swc/core": "npm:^1.16.2"
@@ -168,6 +171,7 @@ __metadata:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@arethetypeswrong/core": "npm:^0.18.5"
+    "@internal/test-utils": "workspace:*"
     "@payloadcms/ui": "npm:3.89.0"
     "@swc/core": "npm:^1.16.2"
     "@types/node": "npm:^26.5.1"
@@ -202,6 +206,7 @@ __metadata:
     "@abinnovision/payloadcms-montage": "workspace:*"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@arethetypeswrong/core": "npm:^0.18.5"
+    "@internal/test-utils": "workspace:*"
     "@lexical/react": "npm:0.41.0"
     "@payloadcms/db-sqlite": "npm:3.89.0"
     "@payloadcms/richtext-lexical": "npm:3.89.0"
@@ -1926,6 +1931,20 @@ __metadata:
     turbo: "npm:^2.10.12"
     typescript: "npm:^6.0.3"
     vite: "npm:^8.3.0"
+    vitest: "npm:^5.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@internal/test-utils@workspace:*, @internal/test-utils@workspace:packages/test-utils":
+  version: 0.0.0-use.local
+  resolution: "@internal/test-utils@workspace:packages/test-utils"
+  dependencies:
+    "@abinnovision/eslint-config-base": "npm:^3.4.2"
+    "@abinnovision/prettier-config": "npm:^2.2.0"
+    "@types/node": "npm:^26.5.1"
+    eslint: "npm:^10.10.0"
+    prettier: "npm:^3.9.5"
+    typescript: "npm:^6.0.3"
     vitest: "npm:^5.0.0"
   languageName: unknown
   linkType: soft
