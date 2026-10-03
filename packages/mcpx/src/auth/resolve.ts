@@ -8,6 +8,15 @@ import type { PayloadRequest } from "payload";
 
 const BEARER = /^Bearer\s+(\S+)\s*$/i;
 
+// A key's `lastUsedAt` is refreshed at most this often.
+const LAST_USED_INTERVAL_MS = 60 * 60 * 1000;
+
+// An adapter may hand back a Date where the bundled ones give a string.
+const toTime = (value: unknown): number =>
+	typeof value === "string" || value instanceof Date
+		? new Date(value).getTime()
+		: Number.NaN;
+
 const relationId = (value: unknown): DocumentId | undefined => {
 	if (typeof value === "string" || typeof value === "number") {
 		return value;
@@ -76,7 +85,13 @@ export const resolveApiKeyAuth = async (
 		pagination: false,
 		depth: 0,
 		overrideAccess: true,
-		select: { enabled: true, user: true, capabilities: true },
+		select: {
+			enabled: true,
+			user: true,
+			capabilities: true,
+			expiresAt: true,
+			lastUsedAt: true,
+		},
 	});
 
 	const keyDoc = docs[0] as
@@ -85,11 +100,18 @@ export const resolveApiKeyAuth = async (
 				enabled?: boolean;
 				user?: unknown;
 				capabilities?: unknown;
+				expiresAt?: unknown;
+				lastUsedAt?: unknown;
 		  }
 		| undefined;
 	const userId = relationId(keyDoc?.user);
 
 	if (!keyDoc || keyDoc.enabled !== true || userId === undefined) {
+		return null;
+	}
+
+	// An unparseable `expiresAt` is NaN and does not expire the key.
+	if (toTime(keyDoc.expiresAt) <= Date.now()) {
 		return null;
 	}
 
@@ -117,15 +139,34 @@ export const resolveApiKeyAuth = async (
 		}),
 	]);
 
-	// An adapter may hand back a Date where the bundled ones give a string.
-	const storedLock: unknown = lock?.["lockUntil"];
-	const lockUntil =
-		typeof storedLock === "string" || storedLock instanceof Date
-			? new Date(storedLock).getTime()
-			: Number.NaN;
+	const lockUntil = toTime(lock?.["lockUntil"]);
 
 	if (!user || user["_verified"] === false || lockUntil > Date.now()) {
 		return null;
+	}
+
+	const lastUsed = toTime(keyDoc.lastUsedAt);
+
+	if (Number.isNaN(lastUsed) || Date.now() - lastUsed > LAST_USED_INTERVAL_MS) {
+		/*
+		 * The marker keeps the key collection's hooks from recomputing the index.
+		 * A failed touch must not refuse a valid key.
+		 */
+		try {
+			await payload.update({
+				collection: options.apiKeysSlug,
+				id: keyDoc.id,
+				data: { lastUsedAt: new Date().toISOString() },
+				overrideAccess: true,
+				depth: 0,
+				context: { mcpxTouch: true },
+			});
+		} catch (error) {
+			payload.logger.warn({
+				err: error,
+				msg: "Could not record the last use of an MCP API key",
+			});
+		}
 	}
 
 	return {

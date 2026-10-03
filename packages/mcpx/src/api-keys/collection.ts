@@ -19,10 +19,16 @@ import type {
  * decrypted plaintext of the stored key.
  */
 export const keyBeforeChange: CollectionBeforeChangeHook = ({
+	context,
 	data,
 	operation,
 	req,
 }) => {
+	// A last-used touch carries no key change, so the index stays as stored.
+	if (context["mcpxTouch"]) {
+		return data;
+	}
+
 	if (operation === "create" && typeof data["apiKey"] !== "string") {
 		data["apiKey"] = generateApiKey();
 	}

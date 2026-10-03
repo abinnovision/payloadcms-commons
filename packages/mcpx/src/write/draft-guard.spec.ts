@@ -167,9 +167,8 @@ describe("forceDraftWrite on a marked publish", () => {
 		});
 		expect(args["data"]).not.toHaveProperty("deletedAt");
 
-		for (const key of ["where", "publishSpecificLocale"]) {
-			expect(args).not.toHaveProperty(key);
-		}
+		expect(args).not.toHaveProperty("where");
+		expect(args).toMatchObject({ publishSpecificLocale: "de" });
 	});
 
 	it("carries the marker on, because the alarm still needs it", () => {
@@ -246,10 +245,14 @@ const globalOperationArgumentsFor = (
 	args: Record<string, unknown>,
 	operation = "update",
 	req: Record<string, unknown> = mcpxRequest,
+	global: Record<string, unknown> = {
+		slug: "site-settings",
+		versions: { drafts: true },
+	},
 ): Record<string, unknown> => {
 	const hookArgs: unknown = {
 		args,
-		global: { slug: "site-settings" },
+		global,
 		operation,
 		req,
 	};
@@ -270,9 +273,10 @@ describe("forceDraftWriteGlobal", () => {
 		expect(globalOperationArgumentsFor(args, "read")).toBe(args);
 	});
 
-	it("forces the write into a draft save", () => {
+	it("strips the status from a draft save", () => {
 		const next = globalOperationArgumentsFor({
 			data: { _status: "published", title: "Home" },
+			draft: true,
 			slug: "site-settings",
 		});
 
@@ -280,9 +284,39 @@ describe("forceDraftWriteGlobal", () => {
 		expect(next["data"]).toEqual({ title: "Home" });
 	});
 
+	it.each([false, undefined])(
+		"refuses and logs a write that is not a draft save (draft: %s)",
+		(draft) => {
+			const warn = vi.fn();
+			const req = { ...mcpxRequest, payload: { logger: { warn } } };
+
+			expect(() =>
+				globalOperationArgumentsFor(
+					{ data: { title: "Home" }, draft, slug: "site-settings" },
+					"update",
+					req,
+				),
+			).toThrow(/may only write drafts/);
+			expect(warn).toHaveBeenCalledWith(
+				expect.stringContaining("site-settings"),
+			);
+		},
+	);
+
+	it("lets a global without drafts through without draft: true", () => {
+		const args = { data: { title: "Home" }, slug: "banner" };
+
+		expect(
+			globalOperationArgumentsFor(args, "update", mcpxRequest, {
+				slug: "banner",
+			}),
+		).toMatchObject({ slug: "banner" });
+	});
+
 	it("strips every publish vector updateGlobal accepts", () => {
 		const next = globalOperationArgumentsFor({
 			data: { title: "Home" },
+			draft: true,
 			publishAllLocales: true,
 			publishSpecificLocale: "de",
 			slug: "site-settings",
@@ -297,6 +331,7 @@ describe("forceDraftWriteGlobal", () => {
 	it("keeps the slug, so the operation still knows what it updates", () => {
 		const next = globalOperationArgumentsFor({
 			data: { title: "Home" },
+			draft: true,
 			slug: "site-settings",
 		});
 

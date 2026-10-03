@@ -152,6 +152,33 @@ describe("createDocument and validateDocument", () => {
 		expect(after.data["publishBlockers"]).toEqual([]);
 	});
 
+	it("checks every locale when none is given, tagging each blocker", async () => {
+		const created = await mcp.call("createDocument", {
+			collection: "pages",
+			locale: "en",
+			data: {
+				title: "Seeded",
+				slug: "seeded",
+				layout: {
+					sections: [{ blockType: "sectionWrapper", identifier: "seeded" }],
+				},
+			},
+		});
+		const result = await mcp.call("validateDocument", {
+			collection: "pages",
+			id: created.data["id"],
+		});
+		const blockers = result.data["publishBlockers"] as {
+			locale: string;
+			path: string;
+		}[];
+
+		expect(blockers.filter((b) => b.locale === "de")).toEqual([
+			expect.objectContaining({ path: "/title" }),
+		]);
+		expect(blockers.filter((b) => b.locale === "en")).toEqual([]);
+	});
+
 	it("keeps collections without write capability out of the write enums", async () => {
 		const tools = await mcp.list();
 

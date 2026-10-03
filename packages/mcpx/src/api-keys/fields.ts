@@ -67,6 +67,28 @@ export const createKeyFields = (): Field[] => [
 		},
 	},
 	{
+		name: "expiresAt",
+		type: "date",
+		admin: {
+			date: { pickerAppearance: "dayAndTime" },
+			description: "Refused from this time on. Leave empty for no expiry.",
+		},
+	},
+	{
+		name: "lastUsedAt",
+		type: "date",
+		// Written by the default resolver only, never by a client.
+		access: {
+			create: () => false,
+			update: () => false,
+		},
+		admin: {
+			readOnly: true,
+			date: { pickerAppearance: "dayAndTime" },
+			description: "Updated at most once an hour.",
+		},
+	},
+	{
 		name: "apiKey",
 		type: "text",
 		/*

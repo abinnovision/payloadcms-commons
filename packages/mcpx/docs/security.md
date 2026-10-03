@@ -10,7 +10,7 @@ up by its HMAC index. Cookies, admin sessions and JWTs are ignored: any user Pay
 them before the handler ran is replaced by the key's user, and a request without a valid key gets
 HTTP 401.
 
-The default lookup refuses a key that is unknown or disabled, and a key whose user was deleted,
+The default lookup refuses a key that is unknown, disabled or expired, and a key whose user was deleted,
 is unverified (`_verified: false`) or is locked out (`lockUntil` in the future).
 
 The key collection is not an auth collection, so a key never authenticates Payload's REST or
@@ -128,7 +128,8 @@ Some reads run with full access, because they answer a question about the whole 
   that read with `overrideAccess: true` to collect publish blockers. `validateDocument` first
   reads the document with the key's access and fails if the user cannot see it.
 - The publish-blocker check runs the fields' `beforeValidate` and `beforeChange` hooks, including
-  on `validateDocument`, which saves nothing.
+  on `validateDocument`, which saves nothing. It runs once per locale on `validateDocument` without
+  `locale` and once per other locale on `publishDocument`.
 
 What these reads return to the client: the document id (or the global's slug), `status`,
 `updatedAt`, each publish blocker's message, pointer and field label, and the `notApplied`
@@ -174,8 +175,10 @@ the publish, unpublish and selected locale arguments, `duplicateFromID`,
 with drafts, a `beforeChange` hook refuses a write that would still not save a draft, which also
 catches `restoreVersion`. `publishDocument` is the only write that may publish.
 
-Payload's global update reads its arguments before `beforeOperation` runs, so on a global only
-the change to the data takes effect, and the `beforeChange` refusal is what keeps writes to drafts.
+A marked publish keeps `publishSpecificLocale`, which `publishDocument` sets for a single-locale
+publish. Payload's global update reads its arguments before `beforeOperation` runs, so on a global
+only the change to the data takes effect. The `beforeOperation` hook refuses a write that did not
+ask for a draft save, and the `beforeChange` refusal keeps the status a draft.
 
 The guard does not cover:
 

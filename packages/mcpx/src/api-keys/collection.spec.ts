@@ -229,8 +229,9 @@ describe("keyBeforeChange", () => {
 	const run = (
 		data: Record<string, unknown>,
 		operation: "create" | "update",
+		context: Record<string, unknown> = {},
 	): Record<string, unknown> => {
-		const hookArgs: unknown = { data, operation, req };
+		const hookArgs: unknown = { context, data, operation, req };
 
 		return keyBeforeChange(hookArgs as never) as Record<string, unknown>;
 	};
@@ -255,5 +256,11 @@ describe("keyBeforeChange", () => {
 
 	it("does not mint a key on update", () => {
 		expect(run({ label: "renamed" }, "update")).toEqual({ label: "renamed" });
+	});
+
+	it("leaves the index alone on a last-used touch", () => {
+		const data = run({ apiKey: "given" }, "update", { mcpxTouch: true });
+
+		expect(data).toEqual({ apiKey: "given" });
 	});
 });

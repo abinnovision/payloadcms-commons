@@ -39,14 +39,20 @@ for any of these:
 ## API keys
 
 Keys live in the `mcpx-api-keys` collection, shown in the admin panel under MCP > API Keys. Each
-key has a label, an `enabled` checkbox, the user it acts as, the key itself and its capability
-checkboxes.
+key has a label, an `enabled` checkbox, an optional expiry, the user it acts as, the key itself,
+the time it was last used and its capability checkboxes.
 
 The key is generated on create: 32 random bytes, base64url encoded. It is stored encrypted with
 Payload's secret, next to an HMAC index used for lookup, the same way Payload stores its own API
 keys. Anyone who may read the key document sees the plaintext; by default that is the user who
 created it. A key is bound to the user who created it, and that binding cannot be changed.
 Unticking `enabled` refuses the key without deleting it.
+
+A key with `expiresAt` set is refused from that time on. Leave it empty for a key that never
+expires. `lastUsedAt` is read-only and set by the default key lookup on a successful request, at
+most once an hour, so a key that no longer shows recent use is a candidate for removal. The write
+also moves the key's `updatedAt`. A custom `auth.resolve` that does not call `resolveDefault`
+replaces this lookup, so it owns the expiry check and the `lastUsedAt` bookkeeping itself.
 
 By default, users read, update and delete only their own keys. Use
 `apiKeys.overrideCollection` to change that, for example to let admins manage all keys, or to add

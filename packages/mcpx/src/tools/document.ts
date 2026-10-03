@@ -2,10 +2,12 @@ import { APIError, Forbidden, NotFound } from "payload";
 
 import { slugsFor } from "./shared.js";
 import { errorResult } from "../result.js";
+import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 import type { Operation } from "./shared.js";
 import type { DocumentId, DocumentRef, ResolvedEntity } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
+import type { PublishBlocker } from "../write/publish-blockers.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { TypedLocale } from "payload";
 
@@ -173,4 +175,47 @@ export const readDraft = async (
 		...shared,
 		slug: args.target.slug,
 	});
+};
+
+/**
+ * {@link collectPublishBlockers} over the draft of each locale, each blocker
+ * tagged with its locale. Locales run in turn because hooks share `req`, and
+ * the request's locale and fallback locale are restored afterwards.
+ */
+export const collectLocaleBlockers = async (
+	scope: McpxToolScope,
+	target: DocumentRef,
+	locales: readonly string[],
+): Promise<{ blockers: PublishBlocker[]; unavailable?: true }> => {
+	const { req } = scope;
+	const { fallbackLocale, locale: requestLocale } = req;
+	const blockers: PublishBlocker[] = [];
+	let unavailable = false;
+
+	for (const locale of locales) {
+		try {
+			// eslint-disable-next-line no-await-in-loop
+			const doc = await readDraft(scope, { target, locale, privileged: true });
+			// eslint-disable-next-line no-await-in-loop
+			const result = await collectPublishBlockers(req, { doc, entity: target });
+
+			unavailable ||= result.unavailable === true;
+			blockers.push(...result.blockers.map((entry) => ({ ...entry, locale })));
+		} catch (error) {
+			req.payload.logger.warn(
+				`[payloadcms-mcpx] Could not read the ${target.slug} draft in ${locale}: ${error instanceof Error ? error.message : "unknown error"}`,
+			);
+			unavailable = true;
+		}
+	}
+
+	if (requestLocale !== undefined) {
+		req.locale = requestLocale;
+	}
+
+	if (fallbackLocale !== undefined) {
+		req.fallbackLocale = fallbackLocale;
+	}
+
+	return { blockers, ...(unavailable ? { unavailable: true as const } : {}) };
 };

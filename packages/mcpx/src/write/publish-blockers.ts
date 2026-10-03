@@ -16,6 +16,8 @@ export interface PublishBlocker {
 	 * Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title".
 	 */
 	field?: string;
+	/** Set when the draft was checked per locale. */
+	locale?: string;
 	message: string;
 	/**
 	 * JSON Pointer to the offending value, e.g. "/layout/2/title".

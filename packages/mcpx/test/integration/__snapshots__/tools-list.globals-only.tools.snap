@@ -357,7 +357,7 @@
   },
   {
     "name": "validateDocument",
-    "description": "Lists what still blocks publishing one document or global, without saving. Returns \"publishBlockers\", each with a pointer and a message. An empty list means it can be published, unless \"publishBlockersUnavailable\" is true: then the check itself failed. The check runs the field hooks a save runs.",
+    "description": "Lists what still blocks publishing one document or global, without saving. Checks one locale when \"locale\" is given, otherwise every locale. Returns \"publishBlockers\", each with a pointer and a message, and a \"locale\" when every locale was checked. An empty list means it can be published, unless \"publishBlockersUnavailable\" is true: then the check itself failed. The check runs the field hooks a save runs.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -378,8 +378,7 @@
         }
       },
       "required": [
-        "global",
-        "locale"
+        "global"
       ],
       "additionalProperties": false
     },
@@ -392,7 +391,7 @@
   },
   {
     "name": "publishDocument",
-    "description": "Makes the current draft of one document or global public. A draft with publish blockers is refused, so call validateDocument first. Publishing validates one locale only, normally the default, so a required field left empty in another locale goes live empty. Run validateDocument for each locale. There is no unpublish. A person takes content offline in the admin panel.",
+    "description": "Makes the current draft of one document or global public, in every locale or only in \"locale\". A scoped publish keeps the other locales of localized fields as last published, and a never-published document goes live in full. A draft with publish blockers is refused, so call validateDocument first. Payload checks only the published locale, so \"otherLocaleBlockers\" lists what other locales still lack. There is no unpublish.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -401,6 +400,13 @@
           "type": "string",
           "enum": [
             "site-settings"
+          ]
+        },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "de"
           ]
         },
         "expectedUpdatedAt": {
