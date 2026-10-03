@@ -2,10 +2,12 @@ import { APIError, Forbidden, NotFound } from "payload";
 
 import { slugsFor } from "./shared.js";
 import { errorResult } from "../result.js";
+import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 import type { Operation } from "./shared.js";
 import type { DocumentId, DocumentRef, ResolvedEntity } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
+import type { PublishBlocker } from "../write/publish-blockers.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { TypedLocale } from "payload";
 
@@ -173,4 +175,46 @@ export const readDraft = async (
 		...shared,
 		slug: args.target.slug,
 	});
+};
+
+/**
+ * {@link collectPublishBlockers} over the draft of each locale, with every
+ * blocker tagged by its locale. A blocker on a non-localized field appears once
+ * per locale, because it blocks each of them. Locales run one after another:
+ * hooks share `req`, and each read sets its locale on it, so the request's
+ * locale is restored afterwards. `unavailable` is set when any locale could not
+ * be checked.
+ */
+export const collectLocaleBlockers = async (
+	scope: McpxToolScope,
+	target: DocumentRef,
+	locales: readonly string[],
+): Promise<{ blockers: PublishBlocker[]; unavailable?: true }> => {
+	const { req } = scope;
+	const requestLocale = req.locale;
+	const blockers: PublishBlocker[] = [];
+	let unavailable = false;
+
+	for (const locale of locales) {
+		try {
+			// eslint-disable-next-line no-await-in-loop
+			const doc = await readDraft(scope, { target, locale, privileged: true });
+			// eslint-disable-next-line no-await-in-loop
+			const result = await collectPublishBlockers(req, { doc, entity: target });
+
+			unavailable ||= result.unavailable === true;
+			blockers.push(...result.blockers.map((entry) => ({ ...entry, locale })));
+		} catch (error) {
+			req.payload.logger.warn(
+				`[payloadcms-mcpx] Could not read the ${target.slug} draft in ${locale}: ${error instanceof Error ? error.message : "unknown error"}`,
+			);
+			unavailable = true;
+		}
+	}
+
+	if (requestLocale !== undefined) {
+		req.locale = requestLocale;
+	}
+
+	return { blockers, ...(unavailable ? { unavailable: true as const } : {}) };
 };

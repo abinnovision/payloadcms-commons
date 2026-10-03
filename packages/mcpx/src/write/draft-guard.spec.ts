@@ -167,9 +167,8 @@ describe("forceDraftWrite on a marked publish", () => {
 		});
 		expect(args["data"]).not.toHaveProperty("deletedAt");
 
-		for (const key of ["where", "publishSpecificLocale"]) {
-			expect(args).not.toHaveProperty(key);
-		}
+		expect(args).not.toHaveProperty("where");
+		expect(args).toMatchObject({ publishSpecificLocale: "de" });
 	});
 
 	it("carries the marker on, because the alarm still needs it", () => {
@@ -270,9 +269,10 @@ describe("forceDraftWriteGlobal", () => {
 		expect(globalOperationArgumentsFor(args, "read")).toBe(args);
 	});
 
-	it("forces the write into a draft save", () => {
+	it("strips the status from a draft save", () => {
 		const next = globalOperationArgumentsFor({
 			data: { _status: "published", title: "Home" },
+			draft: true,
 			slug: "site-settings",
 		});
 
@@ -280,9 +280,23 @@ describe("forceDraftWriteGlobal", () => {
 		expect(next["data"]).toEqual({ title: "Home" });
 	});
 
+	it.each([false, undefined])(
+		"refuses a write that is not a draft save (draft: %s)",
+		(draft) => {
+			expect(() =>
+				globalOperationArgumentsFor({
+					data: { title: "Home" },
+					draft,
+					slug: "site-settings",
+				}),
+			).toThrow(/may only write drafts/);
+		},
+	);
+
 	it("strips every publish vector updateGlobal accepts", () => {
 		const next = globalOperationArgumentsFor({
 			data: { title: "Home" },
+			draft: true,
 			publishAllLocales: true,
 			publishSpecificLocale: "de",
 			slug: "site-settings",
@@ -297,6 +311,7 @@ describe("forceDraftWriteGlobal", () => {
 	it("keeps the slug, so the operation still knows what it updates", () => {
 		const next = globalOperationArgumentsFor({
 			data: { title: "Home" },
+			draft: true,
 			slug: "site-settings",
 		});
 

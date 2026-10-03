@@ -1,18 +1,19 @@
 import { z } from "zod";
 
 import {
+	collectLocaleBlockers,
 	identityOf,
 	readDraft,
 	resolveDocument,
 	staleReadResult,
 } from "./document.js";
-import { idShape, localeOf, entityShape } from "./shared.js";
+import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { withPublishIntent } from "../write/publish-intent.js";
 import { withTransaction } from "../write/transaction.js";
 
-const DESCRIPTION = `Makes the current draft of one document or global public. A draft with publish blockers is refused, so call validateDocument first. Publishing validates one locale only, normally the default, so a required field left empty in another locale goes live empty. Run validateDocument for each locale. There is no unpublish. A person takes content offline in the admin panel.`;
+const DESCRIPTION = `Makes the current draft of one document or global public, in every locale or only in "locale". A scoped publish keeps the other locales of localized fields as last published, and a never-published document goes live in full. A draft with publish blockers is refused, so call validateDocument first. Payload checks only the published locale, so "otherLocaleBlockers" lists what other locales still lack. There is no unpublish.`;
 
 /**
  * Publishes a draft. Available where the config exposes `publish` on an entity
@@ -27,6 +28,7 @@ export const publishDocument = defineMcpxTool({
 	inputSchema: (scope) => ({
 		...entityShape(scope, "publish"),
 		...idShape(scope, "publish"),
+		...localeShape(scope, { required: false }),
 		expectedUpdatedAt: z
 			.string()
 			.optional()
@@ -42,7 +44,8 @@ export const publishDocument = defineMcpxTool({
 		 * preceding patchDocument leaves its locale on the shared request, and an
 		 * argument-free publish would otherwise inherit it.
 		 */
-		const locale = localeOf(scope, undefined);
+		const locale = localeOf(scope, args.locale);
+		const { localization } = scope;
 
 		return await withTransaction(scope.req, async () => {
 			const doc = await readDraft(scope, { target, locale });
@@ -69,6 +72,9 @@ export const publishDocument = defineMcpxTool({
 				overrideAccess: false,
 				req: scope.req,
 				...(locale === undefined ? {} : { locale }),
+				...(args.locale === undefined
+					? {}
+					: { publishSpecificLocale: args.locale }),
 			};
 
 			if (target.kind === "collection") {
@@ -87,10 +93,24 @@ export const publishDocument = defineMcpxTool({
 				privileged: true,
 			});
 
+			/*
+			 * Advisory: the publish has landed, so a blocker elsewhere is reported
+			 * and never turns it into a failure.
+			 */
+			const others = await collectLocaleBlockers(
+				scope,
+				target,
+				localization?.locales.filter((entry) => entry !== locale) ?? [],
+			);
+
 			return jsonResult({
 				...identityOf(target, saved["id"]),
 				status: saved["_status"],
 				updatedAt: saved["updatedAt"],
+				...(others.blockers.length > 0
+					? { otherLocaleBlockers: others.blockers }
+					: {}),
+				...(others.unavailable ? { otherLocaleBlockersUnavailable: true } : {}),
 			});
 		});
 	},

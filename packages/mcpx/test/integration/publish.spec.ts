@@ -230,6 +230,109 @@ describe("publishDocument", () => {
 		expect(german).toMatchObject({ title: "Deutsch" });
 	});
 
+	it("lists the blockers of the other locales and still publishes", async () => {
+		const id = await createPage(completePage("Alpha"));
+		const published = await publisher.call("publishDocument", {
+			collection: "pages",
+			id,
+		});
+
+		expect(published.isError).toBe(false);
+		expect(published.data).toMatchObject({
+			status: "published",
+			otherLocaleBlockers: [{ locale: "de", path: "/title" }],
+		});
+		expect(await readPage(id, false)).toMatchObject({ _status: "published" });
+	});
+
+	it("publishes one locale and keeps the other locales as published", async () => {
+		const id = await createPage(completePage("Beta"));
+
+		await publisher.call("publishDocument", { collection: "pages", id });
+
+		for (const [locale, patches] of [
+			[
+				"en",
+				[
+					{ op: "replace", path: "/title", value: "Beta changed" },
+					{ op: "replace", path: "/slug", value: "changed" },
+				],
+			],
+			["de", [{ op: "replace", path: "/title", value: "Beta DE" }]],
+		] as const) {
+			await publisher.call("patchDocument", {
+				collection: "pages",
+				id,
+				locale,
+				patches,
+			});
+		}
+
+		const published = await publisher.call("publishDocument", {
+			collection: "pages",
+			id,
+			locale: "de",
+		});
+
+		expect(published.isError).toBe(false);
+
+		const live = (locale: string) =>
+			booted.payload.findByID({
+				collection: "pages",
+				id,
+				draft: false,
+				locale,
+				fallbackLocale: false,
+				overrideAccess: true,
+			});
+
+		// Non-localized fields go live from the draft, whichever locale is scoped.
+		expect(await live("de")).toMatchObject({ title: "Beta DE" });
+		expect(await live("en")).toMatchObject({ title: "Beta", slug: "changed" });
+	});
+
+	it("publishes one locale of a global and keeps the other locales as published", async () => {
+		const patch = async (locale: string, title: string, tagline?: string) =>
+			await publisher.call("patchDocument", {
+				global: "site-settings",
+				locale,
+				patches: [
+					{ op: "replace", path: "/title", value: title },
+					...(tagline === undefined
+						? []
+						: [{ op: "replace", path: "/tagline", value: tagline }]),
+				],
+			});
+
+		await patch("en", "Scoped A", "Tagline A");
+		await patch("de", "Scoped A de");
+		await publisher.call("publishDocument", { global: "site-settings" });
+		await patch("en", "Scoped B", "Tagline B");
+		await patch("de", "Scoped B de");
+
+		const published = await publisher.call("publishDocument", {
+			global: "site-settings",
+			locale: "de",
+		});
+
+		expect(published.isError).toBe(false);
+
+		const live = (locale: string) =>
+			booted.payload.findGlobal({
+				slug: "site-settings",
+				draft: false,
+				locale,
+				fallbackLocale: false,
+				overrideAccess: true,
+			});
+
+		expect(await live("de")).toMatchObject({ title: "Scoped B de" });
+		expect(await live("en")).toMatchObject({
+			title: "Scoped A",
+			tagline: "Tagline B",
+		});
+	});
+
 	it("refuses a document that would not validate, and leaves it a draft", async () => {
 		const id = await createPage({ title: "Incomplete" });
 		const before = await storedPages();
@@ -282,7 +385,7 @@ describe("publishDocument", () => {
 
 		/*
 		 * A global cannot be corrected, because updateGlobal reads `draft` before
-		 * the hook runs, so the alarm is what stops it and it throws.
+		 * the hook runs, so the guard throws instead.
 		 */
 		const settingsBefore = await storedState(booted.payload, {
 			globals: ["site-settings"],

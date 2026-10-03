@@ -14,11 +14,13 @@ import type {
 	PayloadRequest,
 } from "payload";
 
-// Cleared on every MCP write, publishes included, so a caller cannot supply them.
+/*
+ * Cleared on every MCP write, publishes included, so a caller cannot supply
+ * them. `publishSpecificLocale` is cleared except on a marked publish.
+ */
 const STRIPPED_ARGS = new Set([
 	"where",
 	"publishAllLocales",
-	"publishSpecificLocale",
 	"unpublishAllLocales",
 	"duplicateFromID",
 	"selectedLocales",
@@ -38,7 +40,11 @@ const scrubWriteArgs = (
 	publishing: boolean,
 ): Record<string, unknown> => {
 	const next = Object.fromEntries(
-		Object.entries(args).filter(([key]) => !STRIPPED_ARGS.has(key)),
+		Object.entries(args).filter(
+			([key]) =>
+				!STRIPPED_ARGS.has(key) &&
+				(publishing || key !== "publishSpecificLocale"),
+		),
 	);
 
 	if (next["data"] && typeof next["data"] === "object") {
@@ -83,9 +89,10 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
  * The global counterpart of {@link forceDraftWrite}. `updateGlobal` destructures
  * `draft` and the publish arguments before it runs `beforeOperation` and
  * re-reads only `data` afterwards, so setting them here has no effect. Only
- * `data` with `_status` stripped lands, so {@link refusePublishGlobal} is what
- * enforces the guard. `publishDocument` therefore passes `draft: false` at the
- * call site, and this hook restores `_status` instead of stripping it.
+ * `data` with `_status` stripped lands, so a write that did not ask for a draft
+ * is refused here and {@link refusePublishGlobal} checks the status. `publishDocument`
+ * therefore passes `draft: false` at the call site, and this hook restores
+ * `_status` instead of stripping it.
  */
 export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 	const { operation, req } = hookArgs;
@@ -95,7 +102,21 @@ export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 		return args;
 	}
 
-	return scrubWriteArgs(args, hasPublishIntent(args["data"]));
+	const publishing = hasPublishIntent(args["data"]);
+
+	/*
+	 * A save that is not a draft save writes the main table, which holds the
+	 * live content once a locale was published on its own: the `_status` check
+	 * in {@link refuseUnlessExpected} cannot tell that write from a draft.
+	 */
+	if (!publishing && args["draft"] !== true) {
+		throw new APIError(
+			"MCP clients may only write drafts. This write was refused because it would not have been saved as one. Use publishDocument to publish.",
+			403,
+		);
+	}
+
+	return scrubWriteArgs(args, publishing);
 };
 
 /*

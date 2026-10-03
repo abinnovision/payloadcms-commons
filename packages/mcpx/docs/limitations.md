@@ -18,11 +18,14 @@
 
 `publishDocument` publishes every locale, but Payload validates only the locale the publish runs
 in. A required field left empty in another locale goes live empty. The admin Publish button
-behaves the same way.
+behaves the same way. The publish does not refuse for this. `validateDocument` without `locale`
+shows the blockers of every locale beforehand, and the publish result lists them as
+`otherLocaleBlockers`.
 
-The publish-blocker check validates only the locale that was written. It also runs the fields'
-`beforeValidate` and `beforeChange` hooks a second time, so a hook with side effects fires twice
-per write and once per `validateDocument` call. Keep side effects out of those hooks.
+The publish-blocker check after a write validates only the locale that was written. It also runs
+the fields' `beforeValidate` and `beforeChange` hooks a second time, so a hook with side effects
+fires twice per write and once per locale per `validateDocument` call. Keep side effects out of
+those hooks.
 
 `expectedUpdatedAt` is checked before the write, inside a transaction, but the read does not lock
 the row. A change landing between the check and the write is not detected.

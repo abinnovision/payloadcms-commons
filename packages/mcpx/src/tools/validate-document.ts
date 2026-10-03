@@ -1,10 +1,15 @@
-import { identityOf, readDraft, resolveDocument } from "./document.js";
+import {
+	collectLocaleBlockers,
+	identityOf,
+	readDraft,
+	resolveDocument,
+} from "./document.js";
 import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
-const DESCRIPTION = `Lists what still blocks publishing one document or global, without saving. Returns "publishBlockers", each with a pointer and a message. An empty list means it can be published, unless "publishBlockersUnavailable" is true: then the check itself failed. The check runs the field hooks a save runs.`;
+const DESCRIPTION = `Lists what still blocks publishing one document or global, without saving. Checks one locale when "locale" is given, otherwise every locale. Returns "publishBlockers", each with a pointer and a message, and a "locale" when every locale was checked. An empty list means it can be published, unless "publishBlockersUnavailable" is true: then the check itself failed. The check runs the field hooks a save runs.`;
 
 /**
  * Gated on write rather than read, because publish blockers only mean something
@@ -24,10 +29,11 @@ export const validateDocument = defineMcpxTool({
 	inputSchema: (scope) => ({
 		...entityShape(scope, "write"),
 		...idShape(scope, "write"),
-		...localeShape(scope, { required: true }),
+		...localeShape(scope, { required: false }),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "write");
+		const { localization } = scope;
 		const locale = localeOf(scope, args.locale);
 
 		// The first read checks the key's access; the second sees every field.
@@ -39,10 +45,10 @@ export const validateDocument = defineMcpxTool({
 			privileged: true,
 		});
 
-		const validation = await collectPublishBlockers(scope.req, {
-			doc,
-			entity: target,
-		});
+		const validation =
+			localization && args.locale === undefined
+				? await collectLocaleBlockers(scope, target, localization.locales)
+				: await collectPublishBlockers(scope.req, { doc, entity: target });
 
 		return jsonResult({
 			...identityOf(target, doc["id"]),

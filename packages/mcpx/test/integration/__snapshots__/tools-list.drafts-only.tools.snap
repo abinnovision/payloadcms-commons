@@ -501,7 +501,7 @@
   },
   {
     "name": "validateDocument",
-    "description": "Lists what still blocks publishing one document or global, without saving. Returns \"publishBlockers\", each with a pointer and a message. An empty list means it can be published, unless \"publishBlockersUnavailable\" is true: then the check itself failed. The check runs the field hooks a save runs.",
+    "description": "Lists what still blocks publishing one document or global, without saving. Checks one locale when \"locale\" is given, otherwise every locale. Returns \"publishBlockers\", each with a pointer and a message, and a \"locale\" when every locale was checked. An empty list means it can be published, unless \"publishBlockersUnavailable\" is true: then the check itself failed. The check runs the field hooks a save runs.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -528,8 +528,7 @@
       },
       "required": [
         "collection",
-        "id",
-        "locale"
+        "id"
       ],
       "additionalProperties": false
     },

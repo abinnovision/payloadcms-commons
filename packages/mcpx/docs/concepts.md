@@ -17,8 +17,8 @@ the same.
 | `findVersions`     | `collection` + `id` or `global`, `limit?`, `page?`, `status?`, `locale?`                                       |
 | `patchDocument`    | `collection` + `id` or `global`, `locale`, `patches`, `expectedUpdatedAt?`                                     |
 | `createDocument`   | `collection`, `locale`, `data`                                                                                 |
-| `validateDocument` | `collection` + `id` or `global`, `locale`                                                                      |
-| `publishDocument`  | `collection` + `id` or `global`, `expectedUpdatedAt?`                                                          |
+| `validateDocument` | `collection` + `id` or `global`, `locale?`                                                                     |
+| `publishDocument`  | `collection` + `id` or `global`, `locale?`, `expectedUpdatedAt?`                                               |
 
 `locale` is only present when the config has localization. `depth` defaults to 0 and is capped
 by `limits.maxDepth`; `limit` defaults to 10 and is capped by `limits.maxLimit`. `draft` defaults
@@ -195,11 +195,17 @@ A draft guard enforces this on the Payload operation rather than in the tools, s
 that pass the MCP `req` are covered too. [security.md](./security.md#the-draft-guard) describes it
 and lists what it does not cover.
 
-`publishDocument` is the one way to publish. It publishes the whole document, as the admin
-Publish button does, and is refused when the document fails validation. Payload validates only
-the locale the publish runs in; see [limitations.md](./limitations.md#known-gaps). Publishing an
-unchanged document is accepted and writes another version. There is no unpublish tool; reverting a
-published document to a draft is done in the admin panel.
+`publishDocument` is the one way to publish. It publishes every locale, as the admin Publish
+button does, and is refused when the document fails validation. Payload validates only the locale
+the publish runs in, so a required field left empty in another locale goes live empty; see
+[limitations.md](./limitations.md#known-gaps). After the publish, the result lists those fields as
+`otherLocaleBlockers`, for information only. Publishing an unchanged document is accepted and
+writes another version. There is no unpublish tool; reverting a published document to a draft is
+done in the admin panel.
+
+With `locale`, only that locale is published. The other locales of localized fields stay at their
+last published state, while non-localized fields go live from the draft. A document that was never
+published goes live in every locale regardless.
 
 While someone has a collection document open in the admin panel, every MCP write to it is
 refused, publishing included. Globals are not checked; see
@@ -211,9 +217,10 @@ as `publishBlockers`. The write stands, and the client gets a list of what remai
 `versions.drafts.validate` is set, Payload refuses an invalid draft and the failures come back as
 `validationErrors`. Both use JSON Pointers.
 
-The blocker check validates only the written locale and runs the fields' hooks again; see
-[limitations.md](./limitations.md#known-gaps). `validateDocument` runs the same check without
-saving; because the hooks run, it carries no `readOnlyHint`.
+The blocker check after a write validates only the written locale and runs the fields' hooks
+again; see [limitations.md](./limitations.md#known-gaps). `validateDocument` runs the same check
+without saving. With `locale` it checks that locale; without it, every configured locale, and each
+blocker carries its `locale`. Because the hooks run, it carries no `readOnlyHint`.
 
 ## Versions and diffs
 
