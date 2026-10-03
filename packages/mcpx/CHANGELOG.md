@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.0.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v1.0.0...payloadcms-mcpx-v2.0.0) (2026-10-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcpx:** expose version history wherever read is granted ([#89](https://github.com/abinnovision/payloadcms-commons/issues/89))
+* **mcpx:** clean up, harden and simplify the plugin for 2.0 ([#83](https://github.com/abinnovision/payloadcms-commons/issues/83))
+
+### Features
+
+* **mcpx:** add key expiry and per-locale validation and publishing ([#92](https://github.com/abinnovision/payloadcms-commons/issues/92)) ([c926352](https://github.com/abinnovision/payloadcms-commons/commit/c926352a10ed910f5c76a62ea20a739fd50a7504))
+* **mcpx:** clean up, harden and simplify the plugin for 2.0 ([#83](https://github.com/abinnovision/payloadcms-commons/issues/83)) ([7d29edf](https://github.com/abinnovision/payloadcms-commons/commit/7d29edf9bcacf8bba85d8525274530c8416a5cce))
+* **mcpx:** expose diagnostics for bug reports ([#94](https://github.com/abinnovision/payloadcms-commons/issues/94)) ([6d171a1](https://github.com/abinnovision/payloadcms-commons/commit/6d171a18a54cef013ea051fb8e4b798860d8fb90))
+* **mcpx:** expose version history and diffs ([#82](https://github.com/abinnovision/payloadcms-commons/issues/82)) ([44c2eb5](https://github.com/abinnovision/payloadcms-commons/commit/44c2eb5b75a2387b6797b320632052289ddeffb9))
+* **mcpx:** expose version history wherever read is granted ([#89](https://github.com/abinnovision/payloadcms-commons/issues/89)) ([281f6b0](https://github.com/abinnovision/payloadcms-commons/commit/281f6b01ce82b69c41d69bbd0b820cd2d589c656))
+* **mcpx:** render API key capabilities as a permission matrix ([#67](https://github.com/abinnovision/payloadcms-commons/issues/67)) ([fce9644](https://github.com/abinnovision/payloadcms-commons/commit/fce96445007b7bee1dfa463acfd6a388df151e60))
+* **mcpx:** upload and download files through single-use grants ([#96](https://github.com/abinnovision/payloadcms-commons/issues/96)) ([761fa66](https://github.com/abinnovision/payloadcms-commons/commit/761fa665949501a7a48eadab3ccaa6e115bca47d))
+
+
+### Bug Fixes
+
+* **deps:** align @payloadcms/ui with payload 3.89.0 ([#70](https://github.com/abinnovision/payloadcms-commons/issues/70)) ([7f083e3](https://github.com/abinnovision/payloadcms-commons/commit/7f083e3e040ffa99cd66347965c3a492c46e7f12))
+* **deps:** bump the production-dependencies group across 1 directory with 6 updates ([#86](https://github.com/abinnovision/payloadcms-commons/issues/86)) ([57d002c](https://github.com/abinnovision/payloadcms-commons/commit/57d002c693b74da431e24c8e789ee2eb5c7e416e))
+* **deps:** bump the production-dependencies group with 10 updates ([#68](https://github.com/abinnovision/payloadcms-commons/issues/68)) ([786b528](https://github.com/abinnovision/payloadcms-commons/commit/786b528e7929376c5e6ea570d94d58bb0b4298cc))
+* **deps:** bump the production-dependencies group with 2 updates ([#49](https://github.com/abinnovision/payloadcms-commons/issues/49)) ([8f079ec](https://github.com/abinnovision/payloadcms-commons/commit/8f079ecfc3b675318b4501a6b0073d8f3f2f36b5))
+* **deps:** keep @payloadcms/ui aligned with the rest of the Payload family ([#61](https://github.com/abinnovision/payloadcms-commons/issues/61)) ([e77c0b9](https://github.com/abinnovision/payloadcms-commons/commit/e77c0b94fcb696e2e9165d76b33945bf98d5a4ba))
+
 ## 1.0.0 (2026-09-03)
 
 
