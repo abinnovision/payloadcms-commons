@@ -1,6 +1,6 @@
 # @abinnovision/payloadcms-mcpx
 
-![A content model of any size funnels through nine fixed tools out to one client](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/mcpx/assets/header.png)
+![A content model of any size funnels through a fixed set of tools out to one client](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/mcpx/assets/header.png)
 
 A [Payload CMS](https://payloadcms.com/) plugin that serves an MCP (Model Context Protocol) server
 on one `POST` endpoint. Clients authenticate with API keys that users create in the admin panel.
