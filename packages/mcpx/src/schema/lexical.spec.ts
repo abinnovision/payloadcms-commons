@@ -229,6 +229,15 @@ const rejected = (constraint: unknown): unknown => {
 const stateOf = (type: string, sample: unknown) =>
 	state([SAMPLES[type]?.wrap?.(sample) ?? sample]);
 
+/*
+ * Required for the older Lexical in the supported Payload range: Lexical 0.50
+ * renumbers list items and forces a tab's text, while 0.41 reads both back.
+ */
+const KEPT_FOR_OLDER_LEXICAL: Readonly<Record<string, readonly string[]>> = {
+	listitem: ["value"],
+	tab: ["text"],
+};
+
 describe("the required node properties table", () => {
 	it("covers every node type it claims with a sample", () => {
 		expect(Object.keys(SAMPLES).sort()).toEqual(
@@ -260,20 +269,20 @@ describe("the required node properties table", () => {
 			});
 
 			const required = REQUIRED_NODE_PROPERTIES[type] ?? {};
-
-			it.each(Object.keys(required))(
-				'is not the same node without "%s"',
-				(property) => {
-					const complete = baseline();
-					const result = without(property);
-
-					expect(
-						result.error === undefined && stable(result.exported) === complete,
-					).toBe(false);
-				},
+			const measured = Object.keys(required).filter(
+				(property) => !KEPT_FOR_OLDER_LEXICAL[type]?.includes(property),
 			);
 
-			it.each(Object.keys(required))(
+			it.each(measured)('is not the same node without "%s"', (property) => {
+				const complete = baseline();
+				const result = without(property);
+
+				expect(
+					result.error === undefined && stable(result.exported) === complete,
+				).toBe(false);
+			});
+
+			it.each(measured)(
 				'is not the same node with the wrong "%s"',
 				(property) => {
 					const complete = baseline();
