@@ -68,7 +68,6 @@ const KEYS: Record<string, KeyCapabilities> = {
 	"no-versions": {
 		collections: {
 			tags: { read: true, write: true },
-			notes: { read: true, write: true, publish: true },
 		},
 		globals: { banner: { read: true, write: true } },
 	},
@@ -126,15 +125,15 @@ describe("tools/list and initialize", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { versions: true },
+					pages: true,
 					posts: { publish: false },
 					tags: true,
 					notes: true,
-					snippets: { versions: true },
+					snippets: true,
 					media: true,
 				},
 				globals: {
-					"site-settings": { versions: true },
+					"site-settings": true,
 					banner: true,
 				},
 				tools: [],

@@ -44,8 +44,8 @@ const statusShape = (scope: McpxToolScope): StatusShape => {
 /**
  * Bodies are left out so a long history stays small; `getDocument` reads one
  * when it is needed. The document's `read` access is checked first, then
- * Payload's `readVersions`. Only entities with `versions: true` in the plugin
- * options are reachable.
+ * Payload's `readVersions`. Only entities that keep Payload versions are
+ * reachable.
  */
 export const findVersions = defineMcpxTool({
 	name: "findVersions",

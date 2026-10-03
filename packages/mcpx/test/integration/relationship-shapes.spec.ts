@@ -55,8 +55,8 @@ describe("relationships across field shapes", () => {
 			collections: [articles, dispatches, remarks],
 			plugin: {
 				collections: {
-					articles: { write: false, versions: true },
-					dispatches: { write: false, versions: true },
+					articles: { write: false },
+					dispatches: { write: false },
 				},
 				limits: { maxDepth: 2 },
 			},

@@ -26,8 +26,7 @@
         "collection": {
           "type": "string",
           "enum": [
-            "tags",
-            "notes"
+            "tags"
           ]
         },
         "global": {
@@ -70,8 +69,7 @@
         "collection": {
           "type": "string",
           "enum": [
-            "tags",
-            "notes"
+            "tags"
           ]
         },
         "where": {
@@ -146,8 +144,7 @@
         "collection": {
           "type": "string",
           "enum": [
-            "tags",
-            "notes"
+            "tags"
           ]
         },
         "global": {
@@ -211,8 +208,7 @@
         "collection": {
           "type": "string",
           "enum": [
-            "tags",
-            "notes"
+            "tags"
           ]
         },
         "global": {
@@ -400,8 +396,7 @@
         "collection": {
           "type": "string",
           "enum": [
-            "tags",
-            "notes"
+            "tags"
           ]
         },
         "locale": {
@@ -448,8 +443,7 @@
         "collection": {
           "type": "string",
           "enum": [
-            "tags",
-            "notes"
+            "tags"
           ]
         },
         "global": {
@@ -479,44 +473,6 @@
       "additionalProperties": false
     },
     "annotations": {
-      "openWorldHint": false
-    },
-    "execution": {
-      "taskSupport": "forbidden"
-    }
-  },
-  {
-    "name": "publishDocument",
-    "description": "Makes the current draft of one document or global public. A draft with publish blockers is refused, so call validateDocument first. Publishing validates one locale only, normally the default, so a required field left empty in another locale goes live empty. Run validateDocument for each locale. There is no unpublish. A person takes content offline in the admin panel.",
-    "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": "string",
-          "enum": [
-            "notes"
-          ]
-        },
-        "id": {
-          "type": [
-            "string",
-            "number"
-          ]
-        },
-        "expectedUpdatedAt": {
-          "description": "\"updatedAt\" from your last read. Refused if the document changed since.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "collection",
-        "id"
-      ],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "destructiveHint": true,
       "openWorldHint": false
     },
     "execution": {

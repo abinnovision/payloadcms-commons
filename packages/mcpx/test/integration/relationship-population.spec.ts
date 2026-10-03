@@ -34,7 +34,7 @@ describe("relationships into the user collection", () => {
 			key: CACHE_KEY,
 			users: apiKeyUsers,
 			collections: [articles],
-			plugin: { collections: { articles: { write: false, versions: true } } },
+			plugin: { collections: { articles: { write: false } } },
 		});
 
 		const { payload } = booted;

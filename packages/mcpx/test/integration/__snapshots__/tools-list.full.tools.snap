@@ -240,7 +240,10 @@
           "type": "string",
           "enum": [
             "pages",
-            "snippets"
+            "posts",
+            "notes",
+            "snippets",
+            "media"
           ]
         },
         "global": {

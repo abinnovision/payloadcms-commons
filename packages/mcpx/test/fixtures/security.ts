@@ -123,9 +123,6 @@ const bulletinCollection = (
 /** `readVersions` keeps Payload's default, which lets any logged-in user in. */
 export const bulletins = bulletinCollection("bulletins");
 
-/** The same as `bulletins`, for a spec that opts in to version history. */
-export const openBulletins = bulletinCollection("open-bulletins");
-
 /** `readVersions` applies the read filter to the version's own fields. */
 export const guardedBulletins = bulletinCollection("guarded-bulletins", () => ({
 	"version.visibility": { equals: "public" },

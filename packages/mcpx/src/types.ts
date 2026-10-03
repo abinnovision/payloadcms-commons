@@ -57,13 +57,6 @@ export interface McpxCollectionOptions {
 	 * `false` keeps writes as drafts and is refused where there are none.
 	 */
 	publish?: boolean;
-	/**
-	 * Expose `findVersions` and the `versionId` and `diffFrom` arguments of
-	 * `getDocument` to keys that may read the entity. Default `false`: version
-	 * history has no checkbox of its own and follows the key's read, so the
-	 * config opts in. `true` needs Payload `versions` and `read`.
-	 */
-	versions?: boolean;
 }
 
 /** The same options. A singleton, so neither `findDocuments` nor `createDocument` reaches one. */
@@ -81,8 +74,8 @@ export interface McpxExposedEntity {
 	write: McpxWriteMode;
 	hasDrafts: boolean;
 	/**
-	 * Payload keeps a version history, with or without drafts, and the config
-	 * exposes it. Says nothing about drafts; see `hasDrafts`.
+	 * The entity has Payload `versions`, with or without drafts, and is
+	 * readable. Says nothing about drafts; see `hasDrafts`.
 	 */
 	hasVersions: boolean;
 	/** An upload document is a file, and no tool here can supply one. */

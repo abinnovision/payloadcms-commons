@@ -29,7 +29,7 @@ describe("capabilities", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { publish: false, versions: true },
+					pages: { publish: false },
 					posts: { publish: false },
 					tags: { write: false },
 				},

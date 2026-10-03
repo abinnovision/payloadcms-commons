@@ -59,13 +59,13 @@ describe("tool responses", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { versions: true },
-					posts: { publish: false, versions: true },
+					pages: true,
+					posts: { publish: false },
 					tags: true,
-					notes: { versions: true },
+					notes: true,
 				},
 				globals: {
-					"site-settings": { versions: true },
+					"site-settings": true,
 				},
 				tools: [],
 			},
