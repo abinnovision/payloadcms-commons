@@ -1,6 +1,6 @@
 # @abinnovision/payloadcms-mcpx
 
-![A content model of any size funnels through nine fixed tools out to one client](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/mcpx/assets/header.png)
+![A content model of any size funnels through a fixed set of tools out to one client](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/mcpx/assets/header.png)
 
 A [Payload CMS](https://payloadcms.com/) plugin that serves an MCP (Model Context Protocol) server
 on one `POST` endpoint. Clients authenticate with API keys that users create in the admin panel.
@@ -103,6 +103,7 @@ Claude Desktop and the MCP Inspector are covered in
 | `tools`                      | `[]`                                      | Custom tools, see [`docs/custom-tools.md`](./docs/custom-tools.md). |
 | `auth.resolve`               | none                                      | Replace or wrap the key lookup.                                     |
 | `serverInfo`                 | `payloadcms-mcpx` and the package version | `{ name, version }` reported to clients.                            |
+| `diagnostics`                | `true`                                    | Expose the server version plus repository and issue links.          |
 
 The config only takes capabilities away: `true` exposes everything the entity supports, and a key's
 checkboxes decide what each key may do. `publish: false` keeps MCP writes as drafts. On an entity

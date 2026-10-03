@@ -79,6 +79,9 @@ export const buildScope = (
 		uploads:
 			options.auth?.resolve === undefined &&
 			uploadKvSlug(req.payload.config) !== undefined,
+		diagnostics: options.diagnostics
+			? { name: options.serverInfo.name, version: options.serverInfo.version }
+			: null,
 		exposure: { collections: options.collections, globals: options.globals },
 	};
 };

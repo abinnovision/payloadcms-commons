@@ -5,6 +5,7 @@ import { toToolError } from "./errors.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 import { liveWriteSlugs } from "../tools/shared.js";
 import { fileSlugs } from "../upload/file.js";
+import { MCPX_REPOSITORY_URL } from "../version.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAnyTool, McpxToolExtra, McpxToolScope } from "../types.js";
@@ -136,7 +137,11 @@ export const createMcpServer = (
 	let queue: Promise<unknown> = Promise.resolve();
 
 	const server = new McpServer(
-		{ name: options.serverInfo.name, version: options.serverInfo.version },
+		{
+			name: options.serverInfo.name,
+			version: options.serverInfo.version,
+			...(options.diagnostics ? { websiteUrl: MCPX_REPOSITORY_URL } : {}),
+		},
 		{
 			instructions: serverInstructions(scope),
 		},

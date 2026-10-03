@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { isToolEnabled, toolInputSchema } from "./server.js";
+import { createMcpServer, isToolEnabled, toolInputSchema } from "./server.js";
 import { scopeFor } from "../../test/builders/scope.js";
 import {
 	media,
@@ -327,5 +327,25 @@ describe("builtin tool shapes with globals", () => {
 		for (const name of ["findDocuments", "createDocument"]) {
 			expect(schemaOf(mixed(), name).properties).not.toHaveProperty("global");
 		}
+	});
+});
+
+describe("server info", () => {
+	const websiteUrlOf = (diagnostics: boolean): string | undefined => {
+		const opts = { ...options, diagnostics };
+		const server = createMcpServer(scopeFor(opts, FULL_KEY, config), opts);
+
+		// The SDK keeps no public accessor for its own server info.
+		return (
+			server.server as unknown as { _serverInfo: { websiteUrl?: string } }
+		)._serverInfo.websiteUrl;
+	};
+
+	it("links the repository when diagnostics are on", () => {
+		expect(websiteUrlOf(true)).toMatch(/payloadcms-commons/);
+	});
+
+	it("leaves the link out when diagnostics are off", () => {
+		expect(websiteUrlOf(false)).toBeUndefined();
 	});
 });

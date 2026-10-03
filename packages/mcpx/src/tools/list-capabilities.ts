@@ -4,11 +4,14 @@ import { slugsFor } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { translateStatic, translatorFor } from "../i18n.js";
 import { jsonResult } from "../result.js";
+import { MCPX_ISSUES_URL, MCPX_REPOSITORY_URL } from "../version.js";
 
 import type { McpxToolScope } from "../types.js";
 import type { LabelFunction, StaticLabel } from "payload";
 
 const DESCRIPTION = `Lists what this key may do. Call it first. Returns each collection and global the key can read or write, with whether it can create, publish, has drafts and exposes versions to findVersions, and a collection's "idType". Also returns the locales, the "limits" on page size and depth, and the enabled custom tools.`;
+
+const DIAGNOSTICS = ` Its "server" block holds the server version with repository and issue links, for a bug report.`;
 
 const translateLabel = (
 	scope: McpxToolScope,
@@ -30,7 +33,8 @@ const translateLabel = (
  */
 export const listCapabilities = defineMcpxTool({
 	name: "listCapabilities",
-	description: DESCRIPTION,
+	description: (scope) =>
+		scope.diagnostics ? `${DESCRIPTION}${DIAGNOSTICS}` : DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
 	isEnabled: () => true,
 	inputSchema: () => ({}),
@@ -124,6 +128,16 @@ export const listCapabilities = defineMcpxTool({
 			tools: Object.entries(scope.capabilities.tools)
 				.filter(([, enabled]) => enabled)
 				.map(([name]) => name),
+			...(scope.diagnostics
+				? {
+						server: {
+							name: scope.diagnostics.name,
+							version: scope.diagnostics.version,
+							repository: MCPX_REPOSITORY_URL,
+							issues: MCPX_ISSUES_URL,
+						},
+					}
+				: {}),
 		});
 	},
 });
