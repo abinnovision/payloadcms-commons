@@ -2,7 +2,7 @@
 
 ![Interchangeable building blocks, the ones a project needs composed into one Payload site](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/assets/header.png)
 
-[![CI](https://github.com/abinnovision/payloadcms-commons/actions/workflows/ci.yaml/badge.svg)](https://github.com/abinnovision/payloadcms-commons/actions/workflows/ci.yaml)
+[![Build](https://github.com/abinnovision/payloadcms-commons/actions/workflows/build.yaml/badge.svg)](https://github.com/abinnovision/payloadcms-commons/actions/workflows/build.yaml)
 
 Building blocks for production [Payload CMS](https://payloadcms.com/) sites.
 
