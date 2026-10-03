@@ -7,7 +7,10 @@ import type { CollectionConfig, SanitizedConfig } from "payload";
 
 const hidden = { hidden: true };
 
-/** A related collection whose `secret` and `url` are hidden from the admin panel. */
+/**
+ * A related collection whose `secret` and `url` are hidden from the admin
+ * panel.
+ */
 const linked: CollectionConfig = {
 	slug: "linked",
 	fields: [

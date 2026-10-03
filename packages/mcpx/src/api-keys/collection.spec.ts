@@ -12,7 +12,9 @@ import type {
 	SanitizedConfig,
 } from "payload";
 
-/** Expands the tab wrapper so assertions can stay flat. */
+/**
+ * Expands the tab wrapper so assertions can stay flat.
+ */
 const flatten = (fields: Field[]): Field[] =>
 	fields.flatMap((field) =>
 		field.type === "tabs" ? field.tabs.flatMap((tab) => tab.fields) : [field],

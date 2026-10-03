@@ -43,7 +43,9 @@ const POINTER = z.string().regex(JSON_POINTER_PATTERN);
 
 const PATCHES_LIMIT = 500;
 
-/** Discriminated on `op`, so an operation carries only its own members. */
+/**
+ * Discriminated on `op`, so an operation carries only its own members.
+ */
 export const PATCH_OPERATION_SCHEMA = z.discriminatedUnion("op", [
 	z.strictObject({ op: z.literal("add"), path: POINTER, value: z.unknown() }),
 	z.strictObject({ op: z.literal("remove"), path: POINTER }),

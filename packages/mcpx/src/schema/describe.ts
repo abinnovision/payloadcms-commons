@@ -22,12 +22,12 @@ import type { FlattenedField, SanitizedConfig } from "payload";
  */
 interface NodeDescriptor {
 	blockType?: string;
-	/** Set when the node belongs to a collection. */
 	collection?: string;
-	/** Set when the node belongs to a global. */
 	global?: string;
 	fields: FieldDescriptor[];
-	/** Ready-to-use schema paths for every block this node's fields accept. */
+	/**
+	 * Ready-to-use schema paths for every block this node's fields accept.
+	 */
 	next?: string[];
 	schemaPath: string;
 }

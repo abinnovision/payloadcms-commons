@@ -19,7 +19,9 @@ export type Operation = "create" | "publish" | "read" | "versions" | "write";
 export const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
 	z.enum(slugs as [string, ...string[]]);
 
-/** Payload's id type follows the adapter, so both forms are handed on as read. */
+/**
+ * Payload's id type follows the adapter, so both forms are handed on as read.
+ */
 export const idSchema: z.ZodType<DocumentId> = z.union([
 	z.string(),
 	z.number(),
@@ -96,7 +98,9 @@ type Branch<Full extends z.ZodRawShape> = {
 export const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
 	branch as unknown as Full;
 
-/** The one list the shape helpers and {@link resolveEntity} both read. */
+/**
+ * The one list the shape helpers and {@link resolveEntity} both read.
+ */
 export const slugsFor = (
 	scope: McpxToolScope,
 	operation: Operation,
@@ -153,7 +157,10 @@ export const draftVersionSlugs = (
 	};
 };
 
-/** Slugs reachable by `operation` whose writes go live, because they have no draft to write. */
+/**
+ * Slugs reachable by `operation` whose writes go live, because they have no
+ * draft to write.
+ */
 export const liveWriteSlugs = (
 	scope: McpxToolScope,
 	operation: "create" | "write",
@@ -176,7 +183,7 @@ export const liveWriteSentence = (
 
 /**
  * With no reachable global, `global` is left out and `collection` stays
- * required, so a deployment without globals sees an unchanged schema. Only the
+ * required, so a deployment without globals gets no extra argument. Only the
  * mixed case makes either optional, and the handler enforces exclusivity there.
  * `globalRule` states that rule on `global` for a tool without an `id`.
  */
@@ -228,7 +235,9 @@ export const idShape = (
 	});
 };
 
-/** For the reads that fall back to the default locale, unlike the writes. */
+/**
+ * For the reads that fall back to the default locale, unlike the writes.
+ */
 export const READ_LOCALE_DESCRIPTION =
 	"Default: the default locale. A value missing in this locale is shown from the default locale.";
 

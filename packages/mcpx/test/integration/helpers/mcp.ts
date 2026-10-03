@@ -11,7 +11,9 @@ interface PostArgs {
 	body?: unknown;
 	method?: string;
 	headers?: Record<string, string>;
-	/** A stream is sent chunked, without a Content-Length. */
+	/**
+	 * A stream is sent chunked, without a Content-Length.
+	 */
 	rawBody?: string | ReadableStream<Uint8Array>;
 }
 
@@ -80,7 +82,9 @@ const parseJson = (text: string | undefined): Record<string, unknown> => {
 	}
 };
 
-/** The calls a spec makes against a booted instance, as one key. */
+/**
+ * The calls a spec makes against a booted instance, as one key.
+ */
 export const createMcpClient = (booted: Booted, key?: string) => {
 	const rpc = async (
 		method: string,
@@ -106,7 +110,9 @@ export const createMcpClient = (booted: Booted, key?: string) => {
 		names: async (): Promise<string[]> =>
 			(await list()).map((tool) => tool.name),
 
-		/** The `instructions` the server reports on initialize. */
+		/**
+		 * The `instructions` the server reports on initialize.
+		 */
 		instructions: async (): Promise<string> =>
 			(
 				await rpc("initialize", {
@@ -171,11 +177,15 @@ export const createMcpClient = (booted: Booted, key?: string) => {
 
 export type McpClient = ReturnType<typeof createMcpClient>;
 
-/** Everything a call answered with, result text and JSON-RPC error alike. */
+/**
+ * Everything a call answered with, result text and JSON-RPC error alike.
+ */
 export const responseText = (result: CallResult): string =>
 	`${result.text ?? ""} ${result.rpcError?.message ?? ""}`;
 
-/** The enum of a tool's `collection` argument as published in `tools/list`. */
+/**
+ * The enum of a tool's `collection` argument as published in `tools/list`.
+ */
 export const collectionEnumOf = (tool: ListedTool | undefined): string[] => {
 	const properties = tool?.inputSchema["properties"] as
 		Record<string, { enum?: string[] }> | undefined;

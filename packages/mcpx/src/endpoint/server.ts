@@ -9,7 +9,9 @@ import type { NormalizedOptions } from "../options.js";
 import type { McpxAnyTool, McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-/** Strict, so an unknown argument is rejected by name instead of stripped. */
+/**
+ * Strict, so an unknown argument is rejected by name instead of stripped.
+ */
 export const toolInputSchema = (
 	tool: McpxAnyTool,
 	scope: McpxToolScope,
@@ -26,7 +28,9 @@ const toolDescription = (tool: McpxAnyTool, scope: McpxToolScope): string =>
 		? tool.description(scope)
 		: tool.description;
 
-/** A tool that does not decide for itself is gated by its own checkbox. */
+/**
+ * A tool that does not decide for itself is gated by its own checkbox.
+ */
 export const isToolEnabled = (
 	tool: McpxAnyTool,
 	scope: McpxToolScope,
@@ -55,7 +59,9 @@ const DRAFTS =
 
 const DRAFTS_ONLY = "Every write is saved as a draft.";
 
-/** The workflow for the tools this key has, and what its writes reach. */
+/**
+ * The workflow for the tools this key has, and what its writes reach.
+ */
 const serverInstructions = (scope: McpxToolScope): string => {
 	const enabled = new Set(
 		BUILTIN_TOOLS.filter((tool) => isToolEnabled(tool, scope)).map(

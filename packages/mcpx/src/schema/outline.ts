@@ -10,13 +10,19 @@ import type { RichTextField } from "payload";
  */
 interface LexicalOutlineEntry {
 	children?: number;
-	/** Narrowed properties actually set, e.g. { tag: "h2" }. */
+	/**
+	 * Narrowed properties actually set, e.g. { tag: "h2" }.
+	 */
 	options?: Record<string, string>;
 	pointer: string;
-	/** Concatenated descendant text, truncated. Absent where there is none. */
+	/**
+	 * Concatenated descendant text, truncated. Absent where there is none.
+	 */
 	text?: string;
 	type: string;
-	/** So an add can copy it from a sibling instead of guessing. */
+	/**
+	 * So an add can copy it from a sibling instead of guessing.
+	 */
 	version?: number;
 }
 

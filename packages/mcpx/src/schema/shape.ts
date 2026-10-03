@@ -496,7 +496,6 @@ const checkValue = (scope: ValueCheck, value: unknown): void => {
 	}
 };
 
-/** Shape problems with a value about to be written at a resolved pointer. */
 export const validateWriteValue = (
 	config: SanitizedConfig,
 	target: { pointer: string; resolution: PointerResolution },

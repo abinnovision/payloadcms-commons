@@ -73,7 +73,9 @@ const subSchemaCache = new WeakMap<
 const featuresOf = (field: RichTextField) =>
 	(field.editor as LexicalLikeEditor | undefined)?.editorConfig?.features;
 
-/** Editors other than Lexical report only the core nodes. */
+/**
+ * Editors other than Lexical report only the core nodes.
+ */
 export const allowedNodeTypes = (field: RichTextField): string[] => {
 	const registered = (featuresOf(field)?.nodes ?? []).flatMap((entry) => {
 		const type = entry.node?.getType?.();
@@ -124,7 +126,9 @@ export const lexicalSubSchema = (
 	return cached.get(nodeType) ?? undefined;
 };
 
-/** In the order their features registered them. */
+/**
+ * In the order their features registered them.
+ */
 export const subSchemaNodeTypes = (field: RichTextField): string[] =>
 	[...(featuresOf(field)?.getSubFields?.keys() ?? [])].filter(
 		(nodeType) => lexicalSubSchema(field, nodeType) !== undefined,

@@ -9,7 +9,9 @@ import type { Booted } from "./helpers/payload.js";
 
 interface Node {
 	collection: string;
-	/** Absent on an error entry and on the node-type listing. */
+	/**
+	 * Absent on an error entry and on the node-type listing.
+	 */
 	schemaPath?: string;
 	blockType?: string;
 	fields?: {

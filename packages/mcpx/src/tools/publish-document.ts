@@ -15,9 +15,8 @@ import { withTransaction } from "../write/transaction.js";
 const DESCRIPTION = `Makes the current draft of one document or global public. A draft with publish blockers is refused, so call validateDocument first. Publishing validates one locale only, normally the default, so a required field left empty in another locale goes live empty. Run validateDocument for each locale. There is no unpublish. A person takes content offline in the admin panel.`;
 
 /**
- * Publishes a draft. Available where the config exposes
- * `publish` on an entity with drafts and the key has both the `write` and
- * `publish` checkboxes.
+ * Publishes a draft. Available where the config exposes `publish` on an entity
+ * with drafts and the key has both the `write` and `publish` checkboxes.
  */
 export const publishDocument = defineMcpxTool({
 	name: "publishDocument",

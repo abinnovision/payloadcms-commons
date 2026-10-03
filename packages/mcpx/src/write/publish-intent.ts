@@ -23,7 +23,9 @@ export const hasPublishIntent = (
 ): data is Record<string, unknown> =>
 	isPlainObject(data) && data[PUBLISH_INTENT] === TOKEN;
 
-/** Called by the last hook that needs the marker, which removes it. */
+/**
+ * Called by the last hook that needs the marker, which removes it.
+ */
 export const takePublishIntent = (data: unknown): boolean => {
 	if (!hasPublishIntent(data)) {
 		return false;

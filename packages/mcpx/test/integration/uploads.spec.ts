@@ -45,7 +45,9 @@ describe("upload collections", () => {
 		await rm(MEDIA_DIR, { recursive: true, force: true });
 	});
 
-	/** Drafts are where an MCP write lands, so that is what is read back. */
+	/**
+	 * Drafts are where an MCP write lands, so that is what is read back.
+	 */
 	const readMedia = () =>
 		booted.payload.findByID({
 			collection: "media" as never,

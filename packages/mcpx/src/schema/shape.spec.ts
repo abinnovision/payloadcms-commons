@@ -27,7 +27,9 @@ const lexical = (type: string) => state([node(type, {}, [text()])]);
 
 const POST = { content: { root: { children: [], type: "root" } } };
 
-/** An editor state holding one node of `type`, carrying `fields`. */
+/**
+ * An editor state holding one node of `type`, carrying `fields`.
+ */
 const nodeState = (type: string, fields: unknown) =>
 	state([node(type, { fields })]);
 
@@ -350,7 +352,9 @@ describe("validateWriteValue", () => {
 	});
 });
 
-/** A stored state, since a position is only resolvable against what is there. */
+/**
+ * A stored state, since a position is only resolvable against what is there.
+ */
 const STORED = {
 	content: state([node("paragraph", {}, [text()])]),
 	summary: state([node("heading", { tag: "h4" }, [text()])]),

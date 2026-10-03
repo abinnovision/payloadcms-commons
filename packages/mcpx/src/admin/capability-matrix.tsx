@@ -34,14 +34,22 @@ import type {
 } from "../api-keys/capability-matrix.js";
 
 interface McpxCapabilityMatrixProps {
-	/** Built from the plugin options at config time. */
+	/**
+	 * Built from the plugin options at config time.
+	 */
 	matrix: CapabilityMatrix;
-	/** The group's own config, supplied by Payload. Carries the description. */
+	/**
+	 * The group's own config, supplied by Payload. Carries the description.
+	 */
 	field?: { admin?: { description?: unknown } };
-	/** The `capabilities` group's own path, supplied by Payload. */
+	/**
+	 * The `capabilities` group's own path, supplied by Payload.
+	 */
 	path?: string;
 	readOnly?: boolean;
-	/** Whether the key form is split into tabs, from the plugin options. */
+	/**
+	 * Whether the key form is split into tabs, from the plugin options.
+	 */
 	withinTab?: boolean;
 }
 

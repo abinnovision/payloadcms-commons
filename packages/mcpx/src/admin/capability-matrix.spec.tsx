@@ -87,7 +87,10 @@ const grant = (...paths: string[]): void => {
 	);
 };
 
-/** The rendered input carrying a given label, so assertions ignore attribute order. */
+/**
+ * The rendered input carrying a given label, so assertions ignore attribute
+ * order.
+ */
 const box = (html: string, label: string): string =>
 	html.match(new RegExp(`<input aria-label="${label}"[^>]*>`))?.[0] ?? "";
 

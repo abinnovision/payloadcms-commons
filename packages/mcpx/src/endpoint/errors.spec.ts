@@ -8,7 +8,6 @@ import type { Payload } from "payload";
 
 const createLogger = () => ({ error: vi.fn() });
 
-// The JSON a tool result carries as its text content.
 const parseResult = (result: CallToolResult): unknown =>
 	JSON.parse((result.content[0] as { text: string }).text);
 

@@ -11,7 +11,9 @@ import type {
 	CapabilityRow,
 } from "../api-keys/capability-matrix.js";
 
-/** Form-state values, keyed by the same dotted paths the form uses. */
+/**
+ * Form-state values, keyed by the same dotted paths the form uses.
+ */
 export type CapabilityValues = Record<string, boolean>;
 
 export type ColumnState = "mixed" | "off" | "on";

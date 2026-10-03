@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { liveWriteSentence, patchOnlySlugs, slugsFor } from "./shared.js";
 import { entity, scopeFor } from "../../test/builders/scope.js";
 
-/** Writes without drafts, so nothing is left to publish. */
+/**
+ * Writes without drafts, so nothing is left to publish.
+ */
 const LIVE_ONLY = { write: "live", hasDrafts: false } as const;
 
 describe("liveWriteSentence", () => {

@@ -1,11 +1,15 @@
 import type { McpxAnyTool, McpxTool, McpxToolScope } from "./types.js";
 import type { z } from "zod";
 
-/** Fixed shape; arguments inferred from it. */
+/**
+ * Fixed shape; arguments inferred from it.
+ */
 export function defineMcpxTool<Shape extends z.ZodRawShape>(
 	tool: McpxTool<Shape> & { inputSchema?: Shape },
 ): McpxTool<Shape>;
-/** Per-request shape returned as an object literal; arguments inferred from it. */
+/**
+ * Per-request shape returned as an object literal; arguments inferred from it.
+ */
 export function defineMcpxTool<Shape extends z.ZodRawShape>(
 	tool: McpxTool<Shape> & {
 		inputSchema: (scope: McpxToolScope) => Shape;

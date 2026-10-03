@@ -19,7 +19,9 @@ import type { PointerResolution } from "../schema/index.js";
 import type { JsonObject, SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
 
-/** Re-exported so callers do not depend on the `rfc6902` package directly. */
+/**
+ * Re-exported so callers do not depend on the `rfc6902` package directly.
+ */
 export type PatchOperation = Operation;
 
 export const isReservedPointer = (pointer: string): boolean =>

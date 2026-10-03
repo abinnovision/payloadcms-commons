@@ -3,7 +3,9 @@ export const isPlainObject = (
 ): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** An own property only, so a client-chosen key never reads the prototype. */
+/**
+ * An own property only, so a client-chosen key never reads the prototype.
+ */
 export const ownValue = <T>(
 	record: Readonly<Record<string, T>> | undefined,
 	key: string,

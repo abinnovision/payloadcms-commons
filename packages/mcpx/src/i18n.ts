@@ -71,7 +71,9 @@ export const translatorFor =
 	(value) =>
 		translateStatic(value, i18n);
 
-/** For callers with no request. Both languages miss, so the first entry wins. */
+/**
+ * For callers with no request. Both languages miss, so the first entry wins.
+ */
 export const translateAny: Translate = translatorFor({
 	fallbackLanguage: "",
 	language: "",

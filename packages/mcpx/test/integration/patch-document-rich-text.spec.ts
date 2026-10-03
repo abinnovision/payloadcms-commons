@@ -19,7 +19,9 @@ interface PostDoc {
 	content?: { root: { children: Record<string, unknown>[] } };
 }
 
-/** An editor state holding one link node carrying `fields`. */
+/**
+ * An editor state holding one link node carrying `fields`.
+ */
 const linkState = (fields: Record<string, unknown>) =>
 	state([node("link", { fields, version: 3 }, [text("x")])]);
 
@@ -50,7 +52,6 @@ describe("patchDocument on rich text", () => {
 	const storedPosts = () =>
 		storedState(booted.payload, { collections: ["posts"] });
 
-	/** Writes `value` over a whole rich text field of the post. */
 	const replaceField = (
 		id: number | string,
 		path: "/content" | "/summary",

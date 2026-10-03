@@ -38,7 +38,9 @@ export const state = (children: unknown[]) => ({
 	},
 });
 
-/** An editor state holding one paragraph of `value`. */
+/**
+ * An editor state holding one paragraph of `value`.
+ */
 export const paragraph = (value: string) =>
 	state([node("paragraph", {}, [text(value)])]);
 

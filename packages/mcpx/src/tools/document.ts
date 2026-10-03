@@ -96,7 +96,9 @@ export const resolveDocument = (
 	return { ...target, id: args.id };
 };
 
-/** What a response names its subject by: a document's id, or a global's slug. */
+/**
+ * What a response names its subject by: a document's id, or a global's slug.
+ */
 export const identityOf = (
 	target: ResolvedEntity,
 	id: unknown,
@@ -108,7 +110,9 @@ const sameInstant = (left: unknown, right: string): boolean =>
 	(typeof left === "string" || left instanceof Date) &&
 	new Date(left).getTime() === new Date(right).getTime();
 
-/** Refuses a write when the document changed since the client read it. */
+/**
+ * Refuses a write when the document changed since the client read it.
+ */
 export const staleReadResult = (
 	doc: Record<string, unknown>,
 	expectedUpdatedAt: string | undefined,
