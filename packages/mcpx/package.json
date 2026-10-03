@@ -68,7 +68,7 @@
 		"@internal/test-utils": "workspace:*",
 		"@payloadcms/db-sqlite": "3.90.2",
 		"@payloadcms/richtext-lexical": "3.90.2",
-		"@payloadcms/ui": "3.89.0",
+		"@payloadcms/ui": "3.90.2",
 		"@swc/core": "^1.16.2",
 		"@types/node": "^26.5.1",
 		"@types/react": "^19.3.0",
