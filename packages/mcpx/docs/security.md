@@ -10,7 +10,7 @@ up by its HMAC index. Cookies, admin sessions and JWTs are ignored: any user Pay
 them before the handler ran is replaced by the key's user, and a request without a valid key gets
 HTTP 401.
 
-The default lookup refuses a key that is unknown or disabled, and a key whose user was deleted,
+The default lookup refuses a key that is unknown, disabled or expired, and a key whose user was deleted,
 is unverified (`_verified: false`) or is locked out (`lockUntil` in the future).
 
 The key collection is not an auth collection, so a key never authenticates Payload's REST or

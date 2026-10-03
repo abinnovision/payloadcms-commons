@@ -144,7 +144,10 @@ describe("collections the config does not expose", () => {
 				})
 			).docs,
 			users: (await read("users")).docs,
-			keys: (await read(API_KEYS_SLUG)).docs,
+			// Authenticating records the last use on the key itself.
+			keys: (await read(API_KEYS_SLUG)).docs.map(
+				({ lastUsedAt: _lastUsedAt, updatedAt: _updatedAt, ...rest }) => rest,
+			),
 		};
 	};
 
