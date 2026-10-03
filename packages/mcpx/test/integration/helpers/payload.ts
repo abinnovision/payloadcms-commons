@@ -3,10 +3,14 @@ import { getPayload } from "payload";
 import { buildFixtureConfig } from "../../fixtures/config.js";
 
 import type { McpxPluginOptions } from "../../../src/index.js";
-import type { Payload, SanitizedConfig } from "payload";
+import type {
+	CollectionConfig,
+	DatabaseAdapterObj,
+	Payload,
+	SanitizedConfig,
+} from "payload";
 
-/** Cache key shared by `getPayload` and `handleEndpoints` within one file. */
-export const CACHE_KEY = "mcpx-integration";
+const DEFAULT_CACHE_KEY = "mcpx-integration";
 
 export const API_KEYS_SLUG = "mcpx-api-keys";
 
@@ -15,6 +19,8 @@ export const USER = { email: "mcpx@example.com", password: "mcpx-secret" };
 export interface Booted {
 	config: Promise<SanitizedConfig>;
 	payload: Payload;
+	/** Shared by `getPayload` and `handleEndpoints`, so both reach this instance. */
+	cacheKey: string;
 }
 
 /**
@@ -22,14 +28,26 @@ export interface Booted {
  * must pass its own or it silently reuses the default instance.
  */
 export const bootPayload = async (
-	args: { key?: string; plugin?: Partial<McpxPluginOptions> } = {},
+	args: {
+		key?: string;
+		plugin?: Partial<McpxPluginOptions>;
+		users?: CollectionConfig;
+		collections?: CollectionConfig[];
+		db?: DatabaseAdapterObj;
+	} = {},
 ): Promise<Booted> => {
-	const config = buildFixtureConfig(
-		args.plugin === undefined ? {} : { plugin: args.plugin },
-	);
-	const payload = await getPayload({ config, key: args.key ?? CACHE_KEY });
+	const cacheKey = args.key ?? DEFAULT_CACHE_KEY;
+	const config = buildFixtureConfig({
+		...(args.plugin === undefined ? {} : { plugin: args.plugin }),
+		...(args.users === undefined ? {} : { users: args.users }),
+		...(args.collections === undefined
+			? {}
+			: { collections: args.collections }),
+		...(args.db === undefined ? {} : { db: args.db }),
+	});
+	const payload = await getPayload({ config, key: cacheKey });
 
-	return { config, payload };
+	return { config, payload, cacheKey };
 };
 
 interface EntityCapabilities {
@@ -71,6 +89,28 @@ export const createKey = async (
 	return doc.apiKey;
 };
 
+/** Creates {@link USER} and one key per entry, labelled with the entry's name. */
+export const seedKeysFor = async <Label extends string>(
+	payload: Payload,
+	capabilities: Record<Label, KeyCapabilities>,
+): Promise<{ userId: number | string; keys: Record<Label, string> }> => {
+	const user = await payload.create({ collection: "users", data: USER });
+	const keys: Partial<Record<Label, string>> = {};
+
+	for (const [label, granted] of Object.entries(capabilities) as [
+		Label,
+		KeyCapabilities,
+	][]) {
+		keys[label] = await createKey(payload, {
+			userId: user.id,
+			label,
+			capabilities: granted,
+		});
+	}
+
+	return { userId: user.id, keys: keys as Record<Label, string> };
+};
+
 export const FULL_CAPABILITIES: KeyCapabilities = {
 	collections: {
 		pages: { read: true, write: true },
@@ -90,149 +130,127 @@ export interface Seeded {
 	};
 }
 
+/** The keys the specs on the default plugin config share. */
 export const seedKeys = async (payload: Payload): Promise<Seeded> => {
-	const user = await payload.create({
-		collection: "users",
-		data: USER,
+	const { userId, keys } = await seedKeysFor(payload, {
+		full: FULL_CAPABILITIES,
+		readOnly: {
+			collections: {
+				pages: { read: true },
+				posts: { read: true },
+				tags: { read: true },
+			},
+		},
+		tagsOnly: { collections: { tags: { read: true } } },
+	});
+	const disabled = await createKey(payload, {
+		userId,
+		label: "disabled",
+		capabilities: FULL_CAPABILITIES,
+		enabled: false,
 	});
 
-	const keys = {
-		full: await createKey(payload, {
-			userId: user.id,
-			label: "full",
-			capabilities: FULL_CAPABILITIES,
-		}),
-		readOnly: await createKey(payload, {
-			userId: user.id,
-			label: "read-only",
-			capabilities: {
-				collections: {
-					pages: { read: true },
-					posts: { read: true },
-					tags: { read: true },
-				},
-			},
-		}),
-		tagsOnly: await createKey(payload, {
-			userId: user.id,
-			label: "tags-only",
-			capabilities: { collections: { tags: { read: true } } },
-		}),
-		disabled: await createKey(payload, {
-			userId: user.id,
-			label: "disabled",
-			capabilities: FULL_CAPABILITIES,
-			enabled: false,
-		}),
-	};
-
-	return { userId: user.id, keys };
+	return { userId, keys: { ...keys, disabled } };
 };
 
-/** A Lexical editor state with one paragraph, serialized as the editor writes it. */
-export const paragraph = (text: string): Record<string, unknown> => ({
-	root: {
-		type: "root",
-		version: 1,
-		direction: null,
-		format: "",
-		indent: 0,
-		children: [
-			{
-				type: "paragraph",
-				version: 1,
-				direction: null,
-				format: "",
-				indent: 0,
-				children: [
-					{
-						type: "text",
-						version: 1,
-						detail: 0,
-						format: 0,
-						mode: "normal",
-						style: "",
-						text,
-					},
-				],
-			},
-		],
-	},
-});
+/** Creates an English draft through the Local API, bypassing the endpoint. */
+export const createDraft = <Doc>(
+	payload: Payload,
+	collection: "pages" | "posts",
+	data: Record<string, unknown>,
+): Promise<Doc> =>
+	payload.create({
+		collection,
+		locale: "en",
+		draft: true,
+		data,
+	}) as Promise<Doc>;
+
+/** The latest draft in one locale, without falling back to another. */
+export const readDraft = <Doc>(
+	payload: Payload,
+	collection: "pages" | "posts",
+	id: number | string,
+	locale = "en",
+): Promise<Doc> =>
+	payload.findByID({
+		collection,
+		id,
+		depth: 0,
+		draft: true,
+		locale,
+		fallbackLocale: false,
+	}) as Promise<Doc>;
 
 /**
- * A bulleted list, the shape that reaches the editor as a hydrated node. Pass
- * `stripIndent` for the payload a client produces when it trims boilerplate, or
- * `indent` to put something else there. Payload stores either, and the admin
- * editor throws opening it.
+ * Every document and version of the named collections and globals, in all
+ * locales and past access control. A refusal leaves it unchanged.
  */
-export const bulletList = (
-	text: string,
-	options: { indent?: unknown; stripIndent?: boolean } = {},
-): Record<string, unknown> => {
-	const item: Record<string, unknown> = {
-		type: "listitem",
-		version: 1,
-		checked: false,
-		direction: null,
-		format: "",
-		indent: "indent" in options ? options.indent : 0,
-		value: 1,
-		children: [
-			{
-				type: "text",
-				version: 1,
-				detail: 0,
-				format: 0,
-				mode: "normal",
-				style: "",
-				text,
-			},
-		],
-	};
+export const storedState = async (
+	payload: Payload,
+	slugs: { collections?: string[]; globals?: string[] },
+): Promise<Record<string, unknown>> => {
+	const read = { locale: "all", depth: 0, overrideAccess: true } as const;
 
-	if (options.stripIndent === true) {
-		delete item["indent"];
-	}
+	const collections = (slugs.collections ?? []).map(async (slug) => {
+		const collection = slug as never;
+		const { docs } = await payload.find({
+			...read,
+			collection,
+			draft: true,
+			pagination: false,
+		});
+		const versions = payload.collections[collection]?.config.versions
+			? (await payload.findVersions({ ...read, collection, pagination: false }))
+					.docs
+			: undefined;
 
-	return {
-		root: {
-			type: "root",
-			version: 1,
-			direction: null,
-			format: "",
-			indent: 0,
-			children: [
-				{
-					type: "list",
-					version: 1,
-					direction: null,
-					format: "",
-					indent: 0,
-					listType: "bullet",
-					start: 1,
-					tag: "ul",
-					children: [item],
-				},
-			],
-		},
-	};
+		return [slug, { docs, versions }] as const;
+	});
+
+	const globals = (slugs.globals ?? []).map(async (slug) => {
+		const global = slug as never;
+		const doc = await payload.findGlobal({
+			...read,
+			slug: global,
+			draft: true,
+		});
+		const versions = payload.globals.config.find((entry) => entry.slug === slug)
+			?.versions
+			? (
+					await payload.findGlobalVersions({
+						...read,
+						slug: global,
+						pagination: false,
+					})
+				).docs
+			: undefined;
+
+		return [slug, { doc, versions }] as const;
+	});
+
+	return Object.fromEntries(await Promise.all([...collections, ...globals]));
 };
 
-/** A hero module block, as stored in a section wrapper's `modules`. */
-export const hero = (title: string): Record<string, unknown> => ({
-	blockType: "hero",
-	title: paragraph(title),
-});
+/** A one-pixel PNG, so a real file lands on disk without needing sharp. */
+const PIXEL = Buffer.from(
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+	"base64",
+);
 
-/** A section wrapper block holding the given modules. */
-export const section = (
-	identifier: string,
-	modules: Record<string, unknown>[] = [],
-): Record<string, unknown> => ({
-	blockType: "sectionWrapper",
-	identifier,
-	modules,
-});
-
-export type { ListedTool } from "./mcp.js";
+/** Uploads a one-pixel image as a `media` document. */
+export const createMedia = (
+	payload: Payload,
+	alt: string,
+): Promise<{ id: number | string }> =>
+	payload.create({
+		collection: "media" as never,
+		data: { alt },
+		file: {
+			data: PIXEL,
+			mimetype: "image/png",
+			name: "pixel.png",
+			size: PIXEL.length,
+		},
+		overrideAccess: true,
+	});

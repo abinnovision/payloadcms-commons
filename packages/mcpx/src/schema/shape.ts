@@ -6,16 +6,17 @@ import {
 	rootProblems,
 	ROOT_PROPERTIES,
 } from "./lexical.js";
+import { splitPath } from "./path.js";
 import {
 	ARRAY_MARKER,
 	blockOf,
 	blockSlugsOf,
-	describeAddressableFields,
+	descriptorsUnder,
 	findBlocksField,
 	findRichTextField,
-	isPlainObject,
-	splitPath,
+	ROW_KEYS,
 } from "./walk.js";
+import { isPlainObject, ownValue } from "../guards.js";
 
 import type { LexicalPosition } from "./lexical-pointer.js";
 import type { NodeOptions } from "./lexical.js";
@@ -23,13 +24,10 @@ import type { PointerResolution } from "./pointer.js";
 import type { FieldDescriptor } from "./walk.js";
 import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
 
-const TOLERATED_VALUE_KEYS = new Set(["blockName", "blockType", "id"]);
-
 /**
- * Lexical refuses to hydrate a state whose root holds nothing: `isEmpty` is a
- * node map of one, and the editor throws on it rather than rendering nothing.
- * An empty field is stored as null instead, so this is only ever reached by
- * emptying one that was there.
+ * Lexical throws when it hydrates a state whose root holds nothing. An empty
+ * field is stored as null, so this is reached only by emptying one that had
+ * content.
  */
 export const EMPTY_ROOT =
 	"an editor state needs at least one node. Clear the field with null instead.";
@@ -37,14 +35,24 @@ export const EMPTY_ROOT =
 const quoted = (properties: readonly string[]): string =>
 	properties.map((property) => `"${property}"`).join(", ");
 
-/**
- * A position in an incoming value, and where the problems go.
- *
- * `pointer` is the address of the value in the document, reported back to the
- * client. `prefix` is where the value sits inside `fields`, held as segments
- * because nothing outside this walk reads it.
+// The client's `blockType` may be anything, and not every value can be printed.
+const refusedSlug = (slug: unknown): string => {
+	if (slug === undefined) {
+		return `a row needs a "blockType"`;
+	}
+
+	return typeof slug === "string"
+		? `"${slug}" is not allowed here`
+		: `"blockType" must be a string naming a block`;
+};
+
+/*
+ * A position in an incoming value, and where problems are collected. `pointer`
+ * is the value's address in the document, reported to the client. `prefix` is
+ * its place inside `fields`, held as segments because nothing outside this walk
+ * reads it.
  */
-interface CheckScope {
+interface ValueCheck {
 	config: SanitizedConfig;
 	fields: FlattenedField[];
 	pointer: string;
@@ -52,12 +60,12 @@ interface CheckScope {
 	problems: string[];
 }
 
-/**
+/*
  * A node with nothing to declare, and one whose sub-fields cannot be named at a
  * position, are both left alone.
  */
 const checkNodeFields = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	field: RichTextField,
 	node: { fields: unknown; type: string },
 ): void => {
@@ -70,7 +78,7 @@ const checkNodeFields = (
 	const data = node.fields;
 
 	if (!isPlainObject(data)) {
-		/* Reported already, and more precisely, where the table constrains it. */
+		// Reported already, and more precisely, where the table constrains it.
 		if (!constrainsFields(node.type)) {
 			scope.problems.push(
 				`${scope.pointer}: a "${node.type}" node carries a "fields" object.`,
@@ -96,7 +104,7 @@ const checkNodeFields = (
 
 	if (!block) {
 		scope.problems.push(
-			`${scope.pointer}/fields: "${String(slug)}" is not allowed here. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
+			`${scope.pointer}/fields: ${refusedSlug(slug)}. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
 		);
 
 		return;
@@ -105,9 +113,9 @@ const checkNodeFields = (
 	checkValue({ ...nested, fields: block.flattenedFields }, data);
 };
 
-/**
+/*
  * What the field's editor allows, carried down the walk so a node is judged
- * against the editor it lands in rather than against Lexical in general.
+ * against the editor it lands in, not Lexical in general.
  */
 interface EditorScope {
 	allowed: readonly string[];
@@ -115,13 +123,13 @@ interface EditorScope {
 	nodeOptions: NodeOptions | undefined;
 }
 
-/**
+/*
  * An absent property is already reported as missing. Anything else present is
  * checked, not just a string: Lexical stores a heading tag of 3 as readily as
  * one of "h3".
  */
 const checkNarrowedProperty = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	at: { pointer: string; type: string; values: readonly string[] },
 	value: unknown,
 ): void => {
@@ -135,23 +143,15 @@ const checkNarrowedProperty = (
 	}
 };
 
-/**
- * One node, wherever it came from. `pointer` addresses the node itself, so a
- * node written at a position and a node written inside a whole editor state
- * are held to the same rules and report them the same way.
- *
- * Payload does not check any of this: the Lexical validator runs node
- * validations only for the few node types that register one, so a `heading`
- * inside a field whose editor has no heading feature is stored without
- * complaint and only fails later, at render or when the document is reopened
- * in the admin editor. A key a node's fields do not declare is dropped just as
- * silently. The same holds one level down, for the node properties a feature
- * narrows: an `h3` in an editor restricted to `h4` is stored as readily as an
- * `h4`, and a node written without the properties its class hydrates from is
- * stored and then throws when the editor opens it.
+/*
+ * `pointer` addresses the node itself, so a node written at a position and one
+ * inside a whole editor state are held to the same rules. Payload checks none
+ * of this: its Lexical validator runs only the validations node types
+ * register, so an invalid node is stored and fails later, at render or in the
+ * admin editor. Keys a node's fields do not declare are dropped silently.
  */
 const checkNode = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	editor: EditorScope,
 	node: unknown,
 	pointer: string,
@@ -187,7 +187,7 @@ const checkNode = (
 	}
 
 	for (const [property, values] of Object.entries(
-		editor.nodeOptions?.[type] ?? {},
+		ownValue(editor.nodeOptions, type) ?? {},
 	)) {
 		checkNarrowedProperty(
 			scope,
@@ -206,9 +206,9 @@ const checkNode = (
 	checkNodes(scope, editor, node["children"], `${pointer}/children`);
 };
 
-/** `pointer` addresses the list. A node holding none is left alone. */
+// `pointer` addresses the list. A node holding none is left alone.
 const checkNodes = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	editor: EditorScope,
 	nodes: unknown,
 	pointer: string,
@@ -223,7 +223,7 @@ const checkNodes = (
 };
 
 const checkRichText = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	editor: EditorScope,
 	value: unknown,
 ): void => {
@@ -256,7 +256,7 @@ const checkRichText = (
 		);
 	}
 
-	/* Same reason as at a position: an empty root is not a hydratable state. */
+	// Same reason as at a position: an empty root is not a hydratable state.
 	if (Array.isArray(root["children"]) && root["children"].length === 0) {
 		scope.problems.push(`${scope.pointer}/root/children: ${EMPTY_ROOT}`);
 	}
@@ -264,14 +264,14 @@ const checkRichText = (
 	checkNodes(scope, editor, root["children"], `${scope.pointer}/root/children`);
 };
 
-/**
+/*
  * `type` decides how every other property on a node is read, so replacing it
  * alone would leave a heading shaped like a text node. Everything else is held
- * to the constraint the node walk holds it to and nothing more, since a
- * feature may put any property on a node.
+ * only to the constraint the node walk applies, since a feature may put any
+ * property on a node.
  */
 const checkNodeProperty = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	editor: EditorScope,
 	position: LexicalPosition & { kind: "property" },
 	value: unknown,
@@ -286,7 +286,7 @@ const checkNodeProperty = (
 		return;
 	}
 
-	if (position.isRoot && !(property in ROOT_PROPERTIES)) {
+	if (position.isRoot && !Object.hasOwn(ROOT_PROPERTIES, property)) {
 		scope.problems.push(
 			`${scope.pointer}: no such property on the root node. Available: ${Object.keys(ROOT_PROPERTIES).join(", ")}`,
 		);
@@ -302,7 +302,7 @@ const checkNodeProperty = (
 		);
 	}
 
-	const values = editor.nodeOptions?.[type]?.[property];
+	const values = ownValue(ownValue(editor.nodeOptions, type), property);
 
 	if (values) {
 		checkNarrowedProperty(
@@ -313,12 +313,9 @@ const checkNodeProperty = (
 	}
 };
 
-/**
- * A value written at a position inside an editor state rather than as the
- * whole state.
- */
+// A value written at a position inside an editor state, not as the whole state.
 const checkLexicalWrite = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	position: LexicalPosition,
 	value: unknown,
 ): void => {
@@ -364,7 +361,7 @@ const checkLexicalWrite = (
 };
 
 const checkLeafValue = (
-	scope: CheckScope,
+	scope: ValueCheck,
 	descriptor: FieldDescriptor,
 	value: unknown,
 ): void => {
@@ -413,7 +410,7 @@ const checkLeafValue = (
 
 		if (!block) {
 			scope.problems.push(
-				`${scope.pointer}/${String(index)}: "${String(slug)}" is not allowed here. Allowed: ${blockSlugsOf(field).join(", ")}`,
+				`${scope.pointer}/${String(index)}: ${refusedSlug(slug)}. Allowed: ${blockSlugsOf(field).join(", ")}`,
 			);
 
 			return;
@@ -431,35 +428,25 @@ const checkLeafValue = (
 	});
 };
 
-/**
- * Reports every shape problem rather than the first.
- *
- * Shape only: unknown field names, unknown block slugs, read-only fields, and
- * rich text nodes or node properties the field's editor cannot produce.
- * Required-ness, row counts, lengths, enum membership and relationship
- * existence stay with Payload, which already checks them and reports them per
- * field. Without this pass a misspelled field inside a new block would be
- * stripped in silence.
+/*
+ * Reports every shape problem, not just the first. Shape only: unknown field
+ * names, unknown block slugs, read-only fields, and rich text nodes or
+ * properties the editor cannot produce. Required-ness, row counts, lengths,
+ * enum membership and relationship existence stay with Payload, which already
+ * reports them per field. Without this pass a misspelled field inside a new
+ * block would be stripped silently.
  */
-const checkValue = (scope: CheckScope, value: unknown): void => {
+const checkValue = (scope: ValueCheck, value: unknown): void => {
 	if (!isPlainObject(value)) {
 		return;
 	}
 
 	const prefixParts = scope.prefix;
 
-	const relative = describeAddressableFields(scope.fields).flatMap(
-		(descriptor) => {
-			const parts = splitPath(descriptor.path);
-
-			return prefixParts.every((part, offset) => part === parts[offset])
-				? [{ descriptor, parts: parts.slice(prefixParts.length) }]
-				: [];
-		},
-	);
+	const relative = descriptorsUnder(scope.fields, prefixParts);
 
 	for (const [key, entry] of Object.entries(value)) {
-		if (TOLERATED_VALUE_KEYS.has(key)) {
+		if (ROW_KEYS.has(key)) {
 			continue;
 		}
 
@@ -509,9 +496,7 @@ const checkValue = (scope: CheckScope, value: unknown): void => {
 	}
 };
 
-/**
- * Shape problems with a value about to be written at a resolved pointer.
- */
+/** Shape problems with a value about to be written at a resolved pointer. */
 export const validateWriteValue = (
 	config: SanitizedConfig,
 	target: { pointer: string; resolution: PointerResolution },
@@ -519,7 +504,7 @@ export const validateWriteValue = (
 ): string[] => {
 	const problems: string[] = [];
 
-	const scope: CheckScope = {
+	const scope: ValueCheck = {
 		config,
 		fields: target.resolution.fields,
 		pointer: target.pointer,

@@ -1,25 +1,51 @@
+import { APIError } from "payload";
+import { hasDraftsEnabled } from "payload/shared";
 import { z } from "zod";
 
+import { resolveDocument } from "./document.js";
 import {
+	draftVersionSlugs,
 	idShape,
 	localeOf,
 	localeShape,
 	slugsFor,
-	targetShape,
+	entityShape,
+	widen,
 } from "./shared.js";
-import { requireIdFor, resolveTarget } from "./target.js";
 import { queryVersions } from "./versions.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
 
-const DESCRIPTION = `Lists the version history of one document or global, newest first. Returns metadata only; read a version's body with getDocument and "versionId", or what changed with "diffFrom".
+import type { McpxToolScope } from "../types.js";
 
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global". Autosave versions are listed too, marked "autosave".`;
+const DESCRIPTION = `Lists the versions of one document or global, newest first, autosaves included. Returns per version "versionId", "createdAt", "updatedAt", "status", "latest", "autosave" and, where set, "publishedLocale", without the content. Read a version with getDocument "versionId", or compare it with "diffFrom".`;
+
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+type StatusShape = {
+	status: z.ZodOptional<z.ZodEnum<{ published: "published"; draft: "draft" }>>;
+};
+
+/*
+ * Only an entity with drafts has `_status` on its versions, so a key that
+ * reaches none never sees the argument.
+ */
+const statusShape = (scope: McpxToolScope): StatusShape => {
+	const { collections, globals } = draftVersionSlugs(scope);
+
+	if (collections.length + globals.length === 0) {
+		return widen<StatusShape>({});
+	}
+
+	return widen<StatusShape>({
+		status: z.enum(["published", "draft"]).optional(),
+	});
+};
 
 /**
  * Bodies are left out so a long history stays small; `getDocument` reads one
  * when it is needed. The document's `read` access is checked first, then
- * Payload's `readVersions`.
+ * Payload's `readVersions`. Only entities with `versions: true` in the plugin
+ * options are reachable.
  */
 export const findVersions = defineMcpxTool({
 	name: "findVersions",
@@ -31,10 +57,7 @@ export const findVersions = defineMcpxTool({
 		return collections.length + globals.length > 0;
 	},
 	inputSchema: (scope) => ({
-		...targetShape(scope, "versions", {
-			collection: "Collection holding the document.",
-			global: "Global whose history to list.",
-		}),
+		...entityShape(scope, "versions"),
 		...idShape(scope, "versions"),
 		limit: z
 			.number()
@@ -42,27 +65,28 @@ export const findVersions = defineMcpxTool({
 			.min(1)
 			.max(scope.limits.maxLimit)
 			.optional()
-			.describe(
-				`Versions per page. Default 10, at most ${String(scope.limits.maxLimit)}.`,
-			),
-		page: z.number().int().min(1).optional().describe("Page number, from 1."),
-		status: z
-			.enum(["published", "draft"])
-			.optional()
-			.describe("Only versions with this status."),
+			.describe("Default 10."),
+		page: z.number().int().min(1).optional(),
+		...statusShape(scope),
 		...localeShape(scope, {
 			required: false,
 			description:
-				"Locale whose status to report. Defaults to the default locale.",
+				'Locale whose "status" is reported. Defaults to the default locale.',
 		}),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "versions");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "versions");
+
+		if (args.status !== undefined && !hasDraftsEnabled(target.config)) {
+			throw new APIError(
+				`"${target.slug}" has no drafts, so its versions carry no status.`,
+				400,
+			);
+		}
 
 		const result = await queryVersions(
 			scope,
-			{ target, id, depth: 0, locale: localeOf(scope, args.locale) },
+			{ target, depth: 0, locale: localeOf(scope, args.locale) },
 			{
 				limit: args.limit ?? 10,
 				...(args.page === undefined ? {} : { page: args.page }),

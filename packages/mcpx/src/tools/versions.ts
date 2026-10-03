@@ -1,31 +1,34 @@
+import { hasDraftsEnabled } from "payload/shared";
 import { createPatch, Pointer } from "rfc6902";
 
-import type { ResolvedTarget } from "./target.js";
+import { mcpxReadRequest } from "./read-request.js";
+import { stripAdminHidden } from "../schema/index.js";
+
+import type { DocumentId, DocumentRef } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 import type { PaginatedDocs, SelectType, TypedLocale, Where } from "payload";
 import type { Operation } from "rfc6902";
 
-/** A stored version: its metadata plus the document body under `version`. */
-export type StoredVersion = Record<string, unknown> & {
-	id: number | string;
+// A stored version: its metadata plus the document body under `version`.
+type StoredVersion = Record<string, unknown> & {
+	id: DocumentId;
 	version: Record<string, unknown>;
 };
 
 export interface VersionRead {
-	target: ResolvedTarget;
-	/** The document the version must belong to; `undefined` for a global. */
-	id: number | string | undefined;
+	/** For a collection, also the document every version must belong to. */
+	target: DocumentRef;
 	depth: number;
 	locale: TypedLocale | undefined;
 }
 
-/** Bookkeeping that differs between saves without saying anything about content. */
+// Bookkeeping that differs between saves without saying anything about content.
 const NOISE = ["id", "globalType", "createdAt", "updatedAt", "_status"];
 
-/** Newest first, with the id breaking ties between saves in the same instant. */
+// Newest first, with the id breaking ties between saves in the same instant.
 const NEWEST_FIRST = ["-updatedAt", "-id"];
 
-/** The document or global as the key's user sees it. */
+/** The document or global as the key's user sees it, without `admin.hidden` fields. */
 export const readLive = async (
 	scope: McpxToolScope,
 	read: VersionRead,
@@ -35,21 +38,37 @@ export const readLive = async (
 		depth: read.depth,
 		draft: options.draft,
 		overrideAccess: false,
-		req: scope.req,
+		req: mcpxReadRequest(scope),
 		...(options.select === undefined ? {} : { select: options.select }),
 		...(read.locale === undefined ? {} : { locale: read.locale }),
 	};
 
-	return await (read.target.kind === "collection"
+	const doc = await (read.target.kind === "collection"
 		? scope.req.payload.findByID({
 				...shared,
 				collection: read.target.slug,
-				id: read.id as number | string,
+				id: read.target.id,
 			})
 		: scope.req.payload.findGlobal({ ...shared, slug: read.target.slug }));
+
+	return stripAdminHidden(scope.req.payload.config, read.target, doc);
 };
 
-/**
+// A stored version with the `admin.hidden` fields of its body removed.
+const withoutHidden = (
+	scope: McpxToolScope,
+	read: VersionRead,
+	stored: StoredVersion,
+): StoredVersion => ({
+	...stored,
+	version: stripAdminHidden(
+		scope.req.payload.config,
+		read.target,
+		stored.version,
+	),
+});
+
+/*
  * Payload checks only `readVersions` on a version read, never `read`, so the
  * document itself is read first and throws when the key's user may not see it.
  */
@@ -63,7 +82,7 @@ const assertReadable = async (
 /** `parent` comes back as a raw id or, populated, as the document itself. */
 export const isVersionOf = (
 	version: Record<string, unknown>,
-	id: number | string,
+	id: DocumentId,
 ): boolean => {
 	const parent = version["parent"];
 	const parentId =
@@ -86,7 +105,7 @@ export const isVersionOf = (
 export const loadVersion = async (
 	scope: McpxToolScope,
 	read: VersionRead,
-	versionId: number | string,
+	versionId: DocumentId,
 ): Promise<null | StoredVersion> => {
 	await assertReadable(scope, read);
 
@@ -96,7 +115,7 @@ export const loadVersion = async (
 		depth: read.depth,
 		disableErrors: true,
 		overrideAccess: false,
-		req: scope.req,
+		req: mcpxReadRequest(scope),
 		...(read.locale === undefined ? {} : { locale: read.locale }),
 	};
 
@@ -111,11 +130,14 @@ export const loadVersion = async (
 		return null;
 	}
 
-	if (read.id !== undefined && !isVersionOf(version, read.id)) {
+	if (
+		read.target.kind === "collection" &&
+		!isVersionOf(version, read.target.id)
+	) {
 		return null;
 	}
 
-	return version;
+	return withoutHidden(scope, read, version);
 };
 
 /** One page of a document's or global's history, newest first. */
@@ -127,7 +149,9 @@ export const queryVersions = async (
 	await assertReadable(scope, read);
 
 	const where: Where = {
-		...(read.id === undefined ? {} : { parent: { equals: read.id } }),
+		...(read.target.kind === "collection"
+			? { parent: { equals: read.target.id } }
+			: {}),
 		...(options.status === undefined
 			? {}
 			: { "version._status": { equals: options.status } }),
@@ -137,7 +161,7 @@ export const queryVersions = async (
 		limit: options.limit,
 		sort: NEWEST_FIRST,
 		overrideAccess: false,
-		req: scope.req,
+		req: mcpxReadRequest(scope),
 		where,
 		...(options.page === undefined ? {} : { page: options.page }),
 		...(read.locale === undefined ? {} : { locale: read.locale }),
@@ -159,12 +183,19 @@ export const loadPublished = async (
 	scope: McpxToolScope,
 	read: VersionRead,
 ): Promise<null | StoredVersion> => {
+	// Without drafts no version has a status, and Payload refuses the query.
+	if (!hasDraftsEnabled(read.target.config)) {
+		return null;
+	}
+
 	const result = await queryVersions(scope, read, {
 		status: "published",
 		limit: 1,
 	});
 
-	return result.docs[0] ?? null;
+	const [newest] = result.docs;
+
+	return newest ? withoutHidden(scope, read, newest) : null;
 };
 
 const strip = (doc: Record<string, unknown>): Record<string, unknown> =>

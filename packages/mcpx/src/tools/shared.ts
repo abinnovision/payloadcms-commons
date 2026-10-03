@@ -1,15 +1,16 @@
-import { NotFound } from "payload";
 import { z } from "zod";
 
-import { canCreate, canPublish, isLiveWrite } from "../capabilities.js";
-import { translateStatic } from "../i18n.js";
+import { canCreate, isLiveWrite } from "../capabilities.js";
 
-import type { ResolvedTarget } from "./target.js";
-import type { McpxExposedEntity, McpxToolScope } from "../types.js";
-import type { LabelFunction, StaticLabel, TypedLocale } from "payload";
+import type { DocumentId } from "../entity.js";
+import type {
+	McpxExposedEntity,
+	McpxScopeSlugs,
+	McpxToolScope,
+} from "../types.js";
+import type { TypedLocale } from "payload";
 
-export type McpxOperation =
-	"create" | "publish" | "read" | "versions" | "write";
+export type Operation = "create" | "publish" | "read" | "versions" | "write";
 
 /**
  * An out-of-scope slug fails schema validation before a handler runs, so a
@@ -19,11 +20,20 @@ export const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
 	z.enum(slugs as [string, ...string[]]);
 
 /** Payload's id type follows the adapter, so both forms are handed on as read. */
-export const idSchema = z
-	.union([z.string(), z.number()])
-	.describe("Document id.");
+export const idSchema: z.ZodType<DocumentId> = z.union([
+	z.string(),
+	z.number(),
+]);
 
 type SlugEnum = z.ZodEnum<Record<string, string>>;
+
+const slugsOf = (
+	scope: McpxToolScope,
+	key: keyof McpxScopeSlugs,
+): { collections: string[]; globals: string[] } => ({
+	collections: scope.collections[key],
+	globals: scope.globals[key],
+});
 
 const slugsWhere = (
 	scope: McpxToolScope,
@@ -42,73 +52,25 @@ const slugsWhere = (
 };
 
 /**
- * Slugs this key may write whose writes land live rather than as a draft. An
- * entity without versions has no draft to land on, so `write: "live"` there
- * makes every write a live one. Empty for every key that can only write drafts.
- */
-const liveWriteSlugs = (scope: McpxToolScope): string[] =>
-	slugsWhere(scope, isLiveWrite, {
-		collections: scope.writable,
-		globals: scope.writableGlobals,
-	});
-
-/**
  * Slugs this key may write but never create in, because their documents are
  * files. Collection-only, since nothing creates a global either way.
  */
 export const patchOnlySlugs = (scope: McpxToolScope): string[] =>
 	slugsWhere(scope, (entity) => !canCreate(entity), {
-		collections: scope.writable,
+		collections: scope.collections.writable,
 		globals: [],
 	});
 
-/** Slugs this key may write and, separately, publish. */
-const publishableWriteSlugs = (scope: McpxToolScope): string[] =>
-	slugsWhere(scope, canPublish, {
-		collections: scope.publishable,
-		globals: scope.publishableGlobals,
-	});
-
-/**
- * What a write actually does for this key, and what it takes to make it public.
- * A live-write slug has no draft and no publish step; a publishable one has
- * both. Stated per key so a client is never told its writes are drafts while
- * they are not, nor that publishing is out of reach when it is not.
- */
-export const draftSentence = (scope: McpxToolScope): string => {
-	const live = liveWriteSlugs(scope);
-	const publishable = publishableWriteSlugs(scope);
-
-	const base =
-		live.length === 0
-			? "Every write lands as a draft."
-			: `Writes land as drafts, except for ${live.join(", ")}, which have no drafts: a write there changes the live document immediately.`;
-
-	const publishing =
-		publishable.length === 0
-			? "Nothing this key writes is ever published; publishing stays a human action in the admin panel."
-			: `Publish a draft with publishDocument, which this key may do for ${publishable.join(", ")}. Publishing anything else stays a human action in the admin panel.`;
-
-	return `${base} ${publishing}`;
-};
-
-/** The value a client read back is a string; what it meets may be a Date. */
-export const sameInstant = (left: unknown, right: string): boolean =>
-	typeof left === "string" &&
-	new Date(left).getTime() === new Date(right).getTime();
-
 /*
- * The supersets the shape helpers below produce. Which keys a helper actually
- * emits depends on the scope. `global` is left out when the key can reach no
- * global, `locale` when localization is off, so no single branch describes
- * what a handler must cope with. These types do, and a tool's arguments are
- * inferred from them, which is what keeps the two from drifting apart. The
- * cross-field rules they cannot state ("exactly one of collection and global",
- * "id required with collection") are enforced by `resolveTarget` and
- * `requireIdFor` at call time.
+ * The supersets the shape helpers below produce. Which keys a helper emits
+ * depends on the scope (`global` is left out when the key reaches no global,
+ * `locale` when localization is off), so no single branch describes what a
+ * handler must cope with. A tool's arguments are inferred from these types, so
+ * shape and arguments cannot drift apart. The cross-field rules they cannot
+ * state are enforced by `resolveEntity` and `resolveDocument` at call time.
  */
 /* eslint-disable @typescript-eslint/consistent-type-definitions */
-type TargetShape = {
+type EntityShape = {
 	collection: z.ZodOptional<SlugEnum>;
 	global: z.ZodOptional<SlugEnum>;
 };
@@ -117,11 +79,10 @@ type LocaleShape = { locale: z.ZodOptional<SlugEnum> };
 type DepthShape = { depth: z.ZodOptional<z.ZodNumber> };
 /* eslint-enable @typescript-eslint/consistent-type-definitions */
 
-/**
- * One scope-dependent branch of a superset. It may leave a key out, and may
- * emit the required form of a key the superset marks optional, but it cannot
- * invent a key or change one's type: those are the ways a shape and the
- * arguments inferred from it would drift apart.
+/*
+ * One scope-dependent branch of a superset. It may omit a key or emit the
+ * required form of an optional one, but cannot add a key or change a type,
+ * since that would let the shape and its inferred arguments drift apart.
  */
 type Branch<Full extends z.ZodRawShape> = {
 	[K in keyof Full]?: Full[K] extends z.ZodOptional<
@@ -131,88 +92,124 @@ type Branch<Full extends z.ZodRawShape> = {
 		: Full[K];
 };
 
-/** Unchecked, because the runtime shape really does vary; `Branch` guards it. */
-const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
+// Unchecked because the runtime shape varies; `Branch` guards it.
+export const widen = <Full extends z.ZodRawShape>(branch: Branch<Full>): Full =>
 	branch as unknown as Full;
 
-/** The one list the shape helpers and {@link resolveTarget} both read. */
+/** The one list the shape helpers and {@link resolveEntity} both read. */
 export const slugsFor = (
 	scope: McpxToolScope,
-	operation: McpxOperation,
+	operation: Operation,
 ): { collections: string[]; globals: string[] } => {
 	switch (operation) {
 		case "create":
 			return {
 				collections: slugsWhere(scope, canCreate, {
-					collections: scope.writable,
+					collections: scope.collections.writable,
 					globals: [],
 				}),
 				// A global always exists, so nothing creates one.
 				globals: [],
 			};
 		case "publish":
-			return {
-				collections: scope.publishable,
-				globals: scope.publishableGlobals,
-			};
+			return slugsOf(scope, "publishable");
 		case "read":
-			return { collections: scope.readable, globals: scope.readableGlobals };
+			return slugsOf(scope, "readable");
 		case "versions":
-			// Version history is a read, of entities that keep one.
+			// Version history is a read, of entities that keep one and expose it.
 			return {
 				collections: slugsWhere(scope, (entity) => entity.hasVersions, {
-					collections: scope.readable,
+					collections: scope.collections.readable,
 					globals: [],
 				}),
 				globals: slugsWhere(scope, (entity) => entity.hasVersions, {
 					collections: [],
-					globals: scope.readableGlobals,
+					globals: scope.globals.readable,
 				}),
 			};
 		case "write":
-			return { collections: scope.writable, globals: scope.writableGlobals };
+			return slugsOf(scope, "writable");
 	}
+};
+
+/**
+ * The slugs of {@link slugsFor} `"versions"` that also have drafts. Only they
+ * have `_status` on their versions, so only they can be queried by status.
+ */
+export const draftVersionSlugs = (
+	scope: McpxToolScope,
+): { collections: string[]; globals: string[] } => {
+	const { collections, globals } = slugsFor(scope, "versions");
+
+	return {
+		collections: slugsWhere(scope, (entity) => entity.hasDrafts, {
+			collections,
+			globals: [],
+		}),
+		globals: slugsWhere(scope, (entity) => entity.hasDrafts, {
+			collections: [],
+			globals,
+		}),
+	};
+};
+
+/** Slugs reachable by `operation` whose writes go live, because they have no draft to write. */
+export const liveWriteSlugs = (
+	scope: McpxToolScope,
+	operation: "create" | "write",
+): string[] => slugsWhere(scope, isLiveWrite, slugsFor(scope, operation));
+
+/**
+ * Stated on the tools that write, since a client calling them must know before
+ * the call which writes are public.
+ */
+export const liveWriteSentence = (
+	scope: McpxToolScope,
+	operation: "create" | "write",
+): string => {
+	const live = liveWriteSlugs(scope, operation);
+
+	return live.length === 0
+		? "Every write is saved as a draft."
+		: `Writes to ${live.join(", ")} go live immediately. Every other write is saved as a draft.`;
 };
 
 /**
  * With no reachable global, `global` is left out and `collection` stays
  * required, so a deployment without globals sees an unchanged schema. Only the
  * mixed case makes either optional, and the handler enforces exclusivity there.
+ * `globalRule` states that rule on `global` for a tool without an `id`.
  */
-export const targetShape = (
+export const entityShape = (
 	scope: McpxToolScope,
-	operation: McpxOperation,
-	descriptions: { collection: string; global: string },
-): TargetShape => {
+	operation: Operation,
+	globalRule?: string,
+): EntityShape => {
 	const { collections, globals } = slugsFor(scope, operation);
 
 	if (globals.length === 0) {
-		return widen<TargetShape>({
-			collection: slugEnum(collections).describe(descriptions.collection),
-		});
+		return widen<EntityShape>({ collection: slugEnum(collections) });
 	}
 
 	if (collections.length === 0) {
-		return widen<TargetShape>({
-			global: slugEnum(globals).describe(descriptions.global),
-		});
+		return widen<EntityShape>({ global: slugEnum(globals) });
 	}
 
-	return widen<TargetShape>({
-		collection: slugEnum(collections)
-			.optional()
-			.describe(descriptions.collection),
-		global: slugEnum(globals).optional().describe(descriptions.global),
+	const global = slugEnum(globals).optional();
+
+	return widen<EntityShape>({
+		collection: slugEnum(collections).optional(),
+		global: globalRule === undefined ? global : global.describe(globalRule),
 	});
 };
 
 /**
  * Only a collection document has one. Optional in the mixed case, where
- * `requireIdFor` enforces the dependency.
+ * `resolveDocument` enforces the dependency and the description states it.
  */
 export const idShape = (
 	scope: McpxToolScope,
-	operation: McpxOperation,
+	operation: Operation,
 ): IdShape => {
 	const { collections, globals } = slugsFor(scope, operation);
 
@@ -227,26 +224,32 @@ export const idShape = (
 	return widen<IdShape>({
 		id: idSchema
 			.optional()
-			.describe(
-				'Document id. Required with "collection"; must be omitted with "global".',
-			),
+			.describe('Required with "collection", omitted with "global".'),
 	});
 };
 
+/** For the reads that fall back to the default locale, unlike the writes. */
+export const READ_LOCALE_DESCRIPTION =
+	"Default: the default locale. A value missing in this locale is shown from the default locale.";
+
 export const localeShape = (
 	scope: McpxToolScope,
-	options: { required: boolean; description: string },
+	options: { required: boolean; description?: string },
 ): LocaleShape => {
-	if (!scope.locales) {
+	if (!scope.localization) {
 		return widen<LocaleShape>({});
 	}
 
-	const locale = z.enum(scope.locales as [string, ...string[]]);
+	const enumerated = z.enum(
+		scope.localization.locales as [string, ...string[]],
+	);
+	const locale = options.required ? enumerated : enumerated.optional();
 
 	return widen<LocaleShape>({
-		locale: (options.required ? locale : locale.optional()).describe(
-			options.description,
-		),
+		locale:
+			options.description === undefined
+				? locale
+				: locale.describe(options.description),
 	});
 };
 
@@ -262,7 +265,7 @@ export const depthShape = (scope: McpxToolScope): DepthShape => ({
 		.max(scope.limits.maxDepth)
 		.optional()
 		.describe(
-			`Relationship population depth. Default 0, at most ${String(scope.limits.maxDepth)}.`,
+			"Default 0. A relationship into a collection this key cannot read stays an id.",
 		),
 });
 
@@ -274,81 +277,12 @@ export const localeOf = (
 	scope: McpxToolScope,
 	locale: string | undefined,
 ): TypedLocale | undefined => {
-	if (!scope.locales) {
+	if (!scope.localization) {
 		return undefined;
 	}
 
+	const { locales, defaultLocale } = scope.localization;
 	const requested = locale ?? scope.req.locale;
-	const chosen =
-		requested && scope.locales.includes(requested)
-			? requested
-			: scope.defaultLocale;
 
-	return chosen ?? undefined;
-};
-
-/**
- * Reads the current draft in a fixed locale with no fallback, which is the
- * shape that may be written back or validated without mixing locales.
- */
-export const readTarget = async (
-	scope: McpxToolScope,
-	args: {
-		target: ResolvedTarget;
-		id?: number | string | undefined;
-		locale: TypedLocale | undefined;
-		privileged?: boolean;
-	},
-): Promise<Record<string, unknown>> => {
-	const { payload } = scope.req;
-	const privileged = args.privileged === true;
-	const shared = {
-		depth: 0,
-		draft: true,
-		...(args.locale === undefined
-			? {}
-			: { locale: args.locale, fallbackLocale: false as const }),
-		overrideAccess: privileged,
-		showHiddenFields: privileged,
-		req: scope.req,
-	};
-
-	if (args.target.kind === "collection") {
-		const doc = (await payload.findByID({
-			...shared,
-			collection: args.target.slug,
-			id: args.id as number | string,
-			disableErrors: true,
-		})) as null | Record<string, unknown>;
-
-		if (!doc) {
-			throw new NotFound(scope.req.t);
-		}
-
-		return doc;
-	}
-
-	/*
-	 * `disableErrors` stays off for a global so Payload distinguishes the two
-	 * cases itself: denied access throws `NotFound`, while a global that has
-	 * simply never been saved comes back as an empty document. That empty
-	 * document is a valid starting point, because a global always exists
-	 * conceptually and refusing it would make the first write to one
-	 * impossible.
-	 */
-	return await payload.findGlobal({
-		...shared,
-		slug: args.target.slug,
-	});
-};
-
-export const translateLabel = (
-	scope: McpxToolScope,
-	label: LabelFunction | StaticLabel | undefined,
-	fallback: string,
-): string => {
-	const { i18n, t } = scope.req;
-	const resolved = typeof label === "function" ? label({ i18n, t }) : label;
-
-	return translateStatic(resolved, i18n) ?? fallback;
+	return requested && locales.includes(requested) ? requested : defaultLocale;
 };

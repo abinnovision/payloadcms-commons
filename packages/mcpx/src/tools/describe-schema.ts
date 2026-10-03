@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-import { targetShape } from "./shared.js";
-import { refOf, resolveTarget } from "./target.js";
+import { resolveEntity } from "./document.js";
+import { entityShape } from "./shared.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { translatorFor } from "../i18n.js";
 import { jsonResult } from "../result.js";
 import {
@@ -9,60 +10,50 @@ import {
 	nodePropertiesFor,
 	REACHABLE_PATHS_LIMIT,
 	reachableSchemaPaths,
+	SchemaError,
 } from "../schema/index.js";
-import { defineMcpxTool } from "../types.js";
 
 import type { FieldDescriptor } from "../schema/index.js";
 
-const DESCRIPTION = `Describes the writable shape of a document, one node at a time.
+const DESCRIPTION = `Describes the fields of a collection or global, one node at a time. Use it before a query or a write.
 
-Pass exactly one of "collection" and "global". A global is a singleton: it has no id, is not listed by findDocuments and cannot be created.
+Without "paths" it returns the top-level node. A node has a "schemaPath", its "fields" and "next". Each field has a "path" relative to its node, a "type" and constraints such as "required", "localized", "readOnly", "options" and "relationTo". A "blocks" field lists the block slugs it accepts, and a "richText" field lists its node types in "nodes". "next" holds the schema paths of the blocks and rich text node types with fields below the node, e.g. "/layout/sections/sectionWrapper" or "/content/block/callout". Pass them as "paths" to describe those nodes. A block can accept different children at another position, so describe it at the schema path where it is used.
 
-Call it with no "paths" to get a collection's own fields. Every "blocks" field stops there and lists the block slugs it accepts instead of nesting them; each node's "next" lists the ready-to-use paths for those blocks, so pass any entry of "next" as a "paths" element to descend, e.g. "/layout/sections/sectionWrapper" and then "/layout/sections/sectionWrapper/modules/hero". A block is described as it exists at that position, because the same block can accept different children elsewhere.
+When the response contains a rich text field, the response also carries a "nodeProperties" entry: the properties each node type must carry. Build every rich text node from it. Upload nodes have no schema path.
 
-A "richText" field stops there too. It lists the Lexical node types it accepts in "nodes", and "next" carries a path for every node type that holds fields of its own: "/content/link" for a link node, "/content/block/callout" and "/content/inlineBlock/badge" for the block nodes. Descend to get the real field list instead of guessing what a node carries. Upload nodes are not addressable, because their fields depend on the collection the node points at.
+id, _status, createdAt and updatedAt are not listed and cannot be written. A field marked "readOnly" cannot be written either.`;
 
-Write each Lexical node the way Lexical serializes it, with every property its type carries rather than a trimmed subset, and with the value Lexical would have written there. Those requirements are stated rather than left to be discovered: the response carries one final "nodeProperties" entry keyed by node type, naming each property and what belongs there in the same words a refused write uses, so a node can be built from this response alone. A field's own "nodes" says which of those types it accepts. The root takes exactly "children", "direction", "format", "indent", "type" and "version" and refuses anything else. The admin editor rehydrates nodes through their classes, so a list item whose "indent" is missing, null or a string is stored and then throws on open, and a heading whose "tag" is a number is stored untagged. A write naming a property means exactly that. A state whose root holds no children is refused however it is written, because Lexical reads it as empty and throws; clear a field with null instead.
-
-A rich text field's value is addressable too, so an edit does not have to rewrite the whole state: "/content/root/children/0" is the first top-level node, "/content/root/children/0/children/1" a node inside it, "/content/root/children/0/tag" one property of a node, and "/content/root/children/0/fields/url" a field of a node, described at the "next" path for that node type. Append a node with "/-". Which node sits at an index is only knowable from what is stored, so read it first: getDocument with "outline" answers with the pointer, type, "version" and a text excerpt for every node, which is far cheaper than reading the whole state.
-
-Paths here use the same JSON Pointer syntax as getDocument and patchDocument, and are already resolved through anything that does not nest in the stored document. The difference is only what stands in an element position: a path names an array element "*" and a block by its slug, where a pointer into a document carries a 0-based index. So "/items/*/title" is written at "/items/0/title", and "/layout/sections/hero" at "/layout/sections/0". Inside a rich text field that substitution does not apply: a path there names the node type, and a block node its slug, where a pointer enters the stored state at "root" and walks "children" by an index counted over every child at that level, not over the blocks among them, with the node's own fields under "fields". So "/content/block/practice-note/variant" is written at "/content/root/children/7/fields/variant".
-
-Fields Payload maintains (id, _status, createdAt, updatedAt) are never listed and cannot be written. Fields marked readOnly are listed but refused on write.`;
+const PATHS_LIMIT = 400;
 
 /**
- * Describes each requested path independently and returns a per
- * path error object instead of failing the call, so a client exploring several
- * branches at once keeps the nodes that did resolve. `expand` swaps the
- * requested paths for every node reachable from the root and appends a
- * truncation notice past {@link REACHABLE_PATHS_LIMIT}.
+ * Describes each requested path independently and returns a per-path error
+ * object instead of failing the call, so a client exploring several branches
+ * keeps the nodes that resolved. `expand` replaces the requested paths with
+ * every node reachable from the root and adds a truncation notice past
+ * {@link REACHABLE_PATHS_LIMIT}.
  */
 export const describeSchema = defineMcpxTool({
 	name: "describeSchema",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
 	isEnabled: (scope) =>
-		scope.readable.length + scope.readableGlobals.length > 0,
+		scope.collections.readable.length + scope.globals.readable.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "read", {
-			collection: "Collection to describe.",
-			global: "Global to describe.",
-		}),
+		...entityShape(scope, "read", 'Instead of "collection".'),
 		paths: z
 			.array(z.string())
+			.max(PATHS_LIMIT)
 			.optional()
-			.describe(
-				'Schema paths to describe, e.g. "/layout/sections/sectionWrapper". Omit for the collection root.',
-			),
+			.describe('Schema paths from "next". Omit for the top-level node.'),
 		expand: z
 			.boolean()
 			.optional()
 			.describe(
-				"Return every node reachable from the root in one response. Ignores paths.",
+				'Return the top-level node and every node below it in one response, instead of "paths".',
 			),
 	}),
 	handler: ({ args, scope }) => {
-		const ref = refOf(resolveTarget(scope, args, "read"));
+		const ref = resolveEntity(scope, args, "read");
 
 		const { config } = scope.req.payload;
 		const describeNode = nodeDescriber(translatorFor(scope.req.i18n));
@@ -73,22 +64,34 @@ export const describeSchema = defineMcpxTool({
 			expanded?.paths ??
 			(args.paths && args.paths.length > 0 ? args.paths : [""]);
 
-		// One bad path returns its own message rather than failing the batch.
+		const failures: unknown[] = [];
+
 		const nodes: unknown[] = requested.map((schemaPath) => {
 			try {
 				return describeNode(config, ref, schemaPath);
 			} catch (error) {
-				return {
-					error: error instanceof Error ? error.message : "Unknown error",
-					schemaPath,
-				};
+				if (error instanceof SchemaError) {
+					return { error: error.message, schemaPath };
+				}
+
+				failures.push(error);
+
+				return { error: "Internal error", schemaPath };
 			}
 		});
 
+		// One root cause usually fails every path, so it is logged once.
+		if (failures.length > 0) {
+			scope.req.payload.logger.error({
+				err: failures[0],
+				msg: `[payloadcms-mcpx] Describing ${String(failures.length)} schema paths failed.`,
+			});
+		}
+
 		/*
-		 * Stated once for the whole response rather than on each field, because
-		 * what a node type has to carry does not vary by where it is written.
-		 * A field's own "nodes" says which of these apply to it.
+		 * Stated once for the whole response, not per field, because what a node
+		 * type must carry does not vary with where it is written. A field's own
+		 * "nodes" says which of these apply to it.
 		 */
 		const nodeTypes = nodes.flatMap((node) =>
 			((node as { fields?: FieldDescriptor[] }).fields ?? []).flatMap(
@@ -106,6 +109,6 @@ export const describeSchema = defineMcpxTool({
 			});
 		}
 
-		return Promise.resolve(jsonResult(nodes));
+		return jsonResult(nodes);
 	},
 });

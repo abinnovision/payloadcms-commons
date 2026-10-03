@@ -2,33 +2,37 @@ import { APIError } from "payload";
 import { Pointer } from "rfc6902";
 import { z } from "zod";
 
+import { identityOf, resolveDocument } from "./document.js";
 import {
 	depthShape,
 	idSchema,
 	idShape,
 	localeOf,
 	localeShape,
+	READ_LOCALE_DESCRIPTION,
 	slugsFor,
-	targetShape,
+	entityShape,
+	widen,
 } from "./shared.js";
-import { refOf, requireIdFor, resolveTarget } from "./target.js";
 import {
 	diffDocuments,
 	loadPublished,
 	loadVersion,
 	readLive,
 } from "./versions.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { errorResult, jsonResult } from "../result.js";
 import {
 	findRichTextField,
 	JSON_POINTER_PATTERN,
 	lexicalOutline,
+	prototypeSegmentProblem,
 	resolveDataPointer,
+	SchemaError,
 	splitPath,
 } from "../schema/index.js";
-import { defineMcpxTool } from "../types.js";
 
-import type { ResolvedTarget } from "./target.js";
+import type { DocumentId, ResolvedEntity } from "../entity.js";
 import type { VersionRead } from "./versions.js";
 import type { McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -36,22 +40,27 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 const OUTLINE_ERROR =
 	'"outline" applies to a rich text field; give "path" for one.';
 
-const DESCRIPTION = `Reads one document, or one subtree of it when "path" is given as a JSON pointer such as "/layout/sections/2". Returns the latest draft by default. Read before patching: the response carries "updatedAt" for expectedUpdatedAt and the indices pointers need.
+const VERSION_PARAGRAPH = `
 
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
+"versionId" and "diffFrom" work where findVersions does. To revert, call getDocument with the old version as "versionId", the version findVersions marks "latest" as "diffFrom" and the locale you will write, then apply the returned "patch" with patchDocument.`;
 
-Set "outline" on a rich text "path" to get a compact positional listing of its nodes instead of the raw editor state.
+const DESCRIPTION = `Reads one document or global, or with "path" only the value at that pointer. Returns the latest draft by default, with the "updatedAt" a write takes as "expectedUpdatedAt".`;
 
-On an entity with versions, "versionId" (from findVersions) reads that version instead. "diffFrom" returns the RFC 6902 operations turning a version, or "published" (the newest version with published status, regardless of locale), into the document read, in the pointer syntax patchDocument takes and limited to "path" when given. To revert, pass the old version as "versionId" and the latest one from findVersions as "diffFrom", then apply the patch with patchDocument.`;
+// Whether the key reaches any entity whose version history the config exposes.
+const exposesVersions = (scope: McpxToolScope): boolean => {
+	const { collections, globals } = slugsFor(scope, "versions");
 
-/** Refuses `versionId` and `diffFrom` where they cannot apply. */
+	return collections.length + globals.length > 0;
+};
+
+// Refuses `versionId` and `diffFrom` where they cannot apply.
 const assertVersionArgs = (
 	scope: McpxToolScope,
-	target: ResolvedTarget,
+	target: ResolvedEntity,
 	args: {
 		draft?: boolean | undefined;
-		versionId?: number | string | undefined;
-		diffFrom?: number | string | undefined;
+		versionId?: DocumentId | undefined;
+		diffFrom?: DocumentId | undefined;
 		outline?: boolean | undefined;
 	},
 ): void => {
@@ -63,7 +72,10 @@ const assertVersionArgs = (
 	const versioned = target.kind === "collection" ? collections : globals;
 
 	if (!versioned.includes(target.slug)) {
-		throw new APIError(`"${target.slug}" keeps no versions.`, 400);
+		throw new APIError(
+			`"${target.slug}" does not expose version history.`,
+			400,
+		);
 	}
 
 	if (args.versionId !== undefined && args.draft !== undefined) {
@@ -79,8 +91,8 @@ const diffResult = async (
 	scope: McpxToolScope,
 	read: VersionRead,
 	diff: {
-		from: number | string;
-		to: number | string | undefined;
+		from: DocumentId;
+		to: DocumentId | undefined;
 		pointer: Pointer | undefined;
 	},
 	doc: Record<string, unknown>,
@@ -106,61 +118,82 @@ const diffResult = async (
 	});
 };
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+type VersionShape = {
+	versionId: z.ZodOptional<typeof idSchema>;
+	diffFrom: z.ZodOptional<typeof idSchema>;
+};
+
+/*
+ * Left out for a key that reaches no entity with exposed versions, so the
+ * client is never offered what the refusal would answer.
+ */
+const versionShape = (scope: McpxToolScope): VersionShape => {
+	if (!exposesVersions(scope)) {
+		return widen<VersionShape>({});
+	}
+
+	return widen<VersionShape>({
+		versionId: idSchema
+			.optional()
+			.describe('From findVersions. Not with "draft".'),
+		diffFrom: idSchema
+			.optional()
+			.describe(
+				'Version id, or "published" for the newest version published in any locale. Returns {from, to, patch}, the JSON Patch from that version to what is read.',
+			),
+	});
+};
+
 /**
  * With `path` the handler returns the subtree plus the `id`, `_status` and
- * `updatedAt` a client needs to write back, so a caller reading one branch
- * still gets the timestamp `expectedUpdatedAt` wants without a second call.
+ * `updatedAt` a client needs to write back, so reading one branch still gives
+ * the `expectedUpdatedAt` timestamp without a second call.
  */
 export const getDocument = defineMcpxTool({
 	name: "getDocument",
-	description: DESCRIPTION,
+	description: (scope) =>
+		exposesVersions(scope) ? DESCRIPTION + VERSION_PARAGRAPH : DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
 	isEnabled: (scope) =>
-		scope.readable.length + scope.readableGlobals.length > 0,
+		scope.collections.readable.length + scope.globals.readable.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "read", {
-			collection: "Collection holding the document.",
-			global: "Global to read.",
-		}),
+		...entityShape(scope, "read"),
 		...idShape(scope, "read"),
 		path: z
 			.string()
 			.regex(JSON_POINTER_PATTERN)
 			.optional()
-			.describe(
-				'JSON pointer to return only a subtree, e.g. "/layout/sections/0".',
-			),
+			.describe('e.g. "/layout/sections/0".'),
 		...depthShape(scope),
 		...localeShape(scope, {
 			required: false,
-			description: "Locale to read. Defaults to the default locale.",
+			description: READ_LOCALE_DESCRIPTION,
 		}),
 		draft: z
 			.boolean()
 			.optional()
-			.describe("Return the latest draft. Default true."),
+			.describe("Default true. false reads the published version."),
 		outline: z
 			.boolean()
 			.optional()
 			.describe(
-				'For a rich text field, return a compact positional outline instead of the editor state. Requires "path".',
+				'With "path" at a rich text field: list each node\'s pointer, type, "version" and text.',
 			),
-		versionId: idSchema
-			.optional()
-			.describe(
-				'Version to read instead of the document, from findVersions. Only for entities with versions; not with "draft".',
-			),
-		diffFrom: idSchema
-			.optional()
-			.describe(
-				'Version id, or "published" for the newest published version in any locale, to diff from. Returns {from, to, patch} instead of the document. Only for entities with versions.',
-			),
+		...versionShape(scope),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "read");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "read");
 
 		assertVersionArgs(scope, target, args);
+
+		const prototyped = args.path
+			? prototypeSegmentProblem(args.path)
+			: undefined;
+
+		if (prototyped !== undefined) {
+			return errorResult(prototyped);
+		}
 
 		let pointer: Pointer | undefined;
 
@@ -172,7 +205,6 @@ export const getDocument = defineMcpxTool({
 
 		const read = {
 			target,
-			id,
 			depth: args.depth ?? 0,
 			locale: localeOf(scope, args.locale),
 		};
@@ -206,7 +238,7 @@ export const getDocument = defineMcpxTool({
 		const value = pointer.get(doc) as unknown;
 
 		const envelope = {
-			...(target.kind === "collection" ? { id } : { global: target.slug }),
+			...identityOf(target, args.id),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			path,
@@ -216,24 +248,26 @@ export const getDocument = defineMcpxTool({
 			return jsonResult({ ...envelope, value });
 		}
 
-		/* The resolver throws for a path no field answers to. */
+		// The resolver throws for a path no field answers to.
 		let resolution;
 
 		try {
 			resolution = resolveDataPointer(scope.req.payload.config, {
 				doc,
 				pointer: path,
-				ref: refOf(target),
+				ref: target,
 			});
 		} catch (error) {
-			return errorResult(
-				error instanceof Error ? error.message : OUTLINE_ERROR,
-			);
+			if (!(error instanceof SchemaError)) {
+				throw error;
+			}
+
+			return errorResult(error.message);
 		}
 
 		/*
-		 * A pointer running on into the state resolves to the same descriptor,
-		 * and outlining one node of it would answer with nothing.
+		 * A pointer that continues into the editor state resolves to the same
+		 * descriptor, and outlining a node of it would return nothing.
 		 */
 		const field =
 			resolution.descriptor?.type === "richText" && !resolution.lexical

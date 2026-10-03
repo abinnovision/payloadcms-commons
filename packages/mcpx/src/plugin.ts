@@ -1,7 +1,7 @@
 import { definePlugin } from "payload";
 
-import { createApiKeysCollection } from "./api-keys/index.js";
-import { createMcpxHandler, methodNotAllowed } from "./endpoint/index.js";
+import { createApiKeysCollection } from "./api-keys/collection.js";
+import { createMcpxHandler, methodNotAllowed } from "./endpoint/handler.js";
 import { normalizeOptions } from "./options.js";
 import {
 	installDraftGuards,

@@ -1,18 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool } from "./helpers/mcp.js";
-import { bootPayload, hero, section, seedKeys } from "./helpers/payload.js";
+import { createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, seedKeys } from "./helpers/payload.js";
+import { hero, section } from "../builders/blocks.js";
+import { node, state, text } from "../builders/lexical.js";
 
-import type { Booted, Seeded } from "./helpers/payload.js";
+import type { McpClient } from "./helpers/mcp.js";
+import type { Booted } from "./helpers/payload.js";
 
 describe("read tools", () => {
 	let booted: Booted;
-	let seeded: Seeded;
+	let mcp: McpClient;
 	let pageId: number | string;
 
 	beforeAll(async () => {
 		booted = await bootPayload();
-		seeded = await seedKeys(booted.payload);
+		mcp = createMcpClient(booted, (await seedKeys(booted.payload)).keys.full);
 
 		const { payload } = booted;
 
@@ -64,11 +67,8 @@ describe("read tools", () => {
 		await booted.payload.destroy();
 	});
 
-	const call = (name: string, args: Record<string, unknown>) =>
-		callTool(booted.config, seeded.keys.full, name, args);
-
 	it("finds documents with the defaults", async () => {
-		const result = await call("findDocuments", { collection: "pages" });
+		const result = await mcp.call("findDocuments", { collection: "pages" });
 
 		expect(result.isError).toBe(false);
 		expect(result.data["totalDocs"]).toBe(4);
@@ -76,16 +76,19 @@ describe("read tools", () => {
 	});
 
 	it("refuses a limit above the configured cap", async () => {
-		const result = await call("findDocuments", {
+		const result = await mcp.call("findDocuments", {
 			collection: "pages",
 			limit: 100,
 		});
 
 		expect(result.isError).toBe(true);
+		expect(result.text).toContain(
+			"Too big: expected number to be <=25 at limit",
+		);
 	});
 
 	it("applies where, select and sort", async () => {
-		const result = await call("findDocuments", {
+		const result = await mcp.call("findDocuments", {
 			collection: "pages",
 			where: { slug: { like: "page-" } },
 			select: { title: true },
@@ -100,7 +103,7 @@ describe("read tools", () => {
 	});
 
 	it("reads in the requested locale", async () => {
-		const de = await call("findDocuments", {
+		const de = await mcp.call("findDocuments", {
 			collection: "pages",
 			where: { slug: { equals: "published" } },
 			locale: "de",
@@ -110,12 +113,36 @@ describe("read tools", () => {
 		expect(docs[0]?.["title"]).toBe("Veröffentlicht");
 	});
 
+	it("shows a value missing in the requested locale from the default locale", async () => {
+		const page = await booted.payload.create({
+			collection: "pages",
+			locale: "en",
+			draft: true,
+			data: { title: "Only English", slug: "only-english" },
+		});
+		const found = await mcp.call("findDocuments", {
+			collection: "pages",
+			where: { slug: { equals: "only-english" } },
+			locale: "de",
+		});
+		const got = await mcp.call("getDocument", {
+			collection: "pages",
+			id: page.id,
+			locale: "de",
+		});
+
+		expect(
+			(found.data["docs"] as Record<string, unknown>[])[0]?.["title"],
+		).toBe("Only English");
+		expect(got.data["title"]).toBe("Only English");
+	});
+
 	it("returns the pending draft by default and the live document on request", async () => {
-		const draft = await call("getDocument", {
+		const draft = await mcp.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 		});
-		const live = await call("getDocument", {
+		const live = await mcp.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			draft: false,
@@ -128,7 +155,7 @@ describe("read tools", () => {
 	});
 
 	it("returns one subtree for a pointer", async () => {
-		const result = await call("getDocument", {
+		const result = await mcp.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			path: "/layout/sections/0/identifier",
@@ -140,75 +167,49 @@ describe("read tools", () => {
 	});
 
 	it("refuses a path that is not a JSON pointer", async () => {
-		const result = await call("getDocument", {
+		const result = await mcp.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			path: "layout.sections.0.identifier",
 		});
 
 		expect(result.isError).toBe(true);
+		expect(result.text).toMatch(
+			/Invalid string: must match pattern .+ at path$/,
+		);
 	});
 
 	it("refuses a depth above the configured cap", async () => {
-		const result = await call("getDocument", {
+		const result = await mcp.call("getDocument", {
 			collection: "pages",
 			id: pageId,
 			depth: 5,
 		});
 
 		expect(result.isError).toBe(true);
+		expect(result.text).toContain(
+			"Too big: expected number to be <=1 at depth",
+		);
 	});
 
 	describe("outlining a rich text field", () => {
-		const NODES = [
-			{
-				children: [
-					{
-						detail: 0,
-						format: 0,
-						mode: "normal",
-						style: "",
-						text: "Heading",
-						type: "text",
-						version: 1,
+		/** A post whose summary holds one h4 heading. */
+		const createOutlined = async (): Promise<number | string> =>
+			(
+				await booted.payload.create({
+					collection: "posts",
+					locale: "en",
+					draft: true,
+					data: {
+						title: "Outlined",
+						summary: state([node("heading", { tag: "h4" }, [text("Heading")])]),
 					},
-				],
-				direction: "ltr",
-				format: "",
-				indent: 0,
-				tag: "h4",
-				type: "heading",
-				version: 1,
-			},
-		];
-
-		let postId: number | string;
-
-		beforeAll(async () => {
-			const post = await booted.payload.create({
-				collection: "posts",
-				locale: "en",
-				draft: true,
-				data: {
-					title: "Outlined",
-					summary: {
-						root: {
-							children: NODES,
-							direction: "ltr",
-							format: "",
-							indent: 0,
-							type: "root",
-							version: 1,
-						},
-					},
-				},
-			});
-
-			postId = post.id;
-		});
+				})
+			).id;
 
 		it("answers with a position, a version and the narrowed properties", async () => {
-			const result = await call("getDocument", {
+			const postId = await createOutlined();
+			const result = await mcp.call("getDocument", {
 				collection: "posts",
 				id: postId,
 				path: "/summary",
@@ -236,7 +237,8 @@ describe("read tools", () => {
 		});
 
 		it("answers with a pointer and a version a patch can build on", async () => {
-			const outlined = await call("getDocument", {
+			const postId = await createOutlined();
+			const outlined = await mcp.call("getDocument", {
 				collection: "posts",
 				id: postId,
 				path: "/summary",
@@ -248,35 +250,22 @@ describe("read tools", () => {
 			}[];
 
 			/* The version comes from the outline, which is why it is reported. */
-			const patched = await callTool(
-				booted.config,
-				seeded.keys.full,
-				"patchDocument",
-				{
-					collection: "posts",
-					id: postId,
-					locale: "en",
-					patches: [
-						{
-							op: "add",
-							path: `${first!.pointer}/children/-`,
-							value: {
-								detail: 0,
-								format: 0,
-								mode: "normal",
-								style: "",
-								text: " appended",
-								type: "text",
-								version: first!.version,
-							},
-						},
-					],
-				},
-			);
+			const patched = await mcp.call("patchDocument", {
+				collection: "posts",
+				id: postId,
+				locale: "en",
+				patches: [
+					{
+						op: "add",
+						path: `${first!.pointer}/children/-`,
+						value: { ...text(" appended"), version: first!.version },
+					},
+				],
+			});
 
 			expect(patched.isError).toBe(false);
 
-			const after = await call("getDocument", {
+			const after = await mcp.call("getDocument", {
 				collection: "posts",
 				id: postId,
 				path: "/summary",
@@ -294,18 +283,19 @@ describe("read tools", () => {
 		});
 
 		it("refuses anything that is not a rich text field", async () => {
-			const withoutPath = await call("getDocument", {
+			const postId = await createOutlined();
+			const withoutPath = await mcp.call("getDocument", {
 				collection: "posts",
 				id: postId,
 				outline: true,
 			});
-			const wrongField = await call("getDocument", {
+			const wrongField = await mcp.call("getDocument", {
 				collection: "posts",
 				id: postId,
 				path: "/title",
 				outline: true,
 			});
-			const insideTheState = await call("getDocument", {
+			const insideTheState = await mcp.call("getDocument", {
 				collection: "posts",
 				id: postId,
 				path: "/summary/root/children/0",

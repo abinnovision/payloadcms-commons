@@ -1,116 +1,61 @@
 import { describe, expect, it } from "vitest";
 
-import { draftSentence, patchOnlySlugs, slugsFor } from "./shared.js";
+import { liveWriteSentence, patchOnlySlugs, slugsFor } from "./shared.js";
+import { entity, scopeFor } from "../../test/builders/scope.js";
 
-import type { McpxExposedEntity, McpxToolScope } from "../types.js";
+/** Writes without drafts, so nothing is left to publish. */
+const LIVE_ONLY = { write: "live", hasDrafts: false } as const;
 
-const entity = (
-	slug: string,
-	write: McpxExposedEntity["write"],
-	hasDrafts: boolean,
-	isUpload = false,
-): McpxExposedEntity => ({
-	slug,
-	read: true,
-	write,
-	hasDrafts,
-	hasVersions: hasDrafts,
-	isUpload,
-	fieldName: slug,
+describe("liveWriteSentence", () => {
+	it("promises drafts when no write of the key goes live", () => {
+		const sentence = liveWriteSentence(
+			scopeFor(
+				{ collections: [entity("pages", { write: "live" })] },
+				{ collections: { pages: { write: true, publish: true } } },
+			),
+			"write",
+		);
+
+		expect(sentence).toBe("Every write is saved as a draft.");
+	});
+
+	it("names the slugs whose writes go live because they have no drafts", () => {
+		const scope = scopeFor(
+			{
+				collections: [entity("pages"), entity("tags", LIVE_ONLY)],
+				globals: [entity("banner", LIVE_ONLY)],
+			},
+			{
+				collections: { pages: { write: true }, tags: { write: true } },
+				globals: { banner: { write: true } },
+			},
+		);
+
+		expect(liveWriteSentence(scope, "write")).toContain(
+			"Writes to tags, banner go live immediately.",
+		);
+		expect(liveWriteSentence(scope, "write")).not.toContain("pages");
+		expect(liveWriteSentence(scope, "create")).toContain(
+			"Writes to tags go live immediately.",
+		);
+	});
 });
 
-const scopeFor = (args: {
-	collections?: McpxExposedEntity[];
-	globals?: McpxExposedEntity[];
-	writable?: string[];
-	writableGlobals?: string[];
-	publishable?: string[];
-	publishableGlobals?: string[];
-}): McpxToolScope =>
-	({
-		writable: args.writable ?? [],
-		writableGlobals: args.writableGlobals ?? [],
-		publishable: args.publishable ?? [],
-		publishableGlobals: args.publishableGlobals ?? [],
-		exposure: {
-			collections: args.collections ?? [],
-			globals: args.globals ?? [],
+describe("slugsFor and patchOnlySlugs", () => {
+	const scope = scopeFor(
+		{
+			collections: [
+				entity("pages"),
+				entity("media", { isUpload: true }),
+				entity("tags", { write: false, hasDrafts: false }),
+			],
+			globals: [entity("banner")],
 		},
-	}) as unknown as McpxToolScope;
-
-describe("draftSentence", () => {
-	it("promises drafts and no publishing when that is all the key can do", () => {
-		const sentence = draftSentence(
-			scopeFor({
-				collections: [entity("pages", "draft", true)],
-				writable: ["pages"],
-			}),
-		);
-
-		expect(sentence).toContain("Every write lands as a draft.");
-		expect(sentence).toContain("Nothing this key writes is ever published");
-		expect(sentence).not.toContain("publishDocument");
-	});
-
-	it("names the slugs whose writes are live because they have no drafts", () => {
-		const sentence = draftSentence(
-			scopeFor({
-				collections: [
-					entity("pages", "draft", true),
-					entity("tags", "live", false),
-				],
-				globals: [entity("banner", "live", false)],
-				writable: ["pages", "tags"],
-				writableGlobals: ["banner"],
-			}),
-		);
-
-		expect(sentence).toContain("except for tags, banner");
-		expect(sentence).not.toContain("pages");
-	});
-
-	it("names the slugs the key may publish, separately from the live ones", () => {
-		const sentence = draftSentence(
-			scopeFor({
-				collections: [
-					entity("pages", "live", true),
-					entity("tags", "live", false),
-				],
-				writable: ["pages", "tags"],
-				publishable: ["pages"],
-			}),
-		);
-
-		expect(sentence).toContain("except for tags");
-		expect(sentence).toContain(
-			"publishDocument, which this key may do for pages",
-		);
-	});
-
-	it("leaves publishing out for a key that may write but not publish", () => {
-		const sentence = draftSentence(
-			scopeFor({
-				collections: [entity("pages", "live", true)],
-				writable: ["pages"],
-			}),
-		);
-
-		expect(sentence).toContain("Every write lands as a draft.");
-		expect(sentence).toContain("Nothing this key writes is ever published");
-	});
-});
-
-describe("create slugs", () => {
-	const scope = scopeFor({
-		collections: [
-			entity("pages", "draft", true),
-			entity("media", "draft", true, true),
-			entity("tags", false, false),
-		],
-		globals: [entity("banner", "draft", true)],
-		writable: ["pages", "media"],
-		writableGlobals: ["banner"],
-	});
+		{
+			collections: { pages: { write: true }, media: { write: true } },
+			globals: { banner: { write: true } },
+		},
+	);
 
 	it("leaves upload collections and every global out of create", () => {
 		expect(slugsFor(scope, "create")).toEqual({

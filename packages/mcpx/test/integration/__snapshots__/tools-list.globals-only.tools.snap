@@ -1,0 +1,424 @@
+[
+  {
+    "name": "listCapabilities",
+    "description": "Lists what this key may do. Call it first. Returns each collection and global the key can read or write, with whether it can create, publish, has drafts and exposes versions to findVersions, and a collection's \"idType\". Also returns the locales, the \"limits\" on page size and depth, and the enabled custom tools.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "describeSchema",
+    "description": "Describes the fields of a collection or global, one node at a time. Use it before a query or a write.\n\nWithout \"paths\" it returns the top-level node. A node has a \"schemaPath\", its \"fields\" and \"next\". Each field has a \"path\" relative to its node, a \"type\" and constraints such as \"required\", \"localized\", \"readOnly\", \"options\" and \"relationTo\". A \"blocks\" field lists the block slugs it accepts, and a \"richText\" field lists its node types in \"nodes\". \"next\" holds the schema paths of the blocks and rich text node types with fields below the node, e.g. \"/layout/sections/sectionWrapper\" or \"/content/block/callout\". Pass them as \"paths\" to describe those nodes. A block can accept different children at another position, so describe it at the schema path where it is used.\n\nWhen the response contains a rich text field, the response also carries a \"nodeProperties\" entry: the properties each node type must carry. Build every rich text node from it. Upload nodes have no schema path.\n\nid, _status, createdAt and updatedAt are not listed and cannot be written. A field marked \"readOnly\" cannot be written either.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "global": {
+          "type": "string",
+          "enum": [
+            "site-settings",
+            "banner"
+          ]
+        },
+        "paths": {
+          "description": "Schema paths from \"next\". Omit for the top-level node.",
+          "maxItems": 400,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expand": {
+          "description": "Return the top-level node and every node below it in one response, instead of \"paths\".",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "global"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "getDocument",
+    "description": "Reads one document or global, or with \"path\" only the value at that pointer. Returns the latest draft by default, with the \"updatedAt\" a write takes as \"expectedUpdatedAt\".\n\n\"versionId\" and \"diffFrom\" work where findVersions does. To revert, call getDocument with the old version as \"versionId\", the version findVersions marks \"latest\" as \"diffFrom\" and the locale you will write, then apply the returned \"patch\" with patchDocument.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "global": {
+          "type": "string",
+          "enum": [
+            "site-settings",
+            "banner"
+          ]
+        },
+        "path": {
+          "description": "e.g. \"/layout/sections/0\".",
+          "type": "string",
+          "pattern": "^(\\/([^~/]|~[01])*)*$"
+        },
+        "depth": {
+          "description": "Default 0. A relationship into a collection this key cannot read stays an id.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "locale": {
+          "description": "Default: the default locale. A value missing in this locale is shown from the default locale.",
+          "type": "string",
+          "enum": [
+            "en",
+            "de"
+          ]
+        },
+        "draft": {
+          "description": "Default true. false reads the published version.",
+          "type": "boolean"
+        },
+        "outline": {
+          "description": "With \"path\" at a rich text field: list each node's pointer, type, \"version\" and text.",
+          "type": "boolean"
+        },
+        "versionId": {
+          "description": "From findVersions. Not with \"draft\".",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "diffFrom": {
+          "description": "Version id, or \"published\" for the newest version published in any locale. Returns {from, to, patch}, the JSON Patch from that version to what is read.",
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "global"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "findVersions",
+    "description": "Lists the versions of one document or global, newest first, autosaves included. Returns per version \"versionId\", \"createdAt\", \"updatedAt\", \"status\", \"latest\", \"autosave\" and, where set, \"publishedLocale\", without the content. Read a version with getDocument \"versionId\", or compare it with \"diffFrom\".",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "global": {
+          "type": "string",
+          "enum": [
+            "site-settings"
+          ]
+        },
+        "limit": {
+          "description": "Default 10.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "published",
+            "draft"
+          ]
+        },
+        "locale": {
+          "description": "Locale whose \"status\" is reported. Defaults to the default locale.",
+          "type": "string",
+          "enum": [
+            "en",
+            "de"
+          ]
+        }
+      },
+      "required": [
+        "global"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "patchDocument",
+    "description": "Applies JSON Patch operations to one document or global, e.g. {\"op\":\"replace\",\"path\":\"/title\",\"value\":\"Home\"}. If any operation fails, nothing is written and the response lists the problems.\n\nWrites to banner go live immediately. Every other write is saved as a draft.\n\nRead the document with getDocument right before patching. Append to a list with \"/-\". A new block needs \"blockType\". To clear a field, \"replace\" it with null, or with [] for an array or blocks field. \"remove\" only removes list elements. Indices shift with every add or remove, so remove from the last index to the first.\n\nIn a rich text field a pointer continues into the rich text state: \"/content/root/children/2\" is a node, \"/content/root/children/2/tag\" one of its properties and \"/content/root/children/3/fields/tone\" a field of a block node. getDocument \"outline\" lists each node's pointer and \"version\". Build nodes from describeSchema \"nodeProperties\". Check a position before writing to it, e.g. {\"op\":\"test\",\"path\":\"/content/root/children/2/type\",\"value\":\"heading\"}.\n\nThe response carries \"updatedAt\" and, if any, \"publishBlockers\": what must be fixed before publishing. \"publishBlockersUnavailable\" means that check failed. The write stands either way. \"notApplied\" lists pointers whose value did not change or cannot be read back, for example where field access denies the update.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "global": {
+          "type": "string",
+          "enum": [
+            "site-settings",
+            "banner"
+          ]
+        },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "de"
+          ],
+          "description": "Localized fields are written in this locale only."
+        },
+        "patches": {
+          "minItems": 1,
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "add"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "value": {}
+                },
+                "required": [
+                  "op",
+                  "path",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "remove"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  }
+                },
+                "required": [
+                  "op",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "replace"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "value": {}
+                },
+                "required": [
+                  "op",
+                  "path",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "op": {
+                    "type": "string",
+                    "const": "move"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  }
+                },
+                "required": [
+                  "from",
+                  "op",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "op": {
+                    "type": "string",
+                    "const": "copy"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  }
+                },
+                "required": [
+                  "from",
+                  "op",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "test"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(\\/([^~/]|~[01])*)*$"
+                  },
+                  "value": {}
+                },
+                "required": [
+                  "op",
+                  "path",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "expectedUpdatedAt": {
+          "description": "\"updatedAt\" from your last read. Refused if the document changed since.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "global",
+        "locale",
+        "patches"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "validateDocument",
+    "description": "Lists what still blocks publishing one document or global, without saving. Returns \"publishBlockers\", each with a pointer and a message. An empty list means it can be published, unless \"publishBlockersUnavailable\" is true: then the check itself failed. The check runs the field hooks a save runs.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "global": {
+          "type": "string",
+          "enum": [
+            "site-settings",
+            "banner"
+          ]
+        },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "de"
+          ]
+        }
+      },
+      "required": [
+        "global",
+        "locale"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
+    "name": "publishDocument",
+    "description": "Makes the current draft of one document or global public. A draft with publish blockers is refused, so call validateDocument first. Publishing validates one locale only, normally the default, so a required field left empty in another locale goes live empty. Run validateDocument for each locale. There is no unpublish. A person takes content offline in the admin panel.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "global": {
+          "type": "string",
+          "enum": [
+            "site-settings"
+          ]
+        },
+        "expectedUpdatedAt": {
+          "description": "\"updatedAt\" from your last read. Refused if the document changed since.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "global"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  }
+]

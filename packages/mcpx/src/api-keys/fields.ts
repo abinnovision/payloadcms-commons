@@ -43,8 +43,8 @@ const checkbox = (name: string, description: string): CheckboxField => ({
 	admin: { description },
 });
 
-/** Name of the `ui` field the "Connect a client" tab renders. */
-export const SETUP_GUIDE_FIELD = "setupGuide";
+// Name of the `ui` field the "Connect a client" tab renders.
+const SETUP_GUIDE_FIELD = "setupGuide";
 
 /**
  * Fields every key carries. Key generation and the HMAC index live in the
@@ -96,13 +96,11 @@ export const createKeyFields = (): Field[] => [
 ];
 
 /**
- * Wraps the key fields and the setup guide in unnamed tabs, so the wide
- * snippets get the full form width without pushing the key itself out of view.
- * Unnamed on purpose: named tabs would nest the data and move `capabilities`
- * off the document root, which capability resolution reads.
+ * Wraps the key fields and the setup guide in unnamed tabs, so wide snippets
+ * get the full form width. Named tabs would nest the data and move
+ * `capabilities` off the document root, which capability resolution reads.
  *
- * The guide tab is conditioned on the update operation. On create there is no
- * key to hand out, and a tab leading to an empty panel is worse than no tab.
+ * The guide tab only shows on update: on create there is no key to hand out.
  */
 export const withSetupGuideTab = (
 	keyFields: Field[],
@@ -135,7 +133,7 @@ export const withSetupGuideTab = (
 								disableListColumn: true,
 								components: {
 									Field: {
-										path: "@abinnovision/payloadcms-mcpx/client",
+										path: "@abinnovision/payloadcms-mcpx/admin",
 										exportName: "McpxSetupGuide",
 										clientProps: { endpointPath: options.endpointPath },
 									},
@@ -150,21 +148,14 @@ export const withSetupGuideTab = (
 };
 
 /**
- * One checkbox per exposed operation, grouped per collection, per global and
- * per custom tool, generated from the same {@link createCapabilityMatrix}
- * descriptor the admin component draws, so a cell can never appear without a
- * field behind it. Only operations the plugin config exposes get a checkbox, so
- * a key can never enable more than the config allows. Everything defaults to
- * off, which is why a key issued before a capability existed stays closed to it.
+ * One checkbox per operation the config exposes, grouped per collection, global
+ * and custom tool, built from {@link createCapabilityMatrix}. Everything
+ * defaults to off, so a key issued before a capability existed stays closed.
  *
- * An entity without versions gets no `publish` checkbox even under
- * `write: "live"`: there is no draft to promote there, the write itself is the
- * live change, and a second checkbox would only make `write` a dead setting.
- *
- * The group renders as a matrix rather than as nested boxes; see
- * `src/client/capability-matrix.tsx`. The descriptions below therefore reach
- * the screen on the matrix column headers, and survive here for a consumer who
- * replaces the component through `apiKeys.overrideCollection`.
+ * An entity without drafts gets no `publish` checkbox, even where
+ * writes are on: the write is already live, so the box would make `write` a
+ * dead setting. The admin renders the group as a matrix; the checkboxes serve
+ * consumers who replace that component through `apiKeys.overrideCollection`.
  */
 export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 	const matrix = createCapabilityMatrix(options);
@@ -225,11 +216,11 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 				 */
 				components: {
 					Field: {
-						path: "@abinnovision/payloadcms-mcpx/client",
+						path: "@abinnovision/payloadcms-mcpx/admin",
 						exportName: "McpxCapabilityMatrix",
 						/*
-						 * The tabs decide whether Payload's group chrome drops its outer
-						 * border, which it only does for a group at a tab's edge.
+						 * `withinTab` is needed because Payload drops a group's outer
+						 * border only when the group sits at a tab's edge.
 						 */
 						clientProps: { matrix, withinTab: options.setupGuide },
 					},

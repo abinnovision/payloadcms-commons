@@ -1,74 +1,30 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { lexicalOutline } from "./outline.js";
-import { buildFixtureConfig } from "../../test/fixtures/config.js";
+import { node, state, text } from "../../test/builders/lexical.js";
+import { buildFixtureConfig, fieldOf } from "../../test/fixtures/config.js";
 
-import type { RichTextField, SanitizedConfig } from "payload";
+import type { RichTextField } from "payload";
 
-let config: SanitizedConfig;
 /** Restricted to "h4" by its editor, so it pins the `options` narrowing. */
 let summary: RichTextField;
 /** No feature narrows any of its node properties. */
 let content: RichTextField;
 
 beforeAll(async () => {
-	config = await buildFixtureConfig();
+	const config = await buildFixtureConfig();
 
-	const posts = config.collections.find(
-		(collection) => collection.slug === "posts",
-	);
-	const named = (name: string) =>
-		posts?.flattenedFields.find(
-			(candidate) => "name" in candidate && candidate.name === name,
-		) as RichTextField;
-
-	summary = named("summary");
-	content = named("content");
-});
-
-/** As Lexical serializes it, so only what a case is about is ever missing. */
-const node = (
-	type: string,
-	extra: Record<string, unknown> = {},
-	children: unknown[] = [],
-) => ({
-	children,
-	direction: "ltr",
-	format: "",
-	indent: 0,
-	type,
-	version: 1,
-	...extra,
-});
-
-const textNode = (text: string) => ({
-	detail: 0,
-	format: 0,
-	mode: "normal",
-	style: "",
-	text,
-	type: "text",
-	version: 1,
-});
-
-const state = (children: unknown[]) => ({
-	root: {
-		children,
-		direction: "ltr",
-		format: "",
-		indent: 0,
-		type: "root",
-		version: 1,
-	},
+	summary = fieldOf(config, "posts", "summary") as RichTextField;
+	content = fieldOf(config, "posts", "content") as RichTextField;
 });
 
 describe("lexicalOutline", () => {
 	it("returns an absolute, patchable pointer for every node under root, depth-first", () => {
 		const doc = state([
-			node("paragraph", {}, [textNode("first")]),
+			node("paragraph", {}, [text("first")]),
 			node("paragraph", {}, [
-				textNode("second"),
-				node("paragraph", {}, [textNode("nested")]),
+				text("second"),
+				node("paragraph", {}, [text("nested")]),
 			]),
 		]);
 
@@ -105,9 +61,9 @@ describe("lexicalOutline", () => {
 	it("concatenates every descendant text node", () => {
 		const doc = state([
 			node("paragraph", {}, [
-				textNode("Hello, "),
-				node("link", { fields: {} }, [textNode("world")]),
-				textNode("!"),
+				text("Hello, "),
+				node("link", { fields: {} }, [text("world")]),
+				text("!"),
 			]),
 		]);
 
@@ -119,7 +75,7 @@ describe("lexicalOutline", () => {
 
 	it("truncates text past 80 characters and marks the cut", () => {
 		const long = "x".repeat(90);
-		const doc = state([node("paragraph", {}, [textNode(long)])]);
+		const doc = state([node("paragraph", {}, [text(long)])]);
 
 		expect(lexicalOutline(doc, "/content", content)[0]?.text).toBe(
 			`${"x".repeat(80)}…`,
@@ -136,7 +92,7 @@ describe("lexicalOutline", () => {
 
 	it("reports children only as a count, and only when non-empty", () => {
 		const doc = state([
-			node("paragraph", {}, [textNode("has one child")]),
+			node("paragraph", {}, [text("has one child")]),
 			node("paragraph"),
 		]);
 
@@ -152,8 +108,8 @@ describe("lexicalOutline", () => {
 
 	it("narrows options to what the field's editor actually restricts", () => {
 		const doc = state([
-			node("heading", { tag: "h4" }, [textNode("Title")]),
-			node("paragraph", {}, [textNode("Body")]),
+			node("heading", { tag: "h4" }, [text("Title")]),
+			node("paragraph", {}, [text("Body")]),
 		]);
 
 		const [heading, paragraph] = lexicalOutline(doc, "/summary", summary);
@@ -164,7 +120,7 @@ describe("lexicalOutline", () => {
 
 	it("omits options when the node lacks the narrowed property", () => {
 		const withoutTag: Record<string, unknown> = node("heading", {}, [
-			textNode("Title"),
+			text("Title"),
 		]);
 
 		delete withoutTag["tag"];
@@ -174,6 +130,23 @@ describe("lexicalOutline", () => {
 		expect(lexicalOutline(doc, "/summary", summary)[0]).not.toHaveProperty(
 			"options",
 		);
+	});
+
+	it("treats a prototype-named node type as an unknown type", () => {
+		const doc = state([
+			node("constructor", { tag: "h4" }),
+			node("toString", { tag: "h4" }),
+		]);
+
+		const entries = lexicalOutline(doc, "/summary", summary);
+
+		expect(entries.map((entry) => entry.type)).toEqual([
+			"constructor",
+			"toString",
+		]);
+		for (const entry of entries) {
+			expect(entry).not.toHaveProperty("options");
+		}
 	});
 
 	it("returns no entries for a state with no root children", () => {

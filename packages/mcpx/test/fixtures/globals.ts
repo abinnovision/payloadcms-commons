@@ -36,8 +36,8 @@ export const siteSettings: GlobalConfig = {
 };
 
 /**
- * Global without versions, so the `allowLiveWrites` branches and the
- * drafts-only half of `installGlobalDraftGuards` both have a subject.
+ * Global without versions, so the live-write branches and the drafts-only
+ * half of `installGlobalDraftGuards` both have a subject.
  */
 export const banner: GlobalConfig = {
 	slug: "banner",

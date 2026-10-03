@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { resolveDataPointer } from "./pointer.js";
 import { validateWriteValue } from "./shape.js";
+import { node, state, text } from "../../test/builders/lexical.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type { Field, SanitizedConfig } from "payload";
@@ -22,43 +23,7 @@ const DOC = {
 	title: "Home",
 };
 
-const textNode = (value: string) => ({
-	detail: 0,
-	format: 0,
-	mode: "normal",
-	style: "",
-	text: value,
-	type: "text",
-	version: 1,
-});
-
-/** As Lexical serializes it, so only what a case is about is ever missing. */
-const node = (
-	type: string,
-	extra: Record<string, unknown> = {},
-	children: unknown[] = [],
-) => ({
-	children,
-	direction: "ltr",
-	format: "",
-	indent: 0,
-	type,
-	version: 1,
-	...extra,
-});
-
-const state = (children: unknown[]) => ({
-	root: {
-		children,
-		direction: "ltr",
-		format: "",
-		indent: 0,
-		type: "root",
-		version: 1,
-	},
-});
-
-const lexical = (type: string) => state([node(type, {}, [textNode("hi")])]);
+const lexical = (type: string) => state([node(type, {}, [text()])]);
 
 const POST = { content: { root: { children: [], type: "root" } } };
 
@@ -136,6 +101,21 @@ describe("validateWriteValue", () => {
 		]);
 	});
 
+	it("rejects a blockType that is absent or not a string", () => {
+		expect(
+			check("/layout/sections/0/modules", [
+				{ blockType: { toString: 1 } },
+				{ title: "no slug" },
+			]),
+		).toEqual([
+			'/layout/sections/0/modules/0: "blockType" must be a string naming a block. Allowed: hero, richText',
+			'/layout/sections/0/modules/1: a row needs a "blockType". Allowed: hero, richText',
+		]);
+		expect(checkPost(blockNode({ blockType: { toString: 1 } }))).toEqual([
+			'/content/root/children/0/fields: "blockType" must be a string naming a block. Allowed: callout',
+		]);
+	});
+
 	it("rejects a node the field's editor cannot produce", () => {
 		expect(
 			check("/layout/sections/0/modules", [
@@ -171,7 +151,7 @@ describe("validateWriteValue", () => {
 			'/summary/root/children/0/tag: "h3" is not available for a "heading" node in this field\'s editor. Allowed: h4',
 		]);
 
-		/* A value of the wrong kind used to skip the check and reach the document. */
+		/* A value of the wrong kind is held to the narrowing as well. */
 		expect(summary(state([node("heading", { tag: 3 })]))).toEqual([
 			'/summary/root/children/0/tag: a "heading" node needs a string here.',
 			'/summary/root/children/0/tag: 3 is not available for a "heading" node in this field\'s editor. Allowed: h4',
@@ -183,7 +163,7 @@ describe("validateWriteValue", () => {
 	});
 
 	it("rejects a node missing what its class hydrates from", () => {
-		const listItem = node("listitem", { value: 1 }, [textNode("hi")]);
+		const listItem = node("listitem", { value: 1 }, [text()]);
 
 		delete (listItem as Partial<typeof listItem>).indent;
 
@@ -206,7 +186,7 @@ describe("validateWriteValue", () => {
 		const item = (indent: unknown) =>
 			state([
 				node("list", { listType: "bullet", start: 1, tag: "ul" }, [
-					{ ...node("listitem", { value: 1 }, [textNode("hi")]), indent },
+					{ ...node("listitem", { value: 1 }, [text()]), indent },
 				]),
 			]);
 
@@ -372,8 +352,8 @@ describe("validateWriteValue", () => {
 
 /** A stored state, since a position is only resolvable against what is there. */
 const STORED = {
-	content: state([node("paragraph", {}, [textNode("hi")])]),
-	summary: state([node("heading", { tag: "h4" }, [textNode("hi")])]),
+	content: state([node("paragraph", {}, [text()])]),
+	summary: state([node("heading", { tag: "h4" }, [text()])]),
 };
 
 const checkAt = (pointer: string, value: unknown) =>
@@ -396,7 +376,7 @@ describe("validateWriteValue at a position inside an editor state", () => {
 		expect(
 			checkAt(
 				"/content/root/children/-",
-				node("paragraph", {}, [textNode("next")]),
+				node("paragraph", {}, [text("next")]),
 			),
 		).toEqual([]);
 	});
@@ -449,6 +429,49 @@ describe("validateWriteValue at a position inside an editor state", () => {
 		]);
 		expect(checkAt("/content/root/spacing", 1)).toEqual([
 			expect.stringContaining("no such property on the root node"),
+		]);
+	});
+
+	it("reads a name Object.prototype also has as an ordinary name", () => {
+		const held = state([node("paragraph")]);
+
+		expect(checkAt("/summary/root/children/0/toString", "x")).toEqual([]);
+		expect(checkAt("/content/root/children/0/toString", 5)).toEqual([]);
+		expect(
+			checkAt("/summary/root/children/-/name", { type: "constructor" }),
+		).toEqual([]);
+		expect(checkAt("/content/root/toString", 5)).toEqual([
+			expect.stringContaining("no such property on the root node"),
+		]);
+		expect(checkPost({ ...held, root: { ...held.root, toString: 5 } })).toEqual(
+			[expect.stringContaining("/content/root/toString: no such property")],
+		);
+	});
+
+	it("treats a prototype-named node type as an unknown type", () => {
+		const stored = { summary: state([node("toString", { tag: "h3" })]) };
+		const checkStored = (pointer: string, value: unknown) =>
+			validateWriteValue(
+				config,
+				{
+					pointer,
+					resolution: resolveDataPointer(config, {
+						doc: stored,
+						pointer,
+						ref: { kind: "collection", slug: "posts" },
+					}),
+				},
+				value,
+			);
+
+		expect(checkPost(state([node("constructor")]))).toEqual([
+			expect.stringContaining(
+				'/content/root/children/0: "constructor" is not available in this field\'s editor.',
+			),
+		]);
+		expect(checkStored("/summary/root/children/0/tag", "h3")).toEqual([]);
+		expect(checkStored("/summary/root/children/0/version", "1")).toEqual([
+			'/summary/root/children/0/version: a "toString" node needs a number here.',
 		]);
 	});
 

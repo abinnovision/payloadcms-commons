@@ -3,12 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import { jsonRpcError, toToolError } from "./errors.js";
 
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Payload } from "payload";
 
-const logger = { error: vi.fn() } as unknown as Payload["logger"];
+const createLogger = () => ({ error: vi.fn() });
 
-const parse = (result: { content: { type: string; text?: string }[] }) =>
-	JSON.parse(result.content[0]?.text ?? "null") as Record<string, unknown>;
+// The JSON a tool result carries as its text content.
+const parseResult = (result: CallToolResult): unknown =>
+	JSON.parse((result.content[0] as { text: string }).text);
+
+const toError = (error: unknown, logger = createLogger()) =>
+	toToolError(error, logger as unknown as Payload["logger"]);
 
 describe("jsonRpcError", () => {
 	it("builds a JSON-RPC error response", async () => {
@@ -36,24 +41,26 @@ describe("toToolError", () => {
 			errors: [{ path: "title", message: "Required", label: "Title" }],
 		});
 
-		expect(parse(toToolError(error, logger))).toMatchObject({
+		expect(parseResult(toError(error))).toMatchObject({
 			status: 400,
 			validationErrors: [{ path: "/title", message: "Required" }],
 		});
 	});
 
 	it("keeps public Payload errors", () => {
-		const result = toToolError(new Forbidden(), logger);
+		const result = toError(new Forbidden());
 
 		expect(result.isError).toBe(true);
-		expect(parse(result)).toMatchObject({ status: 403 });
+		expect(parseResult(result)).toMatchObject({ status: 403 });
 	});
 
 	it("hides internal errors and logs them", () => {
-		expect(parse(toToolError(new Error("driver exploded"), logger))).toEqual({
+		const logger = createLogger();
+
+		expect(parseResult(toError(new Error("driver exploded"), logger))).toEqual({
 			error: "Internal error",
 		});
-		expect(parse(toToolError(new APIError("secret", 500), logger))).toEqual({
+		expect(parseResult(toError(new APIError("secret", 500), logger))).toEqual({
 			error: "Internal error",
 		});
 		expect(logger.error).toHaveBeenCalledTimes(2);

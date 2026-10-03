@@ -1,21 +1,22 @@
+import { SchemaError } from "./errors.js";
 import { lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
+import { joinPath, splitPath } from "./path.js";
 import {
 	blockOf,
 	blockSlugsOf,
 	describeFields,
 	findBlocksField,
 	findRichTextField,
-	joinPath,
-	splitPath,
-	targetOf,
+	schemaOf,
 } from "./walk.js";
 import { translateAny } from "../i18n.js";
 
+import type { FieldDescriptor, EntitySchema } from "./walk.js";
+import type { EntityRef } from "../entity.js";
 import type { Translate } from "../i18n.js";
-import type { FieldDescriptor, SchemaTarget, TargetRef } from "./walk.js";
 import type { FlattenedField, SanitizedConfig } from "payload";
 
-/**
+/*
  * A collection root or a single block, described without inlining anything
  * reachable through a blocks field.
  */
@@ -31,7 +32,7 @@ interface NodeDescriptor {
 	schemaPath: string;
 }
 
-/**
+/*
  * One drill-down out of a node: the schema path leading there, and the token
  * {@link reachableSchemaPaths} tracks to stop a definition reachable from
  * itself from being enumerated forever.
@@ -41,8 +42,7 @@ interface Branch {
 	token: string;
 }
 
-/** Blocks and rich text are both leaves of the walk, so at most one matches. */
-const longestMatch = (
+const matchSchemaSegments = (
 	descriptors: FieldDescriptor[],
 	remaining: readonly string[],
 ): string[] | undefined =>
@@ -53,7 +53,7 @@ const longestMatch = (
 		)
 		.sort((left, right) => right.length - left.length)[0];
 
-/**
+/*
  * A position mid-walk: the fields in scope, the descriptor path matched there,
  * and the segments still to consume.
  */
@@ -78,6 +78,7 @@ const stepThroughBlocks = ({
 }: StepAt): Step => {
 	const field = findBlocksField(fields, match);
 
+	// The match came from these fields, so a miss is a fault in the walk.
 	if (!field) {
 		throw new Error(`"${joinPath(match)}" could not be resolved.`);
 	}
@@ -85,7 +86,7 @@ const stepThroughBlocks = ({
 	const slug = remaining.at(match.length);
 
 	if (slug === undefined) {
-		throw new Error(
+		throw new SchemaError(
 			`"${joinPath(match)}" is a blocks field; append one of: ${blockSlugsOf(field).join(", ")}`,
 		);
 	}
@@ -93,7 +94,7 @@ const stepThroughBlocks = ({
 	const block = blockOf(config, field, slug);
 
 	if (!block) {
-		throw new Error(
+		throw new SchemaError(
 			`"${slug}" is not allowed at "${joinPath(match)}". Allowed: ${blockSlugsOf(field).join(", ")}`,
 		);
 	}
@@ -105,10 +106,10 @@ const stepThroughBlocks = ({
 	};
 };
 
-/**
- * A node that picks a block by slug takes one segment more, so `/content/block`
+/*
+ * A node that picks a block by slug takes one more segment, so `/content/block`
  * addresses the choice and `/content/block/callout` the definition. Everything
- * else, a link node being the usual case, resolves in a single segment.
+ * else, such as a link node, resolves in one segment.
  */
 const stepThroughLexical = ({
 	config,
@@ -118,6 +119,7 @@ const stepThroughLexical = ({
 }: StepAt): Step => {
 	const field = findRichTextField(fields, match);
 
+	// The match came from these fields, so a miss is a fault in the walk.
 	if (!field) {
 		throw new Error(`"${joinPath(match)}" could not be resolved.`);
 	}
@@ -126,7 +128,7 @@ const stepThroughLexical = ({
 	const nodeType = remaining.at(match.length);
 
 	if (nodeType === undefined) {
-		throw new Error(
+		throw new SchemaError(
 			`"${joinPath(match)}" is a rich text field; append one of: ${available}`,
 		);
 	}
@@ -135,7 +137,7 @@ const stepThroughLexical = ({
 	const reached = joinPath([...match, nodeType]);
 
 	if (!sub) {
-		throw new Error(
+		throw new SchemaError(
 			`"${nodeType}" carries no fields in this field's editor. Node types with fields here: ${available}`,
 		);
 	}
@@ -148,13 +150,15 @@ const stepThroughLexical = ({
 	const slugs = blockSlugsOf(sub.blocksField).join(", ");
 
 	if (slug === undefined) {
-		throw new Error(`"${reached}" selects a block; append one of: ${slugs}`);
+		throw new SchemaError(
+			`"${reached}" selects a block; append one of: ${slugs}`,
+		);
 	}
 
 	const block = blockOf(config, sub.blocksField, slug);
 
 	if (!block) {
-		throw new Error(
+		throw new SchemaError(
 			`"${slug}" is not allowed at "${reached}". Allowed: ${slugs}`,
 		);
 	}
@@ -166,17 +170,17 @@ const stepThroughLexical = ({
 	};
 };
 
-/**
+/*
  * A schema path alternates a blocks field's own path with the slug of one of
  * the blocks it accepts, so `/layout/sections/sectionWrapper/modules/hero`
- * reaches `hero` as it exists under `pages` specifically. The slug sits where
- * a pointer into a document would carry the element's index. A rich text
- * field's path continues the same way, naming a Lexical node type and, for the
- * block nodes, the slug it holds.
+ * reaches `hero` as it exists under `pages` specifically. The slug sits where a
+ * document pointer would carry the element's index. A rich text field's path
+ * continues the same way, naming a Lexical node type and, for block nodes, the
+ * slug it holds.
  */
 const fieldsAtSchemaPath = (
 	config: SanitizedConfig,
-	target: SchemaTarget,
+	target: EntitySchema,
 	schemaPath: string,
 ): { blockType?: string; fields: FlattenedField[] } => {
 	let fields = target.flattenedFields;
@@ -189,15 +193,14 @@ const fieldsAtSchemaPath = (
 				descriptor.type === "blocks" || descriptor.type === "richText",
 		);
 
-		/**
+		/*
 		 * A field's own path may span several segments (`/layout/sections`), so
-		 * the longest matching one is taken. Blocks and rich text fields are both
-		 * leaves of the walk, so no two of these paths overlap.
+		 * the longest match is taken.
 		 */
-		const match = longestMatch(descendable, remaining);
+		const match = matchSchemaSegments(descendable, remaining);
 
 		if (!match) {
-			throw new Error(
+			throw new SchemaError(
 				`"${joinPath(remaining)}" does not address a blocks or rich text field. Available here: ${
 					descendable.map((descriptor) => descriptor.path).join(", ") || "none"
 				}`,
@@ -218,7 +221,7 @@ const fieldsAtSchemaPath = (
 	return { ...(blockType === undefined ? {} : { blockType }), fields };
 };
 
-/**
+/*
  * Where a descriptor can be drilled into: one branch per block a blocks field
  * accepts, and one per Lexical node type that carries fields.
  */
@@ -264,12 +267,12 @@ export const nodeDescriber =
 	(translate: Translate = translateAny) =>
 	(
 		config: SanitizedConfig,
-		ref: TargetRef,
+		ref: EntityRef,
 		schemaPath = "",
 	): NodeDescriptor => {
 		const { blockType, fields } = fieldsAtSchemaPath(
 			config,
-			targetOf(config, ref),
+			schemaOf(config, ref),
 			schemaPath,
 		);
 
@@ -290,8 +293,8 @@ export const nodeDescriber =
 	};
 
 /**
- * Ceiling on the paths `reachableSchemaPaths` enumerates. The cycle guard only
- * bounds each individual path, so mutually referencing blocks can otherwise
+ * Ceiling on the paths `reachableSchemaPaths` enumerates. The cycle guard
+ * bounds each path individually, so mutually referencing blocks could otherwise
  * explode into permutations. Far beyond any real content model.
  */
 export const REACHABLE_PATHS_LIMIT = 400;
@@ -303,7 +306,7 @@ export const REACHABLE_PATHS_LIMIT = 400;
  */
 export const reachableSchemaPaths = (
 	config: SanitizedConfig,
-	ref: TargetRef,
+	ref: EntityRef,
 ): { paths: string[]; truncated: boolean } => {
 	const seen: string[] = [];
 	let truncated = false;
@@ -319,7 +322,7 @@ export const reachableSchemaPaths = (
 
 		const { fields } = fieldsAtSchemaPath(
 			config,
-			targetOf(config, ref),
+			schemaOf(config, ref),
 			schemaPath,
 		);
 

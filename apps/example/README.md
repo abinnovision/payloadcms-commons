@@ -100,7 +100,7 @@ claude mcp add --transport http payload http://localhost:3000/api/mcpx \
 `/layout/section-wrapper/modules/hero-module` descends into one. `createDocument`
 leaves a draft, which 404s on the site, and `publishDocument` makes it routable
 at whatever URL the mapping says it lives at. Try `publishDocument` on `posts`
-and the tool is not there: `posts` is configured `write: "draft"`, so its drafts
+and the tool is not there: `posts` is configured `publish: false`, so its drafts
 only go live through the admin panel.
 
 ## The two seams

@@ -1,29 +1,27 @@
 import { handleEndpoints } from "payload";
 
-import { CACHE_KEY } from "./payload.js";
-
-import type { SanitizedConfig } from "payload";
+import type { Booted } from "./payload.js";
 
 const ENDPOINT = "http://localhost/api/mcpx";
 
 let nextId = 0;
 
 interface PostArgs {
-	/** Payload instance cache key, when the spec booted its own instance. */
-	cacheKey?: string;
-	key?: string;
+	key?: string | undefined;
 	body?: unknown;
 	method?: string;
 	headers?: Record<string, string>;
-	rawBody?: string;
+	/** A stream is sent chunked, without a Content-Length. */
+	rawBody?: string | ReadableStream<Uint8Array>;
 }
 
 /**
  * Sends one HTTP request to the MCP endpoint through Payload's router, the
- * same path a Next.js route handler takes.
+ * same path a Next.js route handler takes. For a body or headers the client
+ * below does not send.
  */
 export const mcpPost = (
-	config: Promise<SanitizedConfig>,
+	booted: Booted,
 	args: PostArgs = {},
 ): Promise<Response> => {
 	const method = args.method ?? "POST";
@@ -35,12 +33,12 @@ export const mcpPost = (
 	};
 	const body =
 		method === "POST"
-			? { body: args.rawBody ?? JSON.stringify(args.body) }
+			? { body: args.rawBody ?? JSON.stringify(args.body), duplex: "half" }
 			: {};
 
 	return handleEndpoints({
-		config,
-		payloadInstanceCacheKey: args.cacheKey ?? CACHE_KEY,
+		config: booted.config,
+		payloadInstanceCacheKey: booted.cacheKey,
 		request: new Request(ENDPOINT, { method, headers, ...body }),
 	});
 };
@@ -59,103 +57,12 @@ interface RpcResponse {
 	};
 }
 
-export const rpc = async (
-	config: Promise<SanitizedConfig>,
-	key: string | undefined,
-	method: string,
-	params?: unknown,
-	cacheKey?: string,
-): Promise<RpcResponse> => {
-	const response = await mcpPost(config, {
-		...(key === undefined ? {} : { key }),
-		...(cacheKey === undefined ? {} : { cacheKey }),
-		body: { jsonrpc: "2.0", id: ++nextId, method, params },
-	});
-
-	return {
-		status: response.status,
-		body: (await response.json()) as RpcResponse["body"],
-	};
-};
-
-/**
- * Sends several tool calls in one JSON-RPC batch, which the transport
- * dispatches concurrently on a single PayloadRequest. Returns the results in
- * request order.
- */
-export const callToolBatch = async (
-	config: Promise<SanitizedConfig>,
-	key: string,
-	calls: { name: string; args?: Record<string, unknown> }[],
-	cacheKey?: string,
-): Promise<{ id: number; isError: boolean }[]> => {
-	const messages = calls.map((call) => ({
-		jsonrpc: "2.0",
-		id: ++nextId,
-		method: "tools/call",
-		params: { name: call.name, arguments: call.args ?? {} },
-	}));
-	const response = await mcpPost(config, {
-		key,
-		...(cacheKey === undefined ? {} : { cacheKey }),
-		body: messages,
-	});
-	const body = (await response.json()) as {
-		id: number;
-		result?: { isError?: boolean };
-	}[];
-	const byId = new Map(
-		(Array.isArray(body) ? body : [body]).map((entry) => [entry.id, entry]),
-	);
-
-	return messages.map((message) => ({
-		id: message.id,
-		isError: byId.get(message.id)?.result?.isError === true,
-	}));
-};
-
-export interface ListedTool {
+interface ListedTool {
 	name: string;
 	description?: string;
 	annotations?: Record<string, unknown>;
 	inputSchema: Record<string, unknown>;
 }
-
-export const toolsList = async (
-	config: Promise<SanitizedConfig>,
-	key: string,
-	cacheKey?: string,
-): Promise<ListedTool[]> => {
-	const { body } = await rpc(config, key, "tools/list", undefined, cacheKey);
-
-	return body.result?.tools ?? [];
-};
-
-/** The `instructions` the server reports for this key. */
-export const instructionsFor = async (
-	config: Promise<SanitizedConfig>,
-	key: string,
-	cacheKey?: string,
-): Promise<string> => {
-	const { body } = await rpc(
-		config,
-		key,
-		"initialize",
-		{
-			protocolVersion: "2025-06-18",
-			capabilities: {},
-			clientInfo: { name: "test", version: "0" },
-		},
-		cacheKey,
-	);
-
-	return body.result?.instructions ?? "";
-};
-
-export const toolNames = async (
-	config: Promise<SanitizedConfig>,
-	key: string,
-): Promise<string[]> => (await toolsList(config, key)).map((tool) => tool.name);
 
 export interface CallResult {
 	status: number;
@@ -165,44 +72,108 @@ export interface CallResult {
 	text: string | undefined;
 }
 
-/**
- * Calls one tool and parses its JSON text content. `data` is `{}` when the
- * result carries no JSON (for example an SDK validation error).
- */
-export const callTool = async (
-	config: Promise<SanitizedConfig>,
-	key: string,
-	name: string,
-	args: Record<string, unknown> = {},
-	cacheKey?: string,
-): Promise<CallResult> => {
-	const { status, body } = await rpc(
-		config,
-		key,
-		"tools/call",
-		{ name, arguments: args },
-		cacheKey,
-	);
-	const text = body.result?.content?.[0]?.text;
+const parseJson = (text: string | undefined): Record<string, unknown> => {
+	try {
+		return text ? (JSON.parse(text) as Record<string, unknown>) : {};
+	} catch {
+		return {};
+	}
+};
 
-	const parse = (): Record<string, unknown> => {
-		try {
-			return text ? (JSON.parse(text) as Record<string, unknown>) : {};
-		} catch {
-			return {};
-		}
+/** The calls a spec makes against a booted instance, as one key. */
+export const createMcpClient = (booted: Booted, key?: string) => {
+	const rpc = async (
+		method: string,
+		params?: unknown,
+	): Promise<RpcResponse> => {
+		const response = await mcpPost(booted, {
+			key,
+			body: { jsonrpc: "2.0", id: ++nextId, method, params },
+		});
+
+		return {
+			status: response.status,
+			body: (await response.json()) as RpcResponse["body"],
+		};
 	};
 
-	const data = parse();
+	const list = async (): Promise<ListedTool[]> =>
+		(await rpc("tools/list")).body.result?.tools ?? [];
 
 	return {
-		status,
-		...(body.error ? { rpcError: body.error } : {}),
-		isError: body.result?.isError === true,
-		data,
-		text,
+		rpc,
+		list,
+		names: async (): Promise<string[]> =>
+			(await list()).map((tool) => tool.name),
+
+		/** The `instructions` the server reports on initialize. */
+		instructions: async (): Promise<string> =>
+			(
+				await rpc("initialize", {
+					protocolVersion: "2025-06-18",
+					capabilities: {},
+					clientInfo: { name: "test", version: "0" },
+				})
+			).body.result?.instructions ?? "",
+
+		/**
+		 * Calls one tool and parses its JSON text content. `data` is `{}` when
+		 * the result carries no JSON, for example an SDK validation error.
+		 */
+		call: async (
+			name: string,
+			args: Record<string, unknown> = {},
+		): Promise<CallResult> => {
+			const { status, body } = await rpc("tools/call", {
+				name,
+				arguments: args,
+			});
+			const text = body.result?.content?.[0]?.text;
+
+			return {
+				status,
+				...(body.error ? { rpcError: body.error } : {}),
+				isError: body.result?.isError === true,
+				data: parseJson(text),
+				text,
+			};
+		},
+
+		/**
+		 * Sends several tool calls in one JSON-RPC batch, which the server runs
+		 * in order. Returns the results in request order.
+		 */
+		batch: async (
+			calls: { name: string; args?: Record<string, unknown> }[],
+		): Promise<{ id: number; isError: boolean }[]> => {
+			const messages = calls.map((call) => ({
+				jsonrpc: "2.0",
+				id: ++nextId,
+				method: "tools/call",
+				params: { name: call.name, arguments: call.args ?? {} },
+			}));
+			const response = await mcpPost(booted, { key, body: messages });
+			const body = (await response.json()) as {
+				id: number;
+				result?: { isError?: boolean };
+			}[];
+			const byId = new Map(
+				(Array.isArray(body) ? body : [body]).map((entry) => [entry.id, entry]),
+			);
+
+			return messages.map((message) => ({
+				id: message.id,
+				isError: byId.get(message.id)?.result?.isError === true,
+			}));
+		},
 	};
 };
+
+export type McpClient = ReturnType<typeof createMcpClient>;
+
+/** Everything a call answered with, result text and JSON-RPC error alike. */
+export const responseText = (result: CallResult): string =>
+	`${result.text ?? ""} ${result.rpcError?.message ?? ""}`;
 
 /** The enum of a tool's `collection` argument as published in `tools/list`. */
 export const collectionEnumOf = (tool: ListedTool | undefined): string[] => {

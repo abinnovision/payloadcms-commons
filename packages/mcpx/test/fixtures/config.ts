@@ -17,12 +17,17 @@ import { banner, siteSettings } from "./globals.js";
 import { defineMcpxTool, mcpxPlugin } from "../../src/index.js";
 
 import type { McpxPluginOptions } from "../../src/index.js";
-import type { SanitizedConfig } from "payload";
+import type {
+	CollectionConfig,
+	DatabaseAdapterObj,
+	FlattenedField,
+	SanitizedConfig,
+} from "payload";
 
 /**
  * Custom tool echoing what the handler can see about the caller.
  */
-export const echoTool = defineMcpxTool({
+const echoTool = defineMcpxTool({
 	name: "echo",
 	description: "Echoes a message together with the resolved user and key.",
 	inputSchema: { message: z.string() },
@@ -46,14 +51,14 @@ export const echoTool = defineMcpxTool({
  * it decides for itself when to register. Overriding `isEnabled` replaces the
  * checkbox check, so the checkbox is restated here.
  */
-export const whichCollectionTool = defineMcpxTool({
+const whichCollectionTool = defineMcpxTool({
 	name: "whichCollection",
 	description: "Echoes back one of the collections this key may read.",
 	isEnabled: (scope) =>
 		scope.capabilities.tools["whichCollection"] === true &&
-		scope.readable.length > 0,
+		scope.collections.readable.length > 0,
 	inputSchema: (scope) => ({
-		collection: z.enum(scope.readable as [string, ...string[]]),
+		collection: z.enum(scope.collections.readable as [string, ...string[]]),
 	}),
 	handler: ({ args }) => ({
 		content: [{ type: "text", text: JSON.stringify(args) }],
@@ -95,11 +100,11 @@ export const roguePublishTool = defineMcpxTool({
 	},
 });
 
-export const defaultPluginOptions: McpxPluginOptions = {
+const defaultPluginOptions: McpxPluginOptions = {
 	collections: {
-		pages: { read: true, write: "draft" },
-		posts: { read: true, write: "draft" },
-		tags: true,
+		pages: { publish: false },
+		posts: { publish: false },
+		tags: { write: false },
 	},
 	tools: [echoTool, whichCollectionTool],
 };
@@ -107,26 +112,54 @@ export const defaultPluginOptions: McpxPluginOptions = {
 /**
  * A sanitized config with the plugin applied. `sqliteAdapter` only connects
  * in `init`, so this is safe for unit tests that never call `getPayload`.
+ *
+ * `users` replaces the fixture user collection, `collections` is appended to
+ * the fixture collections and `db` replaces the in-memory adapter; without
+ * them the config is unchanged.
  */
 export const buildFixtureConfig = (
-	overrides: { plugin?: Partial<McpxPluginOptions> } = {},
+	overrides: {
+		plugin?: Partial<McpxPluginOptions>;
+		users?: CollectionConfig;
+		collections?: CollectionConfig[];
+		db?: DatabaseAdapterObj;
+	} = {},
 ): Promise<SanitizedConfig> =>
 	buildConfig({
 		secret: "mcpx-test-secret",
-		db: sqliteAdapter({ client: { url: ":memory:" } }),
+		db: overrides.db ?? sqliteAdapter({ client: { url: ":memory:" } }),
 		editor: lexicalEditor(),
 		localization: { locales: ["en", "de"], defaultLocale: "en" },
 		blocks: [calloutBlock, richTextBlock],
-		collections: [users, pages, posts, tags, notes, media, snippets],
+		collections: [
+			overrides.users ?? users,
+			pages,
+			posts,
+			tags,
+			notes,
+			media,
+			snippets,
+			...(overrides.collections ?? []),
+		],
 		/*
-		 * Registered on the config but deliberately absent from
-		 * `defaultPluginOptions`: every existing spec then keeps running against
-		 * a collections-only plugin, which is what proves globals changed
-		 * nothing for deployments that do not use them. Globals and upload
-		 * specs opt in through `overrides.plugin`.
+		 * Registered on the config but absent from `defaultPluginOptions`, so the
+		 * default plugin exposes collections only. Globals and upload specs opt
+		 * in through `overrides.plugin`.
 		 */
 		globals: [siteSettings, banner],
 		plugins: [mcpxPlugin({ ...defaultPluginOptions, ...overrides.plugin })],
 		typescript: { autoGenerate: false },
 		graphQL: { disable: true },
 	});
+
+/** A top-level field of a collection in `config`, by name. */
+export const fieldOf = (
+	config: SanitizedConfig,
+	slug: string,
+	name: string,
+): FlattenedField | undefined =>
+	config.collections
+		.find((collection) => collection.slug === slug)
+		?.flattenedFields.find(
+			(candidate) => "name" in candidate && candidate.name === name,
+		);

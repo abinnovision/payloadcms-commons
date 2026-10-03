@@ -1,18 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	canCreate,
-	publishableGlobalSlugs,
-	publishableSlugs,
-	readableGlobalSlugs,
-	readableSlugs,
-	resolveCapabilities,
-	writableGlobalSlugs,
-	writableSlugs,
-} from "./capabilities.js";
+import { canCreate, resolveCapabilities, scopeSlugs } from "./capabilities.js";
+import { entity } from "../test/builders/scope.js";
 
 import type { NormalizedOptions } from "./options.js";
-import type { McpxExposedEntity } from "./types.js";
 
 const options = {
 	collections: [
@@ -63,15 +54,15 @@ describe("resolveCapabilities", () => {
 			"site-settings": { read: true, write: true, publish: false },
 			banner: { read: true, write: false, publish: false },
 		});
-		expect(readableGlobalSlugs(resolved)).toEqual(["site-settings", "banner"]);
-		expect(writableGlobalSlugs(resolved)).toEqual(["site-settings"]);
+		expect(scopeSlugs(resolved.globals).readable).toEqual([
+			"site-settings",
+			"banner",
+		]);
+		expect(scopeSlugs(resolved.globals).writable).toEqual(["site-settings"]);
 	});
 
 	it("closes every global on a key issued before globals existed", () => {
-		/*
-		 * Such a key document has no `globals` group at all, which is the shape
-		 * every pre-existing key has after this feature ships.
-		 */
+		/* Such a key document has no `globals` group at all. */
 		const resolved = resolveCapabilities(options, {
 			collections: { pages: { read: true, write: true } },
 		});
@@ -80,8 +71,8 @@ describe("resolveCapabilities", () => {
 			"site-settings": { read: false, write: false, publish: false },
 			banner: { read: false, write: false, publish: false },
 		});
-		expect(readableGlobalSlugs(resolved)).toEqual([]);
-		expect(writableGlobalSlugs(resolved)).toEqual([]);
+		expect(scopeSlugs(resolved.globals).readable).toEqual([]);
+		expect(scopeSlugs(resolved.globals).writable).toEqual([]);
 	});
 
 	it("ands the plugin config with the key checkboxes", () => {
@@ -98,8 +89,11 @@ describe("resolveCapabilities", () => {
 			"my-tags": { read: true, write: false, publish: false },
 		});
 		expect(resolved.tools).toEqual({ echo: true, other: false });
-		expect(readableSlugs(resolved)).toEqual(["pages", "my-tags"]);
-		expect(writableSlugs(resolved)).toEqual(["pages"]);
+		expect(scopeSlugs(resolved.collections).readable).toEqual([
+			"pages",
+			"my-tags",
+		]);
+		expect(scopeSlugs(resolved.collections).writable).toEqual(["pages"]);
 	});
 
 	it("treats a missing checkbox as refused", () => {
@@ -126,9 +120,9 @@ describe("resolveCapabilities", () => {
 			globals: { siteSettings: { read: true, write: true, publish: true } },
 		});
 
-		expect(publishableSlugs(ticked)).toEqual(["pages"]);
-		// site-settings is write: "draft", so the config never offers publish.
-		expect(publishableGlobalSlugs(ticked)).toEqual([]);
+		expect(scopeSlugs(ticked.collections).publishable).toEqual(["pages"]);
+		// site-settings has write "draft", so the config never offers publish.
+		expect(scopeSlugs(ticked.globals).publishable).toEqual([]);
 	});
 
 	it("refuses publish to a key that may not write", () => {
@@ -136,7 +130,7 @@ describe("resolveCapabilities", () => {
 			collections: { pages: { read: true, publish: true } },
 		});
 
-		expect(publishableSlugs(resolved)).toEqual([]);
+		expect(scopeSlugs(resolved.collections).publishable).toEqual([]);
 	});
 
 	it("closes publish on a key issued before the checkbox existed", () => {
@@ -145,12 +139,16 @@ describe("resolveCapabilities", () => {
 		});
 
 		expect(resolved.collections["pages"]).toMatchObject({ publish: false });
-		expect(publishableSlugs(resolved)).toEqual([]);
+		expect(scopeSlugs(resolved.collections).publishable).toEqual([]);
 	});
 
 	it("survives keys without any capabilities", () => {
-		expect(readableSlugs(resolveCapabilities(options, undefined))).toEqual([]);
-		expect(readableSlugs(resolveCapabilities(options, "garbage"))).toEqual([]);
+		expect(
+			scopeSlugs(resolveCapabilities(options, undefined).collections).readable,
+		).toEqual([]);
+		expect(
+			scopeSlugs(resolveCapabilities(options, "garbage").collections).readable,
+		).toEqual([]);
 	});
 
 	it("ignores slugs the config does not expose", () => {
@@ -163,23 +161,10 @@ describe("resolveCapabilities", () => {
 });
 
 describe("canCreate", () => {
-	const entity = (
-		overrides: Partial<McpxExposedEntity>,
-	): McpxExposedEntity => ({
-		slug: "pages",
-		read: true,
-		write: "draft",
-		hasDrafts: true,
-		hasVersions: true,
-		isUpload: false,
-		fieldName: "pages",
-		...overrides,
-	});
-
 	it("follows write everywhere but an upload collection", () => {
-		expect(canCreate(entity({}))).toBe(true);
-		expect(canCreate(entity({ write: "live" }))).toBe(true);
-		expect(canCreate(entity({ write: false }))).toBe(false);
-		expect(canCreate(entity({ isUpload: true }))).toBe(false);
+		expect(canCreate(entity("pages"))).toBe(true);
+		expect(canCreate(entity("pages", { write: "live" }))).toBe(true);
+		expect(canCreate(entity("pages", { write: false }))).toBe(false);
+		expect(canCreate(entity("pages", { isUpload: true }))).toBe(false);
 	});
 });

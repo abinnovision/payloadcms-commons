@@ -1,24 +1,18 @@
 import { rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool, collectionEnumOf, toolsList } from "./helpers/mcp.js";
-import { bootPayload, createKey, USER } from "./helpers/payload.js";
+import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, createMedia, seedKeysFor } from "./helpers/payload.js";
+import { MEDIA_DIR } from "../fixtures/collections.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-uploads";
 
-/** A one-pixel PNG, so a real file lands on disk without needing sharp. */
-const PIXEL = Buffer.from(
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-	"base64",
-);
-
 describe("upload collections", () => {
 	let booted: Booted;
-	let key: string;
+	let mcp: McpClient;
 	let mediaId: number | string;
 
 	beforeAll(async () => {
@@ -26,21 +20,14 @@ describe("upload collections", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "draft" },
-					media: { read: true, write: "live" },
+					pages: { publish: false },
+					media: true,
 				},
 			},
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: USER,
-		});
-
-		key = await createKey(booted.payload, {
-			userId: user.id,
-			label: "media",
-			capabilities: {
+		const { keys } = await seedKeysFor(booted.payload, {
+			media: {
 				collections: {
 					pages: { read: true, write: true },
 					media: { read: true, write: true, publish: true },
@@ -48,31 +35,15 @@ describe("upload collections", () => {
 			},
 		});
 
-		const doc = await booted.payload.create({
-			collection: "media" as never,
-			data: { alt: "Original" },
-			file: {
-				data: PIXEL,
-				mimetype: "image/png",
-				name: "pixel.png",
-				size: PIXEL.length,
-			},
-			overrideAccess: true,
-		});
+		mcp = createMcpClient(booted, keys.media);
 
-		mediaId = doc.id;
+		mediaId = (await createMedia(booted.payload, "Original")).id;
 	});
 
 	afterAll(async () => {
 		await booted.payload.destroy();
-		await rm(join(tmpdir(), "mcpx-fixture-media"), {
-			recursive: true,
-			force: true,
-		});
+		await rm(MEDIA_DIR, { recursive: true, force: true });
 	});
-
-	const call = (name: string, args: Record<string, unknown>) =>
-		callTool(booted.config, key, name, args, CACHE_KEY);
 
 	/** Drafts are where an MCP write lands, so that is what is read back. */
 	const readMedia = () =>
@@ -84,7 +55,7 @@ describe("upload collections", () => {
 		}) as unknown as Promise<Record<string, unknown>>;
 
 	it("describes only the fields the collection declares itself", async () => {
-		const result = await call("describeSchema", { collection: "media" });
+		const result = await mcp.call("describeSchema", { collection: "media" });
 		const [root] = result.data as unknown as {
 			fields: { path: string }[];
 		}[];
@@ -96,7 +67,7 @@ describe("upload collections", () => {
 	});
 
 	it("reports media as writable but not creatable", async () => {
-		const result = await call("listCapabilities", {});
+		const result = await mcp.call("listCapabilities", {});
 		const collections = result.data["collections"] as Record<string, unknown>[];
 
 		expect(collections).toEqual([
@@ -106,20 +77,20 @@ describe("upload collections", () => {
 	});
 
 	it("offers media to patchDocument but not to createDocument", async () => {
-		const tools = await toolsList(booted.config, key, CACHE_KEY);
+		const tools = await mcp.list();
 		const find = (name: string) => tools.find((tool) => tool.name === name);
 
 		expect(collectionEnumOf(find("patchDocument"))).toContain("media");
 		expect(collectionEnumOf(find("createDocument"))).not.toContain("media");
 		expect(find("createDocument")?.description).toContain(
-			'Left out of "collection" on purpose: media.',
+			"Documents in media are files and cannot be created here.",
 		);
 	});
 
 	it("patches a field and leaves the file untouched", async () => {
 		const before = await readMedia();
 
-		const result = await call("patchDocument", {
+		const result = await mcp.call("patchDocument", {
 			collection: "media",
 			id: mediaId,
 			locale: "en",
@@ -142,7 +113,7 @@ describe("upload collections", () => {
 	 * fails the moment the schema walk stops treating `admin.hidden` as hidden.
 	 */
 	it("refuses a patch aimed at an upload base field", async () => {
-		const result = await call("patchDocument", {
+		const result = await mcp.call("patchDocument", {
 			collection: "media",
 			id: mediaId,
 			locale: "en",
@@ -155,7 +126,7 @@ describe("upload collections", () => {
 	});
 
 	it("validates and publishes the draft it patched", async () => {
-		const validated = await call("validateDocument", {
+		const validated = await mcp.call("validateDocument", {
 			collection: "media",
 			id: mediaId,
 			locale: "en",
@@ -164,7 +135,7 @@ describe("upload collections", () => {
 		expect(validated.isError).toBe(false);
 		expect(validated.data["publishBlockers"]).toEqual([]);
 
-		const published = await call("publishDocument", {
+		const published = await mcp.call("publishDocument", {
 			collection: "media",
 			id: mediaId,
 		});

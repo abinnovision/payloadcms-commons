@@ -2,6 +2,7 @@ import { getLocalI18n } from "payload";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { collectPublishBlockers } from "./publish-blockers.js";
+import { paragraph } from "../../test/builders/lexical.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type {
@@ -11,26 +12,6 @@ import type {
 	SanitizedGlobalConfig,
 	SanitizedConfig,
 } from "payload";
-
-const paragraph = (text: string) => ({
-	root: {
-		type: "root",
-		children: [
-			{
-				type: "paragraph",
-				children: [{ type: "text", text, version: 1 }],
-				direction: null,
-				format: "",
-				indent: 0,
-				version: 1,
-			},
-		],
-		direction: null,
-		format: "",
-		indent: 0,
-		version: 1,
-	},
-});
 
 let config: SanitizedConfig;
 let siteSettingsGlobal: SanitizedGlobalConfig;

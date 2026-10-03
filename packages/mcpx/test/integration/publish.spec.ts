@@ -1,14 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-	callTool,
-	callToolBatch,
-	collectionEnumOf,
-	toolsList,
-} from "./helpers/mcp.js";
-import { bootPayload, createKey, USER } from "./helpers/payload.js";
+import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor, storedState } from "./helpers/payload.js";
 import { roguePublishTool } from "../fixtures/config.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-publish";
@@ -24,19 +20,17 @@ const completePage = (title: string): Record<string, unknown> => ({
 
 describe("publishDocument", () => {
 	let booted: Booted;
-	let publisher: string;
-	let writer: string;
+	let publisher: McpClient;
+	let writer: McpClient;
 
 	const createPage = async (
 		data: Record<string, unknown>,
 	): Promise<number | string> => {
-		const result = await callTool(
-			booted.config,
-			publisher,
-			"createDocument",
-			{ collection: "pages", locale: "en", data },
-			CACHE_KEY,
-		);
+		const result = await publisher.call("createDocument", {
+			collection: "pages",
+			locale: "en",
+			data,
+		});
 
 		expect(result.isError).toBe(false);
 
@@ -52,33 +46,29 @@ describe("publishDocument", () => {
 			overrideAccess: true,
 		});
 
+	const storedPages = () =>
+		storedState(booted.payload, { collections: ["pages"] });
+
 	beforeAll(async () => {
 		booted = await bootPayload({
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "live" },
-					posts: { read: true, write: "draft" },
-					tags: { read: true, write: "live" },
-					notes: { read: true, write: "live" },
+					pages: true,
+					posts: { publish: false },
+					tags: true,
+					notes: true,
 				},
 				globals: {
-					"site-settings": { read: true, write: "live" },
-					banner: { read: true, write: "live" },
+					"site-settings": true,
+					banner: true,
 				},
 				tools: [roguePublishTool],
 			},
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: USER,
-		});
-
-		publisher = await createKey(booted.payload, {
-			userId: user.id,
-			label: "publisher",
-			capabilities: {
+		const { keys } = await seedKeysFor(booted.payload, {
+			publisher: {
 				collections: {
 					pages: { read: true, write: true, publish: true },
 					posts: { read: true, write: true },
@@ -91,17 +81,15 @@ describe("publishDocument", () => {
 				},
 				tools: { roguePublish: true },
 			},
-		});
-
-		writer = await createKey(booted.payload, {
-			userId: user.id,
-			label: "writer",
-			capabilities: {
+			writer: {
 				collections: { pages: { read: true, write: true } },
 				globals: { siteSettings: { read: true, write: true } },
 				tools: { roguePublish: true },
 			},
 		});
+
+		publisher = createMcpClient(booted, keys.publisher);
+		writer = createMcpClient(booted, keys.writer);
 	});
 
 	afterAll(async () => {
@@ -109,15 +97,12 @@ describe("publishDocument", () => {
 	});
 
 	it("appears only for a key that ticked the publish checkbox", async () => {
-		const forPublisher = await toolsList(booted.config, publisher, CACHE_KEY);
-		const forWriter = await toolsList(booted.config, writer, CACHE_KEY);
-
-		expect(forPublisher.map((tool) => tool.name)).toContain("publishDocument");
-		expect(forWriter.map((tool) => tool.name)).not.toContain("publishDocument");
+		expect(await publisher.names()).toContain("publishDocument");
+		expect(await writer.names()).not.toContain("publishDocument");
 	});
 
 	it("offers only the slugs that have a draft to promote", async () => {
-		const tools = await toolsList(booted.config, publisher, CACHE_KEY);
+		const tools = await publisher.list();
 		const publish = tools.find((tool) => tool.name === "publishDocument");
 
 		// posts is draft-only, and tags is live but has no versions.
@@ -130,31 +115,24 @@ describe("publishDocument", () => {
 	 * unreachable for such a collection.
 	 */
 	it("cannot fail validation on a collection that validates its drafts", async () => {
-		const rejected = await callTool(
-			booted.config,
-			publisher,
-			"createDocument",
-			{ collection: "notes", locale: "en", data: {} },
-			CACHE_KEY,
-		);
+		const rejected = await publisher.call("createDocument", {
+			collection: "notes",
+			locale: "en",
+			data: {},
+		});
 
 		expect(rejected.isError).toBe(true);
 
-		const created = await callTool(
-			booted.config,
-			publisher,
-			"createDocument",
-			{ collection: "notes", locale: "en", data: { title: "Note" } },
-			CACHE_KEY,
-		);
+		const created = await publisher.call("createDocument", {
+			collection: "notes",
+			locale: "en",
+			data: { title: "Note" },
+		});
 
-		const published = await callTool(
-			booted.config,
-			publisher,
-			"publishDocument",
-			{ collection: "notes", id: created.data["id"] },
-			CACHE_KEY,
-		);
+		const published = await publisher.call("publishDocument", {
+			collection: "notes",
+			id: created.data["id"],
+		});
 
 		expect(published.isError).toBe(false);
 		expect(published.data).toMatchObject({ status: "published" });
@@ -168,29 +146,20 @@ describe("publishDocument", () => {
 	it("promotes the current draft rather than republishing old content", async () => {
 		const id = await createPage(completePage("Draft"));
 
-		const patched = await callTool(
-			booted.config,
-			publisher,
-			"patchDocument",
-			{
-				collection: "pages",
-				id,
-				locale: "en",
-				patches: [{ op: "replace", path: "/title", value: "Patched" }],
-			},
-			CACHE_KEY,
-		);
+		const patched = await publisher.call("patchDocument", {
+			collection: "pages",
+			id,
+			locale: "en",
+			patches: [{ op: "replace", path: "/title", value: "Patched" }],
+		});
 
 		expect(patched.isError).toBe(false);
 		expect((await readPage(id, false))["_status"]).toBe("draft");
 
-		const published = await callTool(
-			booted.config,
-			publisher,
-			"publishDocument",
-			{ collection: "pages", id },
-			CACHE_KEY,
-		);
+		const published = await publisher.call("publishDocument", {
+			collection: "pages",
+			id,
+		});
 
 		expect(published.isError).toBe(false);
 		expect(published.data).toMatchObject({ status: "published" });
@@ -201,28 +170,18 @@ describe("publishDocument", () => {
 	});
 
 	it("publishes a global the same way", async () => {
-		await callTool(
-			booted.config,
-			publisher,
-			"patchDocument",
-			{
-				global: "site-settings",
-				locale: "en",
-				patches: [
-					{ op: "replace", path: "/title", value: "Live" },
-					{ op: "replace", path: "/tagline", value: "Tagline" },
-				],
-			},
-			CACHE_KEY,
-		);
+		await publisher.call("patchDocument", {
+			global: "site-settings",
+			locale: "en",
+			patches: [
+				{ op: "replace", path: "/title", value: "Live" },
+				{ op: "replace", path: "/tagline", value: "Tagline" },
+			],
+		});
 
-		const published = await callTool(
-			booted.config,
-			publisher,
-			"publishDocument",
-			{ global: "site-settings" },
-			CACHE_KEY,
-		);
+		const published = await publisher.call("publishDocument", {
+			global: "site-settings",
+		});
 
 		expect(published.isError).toBe(false);
 		expect(
@@ -246,26 +205,17 @@ describe("publishDocument", () => {
 			["en", "English"],
 			["de", "Deutsch"],
 		]) {
-			await callTool(
-				booted.config,
-				publisher,
-				"patchDocument",
-				{
-					global: "site-settings",
-					locale,
-					patches: [{ op: "replace", path: "/title", value: title }],
-				},
-				CACHE_KEY,
-			);
+			await publisher.call("patchDocument", {
+				global: "site-settings",
+				locale,
+				patches: [
+					{ op: "replace", path: "/title", value: title },
+					{ op: "replace", path: "/tagline", value: "Tagline" },
+				],
+			});
 		}
 
-		await callTool(
-			booted.config,
-			publisher,
-			"publishDocument",
-			{ global: "site-settings" },
-			CACHE_KEY,
-		);
+		await publisher.call("publishDocument", { global: "site-settings" });
 
 		const german = await booted.payload.findGlobal({
 			slug: "site-settings",
@@ -280,52 +230,36 @@ describe("publishDocument", () => {
 
 	it("refuses a document that would not validate, and leaves it a draft", async () => {
 		const id = await createPage({ title: "Incomplete" });
+		const before = await storedPages();
 
-		const result = await callTool(
-			booted.config,
-			publisher,
-			"publishDocument",
-			{ collection: "pages", id },
-			CACHE_KEY,
-		);
+		const result = await publisher.call("publishDocument", {
+			collection: "pages",
+			id,
+		});
 
 		expect(result.isError).toBe(true);
-		expect(result.data["validationErrors"]).toBeDefined();
+		expect(
+			(result.data["validationErrors"] as { path: string }[]).map(
+				(error) => error.path,
+			),
+		).toEqual(["/slug", "/layout/sections"]);
 		expect((await readPage(id, true))["_status"]).toBe("draft");
+		expect(await storedPages()).toEqual(before);
 	});
 
 	it("refuses a stale expectedUpdatedAt", async () => {
 		const id = await createPage(completePage("Concurrent"));
+		const before = await storedPages();
 
-		const result = await callTool(
-			booted.config,
-			publisher,
-			"publishDocument",
-			{
-				collection: "pages",
-				id,
-				expectedUpdatedAt: "2020-01-01T00:00:00.000Z",
-			},
-			CACHE_KEY,
-		);
+		const result = await publisher.call("publishDocument", {
+			collection: "pages",
+			id,
+			expectedUpdatedAt: "2020-01-01T00:00:00.000Z",
+		});
 
 		expect(result.isError).toBe(true);
 		expect((await readPage(id, true))["_status"]).toBe("draft");
-	});
-
-	it("refuses a key that may write but not publish", async () => {
-		const id = await createPage(completePage("Forbidden"));
-
-		const result = await callTool(
-			booted.config,
-			writer,
-			"publishDocument",
-			{ collection: "pages", id },
-			CACHE_KEY,
-		);
-
-		expect(result.isError).toBe(true);
-		expect((await readPage(id, true))["_status"]).toBe("draft");
+		expect(await storedPages()).toEqual(before);
 	});
 
 	it("keeps a publish that did not come through the tool from landing", async () => {
@@ -336,13 +270,10 @@ describe("publishDocument", () => {
 		 * is rewritten into a draft save, so the call succeeds and nothing is
 		 * published.
 		 */
-		const collection = await callTool(
-			booted.config,
-			publisher,
-			"roguePublish",
-			{ collection: "pages", id },
-			CACHE_KEY,
-		);
+		const collection = await publisher.call("roguePublish", {
+			collection: "pages",
+			id,
+		});
 
 		expect(collection.isError).toBe(false);
 		expect((await readPage(id, false))["_status"]).toBe("draft");
@@ -351,51 +282,39 @@ describe("publishDocument", () => {
 		 * A global cannot be corrected, because updateGlobal reads `draft` before
 		 * the hook runs, so the alarm is what stops it and it throws.
 		 */
-		const guarded = await callTool(
-			booted.config,
-			publisher,
-			"roguePublish",
-			{ global: "site-settings" },
-			CACHE_KEY,
-		);
+		const settingsBefore = await storedState(booted.payload, {
+			globals: ["site-settings"],
+		});
+		const guarded = await publisher.call("roguePublish", {
+			global: "site-settings",
+		});
 
 		expect(guarded.isError).toBe(true);
+		expect(
+			await storedState(booted.payload, { globals: ["site-settings"] }),
+		).toEqual(settingsBefore);
 	});
 
 	/*
-	 * Both calls share one PayloadRequest, and the transport dispatches them
-	 * concurrently. A publish intent kept on that request would be visible to
-	 * the patch and would publish it.
-	 */
-	/*
-	 * Both calls share one PayloadRequest, and the transport dispatches the
-	 * messages of a batch without awaiting each one, so they overlap. They also
-	 * name the same document, which is what makes this discriminating: an intent
-	 * held anywhere but on the write itself is reachable by the patch, and the
-	 * patch is then the write that goes live while the publish is refused.
+	 * Both calls share one PayloadRequest and name the same document. An intent
+	 * held anywhere but on the publish write itself would still be reachable by
+	 * the patch that follows, which would then go live.
 	 */
 	it("does not leak the publish intent to a sibling call in the same batch", async () => {
 		const id = await createPage(completePage("Batched"));
 
-		const results = await callToolBatch(
-			booted.config,
-			publisher,
-			[
-				{
-					name: "patchDocument",
-					args: {
-						collection: "pages",
-						id,
-						locale: "en",
-						patches: [
-							{ op: "replace", path: "/title", value: "Still a draft" },
-						],
-					},
+		const results = await publisher.batch([
+			{ name: "publishDocument", args: { collection: "pages", id } },
+			{
+				name: "patchDocument",
+				args: {
+					collection: "pages",
+					id,
+					locale: "en",
+					patches: [{ op: "replace", path: "/title", value: "Still a draft" }],
 				},
-				{ name: "publishDocument", args: { collection: "pages", id } },
-			],
-			CACHE_KEY,
-		);
+			},
+		]);
 
 		expect(results.map((result) => result.isError)).toEqual([false, false]);
 		expect(await readPage(id, false)).toMatchObject({

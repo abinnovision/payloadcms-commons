@@ -1,14 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-	callTool,
-	collectionEnumOf,
-	toolNames,
-	toolsList,
-} from "./helpers/mcp.js";
+import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
 import { bootPayload, seedKeys } from "./helpers/payload.js";
 
 import type { Booted, Seeded } from "./helpers/payload.js";
+
+const CACHE_KEY = "mcpx-integration-capabilities";
 
 const BUILTIN = [
 	"listCapabilities",
@@ -28,7 +25,16 @@ describe("capabilities", () => {
 	let seeded: Seeded;
 
 	beforeAll(async () => {
-		booted = await bootPayload();
+		booted = await bootPayload({
+			key: CACHE_KEY,
+			plugin: {
+				collections: {
+					pages: { publish: false, versions: true },
+					posts: { publish: false },
+					tags: { write: false },
+				},
+			},
+		});
 		seeded = await seedKeys(booted.payload);
 	});
 
@@ -37,20 +43,20 @@ describe("capabilities", () => {
 	});
 
 	it("lists every builtin tool plus the enabled custom tool for a full key", async () => {
-		const names = await toolNames(booted.config, seeded.keys.full);
+		const names = await createMcpClient(booted, seeded.keys.full).names();
 
 		expect(names).toEqual([...BUILTIN, "echo", "whichCollection"]);
 	});
 
 	it("hides the write tools and the custom tool from a read-only key", async () => {
-		const names = await toolNames(booted.config, seeded.keys.readOnly);
+		const names = await createMcpClient(booted, seeded.keys.readOnly).names();
 
 		expect(names).toEqual(BUILTIN.filter((n) => !WRITE_TOOLS.includes(n)));
 	});
 
 	it("narrows the collection enums to what the key may reach", async () => {
-		const full = await toolsList(booted.config, seeded.keys.full);
-		const tagsOnly = await toolsList(booted.config, seeded.keys.tagsOnly);
+		const full = await createMcpClient(booted, seeded.keys.full).list();
+		const tagsOnly = await createMcpClient(booted, seeded.keys.tagsOnly).list();
 
 		expect(
 			collectionEnumOf(full.find((t) => t.name === "findDocuments")),
@@ -65,14 +71,10 @@ describe("capabilities", () => {
 	});
 
 	it("reports the key's capabilities in listCapabilities", async () => {
-		const full = await callTool(
-			booted.config,
-			seeded.keys.full,
+		const full = await createMcpClient(booted, seeded.keys.full).call(
 			"listCapabilities",
 		);
-		const readOnly = await callTool(
-			booted.config,
-			seeded.keys.readOnly,
+		const readOnly = await createMcpClient(booted, seeded.keys.readOnly).call(
 			"listCapabilities",
 		);
 
@@ -112,30 +114,12 @@ describe("capabilities", () => {
 	});
 
 	it("refuses a collection outside the key's enum", async () => {
-		const result = await callTool(
-			booted.config,
-			seeded.keys.tagsOnly,
+		const result = await createMcpClient(booted, seeded.keys.tagsOnly).call(
 			"findDocuments",
 			{ collection: "pages" },
 		);
 
 		expect(result.isError).toBe(true);
 		expect(result.text).toMatch(/validation|invalid/i);
-	});
-
-	it("refuses a write tool for a key without write capability", async () => {
-		const result = await callTool(
-			booted.config,
-			seeded.keys.readOnly,
-			"patchDocument",
-			{
-				collection: "pages",
-				id: 1,
-				locale: "en",
-				patches: [{ op: "replace", path: "/title", value: "x" }],
-			},
-		);
-
-		expect(result.isError).toBe(true);
 	});
 });

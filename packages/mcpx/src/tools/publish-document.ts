@@ -1,29 +1,22 @@
 import { z } from "zod";
 
 import {
-	idShape,
-	localeOf,
-	readTarget,
-	sameInstant,
-	targetShape,
-} from "./shared.js";
-import { requireIdFor, resolveTarget } from "./target.js";
-import { errorResult, jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
+	identityOf,
+	readDraft,
+	resolveDocument,
+	staleReadResult,
+} from "./document.js";
+import { idShape, localeOf, entityShape } from "./shared.js";
+import { defineMcpxTool } from "../define-tool.js";
+import { jsonResult } from "../result.js";
 import { withPublishIntent } from "../write/publish-intent.js";
 import { withTransaction } from "../write/transaction.js";
 
-const DESCRIPTION = `Publishes the current draft, which changes what the public sees. This is the only tool that does; every other write lands as a draft. Call validateDocument first: a document that still has publish blockers is refused, and nothing is written.
-
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
-
-The whole document is published, but Payload only validates the locale the publish runs in, so a required field left empty in another locale goes live empty. That is how the admin panel behaves too. Publishing is refused while a human holds the document open in the admin panel, and republishing an unchanged document is accepted but writes another version.
-
-There is no unpublish: reverting to a draft stays a human action in the admin panel.`;
+const DESCRIPTION = `Makes the current draft of one document or global public. A draft with publish blockers is refused, so call validateDocument first. Publishing validates one locale only, normally the default, so a required field left empty in another locale goes live empty. Run validateDocument for each locale. There is no unpublish. A person takes content offline in the admin panel.`;
 
 /**
- * The only tool that changes live content, available where the config sets
- * `write: "live"` on a versioned entity and the key has both the `write` and
+ * Publishes a draft. Available where the config exposes
+ * `publish` on an entity with drafts and the key has both the `write` and
  * `publish` checkboxes.
  */
 export const publishDocument = defineMcpxTool({
@@ -31,23 +24,19 @@ export const publishDocument = defineMcpxTool({
 	description: DESCRIPTION,
 	annotations: { destructiveHint: true, openWorldHint: false },
 	isEnabled: (scope) =>
-		scope.publishable.length + scope.publishableGlobals.length > 0,
+		scope.collections.publishable.length + scope.globals.publishable.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "publish", {
-			collection: "Collection holding the document.",
-			global: "Global to publish.",
-		}),
+		...entityShape(scope, "publish"),
 		...idShape(scope, "publish"),
 		expectedUpdatedAt: z
 			.string()
 			.optional()
 			.describe(
-				"The updatedAt read before publishing. Best effort: the publish is refused if the document has changed since, but a write landing between the check and the publish is not.",
+				'"updatedAt" from your last read. Refused if the document changed since.',
 			),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "publish");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "publish");
 		const { payload } = scope.req;
 		/*
 		 * Explicit, because `createLocalReq` assigns `req.locale` in place: a
@@ -57,23 +46,21 @@ export const publishDocument = defineMcpxTool({
 		const locale = localeOf(scope, undefined);
 
 		return await withTransaction(scope.req, async () => {
-			const doc = await readTarget(scope, { target, id, locale });
+			const doc = await readDraft(scope, { target, locale });
+			const stale = staleReadResult(
+				doc,
+				args.expectedUpdatedAt,
+				"The document changed since you read it. Read it again before publishing.",
+			);
 
-			if (
-				args.expectedUpdatedAt !== undefined &&
-				!sameInstant(doc["updatedAt"], args.expectedUpdatedAt)
-			) {
-				return errorResult(
-					"The document changed since you read it. Read it again before publishing.",
-					{ updatedAt: doc["updatedAt"] },
-				);
+			if (stale) {
+				return stale;
 			}
 
 			/*
-			 * The marker is the whole request to publish; `_status` is written by
-			 * the draft guard, which is the only thing that may grant it. Neither
-			 * goes through `buildWriteData`, which strips reserved fields and would
-			 * leave nothing behind.
+			 * The marker alone requests the publish, and the draft guard writes
+			 * `_status`. Neither goes through `buildWriteData`, which strips
+			 * reserved fields and would leave nothing.
 			 */
 			const write = {
 				data: withPublishIntent({}),
@@ -89,23 +76,20 @@ export const publishDocument = defineMcpxTool({
 				await payload.update({
 					...write,
 					collection: target.slug,
-					id: id as number | string,
+					id: target.id,
 				});
 			} else {
 				await payload.updateGlobal({ ...write, slug: target.slug });
 			}
 
-			const saved = await readTarget(scope, {
+			const saved = await readDraft(scope, {
 				target,
-				id,
 				locale,
 				privileged: true,
 			});
 
 			return jsonResult({
-				...(target.kind === "collection"
-					? { id: saved["id"] }
-					: { global: target.slug }),
+				...identityOf(target, saved["id"]),
 				status: saved["_status"],
 				updatedAt: saved["updatedAt"],
 			});

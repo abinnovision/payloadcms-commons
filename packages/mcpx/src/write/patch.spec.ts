@@ -2,38 +2,18 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import {
 	applyPatchOperations,
-	buildWriteData,
 	droppedPointer,
 	isElementPointer,
 	isReservedPointer,
-	PATCH_OPERATION_SCHEMA,
 } from "./patch.js";
+import { node, state } from "../../test/builders/lexical.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
-import { targetOf } from "../schema/walk.js";
 
 import type { SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
 
 /** The smallest state the rich text shape check accepts. */
-const EMPTY_RICH_TEXT = {
-	root: {
-		children: [
-			{
-				children: [],
-				direction: null,
-				format: "",
-				indent: 0,
-				type: "paragraph",
-				version: 1,
-			},
-		],
-		direction: null,
-		format: "",
-		indent: 0,
-		type: "root",
-		version: 1,
-	},
-};
+const EMPTY_RICH_TEXT = state([node("paragraph")]);
 
 const DOC = {
 	id: "p1",
@@ -51,52 +31,7 @@ const DOC = {
 	title: "Home",
 };
 
-describe("pATCH_OPERATION_SCHEMA", () => {
-	it("accepts the six RFC 6902 operations", () => {
-		const operations = [
-			{ op: "add", path: "/a", value: 1 },
-			{ from: "/b", op: "copy", path: "/a" },
-			{ from: "/b", op: "move", path: "/a" },
-			{ op: "remove", path: "/a" },
-			{ op: "replace", path: "/a", value: 1 },
-			{ op: "test", path: "/a", value: 1 },
-		];
-
-		for (const operation of operations) {
-			expect(PATCH_OPERATION_SCHEMA.safeParse(operation).success).toBe(true);
-		}
-	});
-
-	it("rejects an unknown operation", () => {
-		expect(
-			PATCH_OPERATION_SCHEMA.safeParse({ op: "set", path: "/a" }).success,
-		).toBe(false);
-	});
-
-	it("rejects members the operation does not take", () => {
-		expect(
-			PATCH_OPERATION_SCHEMA.safeParse({
-				from: "/b",
-				op: "copy",
-				path: "/a",
-				value: 1,
-			}).success,
-		).toBe(false);
-
-		expect(
-			PATCH_OPERATION_SCHEMA.safeParse({ from: "/b", op: "add", path: "/a" })
-				.success,
-		).toBe(false);
-	});
-
-	it("requires a source pointer on copy and move", () => {
-		expect(
-			PATCH_OPERATION_SCHEMA.safeParse({ op: "copy", path: "/a" }).success,
-		).toBe(false);
-	});
-});
-
-describe("pointer helpers", () => {
+describe("isReservedPointer, isElementPointer and droppedPointer", () => {
 	it("recognises pointers at fields Payload maintains", () => {
 		expect(isReservedPointer("/_status")).toBe(true);
 		expect(isReservedPointer("/layout/sections/0/id")).toBe(true);
@@ -122,15 +57,10 @@ describe("pointer helpers", () => {
 });
 
 /** A link node, so a read-only field has a node's own fields to address. */
-const LINK_NODE = {
-	children: [],
-	direction: "ltr",
+const LINK_NODE = node("link", {
 	fields: { linkType: "custom", newTab: false, url: "/old" },
-	format: "",
-	indent: 0,
-	type: "link",
 	version: 3,
-};
+});
 
 const POSTS_DOC = {
 	id: "s1",
@@ -465,68 +395,6 @@ describe("applyPatchOperations against read-only fields", () => {
 	});
 });
 
-describe("buildWriteData", () => {
-	let config: SanitizedConfig;
-
-	beforeAll(async () => {
-		config = await buildFixtureConfig();
-	});
-
-	it("keeps describable fields and row identity, drops what Payload owns", () => {
-		const data = buildWriteData(
-			config,
-			targetOf(config, { kind: "collection", slug: "pages" }),
-			{
-				...DOC,
-				_status: "draft",
-				createdAt: "2026-01-01T00:00:00.000Z",
-				updatedAt: "2026-01-01T00:00:00.000Z",
-				unknown: "x",
-				meta: { title: "Meta", stray: true },
-			},
-		);
-
-		expect(data).toEqual({
-			layout: {
-				color: "light",
-				sections: [
-					{
-						id: "row-1",
-						blockType: "sectionWrapper",
-						identifier: "first",
-						modules: [{ id: "row-2", blockType: "hero", imageSize: "small" }],
-					},
-				],
-			},
-			meta: { title: "Meta" },
-			title: "Home",
-		});
-	});
-
-	it("drops the base fields of an upload document", () => {
-		const data = buildWriteData(
-			config,
-			targetOf(config, { kind: "collection", slug: "media" }),
-			{
-				id: "m1",
-				alt: "A cat",
-				credit: "Nobody",
-				filename: "cat.png",
-				mimeType: "image/png",
-				filesize: 1234,
-				width: 800,
-				height: 600,
-				url: "/media/cat.png",
-				thumbnailURL: "https://example.test/media/cat.png",
-				focalX: 50,
-				focalY: 50,
-			},
-		);
-
-		expect(data).toEqual({ alt: "A cat", credit: "Nobody" });
-	});
-});
-
 describe("dropping a pointer inside an editor state", () => {
 	let config: SanitizedConfig;
 
@@ -534,14 +402,7 @@ describe("dropping a pointer inside an editor state", () => {
 		config = await buildFixtureConfig();
 	});
 
-	const paragraph = {
-		children: [],
-		direction: null,
-		format: "",
-		indent: 0,
-		type: "paragraph",
-		version: 1,
-	};
+	const paragraph = node("paragraph");
 
 	const doc = {
 		id: "p1",
@@ -595,15 +456,10 @@ describe("dropping a pointer inside an editor state", () => {
 				root: {
 					...EMPTY_RICH_TEXT.root,
 					children: [
-						{
-							children: [],
-							direction: "ltr",
+						node("link", {
 							fields: { linkType: "custom", newTab: false, url: "/x" },
-							format: "",
-							indent: 0,
-							type: "link",
 							version: 3,
-						},
+						}),
 					],
 				},
 			},
@@ -643,6 +499,66 @@ describe("dropping a pointer inside an editor state", () => {
 
 	it("still refuses a plain field with the reason that applies to it", () => {
 		expect(remove("/title")).toEqual({
+			problems: [expect.stringContaining("removing it would do nothing")],
+		});
+	});
+});
+
+describe("applyPatchOperations when the schema walk throws", () => {
+	let config: SanitizedConfig;
+
+	beforeAll(async () => {
+		config = await buildFixtureConfig();
+	});
+
+	const replaceTitle = (
+		at: SanitizedConfig,
+	): { next: Record<string, unknown> } | { problems: string[] } =>
+		applyPatchOperations(at, {
+			doc: DOC,
+			patches: [{ op: "replace", path: "/title", value: "Renamed" }],
+			ref: { kind: "collection", slug: "pages" },
+		});
+
+	it("reports a schema failure as the operation's problem", () => {
+		const refused = applyPatchOperations(config, {
+			doc: DOC,
+			patches: [{ op: "replace", path: "/nope", value: "Renamed" }],
+			ref: { kind: "collection", slug: "pages" },
+		});
+
+		expect(refused).toEqual({
+			problems: [
+				'patches[0]: "/nope" is not a field here. Available: /title, /slug, /layout/color, /layout/sections, /meta/title',
+			],
+		});
+	});
+
+	/* A schema the walk cannot read stands in for an unexpected failure. */
+	const broken = (): SanitizedConfig => ({
+		...config,
+		collections: config.collections.map((collection) =>
+			collection.slug === "pages"
+				? { ...collection, flattenedFields: null as never }
+				: collection,
+		),
+	});
+
+	it("rethrows anything else, so it is not handed to the client", () => {
+		expect(() => replaceTitle(broken())).toThrow(TypeError);
+		expect(replaceTitle(config)).toHaveProperty("next");
+	});
+
+	it("rethrows anything else while explaining a dropped field", () => {
+		const removeTitle = (at: SanitizedConfig) =>
+			applyPatchOperations(at, {
+				doc: DOC,
+				patches: [{ op: "remove", path: "/title" }],
+				ref: { kind: "collection", slug: "pages" },
+			});
+
+		expect(() => removeTitle(broken())).toThrow(TypeError);
+		expect(removeTitle(config)).toEqual({
 			problems: [expect.stringContaining("removing it would do nothing")],
 		});
 	});

@@ -1,10 +1,16 @@
 import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { describe, expect, it } from "vitest";
 
+import { BUILTIN_TOOL_NAMES } from "./builtin-tool-names.js";
 import { normalizeOptions, toCamelCase } from "./options.js";
 import { BUILTIN_TOOLS } from "./tools/builtin.js";
-import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
-import { pages, posts, tags, users } from "../test/fixtures/collections.js";
+import {
+	pages,
+	posts,
+	snippets,
+	tags,
+	users,
+} from "../test/fixtures/collections.js";
 import { banner, siteSettings } from "../test/fixtures/globals.js";
 
 import type { McpxPluginOptions } from "./types.js";
@@ -31,7 +37,7 @@ describe("toCamelCase", () => {
 	});
 });
 
-describe("bUILTIN_TOOL_NAMES", () => {
+describe("the builtin tool names", () => {
 	it("names every builtin tool", () => {
 		expect([...BUILTIN_TOOL_NAMES]).toEqual(
 			BUILTIN_TOOLS.map((tool) => tool.name),
@@ -50,17 +56,6 @@ describe("normalizeOptions", () => {
 			userCollection: "users",
 			tools: [],
 		});
-		expect(normalized.collections).toEqual([
-			{
-				slug: "pages",
-				read: true,
-				write: false,
-				hasDrafts: true,
-				hasVersions: true,
-				isUpload: false,
-				fieldName: "pages",
-			},
-		]);
 		expect(normalized.serverInfo.name).toBe("payloadcms-mcpx");
 	});
 
@@ -70,56 +65,357 @@ describe("normalizeOptions", () => {
 		);
 	});
 
-	it("refuses draft writes on a collection without drafts", () => {
-		expect(() =>
-			normalize({ collections: { tags: { write: "draft" } } }),
-		).toThrow(/no drafts/);
-	});
+	describe("true", () => {
+		it("exposes everything an entity with drafts supports", () => {
+			expect(normalize({ collections: { pages: true } }).collections).toEqual([
+				{
+					slug: "pages",
+					read: true,
+					write: "live",
+					hasDrafts: true,
+					hasVersions: false,
+					isUpload: false,
+					fieldName: "pages",
+				},
+			]);
+		});
 
-	it("accepts live writes on a collection without drafts", () => {
-		const [tags] = normalize({
-			collections: { tags: { write: "live" } },
-		}).collections;
+		it("exposes a live write on an entity without drafts", () => {
+			expect(normalize({ collections: { tags: true } }).collections).toEqual([
+				{
+					slug: "tags",
+					read: true,
+					write: "live",
+					hasDrafts: false,
+					hasVersions: false,
+					isUpload: false,
+					fieldName: "tags",
+				},
+			]);
+		});
 
-		expect(tags).toMatchObject({
-			write: "live",
-			hasDrafts: false,
-			hasVersions: false,
+		it("is the same as an empty object", () => {
+			expect(normalize({ collections: { pages: {} } })).toEqual(
+				normalize({ collections: { pages: true } }),
+			);
+		});
+
+		it("leaves versions off, even where Payload keeps them and readVersions is defined", () => {
+			const withRule = { ...pages, access: { readVersions: () => true } };
+
+			expect(
+				normalize(
+					{ collections: { pages: true } },
+					rawConfig([users, withRule]),
+				).collections[0],
+			).toMatchObject({ hasDrafts: true, hasVersions: false });
+			expect(
+				normalize(
+					{ collections: { snippets: true } },
+					rawConfig([users, snippets]),
+				).collections[0],
+			).toMatchObject({ hasDrafts: false, hasVersions: false });
+		});
+
+		it("leaves versions off, without an error, when read is off", () => {
+			expect(
+				normalize(
+					{ collections: { snippets: { read: false } } },
+					rawConfig([users, snippets]),
+				).collections[0],
+			).toMatchObject({ read: false, hasVersions: false });
+		});
+
+		it("exposes an upload collection, which still counts as writable", () => {
+			const media: CollectionConfig = {
+				slug: "media",
+				upload: true,
+				versions: { drafts: true },
+				fields: [{ name: "alt", type: "text" }],
+			};
+
+			expect(
+				normalize({ collections: { media: true } }, rawConfig([users, media]))
+					.collections,
+			).toEqual([
+				{
+					slug: "media",
+					read: true,
+					write: "live",
+					hasDrafts: true,
+					hasVersions: false,
+					isUpload: true,
+					fieldName: "media",
+				},
+			]);
+		});
+
+		it("exposes a global the same way", () => {
+			expect(
+				normalize({
+					collections: {},
+					globals: { "site-settings": true, banner: true },
+				}).globals,
+			).toEqual([
+				{
+					slug: "site-settings",
+					read: true,
+					write: "live",
+					hasDrafts: true,
+					hasVersions: false,
+					isUpload: false,
+					fieldName: "siteSettings",
+				},
+				{
+					slug: "banner",
+					read: true,
+					write: "live",
+					hasDrafts: false,
+					hasVersions: false,
+					isUpload: false,
+					fieldName: "banner",
+				},
+			]);
 		});
 	});
 
-	it("accepts live writes on a collection with drafts, which is what publishing needs", () => {
-		const [entry] = normalize({
-			collections: { pages: { write: "live" } },
-		}).collections;
+	describe("the options", () => {
+		it("takes read: false away", () => {
+			expect(
+				normalize({ collections: { pages: { read: false } } }).collections[0],
+			).toMatchObject({ read: false, write: "live" });
+		});
 
-		expect(entry).toMatchObject({ write: "live", hasDrafts: true });
+		it("takes write: false away", () => {
+			expect(
+				normalize({ collections: { pages: { write: false } } }).collections[0],
+			).toMatchObject({ write: false });
+		});
+
+		it("takes publish: false away", () => {
+			expect(
+				normalize({ collections: { pages: { publish: false } } })
+					.collections[0],
+			).toMatchObject({ write: "draft", hasDrafts: true });
+		});
+
+		it("takes versions: false away", () => {
+			const withRule = { ...pages, access: { readVersions: () => true } };
+
+			expect(
+				normalize(
+					{ collections: { pages: { versions: false } } },
+					rawConfig([users, withRule]),
+				).collections[0],
+			).toMatchObject({ hasVersions: false });
+		});
+
+		it("turns versions on with versions: true", () => {
+			expect(
+				normalize({ collections: { pages: { versions: true } } })
+					.collections[0],
+			).toMatchObject({ hasVersions: true });
+			expect(
+				normalize({
+					collections: {},
+					globals: { "site-settings": { versions: true } },
+				}).globals[0],
+			).toMatchObject({ hasVersions: true });
+		});
+
+		it("keeps drafts apart from the version setting", () => {
+			expect(
+				normalize({ collections: { pages: { publish: false } } })
+					.collections[0],
+			).toMatchObject({ hasDrafts: true, hasVersions: false });
+		});
+
+		it("lets publish: false stand with write: false on an entity without drafts", () => {
+			expect(
+				normalize({ collections: { tags: { write: false, publish: false } } })
+					.collections[0],
+			).toMatchObject({ write: false, hasDrafts: false });
+		});
+
+		it("ignores publish when write is off", () => {
+			expect(
+				normalize({ collections: { pages: { write: false, publish: false } } })
+					.collections[0],
+			).toMatchObject({ write: false });
+		});
+
+		it("lets read: false stand with write on", () => {
+			expect(
+				normalize({ collections: { pages: { read: false, write: true } } })
+					.collections[0],
+			).toMatchObject({ read: false, write: "live" });
+		});
 	});
 
-	it("refuses a write mode it does not know", () => {
-		expect(() =>
-			normalize({
-				collections: { pages: { write: true as unknown as "draft" } },
-			}),
-		).toThrow(/Use false, "draft" or "live"/);
+	describe("the write mode", () => {
+		it.each([
+			["tags", { write: false }, false],
+			["pages", { write: false }, false],
+			["pages", {}, "live"],
+			["pages", { publish: false }, "draft"],
+			["tags", {}, "live"],
+		] as const)("maps %s with %j to %j", (slug, settings, expected) => {
+			expect(
+				normalize({ collections: { [slug]: settings } }).collections[0]?.write,
+			).toBe(expected);
+		});
+
+		it("maps a global the same way", () => {
+			const write = (global: string, settings: object) =>
+				normalize({ collections: {}, globals: { [global]: settings } })
+					.globals[0]?.write;
+
+			expect(write("site-settings", {})).toBe("live");
+			expect(write("site-settings", { publish: false })).toBe("draft");
+			expect(write("banner", {})).toBe("live");
+			expect(write("banner", { write: false })).toBe(false);
+		});
 	});
 
-	it("refuses live writes on a collection with a localized status", () => {
-		const config = rawConfig([
-			users,
-			{ ...pages, versions: { drafts: { localizeStatus: true } } },
-		]);
+	describe("startup errors", () => {
+		it("refuses false as an entity value and says to remove the entry", () => {
+			expect(() =>
+				normalize({ collections: { pages: false as never } }),
+			).toThrow(/"pages" is set to false. Remove the entry/);
+			expect(() =>
+				normalize({ collections: {}, globals: { banner: false as never } }),
+			).toThrow(/Global "banner" is set to false. Remove the entry/);
+		});
 
-		expect(() =>
-			normalize({ collections: { pages: { write: "live" } } }, config),
-		).toThrow(/localizeStatus/);
+		it.each([["no"], [0], [[]], [null], [1]])(
+			"refuses %j as an entity value",
+			(value) => {
+				expect(() =>
+					normalize({ collections: { pages: value as never } }),
+				).toThrow(/"pages" has .*Use true or an object of/);
+			},
+		);
+
+		it("skips an entity whose value is undefined", () => {
+			expect(
+				normalize({ collections: { pages: undefined } }).collections,
+			).toEqual([]);
+		});
+
+		it("refuses an unknown option and names the allowed ones", () => {
+			const typo: Record<string, unknown> = { wirte: false };
+			const unknown: Record<string, unknown> = { nope: true };
+
+			expect(() => normalize({ collections: { pages: typo } })).toThrow(
+				/unknown option "wirte".*read, write, publish, versions/,
+			);
+			expect(() =>
+				normalize({ collections: {}, globals: { banner: unknown } }),
+			).toThrow(/Global "banner" has the unknown option "nope"/);
+		});
+
+		it("refuses an option that is not a boolean", () => {
+			for (const name of ["read", "write", "publish", "versions"]) {
+				const settings: Record<string, unknown> = { [name]: "yes" };
+
+				expect(() =>
+					normalize({
+						collections: { pages: settings },
+					}),
+				).toThrow(new RegExp(`has ${name}: "yes". Use true or false`));
+			}
+
+			expect(() =>
+				normalize({
+					collections: {},
+					globals: { banner: { versions: 1 as unknown as boolean } },
+				}),
+			).toThrow(/Use true or false/);
+		});
+
+		it("names the replacement for the old write modes", () => {
+			expect(() =>
+				normalize({
+					collections: { pages: { write: "draft" as unknown as boolean } },
+				}),
+			).toThrow(/write: "draft".*Use \{ publish: false \}/);
+			expect(() =>
+				normalize({
+					collections: { pages: { write: "live" as unknown as boolean } },
+				}),
+			).toThrow(/write: "live".*on by default/);
+		});
+
+		it("refuses publish: true on an entity without drafts", () => {
+			expect(() =>
+				normalize({ collections: { tags: { publish: true } } }),
+			).toThrow(/"tags" has no drafts.*publish: true/);
+			expect(() =>
+				normalize({ collections: {}, globals: { banner: { publish: true } } }),
+			).toThrow(/"banner" has no drafts/);
+		});
+
+		it("refuses publish: false on an entity without drafts and names the fix", () => {
+			expect(() =>
+				normalize({ collections: { tags: { publish: false } } }),
+			).toThrow(/"tags" has no drafts, so every write goes live.*write: false/);
+			expect(() =>
+				normalize({ collections: {}, globals: { banner: { publish: false } } }),
+			).toThrow(/"banner" has no drafts/);
+		});
+
+		it("refuses publish: true with write: false", () => {
+			expect(() =>
+				normalize({ collections: { pages: { write: false, publish: true } } }),
+			).toThrow(/publish: true but write: false/);
+		});
+
+		it("refuses versions: true on an entity that keeps none", () => {
+			expect(() =>
+				normalize({ collections: { tags: { versions: true } } }),
+			).toThrow(/"tags" keeps no versions/);
+			expect(() =>
+				normalize({ collections: {}, globals: { banner: { versions: true } } }),
+			).toThrow(/"banner" keeps no versions/);
+		});
+
+		it("refuses versions: true with read: false", () => {
+			expect(() =>
+				normalize({ collections: { pages: { read: false, versions: true } } }),
+			).toThrow(/read: false/);
+			expect(() =>
+				normalize({
+					collections: {},
+					globals: { "site-settings": { read: false, versions: true } },
+				}),
+			).toThrow(/read: false/);
+		});
+
+		it("refuses a write on a collection with a localized status and names the fix", () => {
+			const config = rawConfig([
+				users,
+				{ ...pages, versions: { drafts: { localizeStatus: true } } },
+			]);
+
+			expect(() => normalize({ collections: { pages: true } }, config)).toThrow(
+				/localizeStatus.*Set publish: false or write: false\./,
+			);
+			expect(
+				normalize({ collections: { pages: { publish: false } } }, config)
+					.collections[0]?.write,
+			).toBe("draft");
+			expect(
+				normalize({ collections: { pages: { write: false } } }, config)
+					.collections[0]?.write,
+			).toBe(false);
+		});
 	});
 
 	it("refuses write on auth and internal collections", () => {
 		const config = rawConfig([users, pages]);
 
 		expect(() =>
-			normalize({ collections: { users: { write: "draft" } } }, config),
+			normalize({ collections: { users: { write: true } } }, config),
 		).toThrow(/Auth collection/);
 		// Read is refused too: auth documents carry credentials.
 		expect(() => normalize({ collections: { users: true } }, config)).toThrow(
@@ -128,7 +424,7 @@ describe("normalizeOptions", () => {
 		expect(() =>
 			normalize(
 				{
-					collections: { pages: { write: "draft" } },
+					collections: { pages: { write: true } },
 					apiKeys: { slug: "pages" },
 				},
 				config,
@@ -136,86 +432,22 @@ describe("normalizeOptions", () => {
 		).toThrow(/already taken/);
 	});
 
-	it("exposes an upload collection for write, drafts permitting", () => {
-		const fields: CollectionConfig["fields"] = [{ name: "alt", type: "text" }];
-		const media: CollectionConfig = {
-			slug: "media",
-			upload: true,
-			versions: { drafts: true },
-			fields,
-		};
-		const config = rawConfig([users, media]);
-
-		expect(
-			normalize({ collections: { media: { write: "draft" } } }, config)
-				.collections,
-		).toEqual([
-			{
-				slug: "media",
-				read: true,
-				write: "draft",
-				hasDrafts: true,
-				hasVersions: true,
-				isUpload: true,
-				fieldName: "media",
-			},
-		]);
-		expect(() =>
-			normalize(
-				{ collections: { media: { write: "draft" } } },
-				rawConfig([users, { slug: "media", upload: true, fields }]),
-			),
-		).toThrow(/has no drafts/);
-	});
-
 	it("refuses write on a collection without timestamps", () => {
 		const config = rawConfig([users, { ...pages, timestamps: false }]);
 
-		expect(() =>
-			normalize({ collections: { pages: { write: "draft" } } }, config),
-		).toThrow(/timestamps/);
+		expect(() => normalize({ collections: { pages: true } }, config)).toThrow(
+			/timestamps/,
+		);
 	});
 
 	it("leaves globals empty when the option is omitted", () => {
 		expect(normalize({ collections: { pages: true } }).globals).toEqual([]);
 	});
 
-	it("applies global defaults", () => {
-		expect(
-			normalize({ collections: {}, globals: { "site-settings": true } })
-				.globals,
-		).toEqual([
-			{
-				slug: "site-settings",
-				read: true,
-				write: false,
-				hasDrafts: true,
-				hasVersions: true,
-				isUpload: false,
-				fieldName: "siteSettings",
-			},
-		]);
-	});
-
 	it("refuses an unknown global", () => {
 		expect(() =>
 			normalize({ collections: {}, globals: { nope: true } }),
 		).toThrow(/Exposed global "nope" does not exist/);
-	});
-
-	it("refuses draft writes on a global without drafts", () => {
-		expect(() =>
-			normalize({ collections: {}, globals: { banner: { write: "draft" } } }),
-		).toThrow(/Global "banner" has no drafts/);
-	});
-
-	it("accepts live writes on a global without drafts", () => {
-		const [entry] = normalize({
-			collections: {},
-			globals: { banner: { write: "live" } },
-		}).globals;
-
-		expect(entry).toMatchObject({ write: "live", hasDrafts: false });
 	});
 
 	it("lets a global and a collection share a capability field name", () => {

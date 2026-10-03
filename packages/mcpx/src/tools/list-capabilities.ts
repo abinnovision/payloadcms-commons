@@ -1,21 +1,32 @@
 import { hasDraftValidationEnabled } from "payload/shared";
 
-import { translateLabel } from "./shared.js";
 import { canCreate } from "../capabilities.js";
-import { translatorFor } from "../i18n.js";
+import { defineMcpxTool } from "../define-tool.js";
+import { translateStatic, translatorFor } from "../i18n.js";
 import { jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
 
-const DESCRIPTION = `Lists what this key may do: the collections and globals it can read or write, whether a collection can also be created in, their draft behaviour and id type, the configured locales, the limits in force and the custom tools available. Call it first to orient; nothing here changes with the content model.
+import type { McpxToolScope } from "../types.js";
+import type { LabelFunction, StaticLabel } from "payload";
 
-A global is a singleton: it has no id, is not listed by findDocuments and cannot be created. Address one with the "global" argument where a collection document would take "collection" and "id".`;
+const DESCRIPTION = `Lists what this key may do. Call it first. Returns each collection and global the key can read or write, with whether it can create, publish, has drafts and exposes versions to findVersions, and a collection's "idType". Also returns the locales, the "limits" on page size and depth, and the enabled custom tools.`;
+
+const translateLabel = (
+	scope: McpxToolScope,
+	label: LabelFunction | StaticLabel | undefined,
+	fallback: string,
+): string => {
+	const { i18n, t } = scope.req;
+	const resolved = typeof label === "function" ? label({ i18n, t }) : label;
+
+	return translateStatic(resolved, i18n) ?? fallback;
+};
 
 /**
- * Registered for every key, including one with no capabilities ticked, so a
- * client always has something to call and gets an empty surface described
- * rather than an empty tool list. The response is assembled from the request
- * scope and the sanitized config, never from the content model, so it stays the
- * same size as a deployment grows.
+ * Registered for every key, even one with no capabilities ticked, so a client
+ * always has a tool to call and gets an empty surface described instead of an
+ * empty tool list. The response comes from the request scope and the sanitized
+ * config, not the content model, so it stays the same size as a deployment
+ * grows.
  */
 export const listCapabilities = defineMcpxTool({
 	name: "listCapabilities",
@@ -98,18 +109,19 @@ export const listCapabilities = defineMcpxTool({
 			];
 		});
 
-		return Promise.resolve(
-			jsonResult({
-				collections,
-				...(globals.length > 0 ? { globals } : {}),
-				locales: scope.locales
-					? { codes: scope.locales, default: scope.defaultLocale }
-					: null,
-				limits: scope.limits,
-				tools: Object.entries(scope.capabilities.tools)
-					.filter(([, enabled]) => enabled)
-					.map(([name]) => name),
-			}),
-		);
+		return jsonResult({
+			collections,
+			...(globals.length > 0 ? { globals } : {}),
+			locales: scope.localization
+				? {
+						codes: scope.localization.locales,
+						default: scope.localization.defaultLocale,
+					}
+				: null,
+			limits: scope.limits,
+			tools: Object.entries(scope.capabilities.tools)
+				.filter(([, enabled]) => enabled)
+				.map(([name]) => name),
+		});
 	},
 });

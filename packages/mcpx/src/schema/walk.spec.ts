@@ -1,26 +1,18 @@
 import { flattenAllFields } from "payload";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { allowedNodeTypes } from "./lexical.js";
 import {
 	blockOf,
 	blockSlugsOf,
 	describeAddressableFields,
 	describeFields,
 	findBlocksField,
-	joinPath,
-	splitPath,
-	targetOf,
+	schemaOf,
 } from "./walk.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { translatorFor } from "../i18n.js";
 
-import type {
-	Field,
-	FlattenedBlocksField,
-	RichTextField,
-	SanitizedConfig,
-} from "payload";
+import type { Field, SanitizedConfig } from "payload";
 
 let config: SanitizedConfig;
 
@@ -31,24 +23,6 @@ beforeAll(async () => {
 const pagesFields = () =>
 	config.collections.find((collection) => collection.slug === "pages")!
 		.flattenedFields;
-
-describe("path helpers", () => {
-	it("round-trips array markers", () => {
-		expect(joinPath(["items", "*", "title"])).toBe("/items/*/title");
-		expect(splitPath("/items/*/title")).toEqual(["items", "*", "title"]);
-		expect(splitPath("/layout/sections")).toEqual(["layout", "sections"]);
-	});
-
-	it("treats no segments as the root", () => {
-		expect(joinPath([])).toBe("");
-		expect(splitPath("")).toEqual([]);
-	});
-
-	it("escapes segments that would otherwise split", () => {
-		expect(joinPath(["a/b", "c~d"])).toBe("/a~1b/c~0d");
-		expect(splitPath("/a~1b/c~0d")).toEqual(["a/b", "c~d"]);
-	});
-});
 
 describe("describeFields", () => {
 	it("flattens unnamed tabs and keeps named ones", () => {
@@ -284,7 +258,7 @@ describe("describeFields", () => {
 	});
 });
 
-describe("blocks helpers", () => {
+describe("findBlocksField, blockSlugsOf and blockOf", () => {
 	const sectionsField = () =>
 		findBlocksField(pagesFields(), ["layout", "sections"])!;
 
@@ -316,55 +290,22 @@ describe("blocks helpers", () => {
 	});
 });
 
-describe("allowedNodeTypes", () => {
-	it("reports the nodes a field's editor enables", () => {
-		const sections = findBlocksField(pagesFields(), ["layout", "sections"])!;
-		const wrapper = blockOf(config, sections, "sectionWrapper")!;
-		const modules = wrapper.flattenedFields.find(
-			(field) => field.type === "blocks",
-		) as FlattenedBlocksField;
-		const hero = blockOf(config, modules, "hero")!;
-
-		const title = hero.flattenedFields.find(
-			(field) => "name" in field && field.name === "title",
-		) as RichTextField;
-		const body = hero.flattenedFields.find(
-			(field) => "name" in field && field.name === "body",
-		) as RichTextField;
-
-		expect(allowedNodeTypes(title)).not.toContain("heading");
-		expect(allowedNodeTypes(title)).toContain("paragraph");
-		expect(allowedNodeTypes(body)).toContain("heading");
-		expect(allowedNodeTypes(body)).toContain("link");
-	});
-
-	it("falls back to the core nodes for unknown editors", () => {
-		expect(allowedNodeTypes({ name: "x", type: "richText" })).toEqual([
-			"root",
-			"paragraph",
-			"text",
-			"linebreak",
-			"tab",
-		]);
-	});
-});
-
-describe("targetOf", () => {
+describe("schemaOf", () => {
 	it("resolves a collection and a global from the same config", () => {
-		expect(targetOf(config, { kind: "collection", slug: "pages" }).slug).toBe(
+		expect(schemaOf(config, { kind: "collection", slug: "pages" }).slug).toBe(
 			"pages",
 		);
 		expect(
-			targetOf(config, { kind: "global", slug: "site-settings" }).slug,
+			schemaOf(config, { kind: "global", slug: "site-settings" }).slug,
 		).toBe("site-settings");
 	});
 
 	it("keeps the two namespaces apart in its error message", () => {
-		expect(() => targetOf(config, { kind: "global", slug: "pages" })).toThrow(
+		expect(() => schemaOf(config, { kind: "global", slug: "pages" })).toThrow(
 			'Unknown global "pages".',
 		);
 		expect(() =>
-			targetOf(config, { kind: "collection", slug: "site-settings" }),
+			schemaOf(config, { kind: "collection", slug: "site-settings" }),
 		).toThrow('Unknown collection "site-settings".');
 	});
 });

@@ -33,11 +33,10 @@ export const jsonRpcError = (args: {
 };
 
 /**
- * Payload's public errors keep their message and status; a `ValidationError`
- * also surfaces its per-field detail, with each field's path restated as a
- * JSON Pointer so it reads like every other path this plugin reports. Anything
- * else is logged and reported as an internal error so no stack or driver
- * message leaks to the client.
+ * Payload's public errors keep their message and status. A `ValidationError`
+ * also surfaces its per-field detail, with each path as a JSON Pointer like
+ * every other path this plugin reports. Anything else is logged and reported as
+ * an internal error, so no stack or driver message reaches the client.
  */
 export const toToolError = (error: unknown, logger: Logger): CallToolResult => {
 	if (error instanceof ValidationError) {

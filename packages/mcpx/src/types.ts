@@ -1,3 +1,4 @@
+import type { DocumentId } from "./entity.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type {
 	CallToolResult,
@@ -30,34 +31,43 @@ declare module "payload" {
  * - `false`: no write tool touches it.
  * - `"draft"`: writes land as drafts and nothing MCP does changes what the
  *   public sees. Requires `versions.drafts`.
- * - `"live"`: MCP may change live content. On an entity with drafts that means
- *   `publishDocument` is exposed; on one without, where there is no draft to
- *   land on, it means the write itself is permitted and lands live.
+ * - `"live"`: MCP may change live content. On an entity with drafts that
+ *   exposes `publishDocument`. On one without, there is no draft, so the write
+ *   itself is permitted and lands live.
  */
 export type McpxWriteMode = "draft" | "live" | false;
 
-/** A key can only enable what the config exposes here. */
+/**
+ * What an entity exposes. The config names the entities that are reachable and
+ * only takes capabilities away; a key's checkboxes decide per key. `true` is
+ * shorthand for `{}`, which exposes everything the entity supports.
+ */
 export interface McpxCollectionOptions {
 	/** Expose `describeSchema`, `findDocuments`, `getDocument`. Default `true`. */
 	read?: boolean;
 	/**
 	 * Expose `patchDocument`, `validateDocument` and, unless this is an upload
-	 * collection, `createDocument`, and how far those writes reach. Default
-	 * `false`.
+	 * collection, `createDocument`. Without drafts a write changes live
+	 * content. Default `true`.
 	 */
-	write?: McpxWriteMode;
+	write?: boolean;
+	/**
+	 * Expose `publishDocument`, which promotes a draft to live content. Needs
+	 * `versions.drafts` and `write`. Default `true` where the entity has drafts.
+	 * `false` keeps writes as drafts and is refused where there are none.
+	 */
+	publish?: boolean;
+	/**
+	 * Expose `findVersions` and the `versionId` and `diffFrom` arguments of
+	 * `getDocument` to keys that may read the entity. Default `false`: version
+	 * history has no checkbox of its own and follows the key's read, so the
+	 * config opts in. `true` needs Payload `versions` and `read`.
+	 */
+	versions?: boolean;
 }
 
-/** A singleton, so neither `findDocuments` nor `createDocument` reaches one. */
-export interface McpxGlobalOptions {
-	/** Expose `describeSchema` and `getDocument`. Default `true`. */
-	read?: boolean;
-	/**
-	 * Expose `patchDocument` and `validateDocument`, and how far those writes
-	 * reach. Default `false`.
-	 */
-	write?: McpxWriteMode;
-}
+/** The same options. A singleton, so neither `findDocuments` nor `createDocument` reaches one. */
+export type McpxGlobalOptions = McpxCollectionOptions;
 
 export type McpxToolExtra = RequestHandlerExtra<
 	ServerRequest,
@@ -70,7 +80,10 @@ export interface McpxExposedEntity {
 	read: boolean;
 	write: McpxWriteMode;
 	hasDrafts: boolean;
-	/** Payload keeps a version history, with or without drafts. */
+	/**
+	 * Payload keeps a version history, with or without drafts, and the config
+	 * exposes it. Says nothing about drafts; see `hasDrafts`.
+	 */
 	hasVersions: boolean;
 	/** An upload document is a file, and no tool here can supply one. */
 	isUpload: boolean;
@@ -78,19 +91,21 @@ export interface McpxExposedEntity {
 	fieldName: string;
 }
 
+/** The slugs a key may read, write and publish. */
+export interface McpxScopeSlugs {
+	readable: string[];
+	writable: string[];
+	publishable: string[];
+}
+
 /** What a tool knows about the current request. */
 export interface McpxToolScope {
 	req: PayloadRequest;
 	capabilities: McpxResolvedCapabilities;
-	readable: string[];
-	writable: string[];
-	publishable: string[];
-	readableGlobals: string[];
-	writableGlobals: string[];
-	publishableGlobals: string[];
+	collections: McpxScopeSlugs;
+	globals: McpxScopeSlugs;
 	/** `null` when localization is off. */
-	locales: null | string[];
-	defaultLocale: null | string;
+	localization: null | { locales: string[]; defaultLocale: string };
 	limits: { maxLimit: number; maxDepth: number };
 	exposure: {
 		collections: McpxExposedEntity[];
@@ -109,7 +124,7 @@ export interface McpxTool<
 > {
 	/** camelCase, unique, not one of the builtin tool names. */
 	name: string;
-	/** Built per request so it can state what this key's writes actually do. */
+	/** Built per request so it can state what this key's writes do. */
 	description: string | ((scope: McpxToolScope) => string);
 	annotations?: ToolAnnotations;
 	/**
@@ -121,7 +136,7 @@ export interface McpxTool<
 	/**
 	 * Built per request so enums can be narrowed to what the key may touch.
 	 * Registered strictly either way: an unknown argument is rejected by name
-	 * rather than stripped.
+	 * instead of stripped.
 	 */
 	inputSchema?: Shape | ((scope: McpxToolScope) => z.ZodRawShape);
 	/*
@@ -141,33 +156,10 @@ export interface McpxTool<
 /** Argument type erased, so a registry can hold tools of differing shapes. */
 export type McpxAnyTool = McpxTool<z.ZodRawShape, never>;
 
-/** Fixed shape; arguments inferred from it. */
-export function defineMcpxTool<Shape extends z.ZodRawShape>(
-	tool: McpxTool<Shape> & { inputSchema?: Shape },
-): McpxTool<Shape>;
-/** Per-request shape returned as an object literal; arguments inferred from it. */
-export function defineMcpxTool<Shape extends z.ZodRawShape>(
-	tool: McpxTool<Shape> & {
-		inputSchema: (scope: McpxToolScope) => Shape;
-	},
-): McpxAnyTool;
-/**
- * Per-request shape built from helpers that erase to `z.ZodRawShape`, as the
- * builtins do. Nothing to infer from, so state the arguments instead.
- */
-export function defineMcpxTool<Args>(
-	tool: McpxTool<z.ZodRawShape, Args> & {
-		inputSchema: (scope: McpxToolScope) => z.ZodRawShape;
-	},
-): McpxAnyTool;
-export function defineMcpxTool(tool: McpxAnyTool): McpxAnyTool {
-	return tool;
-}
-
 export interface McpxAuthResult {
 	/** Must carry `collection`. */
 	user: TypedUser;
-	apiKeyId: number | string;
+	apiKeyId: DocumentId;
 	/** The `capabilities` group as stored on the key document. */
 	capabilities: unknown;
 }
@@ -180,9 +172,9 @@ export interface McpxAuthResult {
  */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type McpxPluginOptions = {
-	/** Allow-list of collections. `true` is shorthand for `{ read: true }`. */
+	/** Allow-list of collections. `true` is shorthand for `{}`. */
 	collections: Partial<Record<CollectionSlug, McpxCollectionOptions | true>>;
-	/** Allow-list of globals. `true` is shorthand for `{ read: true }`. */
+	/** Allow-list of globals. `true` is shorthand for `{}`. */
 	globals?: Partial<Record<GlobalSlug, McpxGlobalOptions | true>>;
 	/** Collection the keys act as. Default `config.admin.user`, then `users`. */
 	userCollection?: CollectionSlug;
@@ -209,7 +201,11 @@ export type McpxPluginOptions = {
 	};
 	tools?: McpxAnyTool[];
 	auth?: {
-		/** Replace or wrap the default key resolution. Return `null` for 401. */
+		/**
+		 * Replace or wrap the default key resolution. Return `null` for 401. A
+		 * result whose user has no `id` or whose `collection` is not the user
+		 * collection, or that has no `apiKeyId`, is also answered with 401.
+		 */
 		resolve?: (args: {
 			req: PayloadRequest;
 			resolveDefault: () => Promise<McpxAuthResult | null>;
@@ -222,11 +218,11 @@ export type McpxPluginOptions = {
 export interface McpxCollectionCapabilities {
 	read: boolean;
 	write: boolean;
-	/** Only ever true where the config sets `write: "live"` and drafts exist. */
+	/** Only ever true where the config lets writes publish and drafts exist. */
 	publish: boolean;
 }
 
-/** In force for one request: plugin config AND key checkboxes. */
+/** In force for one request: the plugin config and the key checkboxes together. */
 export interface McpxResolvedCapabilities {
 	collections: Record<string, McpxCollectionCapabilities>;
 	globals: Record<string, McpxCollectionCapabilities>;
@@ -235,15 +231,6 @@ export interface McpxResolvedCapabilities {
 
 /** Stamped on `req.context.mcpx`; see {@link isMcpxRequest}. */
 export interface McpxRequestContext {
-	apiKeyId: number | string;
+	apiKeyId: DocumentId;
 	capabilities: McpxResolvedCapabilities;
-}
-
-/** One reason a human could not publish the draft as it stands. */
-export interface PublishBlocker {
-	/** Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title". */
-	field?: string;
-	message: string;
-	/** JSON Pointer to the offending value, e.g. "/layout/2/title". */
-	path: string;
 }

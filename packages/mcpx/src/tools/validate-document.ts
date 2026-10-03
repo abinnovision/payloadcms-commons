@@ -1,58 +1,40 @@
-import {
-	idShape,
-	localeOf,
-	localeShape,
-	readTarget,
-	targetShape,
-} from "./shared.js";
-import { requireIdFor, resolveTarget } from "./target.js";
+import { identityOf, readDraft, resolveDocument } from "./document.js";
+import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
+import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
-import { defineMcpxTool } from "../types.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
-const DESCRIPTION = `Reports what still prevents a human from publishing the draft, without writing anything. The same list patchDocument returns after a write; use it to check work or to answer "is this ready".
-
-Pass exactly one of "collection" and "global". "id" is required with "collection" and must be omitted with "global", because a global is a singleton.
-
-Nothing is written, but the check runs the same field-level beforeValidate and beforeChange hooks a save would, so a hook with side effects fires. "publishBlockersUnavailable" means the check itself failed, so the empty list says nothing.`;
+const DESCRIPTION = `Lists what still blocks publishing one document or global, without saving. Returns "publishBlockers", each with a pointer and a message. An empty list means it can be published, unless "publishBlockersUnavailable" is true: then the check itself failed. The check runs the field hooks a save runs.`;
 
 /**
- * Gated on write rather than read, because publish blockers only mean
- * something to a caller who can act on them.
+ * Gated on write rather than read, because publish blockers only mean something
+ * to a caller who can act on them.
  *
  * It reads the document twice on purpose: once under the key's own access to
- * refuse a caller who may not see it, then privileged, so the check runs over
- * every field rather than the subset the user can read. It carries no
- * `readOnlyHint`, because the traversal fires field hooks.
+ * refuse a caller who may not see it, then privileged, so the check covers every
+ * field and not only those the user can read. It has no `readOnlyHint` because
+ * the traversal fires field hooks.
  */
 export const validateDocument = defineMcpxTool({
 	name: "validateDocument",
 	description: DESCRIPTION,
 	annotations: { openWorldHint: false },
 	isEnabled: (scope) =>
-		scope.writable.length + scope.writableGlobals.length > 0,
+		scope.collections.writable.length + scope.globals.writable.length > 0,
 	inputSchema: (scope) => ({
-		...targetShape(scope, "write", {
-			collection: "Collection holding the document.",
-			global: "Global to validate.",
-		}),
+		...entityShape(scope, "write"),
 		...idShape(scope, "write"),
-		...localeShape(scope, {
-			required: true,
-			description: "Locale to validate.",
-		}),
+		...localeShape(scope, { required: true }),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveTarget(scope, args, "write");
-		const id = requireIdFor(target, args.id);
+		const target = resolveDocument(scope, args, "write");
 		const locale = localeOf(scope, args.locale);
 
 		// The first read checks the key's access; the second sees every field.
-		await readTarget(scope, { target, id, locale });
+		await readDraft(scope, { target, locale });
 
-		const doc = await readTarget(scope, {
+		const doc = await readDraft(scope, {
 			target,
-			id,
 			locale,
 			privileged: true,
 		});
@@ -63,9 +45,7 @@ export const validateDocument = defineMcpxTool({
 		});
 
 		return jsonResult({
-			...(target.kind === "collection"
-				? { id: doc["id"] }
-				: { global: target.slug }),
+			...identityOf(target, doc["id"]),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			publishBlockers: validation.blockers,

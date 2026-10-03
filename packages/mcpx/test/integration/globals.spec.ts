@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { callTool, toolsList } from "./helpers/mcp.js";
-import { bootPayload, createKey, USER } from "./helpers/payload.js";
+import { createMcpClient } from "./helpers/mcp.js";
+import { bootPayload, seedKeysFor } from "./helpers/payload.js";
 
+import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const SETTINGS = "site-settings";
@@ -17,52 +18,49 @@ interface GlobalDoc {
 
 describe("globals", () => {
 	let booted: Booted;
-	let full: string;
-	let collectionsOnly: string;
+	let full: McpClient;
+	let collectionsOnly: McpClient;
 
 	beforeAll(async () => {
-		/*
-		 * Its own cache key: `getPayload` partitions by key, so reusing the
-		 * default one would silently hand back the collections-only instance.
-		 */
 		booted = await bootPayload({
 			key: CACHE_KEY,
 			plugin: {
-				collections: { pages: { read: true, write: "draft" } },
+				collections: { pages: { publish: false } },
 				globals: {
-					[SETTINGS]: { read: true, write: "draft" },
-					banner: { read: true },
+					[SETTINGS]: { publish: false },
+					banner: { write: false },
 				},
 			},
 		});
 
-		const user = await booted.payload.create({
-			collection: "users",
-			data: USER,
-		});
-
-		full = await createKey(booted.payload, {
-			userId: user.id,
-			label: "full",
-			capabilities: {
+		const { keys } = await seedKeysFor(booted.payload, {
+			full: {
 				collections: { pages: { read: true, write: true } },
 				globals: { siteSettings: { read: true, write: true } },
 			},
+			collectionsOnly: {
+				collections: { pages: { read: true, write: true } },
+			},
 		});
 
-		collectionsOnly = await createKey(booted.payload, {
-			userId: user.id,
-			label: "collections-only",
-			capabilities: { collections: { pages: { read: true, write: true } } },
-		});
+		full = createMcpClient(booted, keys.full);
+		collectionsOnly = createMcpClient(booted, keys.collectionsOnly);
 	});
 
 	afterAll(async () => {
 		await booted.payload.destroy();
 	});
 
-	const call = (name: string, args: Record<string, unknown>, key = full) =>
-		callTool(booted.config, key, name, args, CACHE_KEY);
+	/** Saves an English draft title, so a test reads the state it wrote. */
+	const draftTitle = async (title: string): Promise<void> => {
+		await booted.payload.updateGlobal({
+			slug: SETTINGS,
+			locale: "en",
+			draft: true,
+			data: { title },
+			overrideAccess: true,
+		});
+	};
 
 	const readGlobal = (locale = "en"): Promise<GlobalDoc> =>
 		booted.payload.findGlobal({
@@ -73,7 +71,7 @@ describe("globals", () => {
 		});
 
 	it("lists globals with a single label and no id type", async () => {
-		const { data } = await call("listCapabilities", {});
+		const { data } = await full.call("listCapabilities", {});
 		const globals = data["globals"] as Record<string, unknown>[];
 
 		expect(globals).toHaveLength(1);
@@ -90,7 +88,7 @@ describe("globals", () => {
 	});
 
 	it("describes a global's schema", async () => {
-		const { data } = await call("describeSchema", { global: SETTINGS });
+		const { data } = await full.call("describeSchema", { global: SETTINGS });
 		const [node] = data as unknown as {
 			fields: { path: string }[];
 			global?: string;
@@ -106,7 +104,7 @@ describe("globals", () => {
 	});
 
 	it("patches a global as a draft and leaves the published version alone", async () => {
-		const result = await call("patchDocument", {
+		const result = await full.call("patchDocument", {
 			global: SETTINGS,
 			locale: "en",
 			patches: [{ op: "replace", path: "/title", value: "Drafted" }],
@@ -129,19 +127,19 @@ describe("globals", () => {
 	});
 
 	it("reports the fields that still block publishing", async () => {
-		const { data } = await call("validateDocument", {
+		const { data } = await full.call("validateDocument", {
 			global: SETTINGS,
 			locale: "en",
 		});
 		const blockers = data["publishBlockers"] as { path: string }[];
 
-		// `title` was filled by the patch above; `tagline` is still empty.
 		expect(blockers.map((blocker) => blocker.path)).toContain("/tagline");
 		expect(data["global"]).toBe(SETTINGS);
 	});
 
 	it("keeps locales apart", async () => {
-		await call("patchDocument", {
+		await draftTitle("Drafted");
+		await full.call("patchDocument", {
 			global: SETTINGS,
 			locale: "de",
 			patches: [{ op: "replace", path: "/title", value: "Entwurf" }],
@@ -152,7 +150,9 @@ describe("globals", () => {
 	});
 
 	it("refuses a stale expectedUpdatedAt", async () => {
-		const result = await call("patchDocument", {
+		await draftTitle("Drafted");
+
+		const result = await full.call("patchDocument", {
 			global: SETTINGS,
 			locale: "en",
 			expectedUpdatedAt: "2020-01-01T00:00:00.000Z",
@@ -165,14 +165,16 @@ describe("globals", () => {
 	});
 
 	it("reads a global without an id", async () => {
-		const { data } = await call("getDocument", { global: SETTINGS });
+		await draftTitle("Drafted");
+
+		const { data } = await full.call("getDocument", { global: SETTINGS });
 
 		expect(data["title"]).toBe("Drafted");
 		expect(data).not.toHaveProperty("id");
 	});
 
 	it("names the offending argument when the target is ambiguous", async () => {
-		const both = await call("describeSchema", {
+		const both = await full.call("describeSchema", {
 			collection: "pages",
 			global: SETTINGS,
 		});
@@ -180,33 +182,33 @@ describe("globals", () => {
 		expect(both.isError).toBe(true);
 		expect(both.data["error"]).toMatch(/not both/);
 
-		const neither = await call("describeSchema", {});
+		const neither = await full.call("describeSchema", {});
 
 		expect(neither.isError).toBe(true);
 		expect(neither.data["error"]).toMatch(/One of "collection" or "global"/);
 	});
 
 	it("refuses an id alongside a global, and a missing one alongside a collection", async () => {
-		const withId = await call("getDocument", { global: SETTINGS, id: 1 });
+		const withId = await full.call("getDocument", { global: SETTINGS, id: 1 });
 
 		expect(withId.isError).toBe(true);
 		expect(withId.data["error"]).toMatch(/must be omitted.*singleton/);
 
-		const withoutId = await call("getDocument", { collection: "pages" });
+		const withoutId = await full.call("getDocument", { collection: "pages" });
 
 		expect(withoutId.isError).toBe(true);
 		expect(withoutId.data["error"]).toMatch(/"id" is required/);
 	});
 
 	it("rejects a global argument on the collection-only tools", async () => {
-		const result = await call("findDocuments", { global: SETTINGS });
+		const result = await full.call("findDocuments", { global: SETTINGS });
 
 		expect(result.isError).toBe(true);
 		expect(result.text).toMatch(/global/);
 	});
 
 	it("hides a global from a key whose checkbox is unticked", async () => {
-		const tools = await toolsList(booted.config, collectionsOnly, CACHE_KEY);
+		const tools = await collectionsOnly.list();
 		const describe_ = tools.find((tool) => tool.name === "describeSchema");
 		const properties = describe_?.inputSchema["properties"] as Record<
 			string,
@@ -215,11 +217,9 @@ describe("globals", () => {
 
 		expect(properties).not.toHaveProperty("global");
 
-		const result = await call(
-			"describeSchema",
-			{ global: SETTINGS },
-			collectionsOnly,
-		);
+		const result = await collectionsOnly.call("describeSchema", {
+			global: SETTINGS,
+		});
 
 		expect(result.isError).toBe(true);
 	});

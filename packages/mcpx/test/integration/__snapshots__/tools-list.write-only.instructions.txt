@@ -1,0 +1,6 @@
+Call the tools in this order:
+1. listCapabilities: what this key may access.
+2. patchDocument or createDocument: the write.
+3. validateDocument: what blocks publishing.
+
+Every write is saved as a draft. This key cannot publish. A person publishes drafts in the admin panel.

@@ -1,15 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
-import { resolveApiKeyAuth } from "../auth/index.js";
-import {
-	publishableGlobalSlugs,
-	publishableSlugs,
-	readableGlobalSlugs,
-	readableSlugs,
-	resolveCapabilities,
-	writableGlobalSlugs,
-	writableSlugs,
-} from "../capabilities.js";
+import { isValidAuthResult, resolveApiKeyAuth } from "../auth/resolve.js";
+import { resolveCapabilities, scopeSlugs } from "../capabilities.js";
 import { jsonRpcError } from "./errors.js";
 import { createMcpServer } from "./server.js";
 
@@ -17,7 +9,50 @@ import type { NormalizedOptions } from "../options.js";
 import type { McpxToolScope } from "../types.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
-const buildScope = (
+const BODY_BYTES_LIMIT = 4 * 1024 * 1024;
+
+const BATCH_MESSAGES_LIMIT = 10;
+
+/*
+ * The body as text, `null` once it passes {@link BODY_BYTES_LIMIT}, or
+ * `undefined` when there is none. A declared length over the limit is refused
+ * unread. A chunked body declares none, so bytes are counted as they arrive and
+ * reading stops at the limit.
+ */
+const readBody = async (
+	req: PayloadRequest,
+): Promise<string | null | undefined> => {
+	if (Number(req.headers.get("content-length")) > BODY_BYTES_LIMIT) {
+		return null;
+	}
+
+	if (!req.body) {
+		return undefined;
+	}
+
+	const decoder = new TextDecoder();
+	let text = "";
+	let size = 0;
+
+	// Returning from inside the loop cancels the stream.
+	for await (const chunk of req.body) {
+		size += chunk.byteLength;
+
+		if (size > BODY_BYTES_LIMIT) {
+			return null;
+		}
+
+		text += decoder.decode(chunk, { stream: true });
+	}
+
+	return text + decoder.decode();
+};
+
+/**
+ * The scope the tools of one request see: the key's resolved capabilities, the
+ * slugs they reach, and the locales and limits of the config.
+ */
+export const buildScope = (
 	req: PayloadRequest,
 	options: NormalizedOptions,
 	capabilities: McpxToolScope["capabilities"],
@@ -27,14 +62,14 @@ const buildScope = (
 	return {
 		req,
 		capabilities,
-		readable: readableSlugs(capabilities),
-		writable: writableSlugs(capabilities),
-		publishable: publishableSlugs(capabilities),
-		readableGlobals: readableGlobalSlugs(capabilities),
-		writableGlobals: writableGlobalSlugs(capabilities),
-		publishableGlobals: publishableGlobalSlugs(capabilities),
-		locales: localization ? localization.localeCodes : null,
-		defaultLocale: localization ? localization.defaultLocale : null,
+		collections: scopeSlugs(capabilities.collections),
+		globals: scopeSlugs(capabilities.globals),
+		localization: localization
+			? {
+					locales: localization.localeCodes,
+					defaultLocale: localization.defaultLocale,
+				}
+			: null,
 		limits: options.limits,
 		exposure: { collections: options.collections, globals: options.globals },
 	};
@@ -64,11 +99,18 @@ export const createMcpxHandler =
 		const resolveDefault = (): ReturnType<typeof resolveApiKeyAuth> =>
 			resolveApiKeyAuth(req, options);
 
-		const auth = options.auth?.resolve
+		// Typed as unknown because a custom resolver's result is not trusted.
+		const auth: unknown = options.auth?.resolve
 			? await options.auth.resolve({ req, resolveDefault })
 			: await resolveDefault();
 
-		if (!auth) {
+		if (!isValidAuthResult(auth, options)) {
+			if (auth) {
+				req.payload.logger.error(
+					"[payloadcms-mcpx] auth.resolve returned an invalid result: it needs a user of the user collection with an id, and an apiKeyId.",
+				);
+			}
+
 			return jsonRpcError({
 				status: 401,
 				code: -32001,
@@ -87,7 +129,17 @@ export const createMcpxHandler =
 
 		let parsedBody: unknown;
 		try {
-			parsedBody = await req.json?.();
+			const text = await readBody(req);
+
+			if (text === null) {
+				return jsonRpcError({
+					status: 413,
+					code: -32000,
+					message: `Request body too large: the limit is ${String(BODY_BYTES_LIMIT / 1024 / 1024)} MB.`,
+				});
+			}
+
+			parsedBody = text === undefined ? undefined : JSON.parse(text);
 		} catch {
 			return jsonRpcError({
 				status: 400,
@@ -101,6 +153,14 @@ export const createMcpxHandler =
 				status: 400,
 				code: -32600,
 				message: "Invalid request: a JSON body is required.",
+			});
+		}
+
+		if (Array.isArray(parsedBody) && parsedBody.length > BATCH_MESSAGES_LIMIT) {
+			return jsonRpcError({
+				status: 400,
+				code: -32600,
+				message: `Invalid request: a batch may hold at most ${String(BATCH_MESSAGES_LIMIT)} messages.`,
 			});
 		}
 

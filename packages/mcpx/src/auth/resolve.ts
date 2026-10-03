@@ -1,18 +1,20 @@
-import { hashApiKey } from "../api-keys/index.js";
+import { hashApiKey } from "../api-keys/key.js";
+import { isPlainObject } from "../guards.js";
 
+import type { DocumentId } from "../entity.js";
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAuthResult } from "../types.js";
 import type { PayloadRequest } from "payload";
 
 const BEARER = /^Bearer\s+(\S+)\s*$/i;
 
-const relationId = (value: unknown): number | string | undefined => {
+const relationId = (value: unknown): DocumentId | undefined => {
 	if (typeof value === "string" || typeof value === "number") {
 		return value;
 	}
 
 	if (typeof value === "object" && value !== null && "id" in value) {
-		return (value as { id: number | string }).id;
+		return (value as { id: DocumentId }).id;
 	}
 
 	return undefined;
@@ -26,6 +28,28 @@ export const parseBearer = (headers: Headers): null | string => {
 	}
 
 	return BEARER.exec(header.trim())?.[1] ?? null;
+};
+
+const isId = (value: unknown): value is number | string =>
+	typeof value === "string" || typeof value === "number";
+
+/**
+ * Whether a resolved auth, from the default or a custom resolver, may become
+ * `req.user`: a user of the configured user collection with an id, and a key id.
+ */
+export const isValidAuthResult = (
+	auth: unknown,
+	options: Pick<NormalizedOptions, "userCollection">,
+): auth is McpxAuthResult => {
+	if (!isPlainObject(auth) || !isPlainObject(auth["user"])) {
+		return false;
+	}
+
+	return (
+		isId(auth["user"]["id"]) &&
+		auth["user"]["collection"] === options.userCollection &&
+		isId(auth["apiKeyId"])
+	);
 };
 
 /**
@@ -57,7 +81,7 @@ export const resolveApiKeyAuth = async (
 
 	const keyDoc = docs[0] as
 		| {
-				id: number | string;
+				id: DocumentId;
 				enabled?: boolean;
 				user?: unknown;
 				capabilities?: unknown;
@@ -70,17 +94,34 @@ export const resolveApiKeyAuth = async (
 	}
 
 	const userCollection = payload.collections[options.userCollection];
-	const user = await payload.findByID({
+	const lookup = {
 		collection: options.userCollection,
 		id: userId,
-		depth: userCollection?.config.auth.depth ?? 0,
 		overrideAccess: true,
 		disableErrors: true,
-	});
+	} as const;
+	const [user, lock] = await Promise.all([
+		payload.findByID({
+			...lookup,
+			depth: userCollection?.config.auth.depth ?? 0,
+		}),
+		/*
+		 * `lockUntil` is hidden, so it is read on its own: showing hidden fields
+		 * on the user itself would hand its hash, salt and tokens to every tool.
+		 */
+		payload.findByID({
+			...lookup,
+			depth: 0,
+			showHiddenFields: true,
+			select: { lockUntil: true },
+		}),
+	]);
 
+	// An adapter may hand back a Date where the bundled ones give a string.
+	const storedLock: unknown = lock?.["lockUntil"];
 	const lockUntil =
-		typeof user?.["lockUntil"] === "string"
-			? Date.parse(user["lockUntil"])
+		typeof storedLock === "string" || storedLock instanceof Date
+			? new Date(storedLock).getTime()
 			: Number.NaN;
 
 	if (!user || user["_verified"] === false || lockUntil > Date.now()) {

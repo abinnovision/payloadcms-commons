@@ -1,7 +1,8 @@
 import { InvalidConfiguration } from "payload";
 import { hasDraftsEnabled, hasLocalizeStatusEnabled } from "payload/shared";
 
-import { BUILTIN_TOOL_NAMES } from "./tools/names.js";
+import { BUILTIN_TOOL_NAMES } from "./builtin-tool-names.js";
+import { isPlainObject } from "./guards.js";
 import { MCPX_VERSION } from "./version.js";
 
 import type {
@@ -18,22 +19,15 @@ const DEFAULT_MAX_LIMIT = 25;
 const DEFAULT_MAX_DEPTH = 1;
 const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
-/*
- * An exposed collection or global, resolved against the config. The two carry
- * the same settings; only the validation that produced them differs.
- */
-type NormalizedCollection = McpxExposedEntity;
-type NormalizedGlobal = McpxExposedEntity;
-
 /**
- * The plugin options after validation and defaulting, which is the only shape
- * the rest of the plugin reads. Every shorthand in {@link McpxPluginOptions}
- * has been expanded here and every slug checked against the config, so nothing
- * downstream has to handle a missing collection or an implicit default.
+ * The plugin options after validation and defaulting, the only shape the rest
+ * of the plugin reads. Shorthands from {@link McpxPluginOptions} are expanded
+ * and slugs are checked against the config, so nothing downstream handles a
+ * missing collection or an implicit default.
  */
 export interface NormalizedOptions {
-	collections: NormalizedCollection[];
-	globals: NormalizedGlobal[];
+	collections: McpxExposedEntity[];
+	globals: McpxExposedEntity[];
 	userCollection: string;
 	apiKeysSlug: string;
 	endpointPath: string;
@@ -57,7 +51,7 @@ export const toCamelCase = (value: string): string =>
 		)
 		.replace(/^(.)/, (_, char: string) => char.toLowerCase());
 
-/**
+/*
  * Auth collections carry credentials: `useAPIKey` stores a key that decrypts on
  * read, and email or lockout state is PII either way. Refused for read too.
  */
@@ -78,93 +72,143 @@ const assertExposable = (
 	}
 };
 
-/** Checked at runtime too: for a JS caller a typo would silently mean "no write". */
-const normalizeWriteMode = (
+const OPTION_NAMES = ["read", "write", "publish", "versions"] as const;
+
+const REMOVED_WRITE_MODES: Record<string, string> = {
+	draft: "Use { publish: false } instead.",
+	live: "Writes are on by default, so remove it.",
+};
+
+// Checked at runtime too: a truthy string would otherwise count as opted in.
+const readFlag = (
 	kind: string,
 	slug: string,
+	name: string,
 	value: unknown,
-): McpxWriteMode => {
-	if (value === undefined || value === false) {
-		return false;
-	}
-
-	if (value === "draft" || value === "live") {
+): boolean | undefined => {
+	if (value === undefined || typeof value === "boolean") {
 		return value;
 	}
 
+	const moved =
+		name === "write" && typeof value === "string"
+			? REMOVED_WRITE_MODES[value]
+			: undefined;
+
 	return fail(
-		`${kind} "${slug}" has write: ${JSON.stringify(value)}. Use false, "draft" or "live".`,
+		`${kind} "${slug}" has ${name}: ${JSON.stringify(value)}. ${moved ?? "Use true or false."}`,
 	);
 };
 
-/**
- * `localizeStatus` makes `_status` a localized field, which flips Payload's
- * `publishAllLocales` default to false and turns `_status` into a locale-keyed
- * object. Publishing would then cover one locale while reporting success, and
- * the tool responses model `_status` as a string. Refused until both are
- * handled.
+/*
+ * `localizeStatus` makes `_status` a localized field: Payload's
+ * `publishAllLocales` default flips to false and `_status` becomes a
+ * locale-keyed object. A publish would cover one locale while reporting
+ * success, and the tool responses model `_status` as a string. The combination
+ * is refused.
  */
-const assertPublishable = (
+const assertWritable = (
 	kind: string,
 	config: CollectionConfig | GlobalConfig,
+	write: McpxWriteMode,
 ): void => {
-	if (hasLocalizeStatusEnabled(config)) {
+	if (write === "live" && hasLocalizeStatusEnabled(config)) {
 		fail(
-			`${kind} "${config.slug}" has versions.drafts.localizeStatus enabled, which write: "live" does not support yet.`,
+			`${kind} "${config.slug}" has versions.drafts.localizeStatus enabled, which live writes do not support yet. Set publish: false or write: false.`,
 		);
 	}
 };
 
-const assertWritable = (
-	collection: CollectionConfig,
-	options: {
-		write: McpxWriteMode;
-		hasDrafts: boolean;
-	},
-): void => {
-	const { slug } = collection;
+/*
+ * The config only takes capabilities away: read, write and publish default to
+ * everything the entity supports, and a publish that is defaulted but
+ * unsupported is derived off rather than refused. Versions are opt-in. The
+ * entity value is checked at runtime: only `true` or an object of the four
+ * options exposes it, so a typo or a falsy value never widens access.
+ */
+const normalizeCapabilities = (
+	kind: string,
+	config: CollectionConfig | GlobalConfig,
+	raw: unknown,
+): Pick<McpxExposedEntity, "hasDrafts" | "hasVersions" | "read" | "write"> => {
+	const { slug } = config;
 
-	if (collection.timestamps === false) {
+	if (raw === false) {
 		fail(
-			`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
+			`${kind} "${slug}" is set to false. Remove the entry to hide the ${kind.toLowerCase()}.`,
 		);
 	}
 
-	if (options.write === "draft" && !options.hasDrafts) {
+	if (raw !== true && !isPlainObject(raw)) {
 		fail(
-			`Collection "${slug}" has no drafts. Enable versions.drafts or set write: "live".`,
+			`${kind} "${slug}" has ${JSON.stringify(raw)}. Use true or an object of ${OPTION_NAMES.join(", ")}.`,
 		);
 	}
 
-	if (options.write === "live") {
-		assertPublishable("Collection", collection);
+	const settings: Record<string, unknown> = isPlainObject(raw) ? raw : {};
+	const unknownKey = Object.keys(settings).find(
+		(key) => !(OPTION_NAMES as readonly string[]).includes(key),
+	);
+
+	if (unknownKey !== undefined) {
+		fail(
+			`${kind} "${slug}" has the unknown option "${unknownKey}". The options are ${OPTION_NAMES.join(", ")}.`,
+		);
 	}
+
+	const flag = (name: (typeof OPTION_NAMES)[number]): boolean | undefined =>
+		readFlag(kind, slug, name, settings[name]);
+	const read = flag("read") ?? true;
+	const write = flag("write") ?? true;
+	const publish = flag("publish");
+	const versions = flag("versions") ?? false;
+	const hasDrafts = hasDraftsEnabled(config);
+
+	if (publish === false && write && !hasDrafts) {
+		fail(
+			`${kind} "${slug}" has no drafts, so every write goes live. Set write: false or remove publish: false.`,
+		);
+	}
+
+	if (publish === true && !hasDrafts) {
+		fail(
+			`${kind} "${slug}" has no drafts, so there is nothing to publish. Enable versions.drafts or remove publish: true.`,
+		);
+	}
+
+	if (publish === true && !write) {
+		fail(
+			`${kind} "${slug}" has publish: true but write: false. Publishing follows write.`,
+		);
+	}
+
+	if (versions && !config.versions) {
+		fail(
+			`${kind} "${slug}" keeps no versions. Enable versions or remove versions: true.`,
+		);
+	}
+
+	if (versions && !read) {
+		fail(
+			`${kind} "${slug}" has versions: true but read: false. Version history follows read.`,
+		);
+	}
+
+	return {
+		read,
+		/*
+		 * Without drafts a write changes live content, so it maps to "live" too.
+		 */
+		write: write ? (publish === false ? "draft" : "live") : false,
+		hasDrafts,
+		hasVersions: versions,
+	};
 };
 
-/** Globals cannot be auth or upload, so only the reserved namespace is left. */
+// Globals cannot be auth or upload, so only the reserved namespace is left.
 const assertGlobalExposable = (global: GlobalConfig): void => {
 	if (global.slug.startsWith("payload-")) {
 		fail(`Global "${global.slug}" cannot be exposed.`);
-	}
-};
-
-/**
- * `GlobalConfig` has no `timestamps` option and `sanitizeGlobal` always appends
- * `createdAt`/`updatedAt`, so the concurrency check the collection path guards
- * for is always available here. Drafts are the only requirement left.
- */
-const assertGlobalWritable = (
-	global: GlobalConfig,
-	options: { write: McpxWriteMode; hasDrafts: boolean },
-): void => {
-	if (options.write === "draft" && !options.hasDrafts) {
-		fail(
-			`Global "${global.slug}" has no drafts. Enable versions.drafts or set write: "live".`,
-		);
-	}
-
-	if (options.write === "live") {
-		assertPublishable("Global", global);
 	}
 };
 
@@ -172,12 +216,12 @@ const normalizeCollections = (
 	config: Config,
 	options: McpxPluginOptions,
 	apiKeysSlug: string,
-): NormalizedCollection[] => {
+): McpxExposedEntity[] => {
 	const collections = config.collections ?? [];
 	const fieldNames = new Set<string>();
 
 	return Object.entries(options.collections).flatMap(
-		([slug, raw]): NormalizedCollection[] => {
+		([slug, raw]): McpxExposedEntity[] => {
 			if (raw === undefined) {
 				return [];
 			}
@@ -192,20 +236,21 @@ const normalizeCollections = (
 
 			assertExposable(collection, apiKeysSlug);
 
-			const settings = raw === true ? {} : raw;
-			const hasDrafts = hasDraftsEnabled(collection);
-			const normalized: NormalizedCollection = {
+			const normalized: McpxExposedEntity = {
 				slug,
-				read: settings.read ?? true,
-				write: normalizeWriteMode("Collection", slug, settings.write),
-				hasDrafts,
-				hasVersions: Boolean(collection.versions),
+				...normalizeCapabilities("Collection", collection, raw),
 				isUpload: Boolean(collection.upload),
 				fieldName: toCamelCase(slug),
 			};
 
 			if (normalized.write !== false) {
-				assertWritable(collection, normalized);
+				if (collection.timestamps === false) {
+					fail(
+						`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
+					);
+				}
+
+				assertWritable("Collection", collection, normalized.write);
 			}
 
 			if (fieldNames.has(normalized.fieldName)) {
@@ -224,7 +269,7 @@ const normalizeCollections = (
 const normalizeGlobals = (
 	config: Config,
 	options: McpxPluginOptions,
-): NormalizedGlobal[] => {
+): McpxExposedEntity[] => {
 	const globals = config.globals ?? [];
 	/*
 	 * Scoped to globals on purpose: a global and a collection may share a
@@ -233,7 +278,7 @@ const normalizeGlobals = (
 	const fieldNames = new Set<string>();
 
 	return Object.entries(options.globals ?? {}).flatMap(
-		([slug, raw]): NormalizedGlobal[] => {
+		([slug, raw]): McpxExposedEntity[] => {
 			if (raw === undefined) {
 				return [];
 			}
@@ -246,20 +291,20 @@ const normalizeGlobals = (
 
 			assertGlobalExposable(global);
 
-			const settings = raw === true ? {} : raw;
-			const hasDrafts = hasDraftsEnabled(global);
-			const normalized: NormalizedGlobal = {
+			const normalized: McpxExposedEntity = {
 				slug,
-				read: settings.read ?? true,
-				write: normalizeWriteMode("Global", slug, settings.write),
-				hasDrafts,
-				hasVersions: Boolean(global.versions),
+				...normalizeCapabilities("Global", global, raw),
 				isUpload: false,
 				fieldName: toCamelCase(slug),
 			};
 
+			/*
+			 * `GlobalConfig` has no `timestamps` option and `sanitizeGlobal` always
+			 * appends `createdAt`/`updatedAt`, so the concurrency check a collection
+			 * is held to is always available here.
+			 */
 			if (normalized.write !== false) {
-				assertGlobalWritable(global, normalized);
+				assertWritable("Global", global, normalized.write);
 			}
 
 			if (fieldNames.has(normalized.fieldName)) {
