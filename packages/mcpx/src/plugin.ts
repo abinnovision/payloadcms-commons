@@ -2,6 +2,10 @@ import { definePlugin } from "payload";
 
 import { createApiKeysCollection } from "./api-keys/collection.js";
 import { createMcpxHandler, methodNotAllowed } from "./endpoint/handler.js";
+import {
+	createDownloadHandler,
+	createUploadHandler,
+} from "./endpoint/upload.js";
 import { normalizeOptions } from "./options.js";
 import {
 	installDraftGuards,
@@ -11,8 +15,8 @@ import {
 import type { McpxPluginOptions } from "./types.js";
 
 /**
- * Mounts the MCP endpoint, adds the API key collection and installs the
- * draft guard on every collection and global.
+ * Mounts the MCP, upload and download endpoints, adds the API key collection
+ * and installs the draft guard on every collection and global.
  */
 export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 	slug: "@abinnovision/payloadcms-mcpx",
@@ -47,6 +51,16 @@ export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 					path: normalized.endpointPath,
 					method: "delete",
 					handler: methodNotAllowed,
+				},
+				{
+					path: `${normalized.endpointPath}/upload`,
+					method: "put",
+					handler: createUploadHandler(normalized),
+				},
+				{
+					path: `${normalized.endpointPath}/file`,
+					method: "get",
+					handler: createDownloadHandler(normalized),
 				},
 			],
 		};

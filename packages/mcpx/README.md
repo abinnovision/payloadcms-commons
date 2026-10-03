@@ -122,8 +122,8 @@ every check.
 | `findDocuments`    | Queries a collection with a Payload `where`, `sort` and `select`.  | `read`             |
 | `getDocument`      | Reads a document, a subtree of it, an old version or a diff.       | `read`             |
 | `findVersions`     | Lists the version history of a document or global, without bodies. | `read`             |
-| `patchDocument`    | Applies JSON Patch operations to the current draft.                | `write`            |
-| `createDocument`   | Creates a draft from a seed. Not for upload collections.           | `write`            |
+| `patchDocument`    | Applies JSON Patch operations to the current draft, or a new file. | `write`            |
+| `createDocument`   | Creates a draft from a seed, with a file in an upload collection.  | `write`            |
 | `validateDocument` | Lists what blocks publishing, without saving.                      | `write`            |
 | `publishDocument`  | Publishes the current draft.                                       | `write`, `publish` |
 
@@ -164,6 +164,9 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
   Blocker messages can name fields the user cannot read.
 - The request body is limited to 4 MB, a JSON-RPC batch to 10 messages, `patchDocument` to 500
   operations and `describeSchema` to 400 paths.
+- A file is sent in a second step, a `PUT`, and downloaded with a `GET`, each with a short-lived,
+  single-use grant. Only collections with `upload.mimeTypes` take files. Downloads go through the
+  collection's own file access. See [uploads](./docs/security.md#uploads).
 - Custom tools are trusted code and must apply access control themselves.
 
 Open limitations: a filter through a relation into a readable collection ignores that collection's

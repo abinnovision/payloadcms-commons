@@ -79,6 +79,7 @@ export interface Config {
 		sections: Section;
 		posts: Post;
 		tags: Tag;
+		media: Media;
 		"mcpx-api-keys": McpxApiKey;
 		"payload-kv": PayloadKv;
 		"payload-locked-documents": PayloadLockedDocument;
@@ -93,6 +94,7 @@ export interface Config {
 		sections: SectionsSelect<false> | SectionsSelect<true>;
 		posts: PostsSelect<false> | PostsSelect<true>;
 		tags: TagsSelect<false> | TagsSelect<true>;
+		media: MediaSelect<false> | MediaSelect<true>;
 		"mcpx-api-keys": McpxApiKeysSelect<false> | McpxApiKeysSelect<true>;
 		"payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
 		"payload-locked-documents":
@@ -361,10 +363,30 @@ export interface Post {
 		};
 		[k: string]: unknown;
 	} | null;
+	image?: (number | null) | Media;
 	tags?: (number | Tag)[] | null;
 	updatedAt: string;
 	createdAt: string;
 	_status?: ("draft" | "published") | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+	id: number;
+	alt?: string | null;
+	updatedAt: string;
+	createdAt: string;
+	url?: string | null;
+	thumbnailURL?: string | null;
+	filename?: string | null;
+	mimeType?: string | null;
+	filesize?: number | null;
+	width?: number | null;
+	height?: number | null;
+	focalX?: number | null;
+	focalY?: number | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -397,18 +419,26 @@ export interface McpxApiKey {
 	 */
 	enabled?: boolean | null;
 	/**
+	 * Refused from this time on. Leave empty for no expiry.
+	 */
+	expiresAt?: string | null;
+	/**
+	 * Updated at most once an hour.
+	 */
+	lastUsedAt?: string | null;
+	/**
 	 * Generated when the key is created. Send it as `Authorization: Bearer <key>`.
 	 */
 	apiKey?: string | null;
 	apiKeyIndex?: string | null;
 	/**
-	 * What this key may do. Unchecked means refused, whatever the plugin config allows.
+	 * What this key may do. An unticked box is a refusal, and a dash means the plugin config does not expose that operation at all.
 	 */
 	capabilities?: {
 		collections?: {
 			pages?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
@@ -416,13 +446,13 @@ export interface McpxApiKey {
 				 */
 				write?: boolean | null;
 				/**
-				 * Publish the current draft. Changes what the public sees.
+				 * Promote the current draft to what the public sees.
 				 */
 				publish?: boolean | null;
 			};
 			articles?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
@@ -432,7 +462,7 @@ export interface McpxApiKey {
 			};
 			posts?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
@@ -442,7 +472,7 @@ export interface McpxApiKey {
 			};
 			sections?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
@@ -452,23 +482,33 @@ export interface McpxApiKey {
 			};
 			tags?: {
 				/**
-				 * Describe, find and read documents.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
+			};
+			media?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
 			};
 		};
 		globals?: {
 			siteSettings?: {
 				/**
-				 * Describe and read this global.
+				 * Describe, find and read.
 				 */
 				read?: boolean | null;
 				/**
-				 * Patch and validate this global's draft.
+				 * Create, patch and validate drafts.
 				 */
 				write?: boolean | null;
 				/**
-				 * Publish the current draft. Changes what the public sees.
+				 * Promote the current draft to what the public sees.
 				 */
 				publish?: boolean | null;
 			};
@@ -524,6 +564,10 @@ export interface PayloadLockedDocument {
 		| ({
 				relationTo: "tags";
 				value: number | Tag;
+		  } | null)
+		| ({
+				relationTo: "media";
+				value: number | Media;
 		  } | null)
 		| ({
 				relationTo: "mcpx-api-keys";
@@ -663,6 +707,7 @@ export interface PostsSelect<T extends boolean = true> {
 	title?: T;
 	excerpt?: T;
 	content?: T;
+	image?: T;
 	tags?: T;
 	updatedAt?: T;
 	createdAt?: T;
@@ -679,12 +724,32 @@ export interface TagsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media_select".
+ */
+export interface MediaSelect<T extends boolean = true> {
+	alt?: T;
+	updatedAt?: T;
+	createdAt?: T;
+	url?: T;
+	thumbnailURL?: T;
+	filename?: T;
+	mimeType?: T;
+	filesize?: T;
+	width?: T;
+	height?: T;
+	focalX?: T;
+	focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "mcpx-api-keys_select".
  */
 export interface McpxApiKeysSelect<T extends boolean = true> {
 	user?: T;
 	label?: T;
 	enabled?: T;
+	expiresAt?: T;
+	lastUsedAt?: T;
 	apiKey?: T;
 	apiKeyIndex?: T;
 	capabilities?:
@@ -722,6 +787,12 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 								| T
 								| {
 										read?: T;
+								  };
+							media?:
+								| T
+								| {
+										read?: T;
+										write?: T;
 								  };
 					  };
 				globals?:

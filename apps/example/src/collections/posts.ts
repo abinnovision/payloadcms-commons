@@ -43,6 +43,7 @@ export const posts: CollectionConfig = {
 				],
 			}),
 		},
+		{ name: "image", type: "upload", relationTo: "media" },
 		{ name: "tags", type: "relationship", relationTo: "tags", hasMany: true },
 	],
 };

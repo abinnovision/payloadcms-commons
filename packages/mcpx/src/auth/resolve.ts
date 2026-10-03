@@ -62,6 +62,81 @@ export const isValidAuthResult = (
 };
 
 /**
+ * A key document as {@link checkApiKey} reads it.
+ */
+export interface ApiKeyDoc {
+	id: DocumentId;
+	enabled?: boolean;
+	user?: unknown;
+	capabilities?: unknown;
+	expiresAt?: unknown;
+	lastUsedAt?: unknown;
+}
+
+/**
+ * The checks a key passes once it is looked up: enabled, not expired, and its
+ * user exists, is verified and is not locked out. Yields the user it acts as,
+ * or `null`.
+ */
+export const checkApiKey = async (
+	req: PayloadRequest,
+	options: NormalizedOptions,
+	keyDoc: ApiKeyDoc | undefined,
+): Promise<McpxAuthResult | null> => {
+	const userId = relationId(keyDoc?.user);
+
+	if (!keyDoc || keyDoc.enabled !== true || userId === undefined) {
+		return null;
+	}
+
+	// An unparseable `expiresAt` is NaN and does not expire the key.
+	if (toTime(keyDoc.expiresAt) <= Date.now()) {
+		return null;
+	}
+
+	const { payload } = req;
+	const userCollection = payload.collections[options.userCollection];
+	const lookup = {
+		collection: options.userCollection,
+		id: userId,
+		overrideAccess: true,
+		disableErrors: true,
+	} as const;
+	const [user, lock] = await Promise.all([
+		payload.findByID({
+			...lookup,
+			depth: userCollection?.config.auth.depth ?? 0,
+		}),
+		/*
+		 * `lockUntil` is hidden, so it is read on its own: showing hidden fields
+		 * on the user itself would hand its hash, salt and tokens to every tool.
+		 */
+		payload.findByID({
+			...lookup,
+			depth: 0,
+			showHiddenFields: true,
+			select: { lockUntil: true },
+		}),
+	]);
+
+	const lockUntil = toTime(lock?.["lockUntil"]);
+
+	if (!user || user["_verified"] === false || lockUntil > Date.now()) {
+		return null;
+	}
+
+	return {
+		user: {
+			...user,
+			collection: options.userCollection,
+			_strategy: "mcpx-api-key",
+		},
+		apiKeyId: keyDoc.id,
+		capabilities: keyDoc.capabilities,
+	};
+};
+
+/**
  * Resolves the bearer key of a request to the user it acts as.
  *
  * The key is looked up by its HMAC index, the same way Payload resolves its own
@@ -94,54 +169,10 @@ export const resolveApiKeyAuth = async (
 		},
 	});
 
-	const keyDoc = docs[0] as
-		| {
-				id: DocumentId;
-				enabled?: boolean;
-				user?: unknown;
-				capabilities?: unknown;
-				expiresAt?: unknown;
-				lastUsedAt?: unknown;
-		  }
-		| undefined;
-	const userId = relationId(keyDoc?.user);
+	const keyDoc = docs[0] as ApiKeyDoc | undefined;
+	const auth = await checkApiKey(req, options, keyDoc);
 
-	if (!keyDoc || keyDoc.enabled !== true || userId === undefined) {
-		return null;
-	}
-
-	// An unparseable `expiresAt` is NaN and does not expire the key.
-	if (toTime(keyDoc.expiresAt) <= Date.now()) {
-		return null;
-	}
-
-	const userCollection = payload.collections[options.userCollection];
-	const lookup = {
-		collection: options.userCollection,
-		id: userId,
-		overrideAccess: true,
-		disableErrors: true,
-	} as const;
-	const [user, lock] = await Promise.all([
-		payload.findByID({
-			...lookup,
-			depth: userCollection?.config.auth.depth ?? 0,
-		}),
-		/*
-		 * `lockUntil` is hidden, so it is read on its own: showing hidden fields
-		 * on the user itself would hand its hash, salt and tokens to every tool.
-		 */
-		payload.findByID({
-			...lookup,
-			depth: 0,
-			showHiddenFields: true,
-			select: { lockUntil: true },
-		}),
-	]);
-
-	const lockUntil = toTime(lock?.["lockUntil"]);
-
-	if (!user || user["_verified"] === false || lockUntil > Date.now()) {
+	if (!auth || !keyDoc) {
 		return null;
 	}
 
@@ -169,13 +200,5 @@ export const resolveApiKeyAuth = async (
 		}
 	}
 
-	return {
-		user: {
-			...user,
-			collection: options.userCollection,
-			_strategy: "mcpx-api-key",
-		},
-		apiKeyId: keyDoc.id,
-		capabilities: keyDoc.capabilities,
-	};
+	return auth;
 };

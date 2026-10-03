@@ -31,6 +31,7 @@ import {
 	SchemaError,
 	splitPath,
 } from "../schema/index.js";
+import { downloadHandoff, downloadSlugs } from "../upload/file.js";
 
 import type { DocumentId, ResolvedEntity } from "../entity.js";
 import type { VersionRead } from "./versions.js";
@@ -145,6 +146,65 @@ const versionShape = (scope: McpxToolScope): VersionShape => {
 	});
 };
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+type DownloadShape = {
+	download: z.ZodOptional<z.ZodLiteral<true>>;
+};
+
+// Left out for a key that can download no file.
+const downloadShape = (scope: McpxToolScope): DownloadShape => {
+	const slugs = downloadSlugs(scope);
+
+	return widen<DownloadShape>(
+		slugs.length === 0
+			? {}
+			: {
+					download: z
+						.literal(true)
+						.optional()
+						.describe(
+							`Only for ${slugs.join(", ")}. Adds "download": GET its "url" with its "headers" once, within 5 minutes, for the file. Not with "path", "versionId" or "diffFrom".`,
+						),
+				},
+	);
+};
+
+// Refuses `download` where it cannot apply.
+const assertDownloadArgs = (
+	scope: McpxToolScope,
+	target: ResolvedEntity,
+	args: {
+		path?: string | undefined;
+		versionId?: DocumentId | undefined;
+		diffFrom?: DocumentId | undefined;
+	},
+): void => {
+	if (target.kind === "global" || !downloadSlugs(scope).includes(target.slug)) {
+		throw new APIError(`"${target.slug}" has no file to download.`, 400);
+	}
+
+	if (
+		args.path !== undefined ||
+		args.versionId !== undefined ||
+		args.diffFrom !== undefined
+	) {
+		throw new APIError(
+			'"download" cannot be combined with "path", "versionId" or "diffFrom".',
+			400,
+		);
+	}
+};
+
+// The document with a handoff for its file, or a refusal when it has none.
+const withDownload = async (
+	scope: McpxToolScope,
+	doc: Record<string, unknown>,
+	target: Parameters<typeof downloadHandoff>[1],
+): Promise<CallToolResult> =>
+	typeof doc["filename"] === "string"
+		? jsonResult({ ...doc, download: await downloadHandoff(scope, target) })
+		: errorResult("This document has no file to download.");
+
 /**
  * With `path` the handler returns the subtree plus the `id`, `_status` and
  * `updatedAt` a client needs to write back, so reading one branch still gives
@@ -181,11 +241,16 @@ export const getDocument = defineMcpxTool({
 				'With "path" at a rich text field: list each node\'s pointer, type, "version" and text.',
 			),
 		...versionShape(scope),
+		...downloadShape(scope),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "read");
 
 		assertVersionArgs(scope, target, args);
+
+		if (args.download) {
+			assertDownloadArgs(scope, target, args);
+		}
 
 		const prototyped = args.path
 			? prototypeSegmentProblem(args.path)
@@ -231,7 +296,14 @@ export const getDocument = defineMcpxTool({
 				return errorResult(OUTLINE_ERROR);
 			}
 
-			return jsonResult(doc);
+			return args.download && args.id !== undefined
+				? await withDownload(scope, doc, {
+						collection: target.slug,
+						id: args.id,
+						draft: args.draft ?? true,
+						locale: read.locale ?? null,
+					})
+				: jsonResult(doc);
 		}
 
 		const path = pointer.toString();

@@ -204,6 +204,11 @@
             "string",
             "number"
           ]
+        },
+        "download": {
+          "description": "Only for media. Adds \"download\": GET its \"url\" with its \"headers\" once, within 5 minutes, for the file. Not with \"path\", \"versionId\" or \"diffFrom\".",
+          "type": "boolean",
+          "const": true
         }
       },
       "required": [

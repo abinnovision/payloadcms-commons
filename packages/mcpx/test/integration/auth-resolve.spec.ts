@@ -1,13 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createMcpClient, mcpPost } from "./helpers/mcp.js";
-import { bootPayload, seedKeysFor, storedState } from "./helpers/payload.js";
+import {
+	bootPayload,
+	createMedia,
+	PIXEL,
+	seedKeysFor,
+	storedState,
+} from "./helpers/payload.js";
 
 import type { Booted } from "./helpers/payload.js";
 import type { McpxAuthResult } from "../../src/index.js";
 
 const CAPABILITIES = {
-	collections: { tags: { read: true }, pages: { read: true, write: true } },
+	collections: {
+		tags: { read: true },
+		pages: { read: true, write: true },
+		media: { read: true, write: true },
+	},
 };
 
 describe("configured key resolution", () => {
@@ -21,6 +31,11 @@ describe("configured key resolution", () => {
 			key: CACHE_KEY,
 			collections: [{ slug: "editors", auth: true, fields: [] }],
 			plugin: {
+				collections: {
+					pages: { publish: false },
+					tags: { write: false },
+					media: { publish: false },
+				},
 				auth: {
 					resolve: async ({ req, resolveDefault }) => {
 						const mode = req.headers.get("x-resolve");
@@ -133,5 +148,56 @@ describe("configured key resolution", () => {
 	it("serves a resolver that wraps the default resolver", async () => {
 		expect((await createPage("wrap")).status).toBe(200);
 		expect(await pages()).toMatchObject({ docs: [expect.anything()] });
+	});
+
+	/*
+	 * The upload endpoint authenticates by the key alone and cannot replay a
+	 * resolver, so no tool offers a file.
+	 */
+	it("offers no file and refuses one", async () => {
+		const call = async (method: string, params?: unknown) =>
+			(await (
+				await mcpPost(booted, {
+					key,
+					headers: { "x-resolve": "wrap" },
+					body: { jsonrpc: "2.0", id: 1, method, params },
+				})
+			).json()) as {
+				result?: {
+					tools?: { inputSchema: { properties?: object } }[];
+					isError?: boolean;
+				};
+			};
+		const { id } = await createMedia(booted.payload, "Resolved");
+		const before = await storedState(booted.payload, {
+			collections: ["media"],
+		});
+
+		expect(
+			(await call("tools/list")).result?.tools?.flatMap((tool) =>
+				Object.keys(tool.inputSchema.properties ?? {}),
+			),
+		).not.toContain("file");
+		expect(
+			(
+				await call("tools/call", {
+					name: "patchDocument",
+					arguments: {
+						collection: "media",
+						id,
+						locale: "en",
+						patches: [],
+						file: {
+							filename: "pixel.png",
+							mimeType: "image/png",
+							size: PIXEL.length,
+						},
+					},
+				})
+			).result?.isError,
+		).toBe(true);
+		expect(
+			await storedState(booted.payload, { collections: ["media"] }),
+		).toEqual(before);
 	});
 });

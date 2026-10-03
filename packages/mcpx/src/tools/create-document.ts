@@ -1,3 +1,4 @@
+import { APIError } from "payload";
 import { z } from "zod";
 
 import { readDraft, resolveEntity } from "./document.js";
@@ -12,6 +13,13 @@ import {
 import { defineMcpxTool } from "../define-tool.js";
 import { errorResult, jsonResult } from "../result.js";
 import { validateWriteValue } from "../schema/index.js";
+import {
+	assertAcceptsFile,
+	fileShape,
+	fileWriteRefusal,
+	uploadedFile,
+	uploadHandoff,
+} from "../upload/file.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { stripRowIds } from "../write/row-ids.js";
 
@@ -33,8 +41,9 @@ const DESCRIPTION = (scope: McpxToolScope): string =>
 ${liveWriteSentence(scope, "create")}${uploadSentence(scope)}`;
 
 /**
- * Collection-only, because a global always exists. Upload collections are
- * excluded because a create there would need the file.
+ * Collection-only, because a global always exists. A create in an upload
+ * collection needs `file`: the call then returns an upload grant, and the PUT
+ * to it runs the call again with the bytes.
  *
  * The seed is checked against the collection's fields first, so an unknown key
  * is refused along with its valid siblings. Row ids in the seed are stripped
@@ -61,6 +70,11 @@ export const createDocument = defineMcpxTool({
 		data: z
 			.record(z.string(), z.unknown())
 			.describe('Field values by name, e.g. {"title":"Home","slug":"home"}.'),
+		...fileShape(
+			scope,
+			(slugs) =>
+				`Required in ${slugs}. The call returns an "upload" for the bytes instead of writing.`,
+		),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveEntity(
@@ -75,6 +89,20 @@ export const createDocument = defineMcpxTool({
 
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
+		const { file } = args;
+
+		if (file !== undefined) {
+			assertAcceptsFile(scope, target, file);
+		} else if (
+			scope.exposure.collections.some(
+				(entity) => entity.slug === target.slug && entity.isUpload,
+			)
+		) {
+			throw new APIError(
+				`"${target.slug}" stores files, so "file" is required.`,
+				400,
+			);
+		}
 
 		/*
 		 * A top-level id is Payload's to assign. The shape walker accepts `id` at
@@ -100,6 +128,26 @@ export const createDocument = defineMcpxTool({
 			return errorResult("Nothing was created.", { problems });
 		}
 
+		const bytes = uploadedFile(scope.req);
+
+		if (file !== undefined) {
+			const refusal = await fileWriteRefusal(scope, {
+				entity: target,
+				data: args.data,
+			});
+
+			if (refusal) {
+				return refusal;
+			}
+
+			if (!bytes) {
+				return await uploadHandoff(scope, {
+					tool: "createDocument",
+					args: { ...args, file },
+				});
+			}
+		}
+
 		const created = (await payload.create({
 			collection: args.collection,
 			data: stripRowIds(args.data) as Record<string, unknown>,
@@ -108,6 +156,7 @@ export const createDocument = defineMcpxTool({
 			overrideAccess: false,
 			req: scope.req,
 			...(locale === undefined ? {} : { locale }),
+			...(bytes === undefined ? {} : { file: bytes }),
 		})) as Record<string, unknown>;
 
 		const saved = await readDraft(scope, {

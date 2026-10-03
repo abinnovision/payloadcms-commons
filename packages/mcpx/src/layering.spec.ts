@@ -26,6 +26,7 @@ const LAYERS: Record<string, number> = {
 	"schema/": 1,
 	"write/": 2,
 	"api-keys/": 2,
+	"upload/": 2,
 	"auth/": 3,
 	"tools/": 3,
 	"endpoint/": 4,

@@ -91,7 +91,7 @@ const KEYS: Record<string, KeyCapabilities> = {
 const BUDGET: Record<string, number> = {
 	describeSchema: 1700,
 	patchDocument: 1700,
-	getDocument: 1100,
+	getDocument: 1200,
 	createDocument: 800,
 };
 

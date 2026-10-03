@@ -4,11 +4,13 @@ import { z } from "zod";
 import { toToolError } from "./errors.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 import { liveWriteSlugs } from "../tools/shared.js";
+import { fileSlugs } from "../upload/file.js";
 import { MCPX_REPOSITORY_URL } from "../version.js";
 
 import type { NormalizedOptions } from "../options.js";
-import type { McpxAnyTool, McpxToolScope } from "../types.js";
+import type { McpxAnyTool, McpxToolExtra, McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { PayloadRequest } from "payload";
 
 /**
  * Strict, so an unknown argument is rejected by name instead of stripped.
@@ -40,6 +42,29 @@ export const isToolEnabled = (
 		? tool.isEnabled(scope)
 		: scope.capabilities.tools[tool.name] === true;
 
+/**
+ * Runs one tool call. Payload's public errors become error results; anything
+ * else is logged and reported as an internal error.
+ */
+export const runTool = async (
+	tool: McpxAnyTool,
+	args: unknown,
+	scope: McpxToolScope,
+	req: PayloadRequest,
+	extra: McpxToolExtra,
+): Promise<CallToolResult> => {
+	try {
+		return await tool.handler({ args: args as never, scope, req, extra });
+	} catch (error) {
+		return toToolError(error, req.payload.logger);
+	}
+};
+
+const WRITE_STEP = {
+	tools: ["patchDocument", "createDocument"],
+	does: "the write",
+};
+
 /* The call order across tools. A step keeps only the tools this key has. */
 const WORKFLOW: { tools: string[]; does: string }[] = [
 	{ tools: ["listCapabilities"], does: "what this key may access" },
@@ -48,10 +73,13 @@ const WORKFLOW: { tools: string[]; does: string }[] = [
 		tools: ["findDocuments", "getDocument"],
 		does: 'the content and its "updatedAt"',
 	},
-	{ tools: ["patchDocument", "createDocument"], does: "the write" },
+	WRITE_STEP,
 	{ tools: ["validateDocument"], does: "what blocks publishing" },
 	{ tools: ["publishDocument"], does: "make the draft public" },
 ];
+
+const UPLOAD_STEP =
+	'A write that returns "upload": PUT the file bytes to its "url" with its "headers". The response is the result of the write.';
 
 const PATHS = `describeSchema takes and returns schema paths. Every other "path", and "from" in a patch operation, is a pointer into a document, with a 0-based index where a schema path has "*" for an array element or a block slug: "/layout/sections/sectionWrapper/identifier" is "/layout/sections/0/identifier". In rich text a pointer enters the rich text state: "/content/block/callout/tone" is "/content/root/children/3/fields/tone". getDocument "outline" gives the index.`;
 
@@ -69,10 +97,17 @@ const serverInstructions = (scope: McpxToolScope): string => {
 			(tool) => tool.name,
 		),
 	);
-	const steps = WORKFLOW.flatMap(({ tools, does }) => {
-		const present = tools.filter((name) => enabled.has(name));
+	const uploads = fileSlugs(scope).length > 0;
+	const steps = WORKFLOW.flatMap((step) => {
+		const present = step.tools.filter((name) => enabled.has(name));
 
-		return present.length === 0 ? [] : [`${present.join(" or ")}: ${does}.`];
+		if (present.length === 0) {
+			return [];
+		}
+
+		const line = `${present.join(" or ")}: ${step.does}.`;
+
+		return step === WRITE_STEP && uploads ? [line, UPLOAD_STEP] : [line];
 	}).map((step, index) => `${String(index + 1)}. ${step}`);
 	const publishing = enabled.has("publishDocument")
 		? ""
@@ -99,7 +134,6 @@ export const createMcpServer = (
 	options: NormalizedOptions,
 ): McpServer => {
 	const { req } = scope;
-	const { logger } = req.payload;
 	let queue: Promise<unknown> = Promise.resolve();
 
 	const server = new McpServer(
@@ -126,18 +160,10 @@ export const createMcpServer = (
 				...(tool.annotations ? { annotations: tool.annotations } : {}),
 			},
 			(args, extra): Promise<CallToolResult> => {
-				const result = queue.then(async (): Promise<CallToolResult> => {
-					try {
-						return await tool.handler({
-							args: args as never,
-							scope,
-							req,
-							extra,
-						});
-					} catch (error) {
-						return toToolError(error, logger);
-					}
-				});
+				const result = queue.then(
+					async (): Promise<CallToolResult> =>
+						await runTool(tool, args, scope, req, extra),
+				);
 
 				queue = result.catch(() => undefined);
 
