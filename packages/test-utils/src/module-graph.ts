@@ -67,7 +67,7 @@ const specifiersOf = (file: string): Specifier[] => {
 	return found;
 };
 
-interface ModuleGraph {
+export interface ModuleGraph {
 	files: Set<string>;
 	bareSpecifiers: Set<string>;
 	/** The files each walked file imports directly. */

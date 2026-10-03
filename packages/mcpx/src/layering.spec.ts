@@ -1,9 +1,8 @@
+import { walkModuleGraph } from "@internal/test-utils/module-graph";
 import { existsSync, readdirSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-
-import { walkModuleGraph } from "../test/module-graph.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

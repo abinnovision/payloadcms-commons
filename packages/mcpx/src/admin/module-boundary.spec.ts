@@ -1,10 +1,7 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { walkModuleGraph } from "@internal/test-utils/module-graph";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-
-import { walkModuleGraph } from "../../test/module-graph.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = resolve(here, "index.ts");
@@ -51,23 +48,5 @@ describe("./admin module boundary", () => {
 		expect(names).toContain("setup-guide.ts");
 		expect([...bareSpecifiers]).toContain("react");
 		expect([...bareSpecifiers]).toContain("@payloadcms/ui");
-	});
-
-	it("flags a disallowed value import", () => {
-		const dir = mkdtempSync(join(tmpdir(), "mcpx-boundary-"));
-		const file = join(dir, "bad.ts");
-
-		try {
-			writeFileSync(
-				file,
-				'import { z } from "zod";\nimport { createHash } from "node:crypto";\nimport type { Payload } from "payload";\nexport const x = [z, createHash];\n',
-			);
-
-			const { bareSpecifiers } = walkModuleGraph(file);
-
-			expect([...bareSpecifiers].sort()).toEqual(["node:crypto", "zod"]);
-		} finally {
-			rmSync(dir, { recursive: true, force: true });
-		}
 	});
 });

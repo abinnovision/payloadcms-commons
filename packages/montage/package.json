@@ -64,6 +64,7 @@
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@arethetypeswrong/core": "^0.18.5",
+		"@internal/test-utils": "workspace:*",
 		"@payloadcms/db-sqlite": "3.89.0",
 		"@payloadcms/richtext-lexical": "3.89.0",
 		"@swc/core": "^1.16.2",

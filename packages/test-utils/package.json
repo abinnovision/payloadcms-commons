@@ -1,0 +1,31 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@internal/test-utils",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./module-graph": "./src/module-graph.ts"
+	},
+	"scripts": {
+		"format:check": "prettier --check 'src/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"format:fix": "prettier --write 'src/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"lint:check": "eslint 'src/**/*.ts'",
+		"lint:fix": "eslint 'src/**/*.ts' --fix",
+		"test-unit": "vitest --run --config vitest.config.mts",
+		"test-unit:watch": "vitest --config vitest.config.mts",
+		"typecheck": "tsc --noEmit"
+	},
+	"prettier": "@abinnovision/prettier-config",
+	"dependencies": {
+		"typescript": "^6.0.3"
+	},
+	"devDependencies": {
+		"@abinnovision/eslint-config-base": "^3.4.2",
+		"@abinnovision/prettier-config": "^2.2.0",
+		"@types/node": "^26.5.1",
+		"eslint": "^10.10.0",
+		"prettier": "^3.9.5",
+		"vitest": "^5.0.0"
+	}
+}
