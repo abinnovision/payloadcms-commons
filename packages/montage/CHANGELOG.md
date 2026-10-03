@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-montage-v1.0.1...payloadcms-montage-v1.0.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **deps:** bump the production-dependencies group across 1 directory with 6 updates ([#86](https://github.com/abinnovision/payloadcms-commons/issues/86)) ([57d002c](https://github.com/abinnovision/payloadcms-commons/commit/57d002c693b74da431e24c8e789ee2eb5c7e416e))
+
 ## [1.0.1](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-montage-v1.0.0...payloadcms-montage-v1.0.1) (2026-10-03)
 
 
