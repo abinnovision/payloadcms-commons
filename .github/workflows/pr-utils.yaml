@@ -1,21 +1,17 @@
 name: PR Utils
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - main
-    types:
-      - opened
-      - edited
-      - synchronize
 
 jobs:
-  commitlint:
-    name: Commitlint
+  lint-commits:
+    name: Lint commits
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: Run Commitlint
+      - name: Run linter
         uses: abinnovision/actions@run-commitlint-v1
 
   dependabot:
