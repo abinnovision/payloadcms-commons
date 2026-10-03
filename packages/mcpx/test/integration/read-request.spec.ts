@@ -44,7 +44,10 @@ describe("mcpxReadRequest in a custom tool", () => {
 			key: CACHE_KEY,
 			collections: [casefiles, dossiers],
 			plugin: {
-				collections: { casefiles: true, dossiers: true },
+				collections: {
+					casefiles: { write: false },
+					dossiers: { write: false },
+				},
 				tools: [readCasefile],
 			},
 		});

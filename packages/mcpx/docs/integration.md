@@ -22,12 +22,15 @@ for any of these:
   decrypted Payload API key of every user;
 - an exposed `payload-*` collection or global, or the key collection itself;
 - a key collection slug that another collection already uses;
-- a `write` value other than `false`, `"draft"` or `"live"`;
-- a `versions` value other than `true` or `false`, `versions: true` on an entity without Payload
-  `versions`, or `versions: true` with `read: false`;
-- `write: "draft"` on an entity without `versions.drafts`;
+- an entity value that is not `true` or an object, including `false` (remove the entry to hide the
+  entity), and an object key other than `read`, `write`, `publish` and `versions`;
+- a `read`, `write`, `publish` or `versions` value that is not `true` or `false`, including the
+  old `write: "draft"` and `write: "live"`;
+- `publish: true` on an entity without `versions.drafts`, or with `write: false`;
+- `publish: false` on an entity without `versions.drafts`, since every write there goes live;
+- `versions: true` on an entity without Payload `versions`, or with `read: false`;
 - `write` on a collection with `timestamps: false`, since the concurrency check needs `updatedAt`;
-- `write: "live"` on an entity with `versions.drafts.localizeStatus`, which is not supported yet;
+- a live `write` on an entity with `versions.drafts.localizeStatus`, which is not supported yet;
 - two exposed collections, or two exposed globals, whose slugs map to the same camelCase
   capability name;
 - a custom tool name that does not start with a letter, holds anything other than letters and
@@ -156,15 +159,35 @@ import { McpxCapabilityMatrix } from "@abinnovision/payloadcms-mcpx/client";
 import { McpxCapabilityMatrix } from "@abinnovision/payloadcms-mcpx/admin";
 ```
 
-### Version history needs `versions: true`
+### Entity options only take capabilities away
 
-`findVersions`, `versionId` and `diffFrom` are refused until an entity opts in. The entity must
-have Payload `versions` and must not set `read: false`, or startup fails. Set `access.readVersions` first; see
-[security.md](./security.md#version-history).
+The config names the entities that are reachable and a key's checkboxes decide per key, so an
+option now defaults to everything the entity supports. `write` is a boolean that defaults to
+`true`, `publish` is a new boolean that defaults to `true` where the entity has drafts, and
+`write: "draft"` and `write: "live"` are refused at startup. `versions` defaults to `false`:
+version history has no checkbox of its own and follows the key's read, so the config opts in.
+Without drafts, a write changes live content, as `write: "live"` did.
+
+| before                        | after                      |
+| ----------------------------- | -------------------------- |
+| `true`                        | `{ write: false }`         |
+| `{ write: "draft" }`          | `{ publish: false }`       |
+| `{ write: "live" }`           | `true`                     |
+| `{ read: false, write: ... }` | `read: false` is unchanged |
+| `versions: true`              | unchanged                  |
+
+Existing keys keep exactly what was ticked, so a key gains nothing from the wider ceiling until
+someone ticks the new checkboxes. Entities that were read only now have write and publish
+checkboxes on the key collection, so SQL database adapters need a migration for the new columns.
+`false` as an entity value is refused, so remove the entry instead.
 
 ```ts
 mcpxPlugin({
-  collections: { pages: { read: true, versions: true } },
+  collections: {
+    pages: true,
+    posts: { publish: false },
+    tags: { write: false },
+  },
 });
 ```
 

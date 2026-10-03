@@ -70,9 +70,9 @@ describe("old versions under a filtered read access", () => {
 			collections: [bulletins, openBulletins, guardedBulletins],
 			plugin: {
 				collections: {
-					bulletins: true,
-					"open-bulletins": { versions: true },
-					"guarded-bulletins": { versions: true },
+					bulletins: { write: false },
+					"open-bulletins": { write: false, versions: true },
+					"guarded-bulletins": { write: false, versions: true },
 				},
 			},
 		});

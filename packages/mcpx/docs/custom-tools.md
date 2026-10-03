@@ -31,7 +31,7 @@ export const queueForReview = defineMcpxTool({
 
 ```ts
 mcpxPlugin({
-  collections: { pages: { read: true, write: "draft" } },
+  collections: { pages: { publish: false } },
   tools: [queueForReview],
 });
 ```

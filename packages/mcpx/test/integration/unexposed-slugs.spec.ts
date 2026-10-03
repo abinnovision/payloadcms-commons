@@ -47,9 +47,9 @@ describe("collections the config does not expose", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "live" },
-					posts: { read: true, write: "draft" },
-					tags: true,
+					pages: true,
+					posts: { publish: false },
+					tags: { write: false },
 				},
 				auth: {
 					resolve: async ({ resolveDefault }) => {

@@ -148,8 +148,8 @@ A global is exposed like a collection and uses the same tools:
 
 ```ts
 mcpxPlugin({
-  collections: { pages: { read: true, write: "draft" } },
-  globals: { "site-settings": { read: true, write: "draft" } },
+  collections: { pages: { publish: false } },
+  globals: { "site-settings": { publish: false } },
 });
 ```
 
@@ -167,7 +167,7 @@ except on a global that has never been saved; see [limitations.md](./limitations
 ## Upload collections
 
 An upload collection may be exposed for write. `patchDocument` and `validateDocument` reach it,
-and `publishDocument` does under the same `write: "live"` rule as other collections, so a client
+and `publishDocument` does under the same `publish` rule as other collections, so a client
 can edit the fields the collection declares, such as `alt` or a credit.
 
 The base fields Payload adds (`filename`, `url`, `filesize`, `sizes`, the focal point) are neither
@@ -176,17 +176,20 @@ and says why in its description; see [limitations.md](./limitations.md#not-inclu
 
 ## Drafts and publishing
 
-`write` sets how far MCP writes to an entity reach:
+`write` and `publish` set how far MCP writes to an entity reach. Both default to `true`:
 
-| `write`   | With `versions.drafts`                                  | Without                                        |
-| --------- | ------------------------------------------------------- | ---------------------------------------------- |
-| `false`   | no write tool reaches it                                | no write tool reaches it                       |
-| `"draft"` | writes land as drafts, nothing is published             | refused at startup: there is no draft to write |
-| `"live"`  | writes land as drafts, and `publishDocument` is exposed | writes change the live document                |
+| `write` | `publish` | With `versions.drafts`                                  | Without                         |
+| ------- | --------- | ------------------------------------------------------- | ------------------------------- |
+| `false` | any       | no write tool reaches it                                | no write tool reaches it        |
+| `true`  | `false`   | writes land as drafts, nothing is published             | refused at startup              |
+| `true`  | `true`    | writes land as drafts, and `publishDocument` is exposed | writes change the live document |
 
-`"live"` is the only setting that lets an MCP write reach live content. Where it is set, the
-`patchDocument` and `createDocument` descriptions name those slugs for the key in question, so a
-client is not told its writes are drafts when they are not.
+`publish: true` on an entity without drafts, or with `write: false`, is refused at startup. So is
+`publish: false` on an entity without drafts: every write there goes live, so set `write: false`
+instead. Left at its default, `publish` is derived off. Without drafts there is no draft stage, so a write changes live
+content; that is the only way an MCP write reaches live content apart from `publishDocument`.
+Where it happens, the `patchDocument` and `createDocument` descriptions name those slugs for the
+key in question, so a client is not told its writes are drafts when they are not.
 
 A draft guard enforces this on the Payload operation rather than in the tools, so custom tools
 that pass the MCP `req` are covered too. [security.md](./security.md#the-draft-guard) describes it
@@ -214,13 +217,14 @@ saving; because the hooks run, it carries no `readOnlyHint`.
 
 ## Versions and diffs
 
-Version history is off by default. Set `versions: true` on a collection or global that has
-Payload `versions`, with or without drafts. Then `findVersions` lists the history newest first:
+Version history is off by default. Version history has no checkbox of its own and follows the
+key's read, so the config opts in: set `versions: true` on a collection or global that has Payload
+`versions`, with or without drafts. Then `findVersions` lists the history newest first:
 `versionId`, timestamps, `status`, `latest` and `autosave`, without bodies. It follows the `read`
 capability. The document's `read` access is checked first, then Payload's `readVersions`, which
 defaults to any logged-in user; see [security.md](./security.md#version-history).
 
-A key that reaches no entity with `versions: true` has no `findVersions`, and `getDocument` has no
+A key that reaches no entity with version history exposed has no `findVersions`, and `getDocument` has no
 `versionId` or `diffFrom`, so a call that passes them is rejected as an unknown argument. Once the
 key reaches one such entity, those two arguments are refused for any other slug with
 `"<slug>" does not expose version history.` `status` is only offered while the key reaches an

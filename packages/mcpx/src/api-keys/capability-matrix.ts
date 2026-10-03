@@ -3,6 +3,7 @@ import {
 	canPublish,
 	canWrite,
 	CAPABILITIES_FIELD,
+	isLiveWrite,
 } from "../capabilities.js";
 
 import type { NormalizedOptions } from "../options.js";
@@ -72,6 +73,21 @@ export interface CapabilityMatrix {
 }
 
 const UPLOAD_HINT = "Files are uploaded in the admin panel.";
+const LIVE_HINT = "Writes go live immediately.";
+
+/*
+ * An upload collection's `write` reaches the document's own fields but never
+ * `createDocument`, because no tool here carries a file. Without drafts a write
+ * has no draft stage to land in.
+ */
+const hintFor = (entity: McpxExposedEntity): Pick<CapabilityRow, "hint"> => {
+	const hints = [
+		canWrite(entity) && !canCreate(entity) ? UPLOAD_HINT : undefined,
+		isLiveWrite(entity) ? LIVE_HINT : undefined,
+	].filter((hint) => hint !== undefined);
+
+	return hints.length > 0 ? { hint: hints.join(" ") } : {};
+};
 
 const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 	fieldName: entity.fieldName,
@@ -79,11 +95,7 @@ const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 	read: entity.read,
 	write: canWrite(entity),
 	publish: canPublish(entity),
-	/*
-	 * An upload collection's `write` reaches the document's own fields but never
-	 * `createDocument`, because no tool here carries a file.
-	 */
-	...(canWrite(entity) && !canCreate(entity) ? { hint: UPLOAD_HINT } : {}),
+	...hintFor(entity),
 });
 
 /**

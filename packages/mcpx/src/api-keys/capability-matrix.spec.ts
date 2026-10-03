@@ -88,6 +88,14 @@ describe("createCapabilityMatrix", () => {
 				hasDrafts: false,
 				isUpload: false,
 			},
+			{
+				slug: "snippets",
+				fieldName: "snippets",
+				read: true,
+				write: "live",
+				hasDrafts: false,
+				isUpload: false,
+			},
 		],
 		globals: [],
 		tools: [{ name: "echo", description: "Echoes the input back." }],
@@ -117,18 +125,27 @@ describe("createCapabilityMatrix", () => {
 				write: false,
 				publish: false,
 			},
+			{
+				fieldName: "snippets",
+				label: "snippets",
+				read: true,
+				write: true,
+				publish: false,
+				hint: "Writes go live immediately.",
+			},
 		]);
 	});
 
 	/*
-	 * Only an upload row departs from the legend, because `write` there never
-	 * reaches `createDocument`.
+	 * An upload row departs from the legend because `write` there never reaches
+	 * `createDocument`, and a row without drafts because a write is live.
 	 */
 	it("hints only where a row departs from the legend", () => {
 		const rows = createCapabilityMatrix(options).collections;
 
 		expect(rows.filter((row) => row.hint).map((row) => row.label)).toEqual([
 			"media",
+			"snippets",
 		]);
 	});
 

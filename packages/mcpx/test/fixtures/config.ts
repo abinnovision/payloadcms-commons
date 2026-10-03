@@ -102,9 +102,9 @@ export const roguePublishTool = defineMcpxTool({
 
 const defaultPluginOptions: McpxPluginOptions = {
 	collections: {
-		pages: { read: true, write: "draft" },
-		posts: { read: true, write: "draft" },
-		tags: true,
+		pages: { publish: false },
+		posts: { publish: false },
+		tags: { write: false },
 	},
 	tools: [echoTool, whichCollectionTool],
 };

@@ -37,42 +37,37 @@ declare module "payload" {
  */
 export type McpxWriteMode = "draft" | "live" | false;
 
-/** A key can only enable what the config exposes here. */
+/**
+ * What an entity exposes. The config names the entities that are reachable and
+ * only takes capabilities away; a key's checkboxes decide per key. `true` is
+ * shorthand for `{}`, which exposes everything the entity supports.
+ */
 export interface McpxCollectionOptions {
 	/** Expose `describeSchema`, `findDocuments`, `getDocument`. Default `true`. */
 	read?: boolean;
 	/**
 	 * Expose `patchDocument`, `validateDocument` and, unless this is an upload
-	 * collection, `createDocument`, and how far those writes reach. Default
-	 * `false`.
+	 * collection, `createDocument`. Without drafts a write changes live
+	 * content. Default `true`.
 	 */
-	write?: McpxWriteMode;
+	write?: boolean;
+	/**
+	 * Expose `publishDocument`, which promotes a draft to live content. Needs
+	 * `versions.drafts` and `write`. Default `true` where the entity has drafts.
+	 * `false` keeps writes as drafts and is refused where there are none.
+	 */
+	publish?: boolean;
 	/**
 	 * Expose `findVersions` and the `versionId` and `diffFrom` arguments of
-	 * `getDocument` to keys that may read the entity. `access.readVersions`
-	 * governs old versions, and Payload lets any logged-in user through by
-	 * default. Requires Payload `versions`. Default `false`.
+	 * `getDocument` to keys that may read the entity. Default `false`: version
+	 * history has no checkbox of its own and follows the key's read, so the
+	 * config opts in. `true` needs Payload `versions` and `read`.
 	 */
 	versions?: boolean;
 }
 
-/** A singleton, so neither `findDocuments` nor `createDocument` reaches one. */
-export interface McpxGlobalOptions {
-	/** Expose `describeSchema` and `getDocument`. Default `true`. */
-	read?: boolean;
-	/**
-	 * Expose `patchDocument` and `validateDocument`, and how far those writes
-	 * reach. Default `false`.
-	 */
-	write?: McpxWriteMode;
-	/**
-	 * Expose `findVersions` and the `versionId` and `diffFrom` arguments of
-	 * `getDocument` to keys that may read the entity. `access.readVersions`
-	 * governs old versions, and Payload lets any logged-in user through by
-	 * default. Requires Payload `versions`. Default `false`.
-	 */
-	versions?: boolean;
-}
+/** The same options. A singleton, so neither `findDocuments` nor `createDocument` reaches one. */
+export type McpxGlobalOptions = McpxCollectionOptions;
 
 export type McpxToolExtra = RequestHandlerExtra<
 	ServerRequest,
@@ -177,9 +172,9 @@ export interface McpxAuthResult {
  */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type McpxPluginOptions = {
-	/** Allow-list of collections. `true` is shorthand for `{ read: true }`. */
+	/** Allow-list of collections. `true` is shorthand for `{}`. */
 	collections: Partial<Record<CollectionSlug, McpxCollectionOptions | true>>;
-	/** Allow-list of globals. `true` is shorthand for `{ read: true }`. */
+	/** Allow-list of globals. `true` is shorthand for `{}`. */
 	globals?: Partial<Record<GlobalSlug, McpxGlobalOptions | true>>;
 	/** Collection the keys act as. Default `config.admin.user`, then `users`. */
 	userCollection?: CollectionSlug;
@@ -223,7 +218,7 @@ export type McpxPluginOptions = {
 export interface McpxCollectionCapabilities {
 	read: boolean;
 	write: boolean;
-	/** Only ever true where the config sets `write: "live"` and drafts exist. */
+	/** Only ever true where the config lets writes publish and drafts exist. */
 	publish: boolean;
 }
 

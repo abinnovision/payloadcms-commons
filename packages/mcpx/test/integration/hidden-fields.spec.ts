@@ -21,7 +21,7 @@ describe("hidden fields on an exposed collection", () => {
 		booted = await bootPayload({
 			key: CACHE_KEY,
 			collections: [dossiers],
-			plugin: { collections: { dossiers: true } },
+			plugin: { collections: { dossiers: { write: false } } },
 		});
 
 		const { payload } = booted;

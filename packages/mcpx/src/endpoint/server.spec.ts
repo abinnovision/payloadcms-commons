@@ -67,9 +67,9 @@ beforeAll(async () => {
 	};
 
 	const collections = {
-		pages: { read: true, write: "draft", versions: true },
-		posts: { read: true, write: "draft" },
-		tags: true,
+		pages: { publish: false, versions: true },
+		posts: { publish: false },
+		tags: { write: false },
 	} as const;
 	const tools = [
 		{ name: "echo", description: "", handler: () => ({ content: [] }) },
@@ -77,7 +77,7 @@ beforeAll(async () => {
 
 	options = normalizeOptions(raw, { collections, tools });
 	withUpload = normalizeOptions(raw, {
-		collections: { ...collections, media: { read: true, write: "draft" } },
+		collections: { ...collections, media: { publish: false } },
 		tools,
 	});
 	withGlobals = normalizeOptions(
@@ -85,7 +85,7 @@ beforeAll(async () => {
 		{
 			collections,
 			globals: {
-				"site-settings": { read: true, write: "draft", versions: true },
+				"site-settings": { publish: false, versions: true },
 			},
 			tools,
 		},

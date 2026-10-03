@@ -11,7 +11,7 @@ import type { CollectionConfig } from "payload";
 /**
  * Not routed: posts have no mapping row, so no URL resolves to one. They are
  * read by `recent-posts-module`'s resolver, and they are the entity mcpx is
- * configured `write: "draft"` for, where an MCP client writes and a human
+ * configured `publish: false` for, where an MCP client writes and a human
  * publishes.
  */
 export const posts: CollectionConfig = {

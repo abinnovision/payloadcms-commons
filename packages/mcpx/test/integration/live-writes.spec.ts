@@ -18,10 +18,10 @@ describe("live writes", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "draft" },
-					tags: { read: true, write: "live" },
+					pages: { publish: false },
+					tags: true,
 				},
-				globals: { banner: { read: true, write: "live" } },
+				globals: { banner: true },
 			},
 		});
 

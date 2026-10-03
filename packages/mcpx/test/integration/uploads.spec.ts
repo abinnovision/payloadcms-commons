@@ -20,8 +20,8 @@ describe("upload collections", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "draft" },
-					media: { read: true, write: "live" },
+					pages: { publish: false },
+					media: true,
 				},
 			},
 		});

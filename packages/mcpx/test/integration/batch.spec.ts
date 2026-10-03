@@ -41,7 +41,7 @@ describe("json-rpc batches", () => {
 				transactionOptions: {},
 			}),
 			collections: [ledgers],
-			plugin: { collections: { ledgers: { read: true, write: "draft" } } },
+			plugin: { collections: { ledgers: { publish: false } } },
 		});
 
 		key = (

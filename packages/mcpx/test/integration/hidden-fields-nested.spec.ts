@@ -32,9 +32,9 @@ describe("admin.hidden fields below the top level", () => {
 			collections: [casefiles, dossiers],
 			plugin: {
 				collections: {
-					casefiles: { read: true, versions: true },
-					dossiers: true,
-					media: true,
+					casefiles: { write: false, versions: true },
+					dossiers: { write: false },
+					media: { write: false },
 				},
 			},
 		});

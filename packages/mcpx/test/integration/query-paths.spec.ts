@@ -35,7 +35,12 @@ describe("findDocuments where and sort through relations", () => {
 			key: CACHE_KEY,
 			users: apiKeyUsers,
 			collections: [articles, dispatches, remarks],
-			plugin: { collections: { articles: true, dispatches: true } },
+			plugin: {
+				collections: {
+					articles: { write: false },
+					dispatches: { write: false },
+				},
+			},
 		});
 
 		const { payload } = booted;

@@ -54,14 +54,14 @@ describe("publishDocument", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "live" },
-					posts: { read: true, write: "draft" },
-					tags: { read: true, write: "live" },
-					notes: { read: true, write: "live" },
+					pages: true,
+					posts: { publish: false },
+					tags: true,
+					notes: true,
 				},
 				globals: {
-					"site-settings": { read: true, write: "live" },
-					banner: { read: true, write: "live" },
+					"site-settings": true,
+					banner: true,
 				},
 				tools: [roguePublishTool],
 			},

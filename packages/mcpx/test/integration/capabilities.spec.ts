@@ -29,9 +29,9 @@ describe("capabilities", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "draft", versions: true },
-					posts: { read: true, write: "draft" },
-					tags: true,
+					pages: { publish: false, versions: true },
+					posts: { publish: false },
+					tags: { write: false },
 				},
 			},
 		});

@@ -27,8 +27,7 @@ export const canCreate = (entity: McpxExposedEntity): boolean =>
 	canWrite(entity) && !entity.isUpload;
 
 /**
- * Without versions there is no draft, so `write: "live"` is what permits
- * writing and every write is live.
+ * Without drafts there is no draft stage, so every write is live.
  */
 export const isLiveWrite = (entity: McpxExposedEntity): boolean =>
 	entity.write === "live" && !entity.hasDrafts;

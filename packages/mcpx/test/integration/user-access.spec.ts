@@ -30,7 +30,7 @@ describe("keys of users with different read access", () => {
 		booted = await bootPayload({
 			key: CACHE_KEY,
 			collections: [diaries],
-			plugin: { collections: { diaries: { versions: true } } },
+			plugin: { collections: { diaries: { write: false, versions: true } } },
 		});
 
 		const seed = async (name: string): Promise<Seeded> => {

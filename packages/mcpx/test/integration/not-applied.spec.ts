@@ -26,8 +26,8 @@ describe("notApplied on a field closed to the key's user", () => {
 			collections: [ledgers, vaults],
 			plugin: {
 				collections: {
-					ledgers: { read: true, write: "draft" },
-					vaults: { read: true, write: "draft" },
+					ledgers: { publish: false },
+					vaults: { publish: false },
 				},
 			},
 		});

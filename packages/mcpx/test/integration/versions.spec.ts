@@ -32,14 +32,14 @@ describe("version history", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { read: true, write: "live", versions: true },
-					posts: { read: true, versions: true },
-					tags: { read: true },
-					notes: { read: true },
-					snippets: { read: true, write: "live", versions: true },
+					pages: { versions: true },
+					posts: { write: false, versions: true },
+					tags: { write: false },
+					notes: { write: false },
+					snippets: { versions: true },
 				},
 				globals: {
-					"site-settings": { read: true, write: "live", versions: true },
+					"site-settings": { versions: true },
 				},
 			},
 		});

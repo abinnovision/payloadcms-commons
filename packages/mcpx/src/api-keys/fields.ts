@@ -152,8 +152,8 @@ export const withSetupGuideTab = (
  * and custom tool, built from {@link createCapabilityMatrix}. Everything
  * defaults to off, so a key issued before a capability existed stays closed.
  *
- * An entity without versions gets no `publish` checkbox, even under
- * `write: "live"`: the write is already live, so the box would make `write` a
+ * An entity without drafts gets no `publish` checkbox, even where
+ * writes are on: the write is already live, so the box would make `write` a
  * dead setting. The admin renders the group as a matrix; the checkboxes serve
  * consumers who replace that component through `apiKeys.overrideCollection`.
  */

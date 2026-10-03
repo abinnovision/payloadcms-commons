@@ -43,9 +43,9 @@ export default buildConfig({
     mcpxPlugin({
       // pages and posts have versions.drafts enabled
       collections: {
-        pages: { read: true, write: "live" }, // drafts, and publishDocument
-        posts: { read: true, write: "draft" }, // drafts only
-        tags: true, // shorthand for { read: true }
+        pages: true, // everything the collection supports
+        posts: { publish: false }, // everything except publishing
+        tags: { write: false }, // read only
       },
       globals: {
         "site-settings": true,
@@ -88,11 +88,12 @@ Claude Desktop and the MCP Inspector are covered in
 
 | Option                        | Default                                   | Description                                                         |
 | ----------------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
-| `collections`                 | required                                  | Collections to expose. `true` means `{ read: true }`.               |
+| `collections`                 | required                                  | Collections to expose. `true` means `{}`, everything it supports.   |
 | `collections.<slug>.read`     | `true`                                    | Expose the read tools for this collection.                          |
-| `collections.<slug>.write`    | `false`                                   | `"draft"`, `"live"` or `false`: how far writes reach.               |
+| `collections.<slug>.write`    | `true`                                    | Expose the write tools. Without drafts, a write goes live.          |
+| `collections.<slug>.publish`  | `true` with drafts                        | Expose `publishDocument`. Needs `versions.drafts` and `write`.      |
 | `collections.<slug>.versions` | `false`                                   | Expose version history. Needs Payload `versions` on the entity.     |
-| `globals`                     | `{}`                                      | Globals to expose, with the same `read`, `write` and `versions`.    |
+| `globals`                     | `{}`                                      | Globals to expose, with the same four options.                      |
 | `userCollection`              | `config.admin.user`, then `users`         | Auth collection whose users the keys act as.                        |
 | `apiKeys.slug`                | `mcpx-api-keys`                           | Slug of the key collection.                                         |
 | `apiKeys.setupGuide`          | `true`                                    | Add the "Connect a client" tab to saved keys.                       |
@@ -104,10 +105,11 @@ Claude Desktop and the MCP Inspector are covered in
 | `auth.resolve`                | none                                      | Replace or wrap the key lookup.                                     |
 | `serverInfo`                  | `payloadcms-mcpx` and the package version | `{ name, version }` reported to clients.                            |
 
-`write: "draft"` needs `versions.drafts` on the entity. `write: "live"` on an entity with drafts
-exposes `publishDocument`; on one without drafts it lets writes change the live document.
-Old versions follow the collection's `access.readVersions`, so read
-[version history](./docs/security.md#version-history) before setting `versions: true`.
+The config only takes capabilities away: `true` exposes everything the entity supports, and a key's
+checkboxes decide what each key may do. `publish: false` keeps MCP writes as drafts. On an entity
+without drafts, a write changes the live document. `versions` defaults to `false`: version history
+has no checkbox of its own and follows the key's read, so the config opts in. Read
+[version history](./docs/security.md#version-history) before turning it on.
 Mistakes in the options fail at startup. [`docs/integration.md`](./docs/integration.md) lists
 every check.
 
@@ -134,12 +136,13 @@ every argument.
 A key can do something only when both the config and the key allow it.
 
 The plugin config sets the upper bound: which collections and globals are exposed, and whether
-each one is readable, writable as drafts, or writable live. A key cannot go past it.
+each one is readable, writable and publishable. A key cannot go past it.
 
 Each key carries one checkbox per exposed entity and operation (`read`, `write`, `publish`), and
 one per custom tool. The admin panel shows them as a matrix with a row per entity and a column per
 operation. A cell the config does not expose shows a dash. `publish` exists only where the config
-sets `write: "live"` on an entity with drafts, and counts only when `write` is ticked as well.
+exposes `write` and `publish` on an entity with drafts, and counts only when `write` is ticked as
+well. A write checkbox on an entity without drafts is marked "Writes go live immediately."
 
 `tools/list` follows the key. A tool the key cannot use is not listed, and each `collection` and
 `global` argument lists only the slugs the key may use with that tool. A checkbox added by a later

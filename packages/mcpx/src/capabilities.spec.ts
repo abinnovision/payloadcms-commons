@@ -121,7 +121,7 @@ describe("resolveCapabilities", () => {
 		});
 
 		expect(scopeSlugs(ticked.collections).publishable).toEqual(["pages"]);
-		// site-settings is write: "draft", so the config never offers publish.
+		// site-settings has write "draft", so the config never offers publish.
 		expect(scopeSlugs(ticked.globals).publishable).toEqual([]);
 	});
 

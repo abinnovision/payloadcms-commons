@@ -23,6 +23,12 @@ described under [Capabilities](../README.md#capabilities) in the README. A check
 missing or unticked counts as no. Auth collections cannot be exposed at all, since their documents
 carry credentials.
 
+`true` exposes everything the entity supports, so read the config as a ceiling: it names what a
+key may be granted, and a key starts with every checkbox off. A new key can only call
+`listCapabilities` until someone ticks something. Where an entity has no drafts, `write` changes
+live content, and the key form marks that row. `publish: false` keeps writes as drafts on an
+entity with drafts.
+
 ### Who can create keys
 
 By default, any user in the user collection can create a key and tick any capability the config
@@ -31,7 +37,7 @@ keys. To restrict who may create keys, override the collection's `create` access
 
 ```ts
 mcpxPlugin({
-  collections: { pages: { read: true, write: "draft" } },
+  collections: { pages: { publish: false } },
   apiKeys: {
     overrideCollection: (collection) => ({
       ...collection,
@@ -84,15 +90,16 @@ block rows stays. For what this does not cover, see [known limitations](#known-l
 
 ### Version history
 
-Version history is off unless an entity sets `versions: true`. Without it, the slug is missing from
-`findVersions` (the tool is not registered at all when the key reaches no opted-in entity) and
-`getDocument` refuses `versionId` and `diffFrom` for it. With it, a key that
+Version history is off unless the entity sets `versions: true`, because it has no checkbox of its
+own and follows the key's read. Where it is off,
+the slug is missing from `findVersions` (the tool is not registered at all when the key reaches no
+entity with it) and `getDocument` refuses `versionId` and `diffFrom` for it. Where it is on, a key that
 may read the entity reads its history too. The tools read the document with the key's access
 first. Old versions are then governed by the collection's `access.readVersions`, which Payload
 defaults to any logged-in user. A `read` rule that depends on document content does not apply to
 old versions, so a document that passes it now exposes older states it would have excluded.
 
-Before opting in, give `readVersions` a filter on the version fields that matches the `read`
+Before turning it on, give `readVersions` a filter on the version fields that matches the `read`
 filter:
 
 ```ts
@@ -202,7 +209,7 @@ whose user has no `id` or whose `collection` is not the configured user collecti
 - Rich text is not walked, so fields of block nodes and documents populated in nodes keep their
   `admin.hidden` fields. Set `hidden` or field-level `read` access on values that must not reach
   clients.
-- With `versions: true`, old versions are governed by the collection's `access.readVersions`, not
+- Where version history is exposed, old versions are governed by the collection's `access.readVersions`, not
   by its `read` rule. Payload lets any logged-in user through by default. See
   [Version history](#version-history) for a `readVersions` filter.
 - `admin.hidden` set on a row, collapsible, unnamed group or tab is not applied to the fields
