@@ -190,6 +190,7 @@ describe("tool responses", () => {
 					locales: { codes: ["en", "de"], default: "en" },
 					limits: { maxLimit: 25, maxDepth: 1 },
 					tools: [],
+					server: expect.objectContaining({ name: "payloadcms-mcpx" }),
 				},
 			});
 		});

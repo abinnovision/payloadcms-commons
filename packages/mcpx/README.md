@@ -103,6 +103,7 @@ Claude Desktop and the MCP Inspector are covered in
 | `tools`                      | `[]`                                      | Custom tools, see [`docs/custom-tools.md`](./docs/custom-tools.md). |
 | `auth.resolve`               | none                                      | Replace or wrap the key lookup.                                     |
 | `serverInfo`                 | `payloadcms-mcpx` and the package version | `{ name, version }` reported to clients.                            |
+| `diagnostics`                | `true`                                    | Expose the server version plus repository and issue links.          |
 
 The config only takes capabilities away: `true` exposes everything the entity supports, and a key's
 checkboxes decide what each key may do. `publish: false` keeps MCP writes as drafts. On an entity

@@ -71,6 +71,9 @@ export const buildScope = (
 				}
 			: null,
 		limits: options.limits,
+		diagnostics: options.diagnostics
+			? { name: options.serverInfo.name, version: options.serverInfo.version }
+			: null,
 		exposure: { collections: options.collections, globals: options.globals },
 	};
 };

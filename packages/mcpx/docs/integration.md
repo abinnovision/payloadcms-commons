@@ -11,6 +11,13 @@ A request without a valid key gets HTTP 401 with JSON-RPC code `-32001` and a
 `WWW-Authenticate: Bearer` header. The size limits are listed in
 [security.md](./security.md#limits).
 
+## Diagnostics
+
+By default the server reports the repository as `websiteUrl` in its server info, and
+`listCapabilities` returns a `server` block with the server name and version and links to the
+repository and the issue tracker. A client can use it to file a useful bug report.
+`diagnostics: false` removes both.
+
 ## Startup validation
 
 The plugin checks its options when Payload builds the config and throws `InvalidConfiguration`

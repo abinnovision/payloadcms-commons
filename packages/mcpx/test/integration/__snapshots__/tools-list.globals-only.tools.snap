@@ -1,7 +1,7 @@
 [
   {
     "name": "listCapabilities",
-    "description": "Lists what this key may do. Call it first. Returns each collection and global the key can read or write, with whether it can create, publish, has drafts and exposes versions to findVersions, and a collection's \"idType\". Also returns the locales, the \"limits\" on page size and depth, and the enabled custom tools.",
+    "description": "Lists what this key may do. Call it first. Returns each collection and global the key can read or write, with whether it can create, publish, has drafts and exposes versions to findVersions, and a collection's \"idType\". Also returns the locales, the \"limits\" on page size and depth, and the enabled custom tools. Its \"server\" block holds the server version with repository and issue links, for a bug report.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
