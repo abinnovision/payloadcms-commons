@@ -15,8 +15,8 @@ import type {
 } from "payload";
 
 /*
- * Cleared on every MCP write, publishes included, so a caller cannot supply
- * them. `publishSpecificLocale` is cleared except on a marked publish.
+ * Cleared on every MCP write so a caller cannot supply them, except
+ * `publishSpecificLocale`, which a marked publish keeps.
  */
 const STRIPPED_ARGS = new Set([
 	"where",
@@ -86,16 +86,13 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 };
 
 /**
- * The global counterpart of {@link forceDraftWrite}. `updateGlobal` destructures
- * `draft` and the publish arguments before it runs `beforeOperation` and
- * re-reads only `data` afterwards, so setting them here has no effect. Only
- * `data` with `_status` stripped lands, so a write that did not ask for a draft
- * is refused here and {@link refusePublishGlobal} checks the status. `publishDocument`
- * therefore passes `draft: false` at the call site, and this hook restores
- * `_status` instead of stripping it.
+ * The global counterpart of {@link forceDraftWrite}. `updateGlobal` reads
+ * `draft` and the publish arguments before this hook runs, so only changes to
+ * `data` take effect. A write to a global with drafts that did not ask for a
+ * draft save is therefore refused here, and `_status` is restored for a publish.
  */
 export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
-	const { operation, req } = hookArgs;
+	const { global, operation, req } = hookArgs;
 	const args = hookArgs.args as Record<string, unknown>;
 
 	if (!isMcpxRequest(req) || operation !== "update") {
@@ -107,9 +104,14 @@ export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 	/*
 	 * A save that is not a draft save writes the main table, which holds the
 	 * live content once a locale was published on its own: the `_status` check
-	 * in {@link refuseUnlessExpected} cannot tell that write from a draft.
+	 * cannot tell that write from a draft. Globals without drafts are live
+	 * either way.
 	 */
-	if (!publishing && args["draft"] !== true) {
+	if (!publishing && args["draft"] !== true && hasDraftsEnabled(global)) {
+		req.payload.logger.warn(
+			`[payloadcms-mcpx] Refused a write to ${global.slug} that did not ask for a draft save.`,
+		);
+
 		throw new APIError(
 			"MCP clients may only write drafts. This write was refused because it would not have been saved as one. Use publishDocument to publish.",
 			403,

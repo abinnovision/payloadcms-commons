@@ -245,10 +245,14 @@ const globalOperationArgumentsFor = (
 	args: Record<string, unknown>,
 	operation = "update",
 	req: Record<string, unknown> = mcpxRequest,
+	global: Record<string, unknown> = {
+		slug: "site-settings",
+		versions: { drafts: true },
+	},
 ): Record<string, unknown> => {
 	const hookArgs: unknown = {
 		args,
-		global: { slug: "site-settings" },
+		global,
 		operation,
 		req,
 	};
@@ -281,17 +285,33 @@ describe("forceDraftWriteGlobal", () => {
 	});
 
 	it.each([false, undefined])(
-		"refuses a write that is not a draft save (draft: %s)",
+		"refuses and logs a write that is not a draft save (draft: %s)",
 		(draft) => {
+			const warn = vi.fn();
+			const req = { ...mcpxRequest, payload: { logger: { warn } } };
+
 			expect(() =>
-				globalOperationArgumentsFor({
-					data: { title: "Home" },
-					draft,
-					slug: "site-settings",
-				}),
+				globalOperationArgumentsFor(
+					{ data: { title: "Home" }, draft, slug: "site-settings" },
+					"update",
+					req,
+				),
 			).toThrow(/may only write drafts/);
+			expect(warn).toHaveBeenCalledWith(
+				expect.stringContaining("site-settings"),
+			);
 		},
 	);
+
+	it("lets a global without drafts through without draft: true", () => {
+		const args = { data: { title: "Home" }, slug: "banner" };
+
+		expect(
+			globalOperationArgumentsFor(args, "update", mcpxRequest, {
+				slug: "banner",
+			}),
+		).toMatchObject({ slug: "banner" });
+	});
 
 	it("strips every publish vector updateGlobal accepts", () => {
 		const next = globalOperationArgumentsFor({

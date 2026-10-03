@@ -24,8 +24,8 @@ shows the blockers of every locale beforehand, and the publish result lists them
 
 The publish-blocker check after a write validates only the locale that was written. It also runs
 the fields' `beforeValidate` and `beforeChange` hooks a second time, so a hook with side effects
-fires twice per write and once per locale per `validateDocument` call. Keep side effects out of
-those hooks.
+fires twice per write. It also fires once per other locale on each `publishDocument`, and once
+per locale on each `validateDocument` call without `locale`. Keep side effects out of those hooks.
 
 `expectedUpdatedAt` is checked before the write, inside a transaction, but the read does not lock
 the row. A change landing between the check and the write is not detected.

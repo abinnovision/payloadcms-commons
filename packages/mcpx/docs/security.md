@@ -128,7 +128,8 @@ Some reads run with full access, because they answer a question about the whole 
   that read with `overrideAccess: true` to collect publish blockers. `validateDocument` first
   reads the document with the key's access and fails if the user cannot see it.
 - The publish-blocker check runs the fields' `beforeValidate` and `beforeChange` hooks, including
-  on `validateDocument`, which saves nothing.
+  on `validateDocument`, which saves nothing. It runs once per locale on `validateDocument` without
+  `locale` and once per other locale on `publishDocument`.
 
 What these reads return to the client: the document id (or the global's slug), `status`,
 `updatedAt`, each publish blocker's message, pointer and field label, and the `notApplied`

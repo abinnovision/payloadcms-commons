@@ -178,12 +178,9 @@ export const readDraft = async (
 };
 
 /**
- * {@link collectPublishBlockers} over the draft of each locale, with every
- * blocker tagged by its locale. A blocker on a non-localized field appears once
- * per locale, because it blocks each of them. Locales run one after another:
- * hooks share `req`, and each read sets its locale on it, so the request's
- * locale is restored afterwards. `unavailable` is set when any locale could not
- * be checked.
+ * {@link collectPublishBlockers} over the draft of each locale, each blocker
+ * tagged with its locale. Locales run in turn because hooks share `req`, and
+ * the request's locale and fallback locale are restored afterwards.
  */
 export const collectLocaleBlockers = async (
 	scope: McpxToolScope,
@@ -191,7 +188,7 @@ export const collectLocaleBlockers = async (
 	locales: readonly string[],
 ): Promise<{ blockers: PublishBlocker[]; unavailable?: true }> => {
 	const { req } = scope;
-	const requestLocale = req.locale;
+	const { fallbackLocale, locale: requestLocale } = req;
 	const blockers: PublishBlocker[] = [];
 	let unavailable = false;
 
@@ -214,6 +211,10 @@ export const collectLocaleBlockers = async (
 
 	if (requestLocale !== undefined) {
 		req.locale = requestLocale;
+	}
+
+	if (fallbackLocale !== undefined) {
+		req.fallbackLocale = fallbackLocale;
 	}
 
 	return { blockers, ...(unavailable ? { unavailable: true as const } : {}) };
