@@ -192,6 +192,11 @@
             "string",
             "number"
           ]
+        },
+        "download": {
+          "description": "Only for media. Adds \"download\": GET its \"url\" with its \"headers\" once, within 5 minutes, for the file. Not with \"path\", \"versionId\" or \"diffFrom\".",
+          "type": "boolean",
+          "const": true
         }
       },
       "required": [
@@ -298,7 +303,6 @@
           "description": "Localized fields are written in this locale only."
         },
         "patches": {
-          "minItems": 1,
           "maxItems": 500,
           "type": "array",
           "items": {
@@ -428,11 +432,39 @@
                 "additionalProperties": false
               }
             ]
-          }
+          },
+          "description": "May be empty when \"file\" is given."
         },
         "expectedUpdatedAt": {
           "description": "\"updatedAt\" from your last read. Refused if the document changed since.",
           "type": "string"
+        },
+        "file": {
+          "description": "Replaces the file of a document in media. The call returns an \"upload\" for the bytes instead of writing.",
+          "type": "object",
+          "properties": {
+            "filename": {
+              "type": "string",
+              "maxLength": 255,
+              "pattern": "^[^/\\\\\\p{Cc}]+$"
+            },
+            "mimeType": {
+              "type": "string",
+              "maxLength": 255,
+              "pattern": "^[\\w.+-]+\\/[\\w.+-]+$"
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 26214400
+            }
+          },
+          "required": [
+            "filename",
+            "mimeType",
+            "size"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -455,7 +487,7 @@
   },
   {
     "name": "createDocument",
-    "description": "Creates a document in a collection. Use it only when the document does not exist yet. Returns \"id\", \"status\", \"updatedAt\" and, if any, \"publishBlockers\". \"publishBlockersUnavailable\" means that check failed. \"data\" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has \"draftValidation\" true or \"drafts\" false. A field describeSchema does not list is refused, and \"id\" is always assigned.\n\nEvery write is saved as a draft. Documents in media are files and cannot be created here. Upload the file in the admin panel, then edit its fields with patchDocument.",
+    "description": "Creates a document in a collection. Use it only when the document does not exist yet. Returns \"id\", \"status\", \"updatedAt\" and, if any, \"publishBlockers\". \"publishBlockersUnavailable\" means that check failed. \"data\" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has \"draftValidation\" true or \"drafts\" false. A field describeSchema does not list is refused, and \"id\" is always assigned.\n\nEvery write is saved as a draft.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -463,7 +495,8 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages"
+            "pages",
+            "media"
           ]
         },
         "locale": {
@@ -481,6 +514,33 @@
           },
           "additionalProperties": {},
           "description": "Field values by name, e.g. {\"title\":\"Home\",\"slug\":\"home\"}."
+        },
+        "file": {
+          "description": "Required in media. The call returns an \"upload\" for the bytes instead of writing.",
+          "type": "object",
+          "properties": {
+            "filename": {
+              "type": "string",
+              "maxLength": 255,
+              "pattern": "^[^/\\\\\\p{Cc}]+$"
+            },
+            "mimeType": {
+              "type": "string",
+              "maxLength": 255,
+              "pattern": "^[\\w.+-]+\\/[\\w.+-]+$"
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 26214400
+            }
+          },
+          "required": [
+            "filename",
+            "mimeType",
+            "size"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

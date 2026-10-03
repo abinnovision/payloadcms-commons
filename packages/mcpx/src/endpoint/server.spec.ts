@@ -114,7 +114,7 @@ describe("builtin tool shapes", () => {
 		).toMatchObject({ enum: ["pages", "tags"] });
 	});
 
-	it("keeps an upload collection out of createDocument but not patchDocument", () => {
+	it("offers an upload collection with mimeTypes to createDocument, with a file", () => {
 		const scope = scopeFor(
 			withUpload,
 			{
@@ -125,18 +125,18 @@ describe("builtin tool shapes", () => {
 			},
 			config,
 		);
+		const create = schemaOf(scope, "createDocument");
 
-		expect(
-			schemaOf(scope, "patchDocument").properties["collection"],
-		).toMatchObject({ enum: ["pages", "media"] });
-		expect(
-			schemaOf(scope, "createDocument").properties["collection"],
-		).toMatchObject({ enum: ["pages"] });
+		expect(create.properties["collection"]).toMatchObject({
+			enum: ["pages", "media"],
+		});
+		expect(create.properties).toHaveProperty("file");
+		expect(schemaOf(scope, "patchDocument").properties).toHaveProperty("file");
 	});
 
-	it("disables createDocument for a key whose only write is an upload collection", () => {
+	it("leaves upload collections and files out when a custom resolver is set", () => {
 		const scope = scopeFor(
-			withUpload,
+			{ ...withUpload, auth: { resolve: () => Promise.resolve(null) } },
 			{ collections: { media: { read: true, write: true } } },
 			config,
 		);
@@ -146,6 +146,9 @@ describe("builtin tool shapes", () => {
 
 		expect(names).toContain("patchDocument");
 		expect(names).not.toContain("createDocument");
+		expect(schemaOf(scope, "patchDocument").properties).not.toHaveProperty(
+			"file",
+		);
 	});
 
 	it("enables write tools only for keys that may write", () => {

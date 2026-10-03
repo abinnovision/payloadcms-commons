@@ -1,4 +1,4 @@
-import { Forbidden, NotFound } from "payload";
+import { APIError, Forbidden, NotFound } from "payload";
 import { Pointer } from "rfc6902";
 import { z } from "zod";
 
@@ -19,6 +19,14 @@ import { defineMcpxTool } from "../define-tool.js";
 import { isPlainObject } from "../guards.js";
 import { errorResult, jsonResult } from "../result.js";
 import { JSON_POINTER_PATTERN } from "../schema/index.js";
+import {
+	assertAcceptsFile,
+	fileShape,
+	fileSlugs,
+	fileWriteRefusal,
+	uploadedFile,
+	uploadHandoff,
+} from "../upload/file.js";
 import { applyPatchOperations, isElementPointer } from "../write/patch.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { withTransaction } from "../write/transaction.js";
@@ -26,6 +34,7 @@ import { buildWriteData } from "../write/write-data.js";
 
 import type { McpxToolScope } from "../types.js";
 import type { PatchOperation } from "../write/patch.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 const DESCRIPTION = (
 	scope: McpxToolScope,
@@ -121,12 +130,22 @@ const notAppliedPointers = (
 		return survives(expected, actual) ? [] : [operation.path];
 	});
 
+/*
+ * What the transaction ends with: a finished result, the arguments of a call
+ * that waits for its file, or a write whose report is read after the commit.
+ */
+type Outcome =
+	| { done: CallToolResult }
+	| { handoff: Record<string, unknown> & { file: object } }
+	| { written: Record<string, unknown> };
+
 /**
  * The handler validates the whole batch against the schema and the current
  * document before writing anything, runs the write in a transaction, then
  * re-reads the saved document to report which pointers survived and what still
  * blocks publishing. The draft guard, not this tool, decides where the write
- * lands.
+ * lands. With `file`, the patches and the file land as one update, and the
+ * transaction commits right after it because Payload has moved files by then.
  */
 export const patchDocument = defineMcpxTool({
 	name: "patchDocument",
@@ -146,13 +165,24 @@ export const patchDocument = defineMcpxTool({
 			required: true,
 			description: "Localized fields are written in this locale only.",
 		}),
-		patches: z.array(PATCH_OPERATION_SCHEMA).min(1).max(PATCHES_LIMIT),
+		patches:
+			fileSlugs(scope).length === 0
+				? z.array(PATCH_OPERATION_SCHEMA).min(1).max(PATCHES_LIMIT)
+				: z
+						.array(PATCH_OPERATION_SCHEMA)
+						.max(PATCHES_LIMIT)
+						.describe('May be empty when "file" is given.'),
 		expectedUpdatedAt: z
 			.string()
 			.optional()
 			.describe(
 				'"updatedAt" from your last read. Refused if the document changed since.',
 			),
+		...fileShape(
+			scope,
+			(slugs) =>
+				`Replaces the file of a document in ${slugs}. The call returns an "upload" for the bytes instead of writing.`,
+		),
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "write");
@@ -164,60 +194,23 @@ export const patchDocument = defineMcpxTool({
 		 * gap once instead of at each use.
 		 */
 		const patches = args.patches as PatchOperation[];
+		const { file } = args;
+		const bytes = uploadedFile(scope.req);
 
-		return await withTransaction(scope.req, async () => {
-			const doc = await readDraft(scope, { target, locale });
-			const stale = staleReadResult(
-				doc,
-				args.expectedUpdatedAt,
-				"The document changed since you read it. Read it again and re-apply the patch.",
+		if (file !== undefined) {
+			assertAcceptsFile(scope, target, file);
+		}
+
+		if (patches.length === 0 && file === undefined) {
+			throw new APIError(
+				'"patches" may be empty only when "file" is given.',
+				400,
 			);
+		}
 
-			if (stale) {
-				return stale;
-			}
-
-			const applied = applyPatchOperations(payload.config, {
-				doc,
-				patches,
-				ref: target,
-			});
-
-			if ("problems" in applied) {
-				return errorResult("No operation was applied.", {
-					problems: applied.problems,
-				});
-			}
-
-			const write = {
-				data: buildWriteData(payload.config, target.config, applied.next),
-				depth: 0,
-				draft: true,
-				overrideAccess: false,
-				req: scope.req,
-				...(locale === undefined ? {} : { locale }),
-			};
-
-			if (target.kind === "collection") {
-				await payload.update({
-					...write,
-					collection: target.slug,
-					id: target.id,
-				});
-			} else {
-				/*
-				 * `updateGlobal` passes `fallbackLocale` through to the read it merges
-				 * the write onto, and Payload defaults that to the default locale.
-				 * Without this, a value missing in the written locale would be
-				 * backfilled from another locale and persisted.
-				 */
-				await payload.updateGlobal({
-					...write,
-					fallbackLocale: false,
-					slug: target.slug,
-				});
-			}
-
+		const report = async (
+			next: Record<string, unknown>,
+		): Promise<CallToolResult> => {
 			const saved = await readDraft(scope, {
 				target,
 				locale,
@@ -240,7 +233,7 @@ export const patchDocument = defineMcpxTool({
 				},
 			);
 			const notApplied = readable
-				? notAppliedPointers(patches, applied.next, readable)
+				? notAppliedPointers(patches, next, readable)
 				: [];
 			const validation = await collectPublishBlockers(scope.req, {
 				doc: saved,
@@ -257,6 +250,99 @@ export const patchDocument = defineMcpxTool({
 				...(validation.unavailable ? { publishBlockersUnavailable: true } : {}),
 				...(notApplied.length > 0 ? { notApplied } : {}),
 			});
+		};
+
+		const outcome = await withTransaction<Outcome>(scope.req, async () => {
+			const doc = await readDraft(scope, { target, locale });
+			const stale = staleReadResult(
+				doc,
+				args.expectedUpdatedAt,
+				"The document changed since you read it. Read it again and re-apply the patch.",
+			);
+
+			if (stale) {
+				return { done: stale };
+			}
+
+			const applied = applyPatchOperations(payload.config, {
+				doc,
+				patches,
+				ref: target,
+			});
+
+			if ("problems" in applied) {
+				return {
+					done: errorResult("No operation was applied.", {
+						problems: applied.problems,
+					}),
+				};
+			}
+
+			if (file !== undefined && target.kind === "collection") {
+				const refusal = await fileWriteRefusal(scope, {
+					entity: target,
+					id: target.id,
+					data: applied.next,
+				});
+
+				if (refusal) {
+					return { done: refusal };
+				}
+
+				// Pinned to the state the call was checked against.
+				if (!bytes) {
+					return {
+						handoff: { ...args, file, expectedUpdatedAt: doc["updatedAt"] },
+					};
+				}
+			}
+
+			const write = {
+				data: buildWriteData(payload.config, target.config, applied.next),
+				depth: 0,
+				draft: true,
+				overrideAccess: false,
+				req: scope.req,
+				...(locale === undefined ? {} : { locale }),
+			};
+
+			if (target.kind === "collection") {
+				await payload.update({
+					...write,
+					collection: target.slug,
+					id: target.id,
+					...(bytes === undefined ? {} : { file: bytes }),
+				});
+			} else {
+				/*
+				 * `updateGlobal` passes `fallbackLocale` through to the read it merges
+				 * the write onto, and Payload defaults that to the default locale.
+				 * Without this, a value missing in the written locale would be
+				 * backfilled from another locale and persisted.
+				 */
+				await payload.updateGlobal({
+					...write,
+					fallbackLocale: false,
+					slug: target.slug,
+				});
+			}
+
+			return bytes === undefined
+				? { done: await report(applied.next) }
+				: { written: applied.next };
 		});
+
+		if ("done" in outcome) {
+			return outcome.done;
+		}
+
+		if ("handoff" in outcome) {
+			return await uploadHandoff(scope, {
+				tool: "patchDocument",
+				args: outcome.handoff,
+			});
+		}
+
+		return await report(outcome.written);
 	},
 });

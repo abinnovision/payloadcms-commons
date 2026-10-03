@@ -211,7 +211,7 @@ export const MEDIA_DIR = join(tmpdir(), "mcpx-fixture-media");
  */
 export const media: CollectionConfig = {
 	slug: "media",
-	upload: { staticDir: MEDIA_DIR },
+	upload: { staticDir: MEDIA_DIR, mimeTypes: ["image/*"] },
 	versions: { drafts: true },
 	fields: [
 		{ name: "alt", type: "text", required: true, localized: true },

@@ -189,6 +189,72 @@ The guard does not cover:
 - collections and globals without drafts, where a write changes the live document;
 - writes that do not carry the MCP `req`, since the marker travels on it.
 
+## Uploads
+
+A `createDocument` or `patchDocument` call with `file` writes nothing. It runs every check the
+call runs, stores the call as a grant in Payload's KV and returns an `upload`: a URL, the method
+`PUT` and the headers to send. The PUT to `{routes.api}{endpoint.path}/upload`, with the file as
+its body, claims the grant and runs the same call again with the bytes attached. Its response body
+is the result of that call, with HTTP 200 on success, 409 for a stale or locked document, 403 for
+a refused grant and 422 for other problems.
+
+The grant id in `x-mcpx-grant` is a bearer. Whoever holds it can complete that one call, as that
+key, for 5 minutes, and only once. Keep it out of shared transcripts. The plugin never logs it,
+but APM tools may record custom headers. Do not add `x-mcpx-grant` to `cors.headers`, so a page
+on another origin cannot send it.
+
+- The KV holds the HMAC of the grant id under the Payload secret, never the id itself. A row
+  written there by other code or straight to the database cannot be claimed without the secret.
+- The claim is a unique-key insert that no rollback undoes, so of two PUTs with one id exactly one
+  runs. A failed PUT uses the grant up, and the client calls the tool again.
+- The PUT reloads the key and refuses it when it was disabled, expired or unticked since, or its
+  user is locked out or unverified. It always acts as the key's user, whatever cookie the request
+  carries. `?locale` and `?uploadEdits` on the URL are ignored, so the locale is the one of the
+  tool call.
+- The body must have exactly the size the call declared. The request's `Content-Type` is ignored:
+  the file carries the declared `mimeType`, which must match `upload.mimeTypes`.
+- A patch is pinned to the `updatedAt` it was checked against. A change in between refuses the
+  PUT as stale.
+- A key may have 10 grants waiting at a time.
+
+A `getDocument` call with `download: true` stores a grant of the same kind for the document it
+read, with the same lifetime, single use and per-key limit. The GET to
+`{routes.api}{endpoint.path}/file` claims it, reloads the key as the PUT does, checks that the key
+still reads the collection and reloads the document as the key's user. It then hands the request
+to the collection's own `/file/:filename` endpoint, so Payload's `access.read`, storage handlers
+and `upload.modifyResponseHeaders` apply as for any request of that user. A document the user can
+no longer read is refused with 403. A grant sent to the other endpoint, a download grant to the
+PUT or an upload grant to the GET, is used up and refused. A storage adapter with
+`disablePayloadAccessControl` serves its files itself, so this endpoint and Payload's file access
+do not apply to them.
+
+Uploads and downloads need all of the following, and no tool offers `file` or `download`
+otherwise. `upload.mimeTypes` applies to uploads only:
+
+- `upload.mimeTypes` on the collection. Payload checks the file content against it only where it
+  is set; without it any type is stored, HTML and SVG included.
+- Payload's database KV adapter, the default. The claim relies on its unique `key`.
+- No `auth.resolve`. The PUT authenticates by the key alone and cannot replay a custom resolver.
+
+Serve uploaded files so a browser does not run them: set `upload.modifyResponseHeaders` to add
+`Content-Disposition: attachment` and `Content-Security-Policy: sandbox`, and set the same
+headers on the bucket or CDN when files live in cloud storage.
+
+Set `serverURL` in production. Without it, the handoff URL is built from the origin of the MCP
+request, which comes from its `Host` or forwarded headers.
+
+A file may be up to 25 MB, or `upload.limits.fileSize` when that is smaller. The body is buffered
+in memory. A host with a smaller body limit, such as Vercel at about 4.5 MB, caps uploads at that.
+
+Payload deletes the old file of a replace before it validates the document, and deletes it even
+for a draft unless the latest version is published. Two refusals guard against losing a file
+that is still in use:
+
+- A replace is refused while the latest draft still uses the published file, for example after an
+  alt-only edit. Publish or discard that draft first.
+- Where Payload validates the write (no drafts, or `drafts.validate`), the document with the
+  patches applied is validated before the call returns its `upload`, and refused if it fails.
+
 ## Custom tools and custom auth
 
 Custom tools are trusted code. A handler receives the raw request with `req.user` set to the

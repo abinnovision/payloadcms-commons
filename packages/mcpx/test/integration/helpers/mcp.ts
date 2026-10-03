@@ -45,6 +45,43 @@ export const mcpPost = (
 	});
 };
 
+/**
+ * Sends the PUT an `upload` result describes, through Payload's router.
+ */
+export const uploadPut = (
+	booted: Booted,
+	args: {
+		url: string;
+		headers?: Record<string, string>;
+		body?: Buffer | ReadableStream<Uint8Array>;
+	},
+): Promise<Response> =>
+	handleEndpoints({
+		config: booted.config,
+		payloadInstanceCacheKey: booted.cacheKey,
+		request: new Request(args.url, {
+			method: "PUT",
+			...(args.headers === undefined ? {} : { headers: args.headers }),
+			...(args.body === undefined
+				? {}
+				: { body: args.body as BodyInit, duplex: "half" }),
+		}),
+	});
+
+/**
+ * Sends a GET with `headers` to `url`, through Payload's router.
+ */
+export const endpointGet = (
+	booted: Booted,
+	url: string,
+	headers: Record<string, string> = {},
+): Promise<Response> =>
+	handleEndpoints({
+		config: booted.config,
+		payloadInstanceCacheKey: booted.cacheKey,
+		request: new Request(url, { headers }),
+	});
+
 interface RpcResponse {
 	status: number;
 	body: {

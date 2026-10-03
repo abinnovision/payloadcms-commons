@@ -1,5 +1,4 @@
 import {
-	canCreate,
 	canPublish,
 	canWrite,
 	CAPABILITIES_FIELD,
@@ -78,22 +77,11 @@ export interface CapabilityMatrix {
 	tools: CapabilityTool[];
 }
 
-const UPLOAD_HINT = "Files are uploaded in the admin panel.";
 const LIVE_HINT = "Writes go live immediately.";
 
-/*
- * An upload collection's `write` reaches the document's own fields but never
- * `createDocument`, because no tool here carries a file. Without drafts a write
- * has no draft stage to land in.
- */
-const hintFor = (entity: McpxExposedEntity): Pick<CapabilityRow, "hint"> => {
-	const hints = [
-		canWrite(entity) && !canCreate(entity) ? UPLOAD_HINT : undefined,
-		isLiveWrite(entity) ? LIVE_HINT : undefined,
-	].filter((hint) => hint !== undefined);
-
-	return hints.length > 0 ? { hint: hints.join(" ") } : {};
-};
+// Without drafts a write has no draft stage to land in.
+const hintFor = (entity: McpxExposedEntity): Pick<CapabilityRow, "hint"> =>
+	isLiveWrite(entity) ? { hint: LIVE_HINT } : {};
 
 const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 	fieldName: entity.fieldName,

@@ -15,8 +15,8 @@ the same.
 | `findDocuments`    | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?`                   |
 | `getDocument`      | `collection` + `id` or `global`, `path?`, `depth?`, `locale?`, `draft?`, `outline?`, `versionId?`, `diffFrom?` |
 | `findVersions`     | `collection` + `id` or `global`, `limit?`, `page?`, `status?`, `locale?`                                       |
-| `patchDocument`    | `collection` + `id` or `global`, `locale`, `patches`, `expectedUpdatedAt?`                                     |
-| `createDocument`   | `collection`, `locale`, `data`                                                                                 |
+| `patchDocument`    | `collection` + `id` or `global`, `locale`, `patches`, `expectedUpdatedAt?`, `file?`                            |
+| `createDocument`   | `collection`, `locale`, `data`, `file?`                                                                        |
 | `validateDocument` | `collection` + `id` or `global`, `locale?`                                                                     |
 | `publishDocument`  | `collection` + `id` or `global`, `locale?`, `expectedUpdatedAt?`                                               |
 
@@ -26,9 +26,9 @@ to `true`, so reads return the latest draft.
 
 `listCapabilities` is registered for every key, including one with nothing ticked. It returns the
 collections and globals the key may read or write, whether a collection can also be created in
-(`create`, which is `false` for upload collections), draft and version settings, the id type, the
-configured locales, the limits in force and the custom tools the key may call. Collection and
-global descriptions from `admin.description` are included.
+(`create`, which is `false` for an upload collection whose files MCP does not accept), draft and
+version settings, the id type, the configured locales, the limits in force and the custom tools
+the key may call. Collection and global descriptions from `admin.description` are included.
 
 Every input schema is strict. An unknown argument is refused by name.
 
@@ -171,8 +171,42 @@ and `publishDocument` does under the same `publish` rule as other collections, s
 can edit the fields the collection declares, such as `alt` or a credit.
 
 The base fields Payload adds (`filename`, `url`, `filesize`, `sizes`, the focal point) are neither
-described nor writable. `createDocument` leaves upload collections out of its `collection` enum
-and says why in its description; see [limitations.md](./limitations.md#not-included).
+described nor writable.
+
+Files go through MCP where the collection sets `upload.mimeTypes`. There, `createDocument` takes
+the collection and requires `file`, and `patchDocument` takes `file` to replace the file of an
+existing document, keeping its id, so every relation to it shows the new file. `file` is
+`{ filename, mimeType, size }`. With it, `patches` may be empty.
+
+A call with `file` writes nothing and returns an `upload`:
+
+```json
+{
+  "upload": {
+    "url": "https://cms.example.com/api/mcpx/upload",
+    "method": "PUT",
+    "headers": { "content-type": "image/png", "x-mcpx-grant": "<grant id>" },
+    "expiresAt": "2026-01-01T12:05:00.000Z",
+    "maxBytes": 26214400
+  }
+}
+```
+
+The client PUTs the file there, for example with
+`curl -X PUT --data-binary @photo.png -H "content-type: image/png" -H "x-mcpx-grant: <grant id>" <url>`.
+The PUT runs the call with the file and answers with its result. The patches and the file land as
+one update and one version, and the draft guard decides where it lands as for any write: as a
+draft where the collection has drafts, where publishing switches the file, and live otherwise.
+
+`getDocument` with `download: true` reads a document of a readable upload collection as usual and
+adds `download: { url, method: "GET", headers, expiresAt }`. The GET to that URL with those
+headers returns the file, served by the collection's own `/file/:filename` endpoint as the key's
+user, so it works where `access.read` is not public. It does not combine with `path`, `versionId`
+or `diffFrom`.
+
+An upload collection without `upload.mimeTypes` stays patch-only: `createDocument` leaves it out
+of its `collection` enum and says why in its description. The requirements and refusals are in
+[security.md](./security.md#uploads).
 
 ## Drafts and publishing
 

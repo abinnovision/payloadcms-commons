@@ -3,7 +3,8 @@ Call the tools in this order:
 2. describeSchema: the fields.
 3. findDocuments or getDocument: the content and its "updatedAt".
 4. patchDocument or createDocument: the write.
-5. validateDocument: what blocks publishing.
+5. A write that returns "upload": PUT the file bytes to its "url" with its "headers". The response is the result of the write.
+6. validateDocument: what blocks publishing.
 
 describeSchema takes and returns schema paths. Every other "path", and "from" in a patch operation, is a pointer into a document, with a 0-based index where a schema path has "*" for an array element or a block slug: "/layout/sections/sectionWrapper/identifier" is "/layout/sections/0/identifier". In rich text a pointer enters the rich text state: "/content/block/callout/tone" is "/content/root/children/3/fields/tone". getDocument "outline" gives the index.
 

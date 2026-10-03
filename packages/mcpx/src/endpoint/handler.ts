@@ -4,9 +4,10 @@ import { isValidAuthResult, resolveApiKeyAuth } from "../auth/resolve.js";
 import { resolveCapabilities, scopeSlugs } from "../capabilities.js";
 import { jsonRpcError } from "./errors.js";
 import { createMcpServer } from "./server.js";
+import { uploadKvSlug } from "../upload/grant.js";
 
 import type { NormalizedOptions } from "../options.js";
-import type { McpxToolScope } from "../types.js";
+import type { McpxAuthResult, McpxToolScope } from "../types.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
 const BODY_BYTES_LIMIT = 4 * 1024 * 1024;
@@ -71,8 +72,36 @@ export const buildScope = (
 				}
 			: null,
 		limits: options.limits,
+		/*
+		 * A custom resolver may authenticate by more than the key, which the
+		 * upload endpoint cannot replay, so it turns uploads off.
+		 */
+		uploads:
+			options.auth?.resolve === undefined &&
+			uploadKvSlug(req.payload.config) !== undefined,
 		exposure: { collections: options.collections, globals: options.globals },
 	};
+};
+
+/**
+ * Makes `req` act as the key: sets `req.user`, replacing any user Payload
+ * resolved from cookies, and the `req.context.mcpx` stamp the draft guard
+ * reads. Returns the scope the tools see.
+ */
+export const authenticateAs = (
+	req: PayloadRequest,
+	options: NormalizedOptions,
+	auth: McpxAuthResult,
+): McpxToolScope => {
+	const capabilities = resolveCapabilities(options, auth.capabilities);
+
+	req.user = auth.user;
+	req.context = {
+		...req.context,
+		mcpx: { apiKeyId: auth.apiKeyId, capabilities },
+	};
+
+	return buildScope(req, options, capabilities);
 };
 
 /**
@@ -119,13 +148,7 @@ export const createMcpxHandler =
 			});
 		}
 
-		const capabilities = resolveCapabilities(options, auth.capabilities);
-
-		req.user = auth.user;
-		req.context = {
-			...req.context,
-			mcpx: { apiKeyId: auth.apiKeyId, capabilities },
-		};
+		const scope = authenticateAs(req, options, auth);
 
 		let parsedBody: unknown;
 		try {
@@ -164,10 +187,7 @@ export const createMcpxHandler =
 			});
 		}
 
-		const server = createMcpServer(
-			buildScope(req, options, capabilities),
-			options,
-		);
+		const server = createMcpServer(scope, options);
 
 		// No session id generator means stateless: one transport per request.
 		const transport = new WebStandardStreamableHTTPServerTransport({

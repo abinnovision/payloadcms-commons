@@ -161,10 +161,10 @@ describe("resolveCapabilities", () => {
 });
 
 describe("canCreate", () => {
-	it("follows write everywhere but an upload collection", () => {
+	it("follows write, upload collections included", () => {
 		expect(canCreate(entity("pages"))).toBe(true);
 		expect(canCreate(entity("pages", { write: "live" }))).toBe(true);
 		expect(canCreate(entity("pages", { write: false }))).toBe(false);
-		expect(canCreate(entity("pages", { isUpload: true }))).toBe(false);
+		expect(canCreate(entity("pages", { isUpload: true }))).toBe(true);
 	});
 });

@@ -48,9 +48,9 @@ export interface McpxCollectionOptions {
 	 */
 	read?: boolean;
 	/**
-	 * Expose `patchDocument`, `validateDocument` and, unless this is an upload
-	 * collection, `createDocument`. Without drafts a write changes live
-	 * content. Default `true`.
+	 * Expose `patchDocument`, `validateDocument` and `createDocument`. An upload
+	 * collection is created in only where MCP accepts its files. Without drafts
+	 * a write changes live content. Default `true`.
 	 */
 	write?: boolean;
 	/**
@@ -86,7 +86,7 @@ export interface McpxExposedEntity {
 	 */
 	hasVersions: boolean;
 	/**
-	 * An upload document is a file, and no tool here can supply one.
+	 * An upload document is a file, which only an upload grant can supply.
 	 */
 	isUpload: boolean;
 	/**
@@ -117,6 +117,11 @@ export interface McpxToolScope {
 	 */
 	localization: null | { locales: string[]; defaultLocale: string };
 	limits: { maxLimit: number; maxDepth: number };
+	/**
+	 * Whether files can be uploaded at all: the KV is database-backed and no
+	 * custom `auth.resolve` is configured.
+	 */
+	uploads: boolean;
 	exposure: {
 		collections: McpxExposedEntity[];
 		globals: McpxExposedEntity[];

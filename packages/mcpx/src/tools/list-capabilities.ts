@@ -1,6 +1,6 @@
 import { hasDraftValidationEnabled } from "payload/shared";
 
-import { canCreate } from "../capabilities.js";
+import { slugsFor } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { translateStatic, translatorFor } from "../i18n.js";
 import { jsonResult } from "../result.js";
@@ -37,6 +37,7 @@ export const listCapabilities = defineMcpxTool({
 	handler: ({ scope }) => {
 		const { payload } = scope.req;
 		const translate = translatorFor(scope.req.i18n);
+		const creatable = slugsFor(scope, "create").collections;
 
 		const collections = scope.exposure.collections.flatMap((entry) => {
 			const capability = scope.capabilities.collections[entry.slug];
@@ -65,11 +66,12 @@ export const listCapabilities = defineMcpxTool({
 					write: capability.write,
 					/*
 					 * Stated separately because it is the one narrowing of `write`
-					 * a client cannot infer: `createDocument` drops the collection
-					 * from its enum, and where it is the only writable one the tool
-					 * is not registered at all, leaving nothing else to read it off.
+					 * a client cannot infer: `createDocument` drops an upload
+					 * collection whose files MCP does not accept from its enum, and
+					 * where it is the only writable one the tool is not registered
+					 * at all, leaving nothing else to read it off.
 					 */
-					create: capability.write && canCreate(entry),
+					create: creatable.includes(entry.slug),
 					publish: capability.publish,
 					drafts: entry.hasDrafts,
 					versions: entry.hasVersions,

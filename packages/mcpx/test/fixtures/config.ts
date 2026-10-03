@@ -21,6 +21,7 @@ import type {
 	CollectionConfig,
 	DatabaseAdapterObj,
 	FlattenedField,
+	KVAdapterResult,
 	SanitizedConfig,
 } from "payload";
 
@@ -114,8 +115,8 @@ const defaultPluginOptions: McpxPluginOptions = {
  * in `init`, so this is safe for unit tests that never call `getPayload`.
  *
  * `users` replaces the fixture user collection, `collections` is appended to
- * the fixture collections and `db` replaces the in-memory adapter; without
- * them the config is unchanged.
+ * the fixture collections, `db` replaces the in-memory adapter and `kv`
+ * Payload's database KV; without them the config is unchanged.
  */
 export const buildFixtureConfig = (
 	overrides: {
@@ -123,11 +124,13 @@ export const buildFixtureConfig = (
 		users?: CollectionConfig;
 		collections?: CollectionConfig[];
 		db?: DatabaseAdapterObj;
+		kv?: KVAdapterResult;
 	} = {},
 ): Promise<SanitizedConfig> =>
 	buildConfig({
 		secret: "mcpx-test-secret",
 		db: overrides.db ?? sqliteAdapter({ client: { url: ":memory:" } }),
+		...(overrides.kv === undefined ? {} : { kv: overrides.kv }),
 		editor: lexicalEditor(),
 		localization: { locales: ["en", "de"], defaultLocale: "en" },
 		blocks: [calloutBlock, richTextBlock],

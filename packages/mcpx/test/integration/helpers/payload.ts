@@ -6,6 +6,7 @@ import type { McpxPluginOptions } from "../../../src/index.js";
 import type {
 	CollectionConfig,
 	DatabaseAdapterObj,
+	KVAdapterResult,
 	Payload,
 	SanitizedConfig,
 } from "payload";
@@ -36,6 +37,7 @@ export const bootPayload = async (
 		users?: CollectionConfig;
 		collections?: CollectionConfig[];
 		db?: DatabaseAdapterObj;
+		kv?: KVAdapterResult;
 	} = {},
 ): Promise<Booted> => {
 	const cacheKey = args.key ?? DEFAULT_CACHE_KEY;
@@ -46,6 +48,7 @@ export const bootPayload = async (
 			? {}
 			: { collections: args.collections }),
 		...(args.db === undefined ? {} : { db: args.db }),
+		...(args.kv === undefined ? {} : { kv: args.kv }),
 	});
 	const payload = await getPayload({ config, key: cacheKey });
 
@@ -245,7 +248,7 @@ export const storedState = async (
 /**
  * A one-pixel PNG, so a real file lands on disk without needing sharp.
  */
-const PIXEL = Buffer.from(
+export const PIXEL = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
 	"base64",
 );

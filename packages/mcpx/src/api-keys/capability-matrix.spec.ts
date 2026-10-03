@@ -43,7 +43,6 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: false,
-			hint: "Files are uploaded in the admin panel.",
 		},
 	],
 	globals: [
@@ -116,7 +115,6 @@ describe("createCapabilityMatrix", () => {
 				read: true,
 				write: true,
 				publish: false,
-				hint: "Files are uploaded in the admin panel.",
 			},
 			{
 				fieldName: "tags",
@@ -136,15 +134,11 @@ describe("createCapabilityMatrix", () => {
 		]);
 	});
 
-	/*
-	 * An upload row departs from the legend because `write` there never reaches
-	 * `createDocument`, and a row without drafts because a write is live.
-	 */
+	// A row without drafts departs from the legend because a write is live.
 	it("hints only where a row departs from the legend", () => {
 		const rows = createCapabilityMatrix(options).collections;
 
 		expect(rows.filter((row) => row.hint).map((row) => row.label)).toEqual([
-			"media",
 			"snippets",
 		]);
 	});

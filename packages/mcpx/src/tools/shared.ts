@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { canCreate, isLiveWrite } from "../capabilities.js";
+import { acceptsFiles } from "../upload/file.js";
 
 import type { DocumentId } from "../entity.js";
 import type {
@@ -54,14 +55,14 @@ const slugsWhere = (
 };
 
 /**
- * Slugs this key may write but never create in, because their documents are
- * files. Collection-only, since nothing creates a global either way.
+ * Collections this key may write but not create in: upload collections whose
+ * files MCP does not accept. Nothing creates a global either way.
  */
-export const patchOnlySlugs = (scope: McpxToolScope): string[] =>
-	slugsWhere(scope, (entity) => !canCreate(entity), {
-		collections: scope.collections.writable,
-		globals: [],
-	});
+export const patchOnlySlugs = (scope: McpxToolScope): string[] => {
+	const creatable = slugsFor(scope, "create").collections;
+
+	return scope.collections.writable.filter((slug) => !creatable.includes(slug));
+};
 
 /*
  * The supersets the shape helpers below produce. Which keys a helper emits
@@ -108,10 +109,13 @@ export const slugsFor = (
 	switch (operation) {
 		case "create":
 			return {
-				collections: slugsWhere(scope, canCreate, {
-					collections: scope.collections.writable,
-					globals: [],
-				}),
+				collections: slugsWhere(
+					scope,
+					(entity) =>
+						canCreate(entity) &&
+						(!entity.isUpload || acceptsFiles(scope, entity.slug)),
+					{ collections: scope.collections.writable, globals: [] },
+				),
 				// A global always exists, so nothing creates one.
 				globals: [],
 			};
