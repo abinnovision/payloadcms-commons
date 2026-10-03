@@ -17,7 +17,13 @@ updates:
     ignore:
       - dependency-name: "typescript"
         versions: ["7.0.x"]
+      # Follows the exact version @payloadcms/richtext-lexical pins.
+      - dependency-name: "lexical"
+      - dependency-name: "@lexical/*"
     groups:
+      # Payload rejects mixed versions, so its packages move together.
+      payload:
+        patterns: ["payload", "@payloadcms/*"]
       production-dependencies:
         dependency-type: production
         patterns: ["*"]
