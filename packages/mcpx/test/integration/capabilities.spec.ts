@@ -113,6 +113,19 @@ describe("capabilities", () => {
 		]);
 	});
 
+	it("reports diagnostics in listCapabilities by default", async () => {
+		const { data } = await createMcpClient(booted, seeded.keys.full).call(
+			"listCapabilities",
+		);
+
+		expect(data["server"]).toEqual({
+			name: "payloadcms-mcpx",
+			version: expect.any(String),
+			repository: expect.stringContaining("payloadcms-commons"),
+			issues: expect.stringContaining("/issues"),
+		});
+	});
+
 	it("refuses a collection outside the key's enum", async () => {
 		const result = await createMcpClient(booted, seeded.keys.tagsOnly).call(
 			"findDocuments",

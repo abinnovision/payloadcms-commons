@@ -57,6 +57,14 @@ describe("normalizeOptions", () => {
 			tools: [],
 		});
 		expect(normalized.serverInfo.name).toBe("payloadcms-mcpx");
+		expect(normalized.diagnostics).toBe(true);
+	});
+
+	it("respects diagnostics: false", () => {
+		expect(
+			normalize({ collections: { pages: true }, diagnostics: false })
+				.diagnostics,
+		).toBe(false);
 	});
 
 	it("refuses an unknown collection", () => {

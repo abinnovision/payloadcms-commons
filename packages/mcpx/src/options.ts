@@ -39,6 +39,7 @@ export interface NormalizedOptions {
 	tools: McpxAnyTool[];
 	auth: McpxPluginOptions["auth"];
 	serverInfo: { name: string; version: string };
+	diagnostics: boolean;
 }
 
 const fail = (message: string): never => {
@@ -396,5 +397,6 @@ export const normalizeOptions = (
 			name: options.serverInfo?.name ?? "payloadcms-mcpx",
 			version: options.serverInfo?.version ?? MCPX_VERSION,
 		},
+		diagnostics: options.diagnostics ?? true,
 	};
 };

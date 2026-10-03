@@ -117,6 +117,10 @@ export interface McpxToolScope {
 	 */
 	localization: null | { locales: string[]; defaultLocale: string };
 	limits: { maxLimit: number; maxDepth: number };
+	/**
+	 * `null` when `diagnostics` is off.
+	 */
+	diagnostics: null | { name: string; version: string };
 	exposure: {
 		collections: McpxExposedEntity[];
 		globals: McpxExposedEntity[];
@@ -250,6 +254,10 @@ export type McpxPluginOptions = {
 		}) => Promise<McpxAuthResult | null>;
 	};
 	serverInfo?: { name?: string; version?: string };
+	/**
+	 * Expose the server version plus repository and issue links to clients. Default `true`.
+	 */
+	diagnostics?: boolean;
 };
 
 /**
