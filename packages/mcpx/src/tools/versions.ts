@@ -16,7 +16,9 @@ type StoredVersion = Record<string, unknown> & {
 };
 
 export interface VersionRead {
-	/** For a collection, also the document every version must belong to. */
+	/**
+	 * For a collection, also the document every version must belong to.
+	 */
 	target: DocumentRef;
 	depth: number;
 	locale: TypedLocale | undefined;
@@ -28,7 +30,10 @@ const NOISE = ["id", "globalType", "createdAt", "updatedAt", "_status"];
 // Newest first, with the id breaking ties between saves in the same instant.
 const NEWEST_FIRST = ["-updatedAt", "-id"];
 
-/** The document or global as the key's user sees it, without `admin.hidden` fields. */
+/**
+ * The document or global as the key's user sees it, without `admin.hidden`
+ * fields.
+ */
 export const readLive = async (
 	scope: McpxToolScope,
 	read: VersionRead,
@@ -79,7 +84,9 @@ const assertReadable = async (
 	await readLive(scope, { ...read, depth: 0 }, { draft: true, select: {} });
 };
 
-/** `parent` comes back as a raw id or, populated, as the document itself. */
+/**
+ * `parent` comes back as a raw id or, populated, as the document itself.
+ */
 export const isVersionOf = (
 	version: Record<string, unknown>,
 	id: DocumentId,
@@ -140,7 +147,9 @@ export const loadVersion = async (
 	return withoutHidden(scope, read, version);
 };
 
-/** One page of a document's or global's history, newest first. */
+/**
+ * One page of a document's or global's history, newest first.
+ */
 export const queryVersions = async (
 	scope: McpxToolScope,
 	read: VersionRead,
@@ -178,7 +187,9 @@ export const queryVersions = async (
 			}));
 };
 
-/** The newest version whose status is published, or `null` if none is. */
+/**
+ * The newest version whose status is published, or `null` if none is.
+ */
 export const loadPublished = async (
 	scope: McpxToolScope,
 	read: VersionRead,

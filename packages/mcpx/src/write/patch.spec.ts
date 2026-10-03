@@ -12,7 +12,9 @@ import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import type { SanitizedConfig } from "payload";
 import type { Operation } from "rfc6902";
 
-/** The smallest state the rich text shape check accepts. */
+/**
+ * The smallest state the rich text shape check accepts.
+ */
 const EMPTY_RICH_TEXT = state([node("paragraph")]);
 
 const DOC = {
@@ -56,7 +58,9 @@ describe("isReservedPointer, isElementPointer and droppedPointer", () => {
 	});
 });
 
-/** A link node, so a read-only field has a node's own fields to address. */
+/**
+ * A link node, so a read-only field has a node's own fields to address.
+ */
 const LINK_NODE = node("link", {
 	fields: { linkType: "custom", newTab: false, url: "/old" },
 	version: 3,

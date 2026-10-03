@@ -37,7 +37,9 @@ export const CAPABILITY_OPERATIONS = [
 
 export type CapabilityOperation = (typeof CAPABILITY_OPERATIONS)[number]["id"];
 
-/** The two entity namespaces, kept apart so slugs may collide across them. */
+/**
+ * The two entity namespaces, kept apart so slugs may collide across them.
+ */
 export type CapabilityNamespace = "collections" | "globals";
 
 /**
@@ -47,12 +49,16 @@ export type CapabilityNamespace = "collections" | "globals";
  */
 export interface CapabilityRow {
 	fieldName: string;
-	/** The slug, which is what MCP clients send and what refusals name. */
+	/**
+	 * The slug, which is what MCP clients send and what refusals name.
+	 */
 	label: string;
 	read: boolean;
 	write: boolean;
 	publish: boolean;
-	/** Said only where a row departs from what its column header promises. */
+	/**
+	 * Said only where a row departs from what its column header promises.
+	 */
 	hint?: string;
 }
 
@@ -129,7 +135,9 @@ export const cellPath = (
 export const toolPath = (basePath: string, name: string): string =>
 	`${basePath}.tools.${name}`;
 
-/** Every path the matrix can address, in a stable order. */
+/**
+ * Every path the matrix can address, in a stable order.
+ */
 export const capabilityPaths = (
 	matrix: CapabilityMatrix,
 	basePath: string = CAPABILITIES_FIELD,

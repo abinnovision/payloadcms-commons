@@ -19,7 +19,9 @@ export const wherePaths = (where: unknown): string[] =>
 			)
 		: [];
 
-/** The paths of a `sort`: a field name, `-` for descending, comma separated. */
+/**
+ * The paths of a `sort`: a field name, `-` for descending, comma separated.
+ */
 export const sortPaths = (sort: string | undefined): string[] =>
 	(sort ?? "")
 		.split(",")

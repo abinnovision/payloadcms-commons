@@ -19,7 +19,9 @@ export const USER = { email: "mcpx@example.com", password: "mcpx-secret" };
 export interface Booted {
 	config: Promise<SanitizedConfig>;
 	payload: Payload;
-	/** Shared by `getPayload` and `handleEndpoints`, so both reach this instance. */
+	/**
+	 * Shared by `getPayload` and `handleEndpoints`, so both reach this instance.
+	 */
 	cacheKey: string;
 }
 
@@ -89,7 +91,9 @@ export const createKey = async (
 	return doc.apiKey;
 };
 
-/** Creates {@link USER} and one key per entry, labelled with the entry's name. */
+/**
+ * Creates {@link USER} and one key per entry, labelled with the entry's name.
+ */
 export const seedKeysFor = async <Label extends string>(
 	payload: Payload,
 	capabilities: Record<Label, KeyCapabilities>,
@@ -130,7 +134,9 @@ export interface Seeded {
 	};
 }
 
-/** The keys the specs on the default plugin config share. */
+/**
+ * The keys the specs on the default plugin config share.
+ */
 export const seedKeys = async (payload: Payload): Promise<Seeded> => {
 	const { userId, keys } = await seedKeysFor(payload, {
 		full: FULL_CAPABILITIES,
@@ -153,7 +159,9 @@ export const seedKeys = async (payload: Payload): Promise<Seeded> => {
 	return { userId, keys: { ...keys, disabled } };
 };
 
-/** Creates an English draft through the Local API, bypassing the endpoint. */
+/**
+ * Creates an English draft through the Local API, bypassing the endpoint.
+ */
 export const createDraft = <Doc>(
 	payload: Payload,
 	collection: "pages" | "posts",
@@ -166,7 +174,9 @@ export const createDraft = <Doc>(
 		data,
 	}) as Promise<Doc>;
 
-/** The latest draft in one locale, without falling back to another. */
+/**
+ * The latest draft in one locale, without falling back to another.
+ */
 export const readDraft = <Doc>(
 	payload: Payload,
 	collection: "pages" | "posts",
@@ -232,13 +242,14 @@ export const storedState = async (
 	return Object.fromEntries(await Promise.all([...collections, ...globals]));
 };
 
-/** A one-pixel PNG, so a real file lands on disk without needing sharp. */
+/**
+ * A one-pixel PNG, so a real file lands on disk without needing sharp.
+ */
 const PIXEL = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
 	"base64",
 );
 
-/** Uploads a one-pixel image as a `media` document. */
 export const createMedia = (
 	payload: Payload,
 	alt: string,

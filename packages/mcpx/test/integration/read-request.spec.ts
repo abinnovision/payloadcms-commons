@@ -15,7 +15,9 @@ import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-read-request";
 
-/** Reads a casefile at depth 1 through the bounded request. */
+/**
+ * Reads a casefile at depth 1 through the bounded request.
+ */
 const readCasefile = defineMcpxTool({
 	name: "readCasefile",
 	description: "Reads a casefile with its dossier populated.",

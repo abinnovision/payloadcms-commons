@@ -120,7 +120,9 @@ describe("collections the config does not expose", () => {
 		await booted.payload.destroy();
 	});
 
-	/** Everything a write could have touched, read past access control. */
+	/**
+	 * Everything a write could have touched, read past access control.
+	 */
 	const snapshot = async (): Promise<unknown> => {
 		const { payload } = booted;
 		const read = (collection: string) =>

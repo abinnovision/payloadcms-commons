@@ -25,7 +25,7 @@ import type {
 
 /**
  * Holds {@link REQUIRED_NODE_PROPERTIES} to the rule it states, against the
- * node classes `@payloadcms/richtext-lexical` actually ships: every listed
+ * node classes `@payloadcms/richtext-lexical` ships: every listed
  * property must matter when omitted, and every property that matters must be
  * listed. It fails when a Lexical or Payload upgrade moves either boundary,
  * which is the only way to know the table is still true.
@@ -33,7 +33,9 @@ import type {
 
 let config: SanitizedConfig;
 let field: RichTextField;
-/** Simple editor: its blocks are not self-referential, so it can be described. */
+/**
+ * Simple editor: its blocks are not self-referential, so it can be described.
+ */
 let describable: RichTextField;
 
 beforeAll(async () => {
@@ -115,7 +117,9 @@ const hydrate = (state: unknown): { error?: string; exported?: unknown } => {
 		: { exported: editor.getEditorState().toJSON() };
 };
 
-/** Ids the node classes generate would differ on every hydration. */
+/**
+ * Ids the node classes generate would differ on every hydration.
+ */
 const stable = (value: unknown): string =>
 	JSON.stringify(value, (key, entry: unknown) =>
 		key === "id" && typeof entry === "string" ? "<id>" : entry,
@@ -411,7 +415,7 @@ describe("nodePropertiesFor", () => {
 /**
  * Lexical registers the core nodes whatever the features do, so
  * `allowedNodeTypes` states them itself. That is a hardcoded list about someone
- * else's library, and the first case is what keeps it honest.
+ * else's library, and the first case checks it against the real registry.
  */
 describe("allowedNodeTypes", () => {
 	/* Resolved in the test body: the fields do not exist until `beforeAll`. */

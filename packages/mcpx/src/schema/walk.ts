@@ -61,14 +61,19 @@ export const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set([
  */
 export const ARRAY_MARKER = "*";
 
-/** The keys a row carries beside its fields. */
+/**
+ * The keys a row carries beside its fields.
+ */
 export const ROW_KEYS: ReadonlySet<string> = new Set([
 	"blockName",
 	"blockType",
 	"id",
 ]);
 
-/** On a flattened field, whichever of `blockReferences` and `blocks` was declared. */
+/**
+ * On a flattened field, whichever of `blockReferences` and `blocks` was
+ * declared.
+ */
 export const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
 	...new Set(
 		(field.blockReferences ?? field.blocks).map((block) =>
@@ -309,7 +314,10 @@ export const describeAddressableFields = (
 ): FieldDescriptor[] =>
 	describeFields(fields).filter((descriptor) => !isContainer(descriptor));
 
-/** The addressable descriptors under `prefix`, with their paths split relative to it. */
+/**
+ * The addressable descriptors under `prefix`, with their paths split relative
+ * to it.
+ */
 export const descriptorsUnder = (
 	fields: FlattenedField[],
 	prefix: readonly string[],

@@ -69,7 +69,9 @@ export const reconcileRowIds = (next: JsonObject, stored: JsonObject): void => {
 	});
 };
 
-/** For create, where no stored row exists and any incoming id is invented. */
+/**
+ * For create, where no stored row exists and any incoming id is invented.
+ */
 export const stripRowIds = (value: unknown): unknown => {
 	const next = structuredClone(value);
 

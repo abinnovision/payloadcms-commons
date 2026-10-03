@@ -193,7 +193,9 @@ describe("read tools", () => {
 	});
 
 	describe("outlining a rich text field", () => {
-		/** A post whose summary holds one h4 heading. */
+		/**
+		 * A post whose summary holds one h4 heading.
+		 */
 		const createOutlined = async (): Promise<number | string> =>
 			(
 				await booted.payload.create({

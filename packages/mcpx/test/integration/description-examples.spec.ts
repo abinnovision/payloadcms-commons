@@ -19,7 +19,9 @@ interface Node {
 	fields?: { path: string }[];
 }
 
-/** Collections the examples are written against, in the order they are tried. */
+/**
+ * Collections the examples are written against, in the order they are tried.
+ */
 const EXAMPLE_COLLECTIONS = ["pages", "posts"];
 
 describe("schema paths quoted in tool descriptions and instructions", () => {

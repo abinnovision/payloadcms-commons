@@ -31,7 +31,9 @@ export interface NormalizedOptions {
 	userCollection: string;
 	apiKeysSlug: string;
 	endpointPath: string;
-	/** Whether the key form gets the "Connect a client" tab. */
+	/**
+	 * Whether the key form gets the "Connect a client" tab.
+	 */
 	setupGuide: boolean;
 	limits: { maxLimit: number; maxDepth: number };
 	tools: McpxAnyTool[];
@@ -43,7 +45,9 @@ const fail = (message: string): never => {
 	throw new InvalidConfiguration(`[payloadcms-mcpx] ${message}`);
 };
 
-/** The same transform the stock MCP plugin uses to derive field names. */
+/**
+ * The same transform the stock MCP plugin uses to derive field names.
+ */
 export const toCamelCase = (value: string): string =>
 	value
 		.replace(/[-_\s]+(.)?/g, (_, char: string | undefined) =>
@@ -357,7 +361,9 @@ const normalizeLimits = (
 	return { maxLimit, maxDepth };
 };
 
-/** Every problem is an `InvalidConfiguration`, so it fails at startup. */
+/**
+ * Every problem is an `InvalidConfiguration`, so it fails at startup.
+ */
 export const normalizeOptions = (
 	config: Config,
 	options: McpxPluginOptions,

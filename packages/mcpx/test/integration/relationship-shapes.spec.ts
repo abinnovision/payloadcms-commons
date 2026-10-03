@@ -187,7 +187,9 @@ describe("relationships across field shapes", () => {
 		depth: number,
 	) => Promise<Record<string, unknown>>;
 
-	/** Each read path, returning the dispatch whichever tool returned it. */
+	/**
+	 * Each read path, returning the dispatch whichever tool returned it.
+	 */
 	const reads: [string, Read][] = [
 		[
 			"getDocument",

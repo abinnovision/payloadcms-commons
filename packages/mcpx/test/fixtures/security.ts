@@ -5,21 +5,27 @@ import type { Access, CollectionConfig, FieldAccess } from "payload";
  * fixture config: each spec passes the ones it needs to `bootPayload`.
  */
 
-/** Users with email verification, so an unverified user exists to refuse. */
+/**
+ * Users with email verification, so an unverified user exists to refuse.
+ */
 export const verifiedUsers: CollectionConfig = {
 	slug: "users",
 	auth: { verify: true },
 	fields: [],
 };
 
-/** Users without lockouts, so the collection has no `lockUntil` field. */
+/**
+ * Users without lockouts, so the collection has no `lockUntil` field.
+ */
 export const lockoutFreeUsers: CollectionConfig = {
 	slug: "users",
 	auth: { maxLoginAttempts: 0 },
 	fields: [],
 };
 
-/** Users that can carry a Payload API key of their own. */
+/**
+ * Users that can carry a Payload API key of their own.
+ */
 export const apiKeyUsers: CollectionConfig = {
 	slug: "users",
 	auth: { useAPIKey: true },
@@ -29,7 +35,9 @@ export const apiKeyUsers: CollectionConfig = {
 const ownDocsOnly: Access = ({ req }) =>
 	req.user ? { owner: { equals: req.user.id } } : false;
 
-/** Each user may read only the documents they own. */
+/**
+ * Each user may read only the documents they own.
+ */
 export const diaries: CollectionConfig = {
 	slug: "diaries",
 	versions: { drafts: true },
@@ -55,7 +63,9 @@ export const articles: CollectionConfig = {
 	],
 };
 
-/** One field hidden from the admin panel, one hidden from the API. */
+/**
+ * One field hidden from the admin panel, one hidden from the API.
+ */
 export const dossiers: CollectionConfig = {
 	slug: "dossiers",
 	fields: [
@@ -120,10 +130,14 @@ const bulletinCollection = (
 	],
 });
 
-/** `readVersions` keeps Payload's default, which lets any logged-in user in. */
+/**
+ * `readVersions` keeps Payload's default, which lets any logged-in user in.
+ */
 export const bulletins = bulletinCollection("bulletins");
 
-/** `readVersions` applies the read filter to the version's own fields. */
+/**
+ * `readVersions` applies the read filter to the version's own fields.
+ */
 export const guardedBulletins = bulletinCollection("guarded-bulletins", () => ({
 	"version.visibility": { equals: "public" },
 }));
@@ -147,12 +161,16 @@ export const ledgers: CollectionConfig = {
 	],
 };
 
-/** The one user the `vaults` code field is open to. */
+/**
+ * The one user the `vaults` code field is open to.
+ */
 export const KEEPER_EMAIL = "keeper@example.com";
 
 const keeperOnly: FieldAccess = ({ req }) => req.user?.email === KEEPER_EMAIL;
 
-/** `code` is open for read and update to the keeper and closed to everyone else. */
+/**
+ * `code` is open for read and update to the keeper and closed to everyone else.
+ */
 export const vaults: CollectionConfig = {
 	slug: "vaults",
 	versions: { drafts: true },
@@ -219,7 +237,9 @@ export const dispatches: CollectionConfig = {
 	],
 };
 
-/** The other side of the join on `dispatches`. */
+/**
+ * The other side of the join on `dispatches`.
+ */
 export const remarks: CollectionConfig = {
 	slug: "remarks",
 	fields: [

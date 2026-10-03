@@ -5,7 +5,9 @@ import type { NormalizedOptions } from "../../src/options.js";
 import type { McpxExposedEntity, McpxToolScope } from "../../src/types.js";
 import type { PayloadRequest, SanitizedConfig } from "payload";
 
-/** An exposed collection or global, readable and drafting unless overridden. */
+/**
+ * An exposed collection or global, readable and drafting unless overridden.
+ */
 export const entity = (
 	slug: string,
 	overrides: Partial<McpxExposedEntity> = {},

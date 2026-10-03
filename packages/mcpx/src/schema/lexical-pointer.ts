@@ -15,7 +15,9 @@ import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
 interface LexicalPositionBase {
 	descriptor: FieldDescriptor;
 	field: RichTextField;
-	/** The root is addressable, and refused as a write, so it is marked here. */
+	/**
+	 * The root is addressable, and refused as a write, so it is marked here.
+	 */
 	isRoot?: boolean;
 	/**
 	 * The node in scope. Absent only at a position the state does not have and
@@ -25,11 +27,17 @@ interface LexicalPositionBase {
 }
 
 export type LexicalPosition =
-	/** …/children/2, or …/root. */
+	/**
+	 * …/children/2, or …/root.
+	 */
 	| (LexicalPositionBase & { kind: "node" })
-	/** …/children, the list a node owns. */
+	/**
+	 * …/children, the list a node owns.
+	 */
 	| (LexicalPositionBase & { kind: "nodes" })
-	/** …/children/2/tag, where the node and the property are both known. */
+	/**
+	 * …/children/2/tag, where the node and the property are both known.
+	 */
 	| (LexicalPositionBase & {
 			kind: "property";
 			nodeType: string;

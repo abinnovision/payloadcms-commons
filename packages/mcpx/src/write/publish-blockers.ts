@@ -8,12 +8,18 @@ import { pointerFromPayloadPath } from "../schema/index.js";
 import type { DocumentId, ResolvedEntity } from "../entity.js";
 import type { JsonObject, PayloadRequest, ValidationFieldError } from "payload";
 
-/** One reason a human could not publish the draft as it stands. */
+/**
+ * One reason a human could not publish the draft as it stands.
+ */
 export interface PublishBlocker {
-	/** Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title". */
+	/**
+	 * Resolved field label path, e.g. "Layout > Block 2 (Hero) > Title".
+	 */
 	field?: string;
 	message: string;
-	/** JSON Pointer to the offending value, e.g. "/layout/2/title". */
+	/**
+	 * JSON Pointer to the offending value, e.g. "/layout/2/title".
+	 */
 	path: string;
 }
 

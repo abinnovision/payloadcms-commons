@@ -6,21 +6,31 @@ export const KEY_PLACEHOLDER = "<your-key>";
 
 // What the guide needs to know about one key to write its snippets.
 interface SetupGuideInput {
-	/** Absolute MCP endpoint URL. */
+	/**
+	 * Absolute MCP endpoint URL.
+	 */
 	endpointUrl: string;
-	/** Plaintext key, absent on an unsaved document or a failed decrypt. */
+	/**
+	 * Plaintext key, absent on an unsaved document or a failed decrypt.
+	 */
 	apiKey?: null | string | undefined;
-	/** Client name suggestion, taken from the key label. */
+	/**
+	 * Client name suggestion, taken from the key label.
+	 */
 	label?: null | string | undefined;
 }
 
 // One instruction block, rendered behind its own copy button.
 interface SetupGuideSection {
-	/** Stable key for rendering and for tests. */
+	/**
+	 * Stable key for rendering and for tests.
+	 */
 	id: string;
 	title: string;
 	description?: string;
-	/** The block to copy verbatim. */
+	/**
+	 * The block to copy verbatim.
+	 */
 	snippet: string;
 }
 

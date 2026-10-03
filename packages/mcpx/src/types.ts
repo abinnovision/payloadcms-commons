@@ -43,7 +43,9 @@ export type McpxWriteMode = "draft" | "live" | false;
  * shorthand for `{}`, which exposes everything the entity supports.
  */
 export interface McpxCollectionOptions {
-	/** Expose `describeSchema`, `findDocuments`, `getDocument`. Default `true`. */
+	/**
+	 * Expose `describeSchema`, `findDocuments`, `getDocument`. Default `true`.
+	 */
 	read?: boolean;
 	/**
 	 * Expose `patchDocument`, `validateDocument` and, unless this is an upload
@@ -59,7 +61,10 @@ export interface McpxCollectionOptions {
 	publish?: boolean;
 }
 
-/** The same options. A singleton, so neither `findDocuments` nor `createDocument` reaches one. */
+/**
+ * The same options. A singleton, so neither `findDocuments` nor
+ * `createDocument` reaches one.
+ */
 export type McpxGlobalOptions = McpxCollectionOptions;
 
 export type McpxToolExtra = RequestHandlerExtra<
@@ -67,7 +72,9 @@ export type McpxToolExtra = RequestHandlerExtra<
 	ServerNotification
 >;
 
-/** What the config exposes, before an API key's checkboxes narrow it. */
+/**
+ * What the config exposes, before an API key's checkboxes narrow it.
+ */
 export interface McpxExposedEntity {
 	slug: string;
 	read: boolean;
@@ -78,26 +85,36 @@ export interface McpxExposedEntity {
 	 * readable. Says nothing about drafts; see `hasDrafts`.
 	 */
 	hasVersions: boolean;
-	/** An upload document is a file, and no tool here can supply one. */
+	/**
+	 * An upload document is a file, and no tool here can supply one.
+	 */
 	isUpload: boolean;
-	/** Name of the capability group on the key document. */
+	/**
+	 * Name of the capability group on the key document.
+	 */
 	fieldName: string;
 }
 
-/** The slugs a key may read, write and publish. */
+/**
+ * The slugs a key may read, write and publish.
+ */
 export interface McpxScopeSlugs {
 	readable: string[];
 	writable: string[];
 	publishable: string[];
 }
 
-/** What a tool knows about the current request. */
+/**
+ * What a tool knows about the current request.
+ */
 export interface McpxToolScope {
 	req: PayloadRequest;
 	capabilities: McpxResolvedCapabilities;
 	collections: McpxScopeSlugs;
 	globals: McpxScopeSlugs;
-	/** `null` when localization is off. */
+	/**
+	 * `null` when localization is off.
+	 */
 	localization: null | { locales: string[]; defaultLocale: string };
 	limits: { maxLimit: number; maxDepth: number };
 	exposure: {
@@ -115,9 +132,13 @@ export interface McpxTool<
 	Shape extends z.ZodRawShape = z.ZodRawShape,
 	Args = z.infer<z.ZodObject<Shape>>,
 > {
-	/** camelCase, unique, not one of the builtin tool names. */
+	/**
+	 * camelCase, unique, not one of the builtin tool names.
+	 */
 	name: string;
-	/** Built per request so it can state what this key's writes do. */
+	/**
+	 * Built per request so it can state what this key's writes do.
+	 */
 	description: string | ((scope: McpxToolScope) => string);
 	annotations?: ToolAnnotations;
 	/**
@@ -140,20 +161,28 @@ export interface McpxTool<
 	handler(ctx: {
 		args: Args;
 		scope: McpxToolScope;
-		/** Shorthand for `scope.req`. */
+		/**
+		 * Shorthand for `scope.req`.
+		 */
 		req: PayloadRequest;
 		extra: McpxToolExtra;
 	}): CallToolResult | Promise<CallToolResult>;
 }
 
-/** Argument type erased, so a registry can hold tools of differing shapes. */
+/**
+ * Argument type erased, so a registry can hold tools of differing shapes.
+ */
 export type McpxAnyTool = McpxTool<z.ZodRawShape, never>;
 
 export interface McpxAuthResult {
-	/** Must carry `collection`. */
+	/**
+	 * Must carry `collection`.
+	 */
 	user: TypedUser;
 	apiKeyId: DocumentId;
-	/** The `capabilities` group as stored on the key document. */
+	/**
+	 * The `capabilities` group as stored on the key document.
+	 */
 	capabilities: unknown;
 }
 
@@ -165,31 +194,47 @@ export interface McpxAuthResult {
  */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type McpxPluginOptions = {
-	/** Allow-list of collections. `true` is shorthand for `{}`. */
+	/**
+	 * Allow-list of collections. `true` is shorthand for `{}`.
+	 */
 	collections: Partial<Record<CollectionSlug, McpxCollectionOptions | true>>;
-	/** Allow-list of globals. `true` is shorthand for `{}`. */
+	/**
+	 * Allow-list of globals. `true` is shorthand for `{}`.
+	 */
 	globals?: Partial<Record<GlobalSlug, McpxGlobalOptions | true>>;
-	/** Collection the keys act as. Default `config.admin.user`, then `users`. */
+	/**
+	 * Collection the keys act as. Default `config.admin.user`, then `users`.
+	 */
 	userCollection?: CollectionSlug;
 	apiKeys?: {
-		/** Slug of the generated API key collection. Default `mcpx-api-keys`. */
+		/**
+		 * Slug of the generated API key collection. Default `mcpx-api-keys`.
+		 */
 		slug?: string;
 		/**
 		 * Add a "Connect a client" tab to saved keys, holding ready-to-paste MCP
 		 * client config. Default `true`. The snippets contain the key in full.
 		 */
 		setupGuide?: boolean;
-		/** Final override applied to the generated collection. */
+		/**
+		 * Final override applied to the generated collection.
+		 */
 		overrideCollection?: (collection: CollectionConfig) => CollectionConfig;
 	};
 	endpoint?: {
-		/** Endpoint path below the API route. Default `/mcpx`. */
+		/**
+		 * Endpoint path below the API route. Default `/mcpx`.
+		 */
 		path?: string;
 	};
 	limits?: {
-		/** Upper bound for `findDocuments.limit`. Default 25. */
+		/**
+		 * Upper bound for `findDocuments.limit`. Default 25.
+		 */
 		maxLimit?: number;
-		/** Upper bound for `depth` on reads. Default 1. */
+		/**
+		 * Upper bound for `depth` on reads. Default 1.
+		 */
 		maxDepth?: number;
 	};
 	tools?: McpxAnyTool[];
@@ -207,22 +252,30 @@ export type McpxPluginOptions = {
 	serverInfo?: { name?: string; version?: string };
 };
 
-/** What a key may do with one entity. Globals reuse this shape. */
+/**
+ * What a key may do with one entity. Globals reuse this shape.
+ */
 export interface McpxCollectionCapabilities {
 	read: boolean;
 	write: boolean;
-	/** Only ever true where the config lets writes publish and drafts exist. */
+	/**
+	 * Only ever true where the config lets writes publish and drafts exist.
+	 */
 	publish: boolean;
 }
 
-/** In force for one request: the plugin config and the key checkboxes together. */
+/**
+ * In force for one request: the plugin config and the key checkboxes together.
+ */
 export interface McpxResolvedCapabilities {
 	collections: Record<string, McpxCollectionCapabilities>;
 	globals: Record<string, McpxCollectionCapabilities>;
 	tools: Record<string, boolean>;
 }
 
-/** Stamped on `req.context.mcpx`; see {@link isMcpxRequest}. */
+/**
+ * Stamped on `req.context.mcpx`; see {@link isMcpxRequest}.
+ */
 export interface McpxRequestContext {
 	apiKeyId: DocumentId;
 	capabilities: McpxResolvedCapabilities;

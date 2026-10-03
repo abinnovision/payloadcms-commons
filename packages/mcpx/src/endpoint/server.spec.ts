@@ -34,9 +34,13 @@ const READ_ONLY_KEY = {
 
 let config: SanitizedConfig;
 let options: NormalizedOptions;
-/** Same config, but with globals exposed too. */
+/**
+ * Same config, but with globals exposed too.
+ */
 let withGlobals: NormalizedOptions;
-/** Same config, but with the upload collection exposed for write too. */
+/**
+ * Same config, but with the upload collection exposed for write too.
+ */
 let withUpload: NormalizedOptions;
 
 const schemaOf = (scope: McpxToolScope, name: string) => {

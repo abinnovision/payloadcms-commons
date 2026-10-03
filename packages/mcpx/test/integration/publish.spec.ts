@@ -9,7 +9,9 @@ import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-publish";
 
-/** A page that satisfies every required field, so publishing it succeeds. */
+/**
+ * A page that satisfies every required field, so publishing it succeeds.
+ */
 const completePage = (title: string): Record<string, unknown> => ({
 	title,
 	slug: title.toLowerCase(),

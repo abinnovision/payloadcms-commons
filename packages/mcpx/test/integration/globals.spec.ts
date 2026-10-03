@@ -51,7 +51,9 @@ describe("globals", () => {
 		await booted.payload.destroy();
 	});
 
-	/** Saves an English draft title, so a test reads the state it wrote. */
+	/**
+	 * Saves an English draft title, so a test reads the state it wrote.
+	 */
 	const draftTitle = async (title: string): Promise<void> => {
 		await booted.payload.updateGlobal({
 			slug: SETTINGS,

@@ -22,7 +22,7 @@ const restRequest = { context: {} };
 
 /**
  * Runs the `beforeOperation` hook and returns the arguments the operation
- * would actually receive.
+ * would receive.
  */
 const operationArgumentsFor = (
 	args: Record<string, unknown>,
@@ -240,7 +240,7 @@ describe("refusePublish", () => {
 
 /**
  * Runs the global `beforeOperation` hook and returns the arguments the
- * operation would actually receive.
+ * operation would receive.
  */
 const globalOperationArgumentsFor = (
 	args: Record<string, unknown>,

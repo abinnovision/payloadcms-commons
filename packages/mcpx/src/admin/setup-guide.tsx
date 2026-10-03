@@ -11,7 +11,9 @@ import React, { useEffect, useState } from "react";
 import { buildSetupGuide } from "../api-keys/setup-guide.js";
 
 interface McpxSetupGuideProps {
-	/** Endpoint path below the API route, from the plugin options. */
+	/**
+	 * Endpoint path below the API route, from the plugin options.
+	 */
 	endpointPath: string;
 }
 

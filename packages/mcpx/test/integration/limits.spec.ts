@@ -24,7 +24,9 @@ const CREATE = JSON.stringify({
 	},
 });
 
-/** The create call padded with trailing whitespace to exactly `size` bytes. */
+/**
+ * The create call padded with trailing whitespace to exactly `size` bytes.
+ */
 const createOfSize = (size: number): string =>
 	CREATE + " ".repeat(size - CREATE.length);
 

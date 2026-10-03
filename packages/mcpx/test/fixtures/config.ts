@@ -152,7 +152,6 @@ export const buildFixtureConfig = (
 		graphQL: { disable: true },
 	});
 
-/** A top-level field of a collection in `config`, by name. */
 export const fieldOf = (
 	config: SanitizedConfig,
 	slug: string,

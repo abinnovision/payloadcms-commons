@@ -23,7 +23,9 @@ import type { FlattenedField, SanitizedConfig } from "payload";
  */
 export interface PointerResolution {
 	blockType?: string;
-	/** Set when the pointer addresses one field exactly. */
+	/**
+	 * Set when the pointer addresses one field exactly.
+	 */
 	descriptor?: FieldDescriptor;
 	fields: FlattenedField[];
 	/**
@@ -37,7 +39,9 @@ export interface PointerResolution {
 	 * every position inside it.
 	 */
 	lexical?: LexicalPosition;
-	/** Segments, since it is a position inside `fields`, not a client address. */
+	/**
+	 * Segments, since it is a position inside `fields`, not a client address.
+	 */
 	prefix: readonly string[];
 	/**
 	 * Picked up on the way down. Blocks and Lexical nodes are walked as fresh

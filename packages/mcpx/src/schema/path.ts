@@ -1,12 +1,16 @@
 export const JSON_POINTER_PATTERN = /^(\/([^~/]|~[01])*)*$/;
 
-/** No segments is the root pointer, `""`. */
+/**
+ * No segments is the root pointer, `""`.
+ */
 export const joinPath = (parts: readonly string[]): string =>
 	parts
 		.map((part) => `/${part.replace(/~/g, "~0").replace(/\//g, "~1")}`)
 		.join("");
 
-/** Unescapes `~1` and `~0`. The root pointer yields no segments. */
+/**
+ * Unescapes `~1` and `~0`. The root pointer yields no segments.
+ */
 export const splitPath = (path: string): string[] =>
 	path
 		.split("/")
@@ -25,7 +29,9 @@ export const prototypeSegmentProblem = (pointer: string): string | undefined =>
 		? `"${pointer}" contains a segment named __proto__, constructor or prototype, which no field or node property uses.`
 		: undefined;
 
-/** `-` included, since RFC 6901 reads it as the position after the last. */
+/**
+ * `-` included, since RFC 6901 reads it as the position after the last.
+ */
 export const isIndexSegment = (segment: string): boolean =>
 	segment === "-" || /^\d+$/.test(segment);
 

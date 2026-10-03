@@ -8,14 +8,20 @@ import type {
 	McpxScopeSlugs,
 } from "./types.js";
 
-/** Group field holding the capability checkboxes on an API key document. */
+/**
+ * Group field holding the capability checkboxes on an API key document.
+ */
 export const CAPABILITIES_FIELD = "capabilities";
 
-/** Covers draft and live writes; {@link isLiveWrite} separates them. */
+/**
+ * Covers draft and live writes; {@link isLiveWrite} separates them.
+ */
 export const canWrite = (entity: McpxExposedEntity): boolean =>
 	entity.write !== false;
 
-/** The config lets MCP change live content and a draft exists to promote. */
+/**
+ * The config lets MCP change live content and a draft exists to promote.
+ */
 export const canPublish = (entity: McpxExposedEntity): boolean =>
 	entity.write === "live" && entity.hasDrafts;
 

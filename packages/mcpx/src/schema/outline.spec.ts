@@ -6,9 +6,13 @@ import { buildFixtureConfig, fieldOf } from "../../test/fixtures/config.js";
 
 import type { RichTextField } from "payload";
 
-/** Restricted to "h4" by its editor, so it pins the `options` narrowing. */
+/**
+ * Restricted to "h4" by its editor, so it pins the `options` narrowing.
+ */
 let summary: RichTextField;
-/** No feature narrows any of its node properties. */
+/**
+ * No feature narrows any of its node properties.
+ */
 let content: RichTextField;
 
 beforeAll(async () => {

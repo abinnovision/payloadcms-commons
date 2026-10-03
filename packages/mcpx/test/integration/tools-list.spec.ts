@@ -99,7 +99,6 @@ const DEFAULT_BUDGET = 600;
 
 const INSTRUCTIONS_BUDGET = 1000;
 
-// Every `description` string anywhere in a JSON Schema.
 const descriptionsIn = (schema: unknown): string[] => {
 	if (Array.isArray(schema)) {
 		return schema.flatMap(descriptionsIn);
