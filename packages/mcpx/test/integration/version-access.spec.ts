@@ -2,11 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createMcpClient, responseText } from "./helpers/mcp.js";
 import { bootPayload, seedKeysFor } from "./helpers/payload.js";
-import {
-	bulletins,
-	guardedBulletins,
-	openBulletins,
-} from "../fixtures/security.js";
+import { bulletins, guardedBulletins } from "../fixtures/security.js";
 
 import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
@@ -23,14 +19,12 @@ interface Seeded {
 
 /**
  * The document passes its read filter now; its first version, saved while the
- * document was private, would not. Version history is off unless an entity
- * sets `versions: true`, and then `access.readVersions` governs old versions.
+ * document was private, would not. Version history follows read, and
+ * `access.readVersions` governs old versions.
  */
 describe("old versions under a filtered read access", () => {
 	let booted: Booted;
 	let mcp: McpClient;
-	let bulletinsOnly: McpClient;
-	let plain: Seeded;
 	let open: Seeded;
 	let guarded: Seeded;
 
@@ -67,101 +61,38 @@ describe("old versions under a filtered read access", () => {
 	beforeAll(async () => {
 		booted = await bootPayload({
 			key: CACHE_KEY,
-			collections: [bulletins, openBulletins, guardedBulletins],
+			collections: [bulletins, guardedBulletins],
 			plugin: {
 				collections: {
 					bulletins: { write: false },
-					"open-bulletins": { write: false, versions: true },
-					"guarded-bulletins": { write: false, versions: true },
+					"guarded-bulletins": { write: false },
 				},
 			},
 		});
 
-		plain = await seedBulletin("bulletins");
-		open = await seedBulletin("open-bulletins");
+		open = await seedBulletin("bulletins");
 		guarded = await seedBulletin("guarded-bulletins");
 
 		const { keys } = await seedKeysFor(booted.payload, {
 			all: {
 				collections: {
 					bulletins: { read: true },
-					openBulletins: { read: true },
 					guardedBulletins: { read: true },
 				},
 			},
-			bulletinsOnly: { collections: { bulletins: { read: true } } },
 		});
 
 		mcp = createMcpClient(booted, keys.all);
-		bulletinsOnly = createMcpClient(booted, keys.bulletinsOnly);
 	});
 
 	afterAll(async () => {
 		await booted.payload.destroy();
 	});
 
-	describe("without versions: true", () => {
-		it("reads the document as it stands now", async () => {
-			const result = await mcp.call("getDocument", {
-				collection: "bulletins",
-				id: plain.id,
-			});
-
-			expect(result.isError).toBe(false);
-			expect(result.data["body"]).toBe(PUBLIC);
-		});
-
-		it("does not list a version the read filter would exclude", async () => {
-			const result = await mcp.call("findVersions", {
-				collection: "bulletins",
-				id: plain.id,
-			});
-
-			expect(result.isError).toBe(true);
-			expect(listedIds(result.data)).not.toContain(plain.oldVersionId);
-		});
-
-		it("does not read a version the read filter would exclude", async () => {
-			const result = await mcp.call("getDocument", {
-				collection: "bulletins",
-				id: plain.id,
-				versionId: plain.oldVersionId,
-			});
-
-			expect(result.isError).toBe(true);
-			expect(result.data["error"]).toBe(
-				'"bulletins" does not expose version history.',
-			);
-			expect(responseText(result)).not.toContain(EMBARGOED);
-		});
-
-		it("does not diff from a version the read filter would exclude", async () => {
-			const result = await mcp.call("getDocument", {
-				collection: "bulletins",
-				id: plain.id,
-				diffFrom: plain.oldVersionId,
-			});
-
-			expect(result.isError).toBe(true);
-			expect(result.data).not.toHaveProperty("patch");
-			expect(responseText(result)).not.toContain(EMBARGOED);
-		});
-
-		it("offers no version tool or argument to a key that reaches nothing else", async () => {
-			const tools = await bulletinsOnly.list();
-			const getDocument = tools.find((tool) => tool.name === "getDocument");
-
-			expect(tools.map((tool) => tool.name)).not.toContain("findVersions");
-			expect(getDocument?.inputSchema["properties"]).not.toHaveProperty(
-				"versionId",
-			);
-		});
-	});
-
-	describe("with versions: true and the default readVersions", () => {
+	describe("with the default readVersions", () => {
 		it("lists the old version once the document passes its read filter", async () => {
 			const result = await mcp.call("findVersions", {
-				collection: "open-bulletins",
+				collection: "bulletins",
 				id: open.id,
 			});
 
@@ -171,7 +102,7 @@ describe("old versions under a filtered read access", () => {
 
 		it("reads the old version", async () => {
 			const result = await mcp.call("getDocument", {
-				collection: "open-bulletins",
+				collection: "bulletins",
 				id: open.id,
 				versionId: open.oldVersionId,
 			});
@@ -182,7 +113,7 @@ describe("old versions under a filtered read access", () => {
 
 		it("diffs from the old version", async () => {
 			const result = await mcp.call("getDocument", {
-				collection: "open-bulletins",
+				collection: "bulletins",
 				id: open.id,
 				diffFrom: open.oldVersionId,
 			});
@@ -192,7 +123,7 @@ describe("old versions under a filtered read access", () => {
 		});
 	});
 
-	describe("with versions: true and a readVersions rule", () => {
+	describe("with a readVersions rule", () => {
 		it("leaves out a version the rule excludes", async () => {
 			const result = await mcp.call("findVersions", {
 				collection: "guarded-bulletins",

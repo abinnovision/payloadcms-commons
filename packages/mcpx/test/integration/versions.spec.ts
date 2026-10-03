@@ -21,7 +21,6 @@ describe("version history", () => {
 	let editor: McpClient;
 	let postsOnly: McpClient;
 	let tagsOnly: McpClient;
-	let notesAndPages: McpClient;
 	let snippetsOnly: McpClient;
 	let pageId: number | string;
 	let otherPageId: number | string;
@@ -32,14 +31,13 @@ describe("version history", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: { versions: true },
-					posts: { write: false, versions: true },
+					pages: true,
+					posts: { write: false },
 					tags: { write: false },
-					notes: { write: false },
-					snippets: { versions: true },
+					snippets: true,
 				},
 				globals: {
-					"site-settings": { versions: true },
+					"site-settings": true,
 				},
 			},
 		});
@@ -54,19 +52,12 @@ describe("version history", () => {
 			},
 			postsOnly: { collections: { posts: { read: true } } },
 			tagsOnly: { collections: { tags: { read: true } } },
-			notesAndPages: {
-				collections: {
-					notes: { read: true },
-					pages: { read: true },
-				},
-			},
 			snippetsOnly: { collections: { snippets: { read: true } } },
 		});
 
 		editor = createMcpClient(booted, keys.editor);
 		postsOnly = createMcpClient(booted, keys.postsOnly);
 		tagsOnly = createMcpClient(booted, keys.tagsOnly);
-		notesAndPages = createMcpClient(booted, keys.notesAndPages);
 		snippetsOnly = createMcpClient(booted, keys.snippetsOnly);
 
 		const created = await editor.call("createDocument", {
@@ -242,38 +233,6 @@ describe("version history", () => {
 		expect(refused.text).toContain(
 			'Invalid input: expected "posts" at collection',
 		);
-	});
-
-	describe("on an entity with Payload versions that is not opted in", () => {
-		let noteId: number | string;
-
-		beforeAll(async () => {
-			const note = await booted.payload.create({
-				collection: "notes",
-				data: { title: "Note" },
-			});
-
-			noteId = note.id;
-		});
-
-		for (const [name, args] of [
-			["versionId", { versionId: 1 }],
-			["diffFrom", { diffFrom: 1 }],
-			["diffFrom published", { diffFrom: "published" }],
-		] as const) {
-			it(`refuses ${name}`, async () => {
-				const result = await notesAndPages.call("getDocument", {
-					collection: "notes",
-					id: noteId,
-					...args,
-				});
-
-				expect(result.isError).toBe(true);
-				expect(result.data["error"]).toBe(
-					'"notes" does not expose version history.',
-				);
-			});
-		}
 	});
 
 	it("leaves the version arguments out for a key that reaches no exposed versions", async () => {

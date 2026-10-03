@@ -23,12 +23,11 @@ for any of these:
 - an exposed `payload-*` collection or global, or the key collection itself;
 - a key collection slug that another collection already uses;
 - an entity value that is not `true` or an object, including `false` (remove the entry to hide the
-  entity), and an object key other than `read`, `write`, `publish` and `versions`;
-- a `read`, `write`, `publish` or `versions` value that is not `true` or `false`, including the
+  entity), and an object key other than `read`, `write` and `publish`;
+- a `read`, `write` or `publish` value that is not `true` or `false`, including the
   old `write: "draft"` and `write: "live"`;
 - `publish: true` on an entity without `versions.drafts`, or with `write: false`;
 - `publish: false` on an entity without `versions.drafts`, since every write there goes live;
-- `versions: true` on an entity without Payload `versions`, or with `read: false`;
 - `write` on a collection with `timestamps: false`, since the concurrency check needs `updatedAt`;
 - a live `write` on an entity with `versions.drafts.localizeStatus`, which is not supported yet;
 - two exposed collections, or two exposed globals, whose slugs map to the same camelCase
@@ -164,17 +163,20 @@ import { McpxCapabilityMatrix } from "@abinnovision/payloadcms-mcpx/admin";
 The config names the entities that are reachable and a key's checkboxes decide per key, so an
 option now defaults to everything the entity supports. `write` is a boolean that defaults to
 `true`, `publish` is a new boolean that defaults to `true` where the entity has drafts, and
-`write: "draft"` and `write: "live"` are refused at startup. `versions` defaults to `false`:
-version history has no checkbox of its own and follows the key's read, so the config opts in.
-Without drafts, a write changes live content, as `write: "live"` did.
+`write: "draft"` and `write: "live"` are refused at startup. The `versions` option is gone and
+is refused as an unknown option. Version history follows the key's read wherever the entity keeps
+Payload `versions`. Without drafts, a write changes live content, as `write: "live"` did.
 
-| before                        | after                      |
-| ----------------------------- | -------------------------- |
-| `true`                        | `{ write: false }`         |
-| `{ write: "draft" }`          | `{ publish: false }`       |
-| `{ write: "live" }`           | `true`                     |
-| `{ read: false, write: ... }` | `read: false` is unchanged |
-| `versions: true`              | unchanged                  |
+| before                        | after                           |
+| ----------------------------- | ------------------------------- |
+| `true`                        | `{ write: false }`              |
+| `{ write: "draft" }`          | `{ publish: false }`            |
+| `{ write: "live" }`           | `true`                          |
+| `{ read: false, write: ... }` | `read: false` is unchanged      |
+| `versions: true`              | remove it; history follows read |
+
+Old versions follow `access.readVersions`, as they do in Payload's own API; see
+[version history](./security.md#version-history).
 
 Existing keys keep exactly what was ticked, so a key gains nothing from the wider ceiling until
 someone ticks the new checkboxes. Entities that were read only now have write and publish

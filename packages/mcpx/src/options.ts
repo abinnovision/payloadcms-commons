@@ -72,7 +72,7 @@ const assertExposable = (
 	}
 };
 
-const OPTION_NAMES = ["read", "write", "publish", "versions"] as const;
+const OPTION_NAMES = ["read", "write", "publish"] as const;
 
 const REMOVED_WRITE_MODES: Record<string, string> = {
 	draft: "Use { publish: false } instead.",
@@ -122,9 +122,10 @@ const assertWritable = (
 /*
  * The config only takes capabilities away: read, write and publish default to
  * everything the entity supports, and a publish that is defaulted but
- * unsupported is derived off rather than refused. Versions are opt-in. The
- * entity value is checked at runtime: only `true` or an object of the four
- * options exposes it, so a typo or a falsy value never widens access.
+ * unsupported is derived off rather than refused. Version history follows read
+ * where the entity keeps Payload versions. The entity value is checked at
+ * runtime: only `true` or an object of the three options exposes it, so a typo
+ * or a falsy value never widens access.
  */
 const normalizeCapabilities = (
 	kind: string,
@@ -161,7 +162,6 @@ const normalizeCapabilities = (
 	const read = flag("read") ?? true;
 	const write = flag("write") ?? true;
 	const publish = flag("publish");
-	const versions = flag("versions") ?? false;
 	const hasDrafts = hasDraftsEnabled(config);
 
 	if (publish === false && write && !hasDrafts) {
@@ -182,18 +182,6 @@ const normalizeCapabilities = (
 		);
 	}
 
-	if (versions && !config.versions) {
-		fail(
-			`${kind} "${slug}" keeps no versions. Enable versions or remove versions: true.`,
-		);
-	}
-
-	if (versions && !read) {
-		fail(
-			`${kind} "${slug}" has versions: true but read: false. Version history follows read.`,
-		);
-	}
-
 	return {
 		read,
 		/*
@@ -201,7 +189,7 @@ const normalizeCapabilities = (
 		 */
 		write: write ? (publish === false ? "draft" : "live") : false,
 		hasDrafts,
-		hasVersions: versions,
+		hasVersions: read && Boolean(config.versions),
 	};
 };
 

@@ -90,17 +90,17 @@ block rows stays. For what this does not cover, see [known limitations](#known-l
 
 ### Version history
 
-Version history is off unless the entity sets `versions: true`, because it has no checkbox of its
-own and follows the key's read. Where it is off,
-the slug is missing from `findVersions` (the tool is not registered at all when the key reaches no
-entity with it) and `getDocument` refuses `versionId` and `diffFrom` for it. Where it is on, a key that
-may read the entity reads its history too. The tools read the document with the key's access
-first. Old versions are then governed by the collection's `access.readVersions`, which Payload
-defaults to any logged-in user. A `read` rule that depends on document content does not apply to
-old versions, so a document that passes it now exposes older states it would have excluded.
+Version history has no checkbox of its own. It follows the key's read wherever the entity keeps
+Payload `versions`. For any other slug the slug is missing from `findVersions` (the tool is not
+registered at all when the key reaches no entity with history) and `getDocument` refuses
+`versionId` and `diffFrom`. The tools read the document with the key's access first. Old versions
+are then governed by the collection's `access.readVersions`, which Payload defaults to any
+logged-in user. A `read` rule that depends on document content does not apply to old versions, so
+a document that passes it exposes older states it would have excluded. This is Payload behaviour:
+the same user reaches those versions through the REST and GraphQL APIs and the admin.
 
-Before turning it on, give `readVersions` a filter on the version fields that matches the `read`
-filter:
+Where `read` filters on content, give `readVersions` a filter on the version fields that matches
+the `read` filter:
 
 ```ts
 const published: CollectionConfig = {
@@ -209,7 +209,7 @@ whose user has no `id` or whose `collection` is not the configured user collecti
 - Rich text is not walked, so fields of block nodes and documents populated in nodes keep their
   `admin.hidden` fields. Set `hidden` or field-level `read` access on values that must not reach
   clients.
-- Where version history is exposed, old versions are governed by the collection's `access.readVersions`, not
+- Where an entity keeps Payload `versions`, old versions are governed by the collection's `access.readVersions`, not
   by its `read` rule. Payload lets any logged-in user through by default. See
   [Version history](#version-history) for a `readVersions` filter.
 - `admin.hidden` set on a row, collapsible, unnamed group or tab is not applied to the fields

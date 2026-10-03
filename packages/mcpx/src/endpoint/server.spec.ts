@@ -67,7 +67,7 @@ beforeAll(async () => {
 	};
 
 	const collections = {
-		pages: { publish: false, versions: true },
+		pages: { publish: false },
 		posts: { publish: false },
 		tags: { write: false },
 	} as const;
@@ -85,7 +85,7 @@ beforeAll(async () => {
 		{
 			collections,
 			globals: {
-				"site-settings": { publish: false, versions: true },
+				"site-settings": { publish: false },
 			},
 			tools,
 		},
@@ -175,7 +175,7 @@ describe("builtin tool shapes", () => {
 	it("leaves the version tool and arguments out for a key that reaches no exposed versions", () => {
 		const scope = scopeFor(
 			options,
-			{ collections: { posts: { read: true }, tags: { read: true } } },
+			{ collections: { tags: { read: true } } },
 			config,
 		);
 		const names = BUILTIN_TOOLS.filter((tool) =>

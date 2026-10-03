@@ -73,7 +73,7 @@ describe("normalizeOptions", () => {
 					read: true,
 					write: "live",
 					hasDrafts: true,
-					hasVersions: false,
+					hasVersions: true,
 					isUpload: false,
 					fieldName: "pages",
 				},
@@ -100,21 +100,20 @@ describe("normalizeOptions", () => {
 			);
 		});
 
-		it("leaves versions off, even where Payload keeps them and readVersions is defined", () => {
-			const withRule = { ...pages, access: { readVersions: () => true } };
-
+		it("derives hasVersions from the Payload versions of the entity", () => {
 			expect(
-				normalize(
-					{ collections: { pages: true } },
-					rawConfig([users, withRule]),
-				).collections[0],
-			).toMatchObject({ hasDrafts: true, hasVersions: false });
+				normalize({ collections: { pages: true } }, rawConfig([users, pages]))
+					.collections[0],
+			).toMatchObject({ hasDrafts: true, hasVersions: true });
 			expect(
 				normalize(
 					{ collections: { snippets: true } },
 					rawConfig([users, snippets]),
 				).collections[0],
-			).toMatchObject({ hasDrafts: false, hasVersions: false });
+			).toMatchObject({ hasDrafts: false, hasVersions: true });
+			expect(
+				normalize({ collections: { tags: true } }).collections[0],
+			).toMatchObject({ hasVersions: false });
 		});
 
 		it("leaves versions off, without an error, when read is off", () => {
@@ -143,7 +142,7 @@ describe("normalizeOptions", () => {
 					read: true,
 					write: "live",
 					hasDrafts: true,
-					hasVersions: false,
+					hasVersions: true,
 					isUpload: true,
 					fieldName: "media",
 				},
@@ -162,7 +161,7 @@ describe("normalizeOptions", () => {
 					read: true,
 					write: "live",
 					hasDrafts: true,
-					hasVersions: false,
+					hasVersions: true,
 					isUpload: false,
 					fieldName: "siteSettings",
 				},
@@ -199,35 +198,11 @@ describe("normalizeOptions", () => {
 			).toMatchObject({ write: "draft", hasDrafts: true });
 		});
 
-		it("takes versions: false away", () => {
-			const withRule = { ...pages, access: { readVersions: () => true } };
-
-			expect(
-				normalize(
-					{ collections: { pages: { versions: false } } },
-					rawConfig([users, withRule]),
-				).collections[0],
-			).toMatchObject({ hasVersions: false });
-		});
-
-		it("turns versions on with versions: true", () => {
-			expect(
-				normalize({ collections: { pages: { versions: true } } })
-					.collections[0],
-			).toMatchObject({ hasVersions: true });
-			expect(
-				normalize({
-					collections: {},
-					globals: { "site-settings": { versions: true } },
-				}).globals[0],
-			).toMatchObject({ hasVersions: true });
-		});
-
-		it("keeps drafts apart from the version setting", () => {
+		it("keeps drafts apart from the version history", () => {
 			expect(
 				normalize({ collections: { pages: { publish: false } } })
 					.collections[0],
-			).toMatchObject({ hasDrafts: true, hasVersions: false });
+			).toMatchObject({ hasDrafts: true, hasVersions: true });
 		});
 
 		it("lets publish: false stand with write: false on an entity without drafts", () => {
@@ -307,7 +282,7 @@ describe("normalizeOptions", () => {
 			const unknown: Record<string, unknown> = { nope: true };
 
 			expect(() => normalize({ collections: { pages: typo } })).toThrow(
-				/unknown option "wirte".*read, write, publish, versions/,
+				/unknown option "wirte".*read, write, publish/,
 			);
 			expect(() =>
 				normalize({ collections: {}, globals: { banner: unknown } }),
@@ -315,7 +290,7 @@ describe("normalizeOptions", () => {
 		});
 
 		it("refuses an option that is not a boolean", () => {
-			for (const name of ["read", "write", "publish", "versions"]) {
+			for (const name of ["read", "write", "publish"]) {
 				const settings: Record<string, unknown> = { [name]: "yes" };
 
 				expect(() =>
@@ -328,7 +303,7 @@ describe("normalizeOptions", () => {
 			expect(() =>
 				normalize({
 					collections: {},
-					globals: { banner: { versions: 1 as unknown as boolean } },
+					globals: { banner: { read: 1 as unknown as boolean } },
 				}),
 			).toThrow(/Use true or false/);
 		});
@@ -370,25 +345,12 @@ describe("normalizeOptions", () => {
 			).toThrow(/publish: true but write: false/);
 		});
 
-		it("refuses versions: true on an entity that keeps none", () => {
-			expect(() =>
-				normalize({ collections: { tags: { versions: true } } }),
-			).toThrow(/"tags" keeps no versions/);
-			expect(() =>
-				normalize({ collections: {}, globals: { banner: { versions: true } } }),
-			).toThrow(/"banner" keeps no versions/);
-		});
+		it("refuses versions as an unknown option", () => {
+			const settings: Record<string, unknown> = { versions: true };
 
-		it("refuses versions: true with read: false", () => {
-			expect(() =>
-				normalize({ collections: { pages: { read: false, versions: true } } }),
-			).toThrow(/read: false/);
-			expect(() =>
-				normalize({
-					collections: {},
-					globals: { "site-settings": { read: false, versions: true } },
-				}),
-			).toThrow(/read: false/);
+			expect(() => normalize({ collections: { pages: settings } })).toThrow(
+				/unknown option "versions"/,
+			);
 		});
 
 		it("refuses a write on a collection with a localized status and names the fix", () => {

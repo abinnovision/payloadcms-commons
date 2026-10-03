@@ -58,12 +58,14 @@ export default buildConfig({
 	 * entrypoint that is free of it, which is what lets the config be loaded
 	 * by `payload run`, `generate:types` and the admin bundle alike.
 	 */
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	plugins: [
 		/*
 		 * Only appends to `config.blocks`. The section wrapper is deliberately
 		 * absent: it is instantiated per host on `pages.layout` and
 		 * `articles.layout` instead, so it never reaches `config.blocks`.
 		 */
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 		montagePlugin({
 			blocks: [
 				heroBlock,
@@ -78,6 +80,7 @@ export default buildConfig({
 		 * Run `yarn generate:importmap` after adding it, as for any plugin that
 		 * contributes admin components.
 		 */
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 		viewfinderPlugin({ collections: ["pages", "articles"] }),
 		/*
 		 * `localized: true` because this app has a `localization` block, so the
@@ -93,30 +96,34 @@ export default buildConfig({
 		 * collection cannot become linkable without also being checked for the
 		 * `defaultPopulate` that makes its links resolve.
 		 */
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
 		wayfinderPlugin({ checkDefaultPopulateOn: linkTargets.relationTo }),
 		/*
 		 * `pages` is the entity to reach for when trying out `publishDocument`.
 		 * `articles` and `posts` show the other side of the axis, where MCP
 		 * writes stay drafts and a human publishes.
 		 */
+
 		mcpxPlugin({
 			collections: {
-				pages: { versions: true },
-				articles: { publish: false, versions: true },
-				posts: { publish: false, versions: true },
+				pages: true,
+				articles: { publish: false },
+				posts: { publish: false },
 				sections: true,
 				tags: { write: false },
 			},
 			globals: {
-				"site-settings": { versions: true },
+				"site-settings": true,
 			},
 			limits: { maxLimit: 25, maxDepth: 1 },
 		}),
+
 		/*
 		 * Default rows, so the group only appears once `APP_VERSION` and
 		 * friends are exported. Starting `yarn dev` without them is the
 		 * "nothing configured, nothing rendered" case.
 		 */
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 		colophonPlugin(),
 	],
 	graphQL: { disable: true },

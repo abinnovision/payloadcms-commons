@@ -218,7 +218,8 @@
         "collection": {
           "type": "string",
           "enum": [
-            "pages"
+            "pages",
+            "media"
           ]
         },
         "id": {
