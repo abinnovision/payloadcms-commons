@@ -175,9 +175,7 @@ Payload `versions`. Without drafts, a write changes live content, as `write: "li
 | `{ read: false, write: ... }` | `read: false` is unchanged      |
 | `versions: true`              | remove it; history follows read |
 
-**Before you upgrade:** history is now exposed to any key that may read an entity with Payload
-`versions`. If `read` filters on content, set `access.readVersions` to a matching filter first, or
-old versions that the filter would exclude become readable. See
+Old versions follow `access.readVersions`, as they do in Payload's own API; see
 [version history](./security.md#version-history).
 
 Existing keys keep exactly what was ticked, so a key gains nothing from the wider ceiling until

@@ -96,10 +96,11 @@ registered at all when the key reaches no entity with history) and `getDocument`
 `versionId` and `diffFrom`. The tools read the document with the key's access first. Old versions
 are then governed by the collection's `access.readVersions`, which Payload defaults to any
 logged-in user. A `read` rule that depends on document content does not apply to old versions, so
-a document that passes it exposes older states it would have excluded.
+a document that passes it exposes older states it would have excluded. This is Payload behaviour:
+the same user reaches those versions through the REST and GraphQL APIs and the admin.
 
 Where `read` filters on content, give `readVersions` a filter on the version fields that matches
-the `read` filter before you upgrade:
+the `read` filter:
 
 ```ts
 const published: CollectionConfig = {
