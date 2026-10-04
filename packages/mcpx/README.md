@@ -86,25 +86,25 @@ Claude Desktop and the MCP Inspector are covered in
 
 ## Options
 
-| Option                       | Default                                   | Description                                                                                                                         |
-| ---------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `collections`                | required                                  | Collections to expose. `true` means `{}`, everything it supports.                                                                   |
-| `collections.<slug>.read`    | `true`                                    | Expose the read tools for this collection.                                                                                          |
-| `collections.<slug>.write`   | `true`                                    | Expose the write tools. Without drafts, a write goes live.                                                                          |
-| `collections.<slug>.publish` | `true` with drafts                        | Expose `publishDocument`. Needs `versions.drafts` and `write`.                                                                      |
-| `collections.<slug>.delete`  | `false`                                   | Expose `deleteDocument`. Each delete is approved in the admin. `"unattended"` also offers trashing without approval; needs `trash`. |
-| `globals`                    | `{}`                                      | Globals to expose, with `read`, `write` and `publish`.                                                                              |
-| `userCollection`             | `config.admin.user`, then `users`         | Auth collection whose users the keys act as.                                                                                        |
-| `apiKeys.slug`               | `mcpx-api-keys`                           | Slug of the key collection.                                                                                                         |
-| `apiKeys.setupGuide`         | `true`                                    | Add the "Connect a client" tab to saved keys.                                                                                       |
-| `apiKeys.overrideCollection` | none                                      | Function that receives the key collection and returns it.                                                                           |
-| `endpoint.path`              | `/mcpx`                                   | Endpoint path below the API route.                                                                                                  |
-| `limits.maxLimit`            | `25`                                      | Highest `limit` a client may pass to a list tool.                                                                                   |
-| `limits.maxDepth`            | `1`                                       | Highest `depth` a client may pass to a read tool.                                                                                   |
-| `tools`                      | `[]`                                      | Custom tools, see [`docs/custom-tools.md`](./docs/custom-tools.md).                                                                 |
-| `auth.resolve`               | none                                      | Replace or wrap the key lookup.                                                                                                     |
-| `serverInfo`                 | `payloadcms-mcpx` and the package version | `{ name, version }` reported to clients.                                                                                            |
-| `diagnostics`                | `true`                                    | Expose the server version plus repository and issue links.                                                                          |
+| Option                       | Default                                   | Description                                                                                                                                       |
+| ---------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collections`                | required                                  | Collections to expose. `true` means `{}`, everything it supports.                                                                                 |
+| `collections.<slug>.read`    | `true`                                    | Expose the read tools for this collection.                                                                                                        |
+| `collections.<slug>.write`   | `true`                                    | Expose the write tools. Needs `read`. Without drafts, a write goes live.                                                                          |
+| `collections.<slug>.publish` | `true` with drafts                        | Expose `publishDocument`. Needs `versions.drafts` and `write`.                                                                                    |
+| `collections.<slug>.delete`  | `false`                                   | Expose `deleteDocument`. Needs `read`. Each delete is approved in the admin. `"unattended"` also offers trashing without approval; needs `trash`. |
+| `globals`                    | `{}`                                      | Globals to expose, with `read`, `write` and `publish`.                                                                                            |
+| `userCollection`             | `config.admin.user`, then `users`         | Auth collection whose users the keys act as.                                                                                                      |
+| `apiKeys.slug`               | `mcpx-api-keys`                           | Slug of the key collection.                                                                                                                       |
+| `apiKeys.setupGuide`         | `true`                                    | Add the "Connect a client" tab to saved keys.                                                                                                     |
+| `apiKeys.overrideCollection` | none                                      | Function that receives the key collection and returns it.                                                                                         |
+| `endpoint.path`              | `/mcpx`                                   | Endpoint path below the API route.                                                                                                                |
+| `limits.maxLimit`            | `25`                                      | Highest `limit` a client may pass to a list tool.                                                                                                 |
+| `limits.maxDepth`            | `1`                                       | Highest `depth` a client may pass to a read tool.                                                                                                 |
+| `tools`                      | `[]`                                      | Custom tools, see [`docs/custom-tools.md`](./docs/custom-tools.md).                                                                               |
+| `auth.resolve`               | none                                      | Replace or wrap the key lookup.                                                                                                                   |
+| `serverInfo`                 | `payloadcms-mcpx` and the package version | `{ name, version }` reported to clients.                                                                                                          |
+| `diagnostics`                | `true`                                    | Expose the server version plus repository and issue links.                                                                                        |
 
 The config only takes capabilities away: `true` exposes everything the entity supports, and a key's
 checkboxes decide what each key may do. `publish: false` keeps MCP writes as drafts. On an entity
@@ -116,19 +116,19 @@ every check.
 
 ## Tools
 
-| Tool               | What it does                                                       | Needs              |
-| ------------------ | ------------------------------------------------------------------ | ------------------ |
-| `listCapabilities` | Lists what this key may do. Clients call it first.                 | any key            |
-| `describeSchema`   | Describes the fields at one schema path, with the paths below it.  | `read`             |
-| `findDocuments`    | Queries a collection with a Payload `where`, `sort` and `select`.  | `read`             |
-| `getDocument`      | Reads a document, a subtree of it, an old version or a diff.       | `read`             |
-| `findVersions`     | Lists the version history of a document or global, without bodies. | `read`             |
-| `patchDocument`    | Applies JSON Patch operations to the current draft, or a new file. | `write`            |
-| `createDocument`   | Creates a draft from a seed, with a file in an upload collection.  | `write`            |
-| `validateDocument` | Lists what blocks publishing, without saving.                      | `write`            |
-| `publishDocument`  | Publishes the current draft.                                       | `write`, `publish` |
-| `deleteDocument`   | Asks to delete a document, which the key's user approves.          | `delete`           |
-| `runConfirmed`     | Runs the approved calls.                                           | `delete`           |
+| Tool               | What it does                                                       | Needs     |
+| ------------------ | ------------------------------------------------------------------ | --------- |
+| `listCapabilities` | Lists what this key may do. Clients call it first.                 | any key   |
+| `describeSchema`   | Describes the fields at one schema path, with the paths below it.  | `read`    |
+| `findDocuments`    | Queries a collection with a Payload `where`, `sort` and `select`.  | `read`    |
+| `getDocument`      | Reads a document, a subtree of it, an old version or a diff.       | `read`    |
+| `findVersions`     | Lists the version history of a document or global, without bodies. | `read`    |
+| `patchDocument`    | Applies JSON Patch operations to the current draft, or a new file. | `write`   |
+| `createDocument`   | Creates a draft from a seed, with a file in an upload collection.  | `write`   |
+| `validateDocument` | Lists what blocks publishing, without saving.                      | `write`   |
+| `publishDocument`  | Publishes the current draft.                                       | `publish` |
+| `deleteDocument`   | Asks to delete a document, which the key's user approves.          | `delete`  |
+| `runConfirmed`     | Runs the approved calls.                                           | `delete`  |
 
 Collections and globals use the same tools. A tool that addresses one document takes either
 `collection` and `id`, or `global` alone. [`docs/concepts.md`](./docs/concepts.md#tools) lists
@@ -142,15 +142,18 @@ The plugin config sets the upper bound: which collections and globals are expose
 each one is readable, writable and publishable. A key cannot go past it.
 
 Each key carries one checkbox per exposed entity and operation (`read`, `write`, `publish`,
-`delete`), and
-one per custom tool. The admin panel shows them as a matrix with a row per entity and a column per
-operation. A cell the config does not expose shows a dash. `publish` exists only where the config
-exposes `write` and `publish` on an entity with drafts, and counts only when `write` is ticked as
-well. A write checkbox on an entity without drafts is marked "Writes go live immediately."
+`delete`, `deleteUnattended`), and
+one per custom tool. The admin panel shows them as a matrix with a row per entity, an Access
+control (None, Read, Write, Publish) and a Delete control (Off, Approval, Trash). Each access level
+includes the ones before it, and a level the config does not expose has no segment. `publish`
+exists only where the config exposes `write` and `publish` on an entity with drafts, and counts
+only when `write` is ticked as well. `write` counts only when `read` is ticked, so a key never
+writes what it cannot read. An entity without drafts carries a "Live" badge, as its writes go live
+immediately.
 `delete` exists only where the config sets `delete: true` on a collection, and counts only when
-`read` is ticked as well. The row toggle leaves it alone. A delete runs only after the key's user
+`read` is ticked as well. Setting access to None clears it. A delete runs only after the key's user
 approved it on the key's edit view, except where the config sets `delete: "unattended"` and the
-key ticks "Delete without approval": there the document moves to trash at once. See
+key's Delete control is set to Trash: there the document moves to trash at once. See
 [deleting](./docs/concepts.md#deleting).
 
 `tools/list` follows the key. A tool the key cannot use is not listed, and each `collection` and

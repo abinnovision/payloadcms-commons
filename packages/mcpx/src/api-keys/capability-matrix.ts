@@ -10,15 +10,15 @@ import type { McpxExposedEntity } from "../types.js";
 
 /**
  * The group's `admin.description`, rendered by the matrix in Payload's
- * description slot. It explains both markings in the table: an unticked box
- * and a dash.
+ * description slot. It explains how to read the segmented controls.
  */
 export const CAPABILITIES_DESCRIPTION =
-	"What this key may do. An unticked box is a refusal, and a dash means the plugin config does not expose that operation at all.";
+	"What this key may do. Each level includes the ones before it, and a missing segment means the plugin config does not expose it.";
 
 /**
  * The operations a collection or global can expose. The generated checkboxes
- * and the matrix column headers share this wording.
+ * and the matrix segments share this wording. `requires` names the
+ * operation a grant depends on, which the server and the matrix both enforce.
  */
 export const CAPABILITY_OPERATIONS = [
 	{ id: "read", label: "Read", description: "Describe, find and read." },
@@ -26,26 +26,44 @@ export const CAPABILITY_OPERATIONS = [
 		id: "write",
 		label: "Write",
 		description: "Create, patch and validate drafts.",
+		requires: "read",
 	},
 	{
 		id: "publish",
 		label: "Publish",
 		description: "Promote the current draft to what the public sees.",
+		requires: "write",
 	},
 	{
 		id: "delete",
 		label: "Delete",
 		description:
-			"Delete documents, each approved by this key's user in the admin panel.",
-	},
-	{
-		id: "deleteUnattended",
-		label: "Delete without approval",
-		description: "Move documents to trash without asking this key's user.",
+			"Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.",
+		requires: "read",
 	},
 ] as const;
 
-export type CapabilityOperation = (typeof CAPABILITY_OPERATIONS)[number]["id"];
+/**
+ * Stored as a checkbox of its own but drawn as the Trash segment of the Delete
+ * control.
+ */
+const DELETE_UNATTENDED = {
+	id: "deleteUnattended",
+	label: "Trash directly",
+	description: "Move documents to trash without asking this key's user.",
+	requires: "delete",
+} as const;
+
+/**
+ * Every operation with a stored checkbox: the capability operations plus
+ * the unattended delete.
+ */
+export const STORED_OPERATIONS = [
+	...CAPABILITY_OPERATIONS,
+	DELETE_UNATTENDED,
+] as const;
+
+export type StoredOperation = (typeof STORED_OPERATIONS)[number]["id"];
 
 /**
  * The two entity namespaces, kept apart so slugs may collide across them.
@@ -54,8 +72,7 @@ export type CapabilityNamespace = "collections" | "globals";
 
 /**
  * One entity's row. The booleans say what the plugin config exposes, not what
- * the key was granted. A `false` renders as a dash, so absence reads as a
- * refusal by config rather than a gap.
+ * the key was granted. A `false` leaves its segment out of the row's controls.
  */
 export interface CapabilityRow {
 	fieldName: string;
@@ -69,9 +86,9 @@ export interface CapabilityRow {
 	delete: boolean;
 	deleteUnattended: boolean;
 	/**
-	 * Said only where a row departs from what its column header promises.
+	 * Writes go live immediately, as the entity keeps no drafts.
 	 */
-	hint?: string;
+	live?: boolean;
 }
 
 interface CapabilityTool {
@@ -90,12 +107,6 @@ export interface CapabilityMatrix {
 	tools: CapabilityTool[];
 }
 
-const LIVE_HINT = "Writes go live immediately.";
-
-// Without drafts a write has no draft stage to land in.
-const hintFor = (entity: McpxExposedEntity): Pick<CapabilityRow, "hint"> =>
-	isLiveWrite(entity) ? { hint: LIVE_HINT } : {};
-
 const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 	fieldName: entity.fieldName,
 	label: entity.slug,
@@ -104,12 +115,12 @@ const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 	publish: canPublish(entity),
 	delete: entity.delete,
 	deleteUnattended: entity.deleteUnattended,
-	...hintFor(entity),
+	...(isLiveWrite(entity) ? { live: true } : {}),
 });
 
 /**
  * The single description of what the config exposes. `createCapabilityFields`
- * and the admin component both draw from it, so a cell cannot appear without a
+ * and the admin component both draw from it, so a control cannot appear without a
  * field behind it.
  */
 export const createCapabilityMatrix = (
@@ -132,7 +143,7 @@ export const cellPath = (
 	basePath: string,
 	namespace: CapabilityNamespace,
 	fieldName: string,
-	operation: CapabilityOperation,
+	operation: StoredOperation,
 ): string => `${basePath}.${namespace}.${fieldName}.${operation}`;
 
 export const toolPath = (basePath: string, name: string): string =>
@@ -147,7 +158,7 @@ export const capabilityPaths = (
 ): string[] => [
 	...(["collections", "globals"] as const).flatMap((namespace) =>
 		matrix[namespace].flatMap((row) =>
-			CAPABILITY_OPERATIONS.filter((operation) => row[operation.id]).map(
+			STORED_OPERATIONS.filter((operation) => row[operation.id]).map(
 				(operation) =>
 					cellPath(basePath, namespace, row.fieldName, operation.id),
 			),

@@ -47,11 +47,7 @@ export const listCapabilities = defineMcpxTool({
 			const capability = scope.capabilities.collections[entry.slug];
 			const collection = payload.collections[entry.slug];
 
-			if (
-				!capability ||
-				!collection ||
-				!(capability.read || capability.write)
-			) {
+			if (!capability || !collection || !capability.read) {
 				return [];
 			}
 
@@ -92,7 +88,7 @@ export const listCapabilities = defineMcpxTool({
 				(candidate) => candidate.slug === entry.slug,
 			);
 
-			if (!capability || !config || !(capability.read || capability.write)) {
+			if (!capability || !config || !capability.read) {
 				return [];
 			}
 

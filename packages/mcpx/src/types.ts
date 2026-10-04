@@ -50,7 +50,7 @@ export interface McpxCollectionOptions {
 	/**
 	 * Expose `patchDocument`, `validateDocument` and `createDocument`. An upload
 	 * collection is created in only where MCP accepts its files. Without drafts
-	 * a write changes live content. Default `true`.
+	 * a write changes live content. Needs `read`. Default `true` while `read` is.
 	 */
 	write?: boolean;
 	/**
@@ -62,8 +62,8 @@ export interface McpxCollectionOptions {
 	/**
 	 * Expose `deleteDocument`, which deletes one document once the key's user
 	 * approved the call in the admin panel. On a collection with `trash` it
-	 * moves the document to trash. `"unattended"` also lets a key with its own
-	 * checkbox move documents to trash without approval; it needs `trash`.
+	 * moves the document to trash. `"unattended"` also lets a key set to it move
+	 * documents to trash without approval; it needs `trash`. Needs `read`.
 	 * Default `false`.
 	 */
 	delete?: boolean | "unattended";

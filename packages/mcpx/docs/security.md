@@ -29,6 +29,12 @@ key may be granted, and a key starts with every checkbox off. A new key can only
 live content, and the key form marks that row. `publish: false` keeps writes as drafts on an
 entity with drafts.
 
+Grants depend on each other: `publish` needs `write`, and `write` and `delete` need `read`. A key
+without `read` cannot write, because a write-only key would still learn document contents: the
+`test` patch operation answers whether a value matches, errors reveal structure, and the publish
+checks re-read the document. A grant whose prerequisite is off counts as no, and the config
+refuses `write`, `publish` or `delete` on an entity with `read: false`.
+
 ### Who can create keys
 
 By default, any user in the user collection can create a key and tick any capability the config
@@ -273,10 +279,10 @@ the `updatedAt` it read, and returns a confirmation `id` and the URL of the key'
   only the key's own user, in an admin session, can approve or reject it. The key is read with
   full access for that check, so a looser `read` rule on the key collection does not let another
   user decide. The id is therefore not a bearer, but the plugin never logs it.
-- `delete: "unattended"` and the key's "Delete without approval" checkbox skip the approval for
+- `delete: "unattended"` and a key whose Delete control is set to Trash skip the approval for
   one collection: the call runs the same checks and moves the document to trash at once. It is
   refused at startup on a collection without `trash`, so a permanent delete always needs
-  approval. The client cannot ask for it; only the key's checkbox decides.
+  approval. The client cannot ask for it; only the key's setting decides.
 - An approval or rejection is final. An approved call cannot be revoked; it runs on the next
   `runConfirmed` unless it expires first or the key loses the capability.
 - Approving runs nothing. `runConfirmed` claims an approved call with the same unique-key insert

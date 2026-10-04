@@ -1,6 +1,6 @@
 import {
 	CAPABILITIES_DESCRIPTION,
-	CAPABILITY_OPERATIONS,
+	STORED_OPERATIONS,
 	createCapabilityMatrix,
 } from "./capability-matrix.js";
 import { CAPABILITIES_FIELD } from "../capabilities.js";
@@ -215,9 +215,9 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 			name: row.fieldName,
 			type: "group",
 			label: row.label,
-			fields: CAPABILITY_OPERATIONS.filter(
-				(operation) => row[operation.id],
-			).map((operation) => checkbox(operation.id, operation.description)),
+			fields: STORED_OPERATIONS.filter((operation) => row[operation.id]).map(
+				(operation) => checkbox(operation.id, operation.description),
+			),
 		}));
 
 	const collectionGroups = entityGroups(matrix.collections);
