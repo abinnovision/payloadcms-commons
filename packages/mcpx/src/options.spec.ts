@@ -82,6 +82,8 @@ describe("normalizeOptions", () => {
 					write: "live",
 					hasDrafts: true,
 					hasVersions: true,
+					delete: false,
+					deleteUnattended: false,
 					isUpload: false,
 					fieldName: "pages",
 				},
@@ -96,6 +98,8 @@ describe("normalizeOptions", () => {
 					write: "live",
 					hasDrafts: false,
 					hasVersions: false,
+					delete: false,
+					deleteUnattended: false,
 					isUpload: false,
 					fieldName: "tags",
 				},
@@ -151,6 +155,8 @@ describe("normalizeOptions", () => {
 					write: "live",
 					hasDrafts: true,
 					hasVersions: true,
+					delete: false,
+					deleteUnattended: false,
 					isUpload: true,
 					fieldName: "media",
 				},
@@ -170,6 +176,8 @@ describe("normalizeOptions", () => {
 					write: "live",
 					hasDrafts: true,
 					hasVersions: true,
+					delete: false,
+					deleteUnattended: false,
 					isUpload: false,
 					fieldName: "siteSettings",
 				},
@@ -179,6 +187,8 @@ describe("normalizeOptions", () => {
 					write: "live",
 					hasDrafts: false,
 					hasVersions: false,
+					delete: false,
+					deleteUnattended: false,
 					isUpload: false,
 					fieldName: "banner",
 				},
@@ -204,6 +214,21 @@ describe("normalizeOptions", () => {
 				normalize({ collections: { pages: { publish: false } } })
 					.collections[0],
 			).toMatchObject({ write: "draft", hasDrafts: true });
+		});
+
+		it("leaves delete off unless it is set", () => {
+			const normalized = normalize({
+				collections: { pages: true, tags: { delete: true } },
+			});
+
+			expect(normalized.collections.map((entry) => entry.delete)).toEqual([
+				false,
+				true,
+			]);
+			expect(normalized.confirmations).toBe(true);
+			expect(normalize({ collections: { pages: true } }).confirmations).toBe(
+				false,
+			);
 		});
 
 		it("keeps drafts apart from the version history", () => {
@@ -295,6 +320,36 @@ describe("normalizeOptions", () => {
 			expect(() =>
 				normalize({ collections: {}, globals: { banner: unknown } }),
 			).toThrow(/Global "banner" has the unknown option "nope"/);
+		});
+
+		it("refuses delete on a global", () => {
+			const deletable: Record<string, unknown> = { delete: true };
+
+			expect(() =>
+				normalize({ collections: {}, globals: { banner: deletable } }),
+			).toThrow(/unknown option "delete".*read, write, publish\./);
+		});
+
+		it("accepts unattended deletes only on a collection with trash", () => {
+			const bins: CollectionConfig = { slug: "bins", trash: true, fields: [] };
+			const config = rawConfig([users, pages, tags, bins]);
+
+			expect(
+				normalize({ collections: { bins: { delete: "unattended" } } }, config)
+					.collections[0],
+			).toMatchObject({ delete: true, deleteUnattended: true });
+			expect(() =>
+				normalize({ collections: { tags: { delete: "unattended" } } }, config),
+			).toThrow(/Collection "tags" has delete: "unattended" but no trash/);
+		});
+
+		it("refuses delete with a custom auth.resolve", () => {
+			expect(() =>
+				normalize({
+					collections: { tags: { delete: true } },
+					auth: { resolve: () => Promise.resolve(null) },
+				}),
+			).toThrow(/custom auth\.resolve/);
 		});
 
 		it("refuses an option that is not a boolean", () => {

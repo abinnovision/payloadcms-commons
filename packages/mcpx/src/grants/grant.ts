@@ -12,14 +12,14 @@ const GRANT_TTL_MS = 5 * 60 * 1000;
 const GRANTS_PER_KEY = 10;
 
 // 32 random bytes in base64url.
-const GRANT_ID = /^[\w-]{43}$/;
+export const GRANT_ID = /^[\w-]{43}$/;
 
 /*
  * The KV collection is only ever written through `payload.db`, which runs no
  * hooks and no access control. Without `req` no call joins a transaction, so a
  * rollback cannot undo a claim.
  */
-const NO_REQ = {};
+export const NO_REQ = {};
 
 /**
  * A tool call waiting for its file, stored until the PUT that completes it.
@@ -66,7 +66,7 @@ export interface DownloadGrant {
 
 export type Grant = DownloadGrant | UploadGrant;
 
-interface KvRow {
+export interface KvRow {
 	key: string;
 	data: unknown;
 }
@@ -77,14 +77,14 @@ const grantPrefix = (apiKeyId: DocumentId): string =>
 const usedPrefix = (apiKeyId: DocumentId): string =>
 	`mcpx-grant-used:${String(apiKeyId)}:`;
 
-const expOf = (data: unknown): number =>
+export const expOf = (data: unknown): number =>
 	isPlainObject(data) && typeof data["exp"] === "number" ? data["exp"] : 0;
 
 /**
  * The KV collection slug, when Payload's database KV adapter backs it with a
  * unique `key`, which the single-use claim relies on. `undefined` otherwise.
  */
-export const uploadKvSlug = (config: SanitizedConfig): string | undefined => {
+export const grantKvSlug = (config: SanitizedConfig): string | undefined => {
 	const kv = config.kv as KVAdapterResult | undefined;
 	const key = kv?.kvCollection?.fields.find(
 		(field) => "name" in field && field.name === "key",
@@ -95,6 +95,9 @@ export const uploadKvSlug = (config: SanitizedConfig): string | undefined => {
 		: undefined;
 };
 
+/**
+ * KV rows whose key contains one of `fragments`.
+ */
 const findRows = async (
 	payload: Payload,
 	slug: string,
@@ -112,21 +115,38 @@ const findRows = async (
 };
 
 /**
- * Stores a grant and returns its id, the only copy of which goes to the
- * client. The row key holds the HMAC of the id. Expired rows of the same key
- * are purged first, and a key may hold at most {@link GRANTS_PER_KEY} grants.
+ * KV rows whose key starts with one of `prefixes`. `like` matches a
+ * substring, so the prefix is checked again here.
  */
-export const issueGrant = async (
+export const rowsWith = async (
 	payload: Payload,
 	slug: string,
-	grant: Omit<DownloadGrant, "exp"> | Omit<UploadGrant, "exp">,
-): Promise<{ grantId: string; exp: number }> => {
-	const now = Date.now();
-	const prefixes = [grantPrefix(grant.apiKeyId), usedPrefix(grant.apiKeyId)];
-	// `like` matches a substring, so the prefix is checked again here.
-	const rows = (await findRows(payload, slug, prefixes)).filter((row) =>
+	prefixes: string[],
+): Promise<KvRow[]> =>
+	(await findRows(payload, slug, prefixes)).filter((row) =>
 		prefixes.some((prefix) => row.key.startsWith(prefix)),
 	);
+
+/**
+ * Stores `data` under `prefix` and the HMAC of a fresh id, and returns the id,
+ * the only copy of which goes to the client. Expired rows under `prefix` and
+ * `usedPrefix` are purged first, and at most `cap` unexpired rows may wait
+ * under `prefix`; past that, `capMessage` is thrown with 429.
+ */
+export const issueRow = async (
+	payload: Payload,
+	slug: string,
+	args: {
+		prefix: string;
+		usedPrefix: string;
+		cap: number;
+		capMessage: string;
+		ttlMs: number;
+		data: Record<string, unknown>;
+	},
+): Promise<{ id: string; exp: number }> => {
+	const now = Date.now();
+	const rows = await rowsWith(payload, slug, [args.prefix, args.usedPrefix]);
 	const expired = rows.filter((row) => expOf(row.data) <= now);
 
 	if (expired.length > 0) {
@@ -138,29 +158,47 @@ export const issueGrant = async (
 	}
 
 	const waiting = rows.filter(
-		(row) => row.key.startsWith(prefixes[0]!) && expOf(row.data) > now,
+		(row) => row.key.startsWith(args.prefix) && expOf(row.data) > now,
 	);
 
-	if (waiting.length >= GRANTS_PER_KEY) {
-		throw new APIError(
-			`This key already has ${String(GRANTS_PER_KEY)} uploads or downloads waiting. Use or abandon them first; each expires 5 minutes after it was issued.`,
-			429,
-		);
+	if (waiting.length >= args.cap) {
+		throw new APIError(args.capMessage, 429);
 	}
 
-	const grantId = crypto.randomBytes(32).toString("base64url");
-	const exp = now + GRANT_TTL_MS;
+	const id = crypto.randomBytes(32).toString("base64url");
+	const exp = now + args.ttlMs;
 
 	await payload.db.create({
 		collection: slug,
 		data: {
-			key: `${grantPrefix(grant.apiKeyId)}${hashApiKey(payload.secret, grantId)}`,
-			data: { ...grant, exp },
+			key: `${args.prefix}${hashApiKey(payload.secret, id)}`,
+			data: { ...args.data, exp },
 		},
 		req: NO_REQ,
 	});
 
-	return { grantId, exp };
+	return { id, exp };
+};
+
+/**
+ * Stores a grant and returns its id. A key may hold at most
+ * {@link GRANTS_PER_KEY} grants.
+ */
+export const issueGrant = async (
+	payload: Payload,
+	slug: string,
+	grant: Omit<DownloadGrant, "exp"> | Omit<UploadGrant, "exp">,
+): Promise<{ grantId: string; exp: number }> => {
+	const { id, exp } = await issueRow(payload, slug, {
+		prefix: grantPrefix(grant.apiKeyId),
+		usedPrefix: usedPrefix(grant.apiKeyId),
+		cap: GRANTS_PER_KEY,
+		capMessage: `This key already has ${String(GRANTS_PER_KEY)} uploads or downloads waiting. Use or abandon them first; each expires 5 minutes after it was issued.`,
+		ttlMs: GRANT_TTL_MS,
+		data: grant,
+	});
+
+	return { grantId: id, exp };
 };
 
 /**

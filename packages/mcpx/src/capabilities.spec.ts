@@ -142,6 +142,55 @@ describe("resolveCapabilities", () => {
 		expect(scopeSlugs(resolved.collections).publishable).toEqual([]);
 	});
 
+	it("grants delete only where the config exposes it and read and delete are ticked", () => {
+		const withDelete = {
+			collections: [
+				entity("pages", { delete: true }),
+				entity("posts", { delete: true }),
+				entity("tags", { delete: true }),
+				entity("notes"),
+			],
+			globals: [],
+			tools: [],
+		} as unknown as NormalizedOptions;
+		const resolved = resolveCapabilities(withDelete, {
+			collections: {
+				pages: { read: true, delete: true },
+				posts: { read: true },
+				tags: { delete: true },
+				notes: { read: true, delete: true },
+			},
+		});
+
+		expect(scopeSlugs(resolved.collections).deletable).toEqual(["pages"]);
+	});
+
+	it("grants an unattended delete only with delete granted and the config allowing it", () => {
+		const withDelete = {
+			collections: [
+				entity("pages", { delete: true, deleteUnattended: true }),
+				entity("posts", { delete: true, deleteUnattended: true }),
+				entity("tags", { delete: true }),
+			],
+			globals: [],
+			tools: [],
+		} as unknown as NormalizedOptions;
+		const unattended = { read: true, delete: true, deleteUnattended: true };
+		const resolved = resolveCapabilities(withDelete, {
+			collections: {
+				pages: unattended,
+				posts: { read: true, deleteUnattended: true },
+				tags: unattended,
+			},
+		});
+
+		expect(
+			Object.entries(resolved.collections)
+				.filter(([, value]) => value.deleteUnattended)
+				.map(([slug]) => slug),
+		).toEqual(["pages"]);
+	});
+
 	it("survives keys without any capabilities", () => {
 		expect(
 			scopeSlugs(resolveCapabilities(options, undefined).collections).readable,

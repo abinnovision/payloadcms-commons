@@ -100,19 +100,20 @@ export default buildConfig({
 
 		wayfinderPlugin({ checkDefaultPopulateOn: linkTargets.relationTo }),
 		/*
-		 * `pages` is the entity to reach for when trying out `publishDocument`.
-		 * `articles` and `posts` show the other side of the axis, where MCP
-		 * writes stay drafts and a human publishes.
+		 * Everything is allowed, so every capability can be tried from a key,
+		 * including `deleteDocument`: it moves to the trash once approved on
+		 * the key's edit view, or at once where the key ticks "Delete without
+		 * approval".
 		 */
 
 		mcpxPlugin({
 			collections: {
-				pages: true,
-				articles: { publish: false },
-				posts: { publish: false },
-				sections: true,
-				tags: { write: false },
-				media: true,
+				pages: { delete: "unattended" },
+				articles: { delete: "unattended" },
+				posts: { delete: "unattended" },
+				sections: { delete: "unattended" },
+				tags: { delete: "unattended" },
+				media: { delete: "unattended" },
 			},
 			globals: {
 				"site-settings": true,

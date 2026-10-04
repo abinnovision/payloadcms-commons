@@ -7,6 +7,7 @@ import type { CollectionConfig } from "payload";
  */
 export const sections: CollectionConfig = {
 	slug: "sections",
+	trash: true,
 	admin: { useAsTitle: "title", defaultColumns: ["title", "slug"] },
 	defaultPopulate: { slug: true, title: true },
 	fields: [

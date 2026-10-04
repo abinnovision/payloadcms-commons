@@ -1,29 +1,22 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 
+import { confirmationFor } from "./confirmations.js";
 import { toToolError } from "./errors.js";
+import { isToolEnabled, toolInputSchema } from "../define-tool.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 import { liveWriteSlugs } from "../tools/shared.js";
 import { fileSlugs } from "../upload/file.js";
 import { MCPX_REPOSITORY_URL } from "../version.js";
 
 import type { NormalizedOptions } from "../options.js";
-import type { McpxAnyTool, McpxToolExtra, McpxToolScope } from "../types.js";
+import type {
+	McpxAnyTool,
+	McpxConfirmation,
+	McpxToolExtra,
+	McpxToolScope,
+} from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PayloadRequest } from "payload";
-
-/**
- * Strict, so an unknown argument is rejected by name instead of stripped.
- */
-export const toolInputSchema = (
-	tool: McpxAnyTool,
-	scope: McpxToolScope,
-): z.ZodObject =>
-	z.strictObject(
-		typeof tool.inputSchema === "function"
-			? tool.inputSchema(scope)
-			: (tool.inputSchema ?? {}),
-	);
 
 // May be built from the scope, to name the entities this key writes live.
 const toolDescription = (tool: McpxAnyTool, scope: McpxToolScope): string =>
@@ -31,20 +24,17 @@ const toolDescription = (tool: McpxAnyTool, scope: McpxToolScope): string =>
 		? tool.description(scope)
 		: tool.description;
 
-/**
- * A tool that does not decide for itself is gated by its own checkbox.
- */
-export const isToolEnabled = (
-	tool: McpxAnyTool,
-	scope: McpxToolScope,
-): boolean =>
-	tool.isEnabled
-		? tool.isEnabled(scope)
-		: scope.capabilities.tools[tool.name] === true;
+// Where no call can be stored, such as the upload endpoint.
+const NO_CONFIRMATION: McpxConfirmation = {
+	confirmed: false,
+	request: () =>
+		Promise.reject(new Error("No confirmation can be stored here.")),
+};
 
 /**
  * Runs one tool call. Payload's public errors become error results; anything
- * else is logged and reported as an internal error.
+ * else is logged and reported as an internal error. A tool with `confirm`
+ * gets `confirmation`.
  */
 export const runTool = async (
 	tool: McpxAnyTool,
@@ -52,9 +42,14 @@ export const runTool = async (
 	scope: McpxToolScope,
 	req: PayloadRequest,
 	extra: McpxToolExtra,
+	confirmation: McpxConfirmation = NO_CONFIRMATION,
 ): Promise<CallToolResult> => {
+	const ctx = { args: args as never, scope, req, extra };
+
 	try {
-		return await tool.handler({ args: args as never, scope, req, extra });
+		return await (tool.confirm
+			? tool.handler({ ...ctx, confirmation })
+			: tool.handler(ctx));
 	} catch (error) {
 		return toToolError(error, req.payload.logger);
 	}
@@ -162,7 +157,14 @@ export const createMcpServer = (
 			(args, extra): Promise<CallToolResult> => {
 				const result = queue.then(
 					async (): Promise<CallToolResult> =>
-						await runTool(tool, args, scope, req, extra),
+						await runTool(
+							tool,
+							args,
+							scope,
+							req,
+							extra,
+							confirmationFor(tool.name, scope, options),
+						),
 				);
 
 				queue = result.catch(() => undefined);

@@ -55,6 +55,10 @@ above: Payload's Local API skips access control by default, and the draft guard 
 writes that carry the MCP `req`. [security.md](./security.md#custom-tools-and-custom-auth) lists
 what else a custom tool is responsible for.
 
+`McpxTool` also has a `confirm` option, which gives the handler a `confirmation`. Both are
+internal for now: only the builtin `deleteDocument` uses them, and `runConfirmed` runs no custom
+tool.
+
 ## Reads
 
 The builtin read tools populate relations only into collections the key can read, and send any

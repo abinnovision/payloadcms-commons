@@ -1,7 +1,13 @@
 import { APIError } from "payload";
 import { hasDraftsEnabled } from "payload/shared";
 
-import { hasPublishIntent, takePublishIntent } from "./publish-intent.js";
+import {
+	hasPublishIntent,
+	hasTrashIntent,
+	takePublishIntent,
+	takeTrashIntent,
+	withTrashIntent,
+} from "./publish-intent.js";
 import { isMcpxRequest } from "../request.js";
 
 import type {
@@ -30,15 +36,20 @@ const STRIPPED_ARGS = new Set([
 /*
  * `draft` alone does not force a draft save: Payload's update path saves one
  * only when `data._status !== "published"`, so `_status` is dropped. A publish
- * is granted only here, for the write `publishDocument` marked. Not covered:
- * deletes, `duplicate`, files (the local API lifts `file` and `filePath` onto
- * `req` first) and anything going straight to `payload.db`. `restoreVersion`
- * runs `beforeChange` hooks, so {@link refusePublish} catches it.
+ * is granted only here, for the write `publishDocument` marked. A trash move
+ * is granted the same way for the write `deleteDocument` marked: it keeps
+ * `deletedAt` and nothing else of `data`, and is not a draft save, which would
+ * leave the document's own `deletedAt` unchanged. `trash` stays false, so an
+ * already trashed document is not found. Not covered: deletes, `duplicate`,
+ * files (the local API lifts `file` and `filePath` onto `req` first) and
+ * anything going straight to `payload.db`. `restoreVersion` runs
+ * `beforeChange` hooks, so {@link refusePublish} catches it.
  */
 const scrubWriteArgs = (
 	args: Record<string, unknown>,
-	publishing: boolean,
+	intent: "publish" | "trash" | undefined,
 ): Record<string, unknown> => {
+	const publishing = intent === "publish";
 	const next = Object.fromEntries(
 		Object.entries(args).filter(
 			([key]) =>
@@ -50,14 +61,18 @@ const scrubWriteArgs = (
 	if (next["data"] && typeof next["data"] === "object") {
 		const {
 			_status: _ignoredStatus,
-			deletedAt: _ignoredDeletedAt,
+			deletedAt,
 			...data
 		} = next["data"] as Record<string, unknown>;
 
-		next["data"] = publishing ? { ...data, _status: "published" } : data;
+		next["data"] = publishing
+			? { ...data, _status: "published" }
+			: intent === "trash"
+				? withTrashIntent({ deletedAt })
+				: data;
 	}
 
-	next["draft"] = !publishing;
+	next["draft"] = intent === undefined;
 	next["autosave"] = false;
 	next["overrideLock"] = false;
 	next["trash"] = false;
@@ -80,9 +95,16 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 		return args;
 	}
 
-	const publishing = operation === "update" && hasPublishIntent(args.data);
+	const intent =
+		operation !== "update"
+			? undefined
+			: hasPublishIntent(args.data)
+				? "publish"
+				: hasTrashIntent(args.data)
+					? "trash"
+					: undefined;
 
-	return scrubWriteArgs(args, publishing) as typeof args;
+	return scrubWriteArgs(args, intent) as typeof args;
 };
 
 /**
@@ -118,14 +140,15 @@ export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 		);
 	}
 
-	return scrubWriteArgs(args, publishing);
+	return scrubWriteArgs(args, publishing ? "publish" : undefined);
 };
 
 /*
  * Throws instead of correcting `_status`, because Payload has chosen the write
  * branch by the time `beforeChange` runs. For a collection this backs up
  * {@link forceDraftWrite}; for a global it is the enforcement. As the last hook
- * that needs the marker, it removes it.
+ * that needs the markers, it removes them. A marked trash move keeps the
+ * stored `_status`, which is either.
  */
 const refuseUnlessExpected = (
 	req: PayloadRequest,
@@ -133,8 +156,9 @@ const refuseUnlessExpected = (
 	data: unknown,
 ): void => {
 	const publishing = takePublishIntent(data);
+	const trashing = takeTrashIntent(data);
 
-	if (!isMcpxRequest(req)) {
+	if (!isMcpxRequest(req) || trashing) {
 		return;
 	}
 

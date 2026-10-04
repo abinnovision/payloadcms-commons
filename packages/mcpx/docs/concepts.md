@@ -19,6 +19,8 @@ the same.
 | `createDocument`   | `collection`, `locale`, `data`, `file?`                                                                        |
 | `validateDocument` | `collection` + `id` or `global`, `locale?`                                                                     |
 | `publishDocument`  | `collection` + `id` or `global`, `locale?`, `expectedUpdatedAt?`                                               |
+| `deleteDocument`   | `collection`, `id`, `expectedUpdatedAt?`, `reason?`                                                            |
+| `runConfirmed`     | `ids`                                                                                                          |
 
 `locale` is only present when the config has localization. `depth` defaults to 0 and is capped
 by `limits.maxDepth`; `limit` defaults to 10 and is capped by `limits.maxLimit`. `draft` defaults
@@ -255,6 +257,28 @@ The blocker check after a write validates only the written locale and runs the f
 again; see [limitations.md](./limitations.md#known-gaps). `validateDocument` runs the same check
 without saving. With `locale` it checks that locale; without it, every configured locale, and each
 blocker carries its `locale`. Because the hooks run, it carries no `readOnlyHint`.
+
+## Deleting
+
+`delete` is off by default and exists on collections only. Where a collection sets
+`delete: true` and the key has the `read` and `delete` checkboxes, `deleteDocument` asks to delete one
+document. It runs every check, deletes nothing and returns a `confirmation` with an `id`, a `url`
+and `expiresAt`. The `url` opens the key's own edit view in the admin panel, where the key's user
+approves or rejects the waiting calls, one by one or all at once. Approving runs nothing: the
+client then passes the ids to `runConfirmed`, which answers each id in the order given with
+`done` and the call's result, `pending`, `skipped` and a `reason`, or `refused`. A batch cleanup
+is one `deleteDocument` call per document and one `runConfirmed` call for all of them.
+
+On a collection with `trash: true` the document moves to trash, as the admin's own delete does.
+Without trash it is deleted permanently, and an upload collection's file leaves storage. Set
+`trash` on every collection exposed with `delete`. [security.md](./security.md#confirmations)
+describes what is checked when.
+
+`delete: "unattended"`, allowed only on a collection with `trash: true`, adds a "Delete without
+approval" checkbox to the key. Where a key ticks it, `deleteDocument` runs the same checks and
+moves the document to trash at once, returning the delete result instead of a confirmation. The
+client has no argument to choose this: the key decides. Every other key, and every collection
+without it, still needs approval.
 
 ## Versions and diffs
 

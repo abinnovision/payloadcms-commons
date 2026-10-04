@@ -16,6 +16,7 @@ import type { CollectionConfig } from "payload";
  */
 export const posts: CollectionConfig = {
 	slug: "posts",
+	trash: true,
 	admin: { useAsTitle: "title" },
 	versions: { drafts: true },
 	fields: [

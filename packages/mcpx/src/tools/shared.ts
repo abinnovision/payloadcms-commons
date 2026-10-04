@@ -11,7 +11,8 @@ import type {
 } from "../types.js";
 import type { TypedLocale } from "payload";
 
-export type Operation = "create" | "publish" | "read" | "versions" | "write";
+export type Operation =
+	"create" | "delete" | "publish" | "read" | "versions" | "write";
 
 /**
  * An out-of-scope slug fails schema validation before a handler runs, so a
@@ -119,6 +120,9 @@ export const slugsFor = (
 				// A global always exists, so nothing creates one.
 				globals: [],
 			};
+		case "delete":
+			// Globals are never deletable.
+			return { collections: scope.collections.deletable, globals: [] };
 		case "publish":
 			return slugsOf(scope, "publishable");
 		case "read":

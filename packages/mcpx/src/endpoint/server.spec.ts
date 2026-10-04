@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { createMcpServer, isToolEnabled, toolInputSchema } from "./server.js";
+import { createMcpServer } from "./server.js";
 import { scopeFor } from "../../test/builders/scope.js";
 import {
 	media,
@@ -12,6 +12,7 @@ import {
 } from "../../test/fixtures/collections.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 import { banner, siteSettings } from "../../test/fixtures/globals.js";
+import { isToolEnabled, toolInputSchema } from "../define-tool.js";
 import { normalizeOptions } from "../options.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 

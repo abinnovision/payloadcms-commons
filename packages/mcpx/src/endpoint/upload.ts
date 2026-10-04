@@ -1,18 +1,19 @@
 import { authenticateAs } from "./handler.js";
-import { isToolEnabled, runTool, toolInputSchema } from "./server.js";
+import { runTool } from "./server.js";
 import { checkApiKey } from "../auth/resolve.js";
+import { isToolEnabled, toolInputSchema } from "../define-tool.js";
+import { claimGrant, grantKvSlug } from "../grants/grant.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 import {
 	downloadSlugs,
 	setUploadedFile,
 	uploadMaxBytes,
 } from "../upload/file.js";
-import { claimGrant, uploadKvSlug } from "../upload/grant.js";
 
 import type { ApiKeyDoc } from "../auth/resolve.js";
+import type { Grant } from "../grants/grant.js";
 import type { NormalizedOptions } from "../options.js";
 import type { McpxToolExtra, McpxToolScope } from "../types.js";
-import type { Grant } from "../upload/grant.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
@@ -130,7 +131,7 @@ const claimAs = async <Kind extends Grant["kind"]>(
 ): Promise<
 	{ grant: Extract<Grant, { kind: Kind }>; scope: McpxToolScope } | undefined
 > => {
-	const slug = uploadKvSlug(req.payload.config);
+	const slug = grantKvSlug(req.payload.config);
 	const grantId = req.headers.get("x-mcpx-grant");
 
 	if (slug === undefined || options.auth?.resolve || grantId === null) {

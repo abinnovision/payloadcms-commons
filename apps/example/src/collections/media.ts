@@ -9,6 +9,7 @@ import type { CollectionConfig } from "payload";
  */
 export const media: CollectionConfig = {
 	slug: "media",
+	trash: true,
 	admin: { useAsTitle: "alt" },
 	upload: {
 		staticDir: path.resolve(process.cwd(), ".data/media"),

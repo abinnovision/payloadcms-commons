@@ -11,7 +11,24 @@ import { isPlainObject } from "../guards.js";
  * symbols. The value is a per-process token, so a client cannot forge it.
  */
 const PUBLISH_INTENT = "__mcpxPublishIntent";
+// The same, for the trash move `deleteDocument` makes.
+const TRASH_INTENT = "__mcpxTrashIntent";
 const TOKEN = randomUUID();
+
+const take = (data: unknown, key: string): boolean => {
+	if (!isPlainObject(data) || data[key] !== TOKEN) {
+		return false;
+	}
+
+	/*
+	 * The key is a module constant, not caller input; the rule guards against
+	 * deleting an attacker-chosen key.
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+	delete data[key];
+
+	return true;
+};
 
 export const withPublishIntent = <T extends object>(data: T): T => ({
 	...data,
@@ -26,17 +43,21 @@ export const hasPublishIntent = (
 /**
  * Called by the last hook that needs the marker, which removes it.
  */
-export const takePublishIntent = (data: unknown): boolean => {
-	if (!hasPublishIntent(data)) {
-		return false;
-	}
+export const takePublishIntent = (data: unknown): boolean =>
+	take(data, PUBLISH_INTENT);
 
-	/*
-	 * The key is a module constant, not caller input; the rule guards against
-	 * deleting an attacker-chosen key.
-	 */
-	// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-	delete data[PUBLISH_INTENT];
+export const withTrashIntent = <T extends object>(data: T): T => ({
+	...data,
+	[TRASH_INTENT]: TOKEN,
+});
 
-	return true;
-};
+export const hasTrashIntent = (
+	data: unknown,
+): data is Record<string, unknown> =>
+	isPlainObject(data) && data[TRASH_INTENT] === TOKEN;
+
+/**
+ * The counterpart of {@link takePublishIntent}.
+ */
+export const takeTrashIntent = (data: unknown): boolean =>
+	take(data, TRASH_INTENT);

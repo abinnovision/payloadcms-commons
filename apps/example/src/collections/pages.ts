@@ -10,6 +10,7 @@ import type { CollectionConfig } from "payload";
  */
 export const pages: CollectionConfig = {
 	slug: "pages",
+	trash: true,
 	admin: {
 		useAsTitle: "title",
 		defaultColumns: ["title", "slug"],

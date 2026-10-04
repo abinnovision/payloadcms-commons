@@ -30,9 +30,12 @@ for any of these:
 - an exposed `payload-*` collection or global, or the key collection itself;
 - a key collection slug that another collection already uses;
 - an entity value that is not `true` or an object, including `false` (remove the entry to hide the
-  entity), and an object key other than `read`, `write` and `publish`;
-- a `read`, `write` or `publish` value that is not `true` or `false`, including the
-  old `write: "draft"` and `write: "live"`;
+  entity), and an object key other than `read`, `write`, `publish` and, on a collection,
+  `delete`;
+- a `read`, `write`, `publish` or `delete` value that is not `true` or `false`, including the
+  old `write: "draft"` and `write: "live"`, apart from `delete: "unattended"`;
+- `delete: "unattended"` on a collection without `trash: true`, since a delete without approval
+  must only move to trash;
 - `publish: true` on an entity without `versions.drafts`, or with `write: false`;
 - `publish: false` on an entity without `versions.drafts`, since every write there goes live;
 - `write` on a collection with `timestamps: false`, since the concurrency check needs `updatedAt`;
@@ -41,7 +44,8 @@ for any of these:
   capability name;
 - a custom tool name that does not start with a letter, holds anything other than letters and
   digits, repeats another, or reuses a builtin name;
-- `limits.maxLimit` below 1 or `limits.maxDepth` below 0, or either not an integer.
+- `limits.maxLimit` below 1 or `limits.maxDepth` below 0, or either not an integer;
+- `delete: true` together with `auth.resolve`, since approval lives on the key document.
 
 ## API keys
 
@@ -75,7 +79,25 @@ explains its operation.
 
 A cell the config does not expose shows a dash, so a `write: false` collection reads as a config
 decision rather than an unticked box. A column that no row exposes is left out. Ticking `publish`
-also ticks `write`, and clearing `write` clears `publish`.
+also ticks `write`, and clearing `write` clears `publish`. The `delete` column appears only where
+a collection sets `delete: true`. Ticking `delete` also ticks `read`, clearing `read` clears
+`delete`, and a row's toggle never ticks `delete`. "Delete without approval" appears only where
+a collection sets `delete: "unattended"`; ticking it ticks `delete` and `read`, clearing either
+clears it, and a row's toggle never ticks it.
+
+### Waiting calls
+
+Where a collection sets `delete: true`, a saved key lists the calls waiting for approval above
+its tabs: one table per tool, a row per call with the collection, the document and a link to it,
+whether it moves to trash or is permanent, and the reason the client gave. The title is the
+published one, with the latest draft's title added where it differs, and the row names the
+document's status. Each row has Approve
+and Reject, and the footer approves or rejects every listed call. The `url` of a confirmation
+opens this view with its row highlighted. Nothing is listed while no call waits, and a decision
+never touches the key's form, so the key is not marked modified.
+
+The list and the decisions go through `GET` and `POST` on `{routes.api}{endpoint.path}/confirmations`
+with the admin session. Only the key's own user may use them.
 
 ### The "Connect a client" tab
 
@@ -113,7 +135,8 @@ HTTP transport with the same URL and header.
 ### Admin components
 
 The key form renders the capability matrix and the setup guide from
-`@abinnovision/payloadcms-mcpx/admin`, so both must be in the import map:
+`@abinnovision/payloadcms-mcpx/admin`, and the waiting calls where a collection sets
+`delete: true`, so they must be in the import map:
 
 ```sh
 payload generate:importmap

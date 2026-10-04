@@ -8,7 +8,12 @@ import {
 	refusePublish,
 	refusePublishGlobal,
 } from "./draft-guard.js";
-import { hasPublishIntent, withPublishIntent } from "./publish-intent.js";
+import {
+	hasPublishIntent,
+	hasTrashIntent,
+	withPublishIntent,
+	withTrashIntent,
+} from "./publish-intent.js";
 
 const mcpxRequest = {
 	context: {
@@ -197,6 +202,43 @@ describe("forceDraftWrite on a marked publish", () => {
 	});
 });
 
+describe("forceDraftWrite on a marked trash move", () => {
+	it("keeps the soft delete marker and saves no draft", () => {
+		const args = operationArgumentsFor({
+			data: withTrashIntent({
+				deletedAt: "now",
+				_status: "published",
+				title: "Probe",
+			}),
+			id: "1",
+			publishSpecificLocale: "de",
+			overrideLock: true,
+			trash: true,
+		});
+
+		expect(args).toMatchObject({
+			draft: false,
+			data: { deletedAt: "now" },
+			overrideLock: false,
+			trash: false,
+		});
+		expect(args["data"]).not.toHaveProperty("_status");
+		expect(args["data"]).not.toHaveProperty("title");
+		expect(args).not.toHaveProperty("publishSpecificLocale");
+		expect(hasTrashIntent(args["data"])).toBe(true);
+	});
+
+	it("does not trash on a create", () => {
+		const args = operationArgumentsFor(
+			{ data: withTrashIntent({ deletedAt: "now" }) },
+			"create",
+		);
+
+		expect(args).toMatchObject({ draft: true });
+		expect(args["data"]).not.toHaveProperty("deletedAt");
+	});
+});
+
 describe("refusePublish", () => {
 	it("leaves a non-mcpx publish alone", () => {
 		const { call } = runRefusal("published", restRequest);
@@ -226,6 +268,19 @@ describe("refusePublish", () => {
 		expect(runRefusal("draft", mcpxRequest, true).call).toThrow(
 			/would not have saved/,
 		);
+	});
+
+	it("lets a marked trash move keep the stored status", () => {
+		const warn = vi.fn();
+		const data = withTrashIntent({ _status: "published" });
+		const hookArgs: unknown = {
+			collection: { slug: "pages" },
+			data,
+			req: { ...mcpxRequest, payload: { logger: { warn } } },
+		};
+
+		expect(refusePublish(hookArgs as never)).toEqual({ _status: "published" });
+		expect(hasTrashIntent(data)).toBe(false);
 	});
 
 	it("takes the marker off, so nothing downstream sees it", () => {

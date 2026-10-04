@@ -4,7 +4,7 @@ import { isValidAuthResult, resolveApiKeyAuth } from "../auth/resolve.js";
 import { resolveCapabilities, scopeSlugs } from "../capabilities.js";
 import { jsonRpcError } from "./errors.js";
 import { createMcpServer } from "./server.js";
-import { uploadKvSlug } from "../upload/grant.js";
+import { grantKvSlug } from "../grants/grant.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAuthResult, McpxToolScope } from "../types.js";
@@ -78,7 +78,7 @@ export const buildScope = (
 		 */
 		uploads:
 			options.auth?.resolve === undefined &&
-			uploadKvSlug(req.payload.config) !== undefined,
+			grantKvSlug(req.payload.config) !== undefined,
 		diagnostics: options.diagnostics
 			? { name: options.serverInfo.name, version: options.serverInfo.version }
 			: null,

@@ -99,9 +99,9 @@ claude mcp add --transport http payload http://localhost:3000/api/mcpx \
 `describeSchema` on `pages` stops at `/layout` and names the block slugs;
 `/layout/section-wrapper/modules/hero-module` descends into one. `createDocument`
 leaves a draft, which 404s on the site, and `publishDocument` makes it routable
-at whatever URL the mapping says it lives at. Try `publishDocument` on `posts`
-and the tool is not there: `posts` is configured `publish: false`, so its drafts
-only go live through the admin panel.
+at whatever URL the mapping says it lives at. Every collection allows
+`deleteDocument` into the trash: tick delete and the key's edit view lists each
+call for approval, or tick "Delete without approval" to skip it.
 
 ## The two seams
 

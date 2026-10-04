@@ -1,5 +1,6 @@
 import {
 	createCapabilityFields,
+	createConfirmationFields,
 	createKeyFields,
 	withSetupGuideTab,
 } from "./fields.js";
@@ -74,27 +75,30 @@ export const createApiKeysCollection = (
 		hooks: {
 			beforeChange: [keyBeforeChange],
 		},
-		fields: withSetupGuideTab(
-			[
-				{
-					name: "user",
-					type: "relationship",
-					relationTo: userCollection,
-					required: true,
-					access: {
-						create: () => false,
-						update: () => false,
+		fields: [
+			...createConfirmationFields(options),
+			...withSetupGuideTab(
+				[
+					{
+						name: "user",
+						type: "relationship",
+						relationTo: userCollection,
+						required: true,
+						access: {
+							create: () => false,
+							update: () => false,
+						},
+						defaultValue: ({ req }: { req: PayloadRequest }) =>
+							isUser({ req }) ? req.user?.id : undefined,
+						admin: {
+							description: "The user this key acts as.",
+						},
 					},
-					defaultValue: ({ req }: { req: PayloadRequest }) =>
-						isUser({ req }) ? req.user?.id : undefined,
-					admin: {
-						description: "The user this key acts as.",
-					},
-				},
-				...createKeyFields(),
-				...createCapabilityFields(options),
-			],
-			options,
-		),
+					...createKeyFields(),
+					...createCapabilityFields(options),
+				],
+				options,
+			),
+		],
 	};
 };

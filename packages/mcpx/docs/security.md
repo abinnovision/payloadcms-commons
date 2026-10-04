@@ -180,6 +180,11 @@ publish. Payload's global update reads its arguments before `beforeOperation` ru
 only the change to the data takes effect. The `beforeOperation` hook refuses a write that did not
 ask for a draft save, and the `beforeChange` refusal keeps the status a draft.
 
+A marked trash move from `deleteDocument` keeps `deletedAt` and is not saved as a draft, since a
+draft save would leave the document itself, which carries `deletedAt`, unchanged. As the admin's
+own move to trash, it writes the latest version to the document; the trashed document is not
+public either way.
+
 The guard does not cover:
 
 - deletes;
@@ -256,6 +261,40 @@ that is still in use:
   patches applied is validated before the call returns its `upload`, and refused if it fails.
   That check skips fields a client cannot write, such as `admin.hidden` fields a hook fills from
   the file. The upload itself is validated by Payload with all hooks and the file.
+
+## Confirmations
+
+`deleteDocument` writes nothing. It runs every check the delete runs: the key's `read` and `delete`
+capabilities, a read of the document as the key's user, `access.delete` (and `access.update` for a
+trash move), the trash state and `expectedUpdatedAt`. It then stores the call in Payload's KV with
+the `updatedAt` it read, and returns a confirmation `id` and the URL of the key's edit view.
+
+- The call is bound to the key that requested it. Only that key's `runConfirmed` finds it, and
+  only the key's own user, in an admin session, can approve or reject it. The key is read with
+  full access for that check, so a looser `read` rule on the key collection does not let another
+  user decide. The id is therefore not a bearer, but the plugin never logs it.
+- `delete: "unattended"` and the key's "Delete without approval" checkbox skip the approval for
+  one collection: the call runs the same checks and moves the document to trash at once. It is
+  refused at startup on a collection without `trash`, so a permanent delete always needs
+  approval. The client cannot ask for it; only the key's checkbox decides.
+- An approval or rejection is final. An approved call cannot be revoked; it runs on the next
+  `runConfirmed` unless it expires first or the key loses the capability.
+- Approving runs nothing. `runConfirmed` claims an approved call with the same unique-key insert
+  as an upload grant, so it runs at most once, then runs it again as the key's user with
+  `overrideAccess: false` and the MCP marker, in its own transaction. The key's current
+  capabilities apply: a call the key no longer allows, a document changed since the request or
+  access lost since is skipped and reported with the reason.
+- A call expires 15 minutes after it was requested, approved or not. A key may have 50 calls
+  stored at a time, apart from its 10 upload grants.
+- The KV holds the HMAC of the id under the Payload secret. The admin panel addresses a call by
+  that HMAC.
+- On a collection with `trash: true` the delete moves the document to trash. A document already
+  in trash is refused, so the plugin never empties trash. Without trash the document is deleted
+  permanently with its file. Payload's `beforeDelete` and `afterDelete` hooks run as usual.
+- Confirmations need Payload's database KV adapter, and `delete` is refused at startup together
+  with `auth.resolve`, because approval lives on the key document.
+- Set `serverURL` in production, so a confirmation URL is not built from the `Host` or forwarded
+  headers of the MCP request.
 
 ## Custom tools and custom auth
 

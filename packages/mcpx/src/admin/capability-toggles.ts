@@ -79,9 +79,15 @@ export const columnState = (
 		values,
 	);
 
+// A row toggle never grants a delete, which each key opts into on its own.
+const ROW_OPERATIONS = CAPABILITY_OPERATIONS.filter(
+	(operation) =>
+		operation.id !== "delete" && operation.id !== "deleteUnattended",
+);
+
 /**
  * Whether an entity's row toggle reads as on, off or indeterminate, over the
- * operations the config exposes for that row.
+ * operations the config exposes for that row, deletes aside.
  */
 export const rowState = (
 	basePath: string,
@@ -90,8 +96,8 @@ export const rowState = (
 	values: CapabilityValues,
 ): ColumnState =>
 	stateOf(
-		CAPABILITY_OPERATIONS.filter((operation) => row[operation.id]).map(
-			(operation) => cellPath(basePath, namespace, row.fieldName, operation.id),
+		ROW_OPERATIONS.filter((operation) => row[operation.id]).map((operation) =>
+			cellPath(basePath, namespace, row.fieldName, operation.id),
 		),
 		values,
 	);
@@ -107,23 +113,45 @@ export const toolsState = (
 	);
 
 /*
- * `publishFlag` in `capabilities.ts` discards a publish without a write. So
- * ticking publish ticks write and clearing write clears publish, which keeps
- * the form from saving a combination the server ignores.
+ * `resolveCapabilities` discards a publish without a write, a delete without
+ * a read and an unattended delete without a delete. So ticking one ticks what
+ * it needs, and clearing one clears what needs it, which keeps the form from
+ * saving a combination the server ignores.
  */
 const reconcile = (
 	next: Record<CapabilityOperation, boolean>,
 	touched: ReadonlySet<CapabilityOperation>,
 ): Record<CapabilityOperation, boolean> => {
-	if (touched.has("publish") && next.publish) {
-		return { ...next, write: true };
+	let result = next;
+
+	if (touched.has("publish") && result.publish) {
+		result = { ...result, write: true };
 	}
 
-	if (touched.has("write") && !next.write) {
-		return { ...next, publish: false };
+	if (touched.has("write") && !result.write) {
+		result = { ...result, publish: false };
 	}
 
-	return next;
+	if (touched.has("deleteUnattended") && result.deleteUnattended) {
+		result = { ...result, delete: true };
+	}
+
+	if (
+		(touched.has("delete") || touched.has("deleteUnattended")) &&
+		result.delete
+	) {
+		result = { ...result, read: true };
+	}
+
+	if (touched.has("read") && !result.read) {
+		result = { ...result, delete: false };
+	}
+
+	if ((touched.has("delete") || touched.has("read")) && !result.delete) {
+		result = { ...result, deleteUnattended: false };
+	}
+
+	return result;
 };
 
 const rowActions = (
@@ -139,6 +167,12 @@ const rowActions = (
 			values[cellPath(basePath, namespace, row.fieldName, "write")] === true,
 		publish:
 			values[cellPath(basePath, namespace, row.fieldName, "publish")] === true,
+		delete:
+			values[cellPath(basePath, namespace, row.fieldName, "delete")] === true,
+		deleteUnattended:
+			values[
+				cellPath(basePath, namespace, row.fieldName, "deleteUnattended")
+			] === true,
 	};
 
 	const touched = new Set<CapabilityOperation>();

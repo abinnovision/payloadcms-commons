@@ -37,6 +37,11 @@ export interface NormalizedOptions {
 	setupGuide: boolean;
 	limits: { maxLimit: number; maxDepth: number };
 	tools: McpxAnyTool[];
+	/**
+	 * Whether any collection exposes `delete`, whose calls need approval. Adds
+	 * the confirmations panel and endpoints.
+	 */
+	confirmations: boolean;
 	auth: McpxPluginOptions["auth"];
 	serverInfo: { name: string; version: string };
 	diagnostics: boolean;
@@ -77,7 +82,10 @@ const assertExposable = (
 	}
 };
 
-const OPTION_NAMES = ["read", "write", "publish"] as const;
+const OPTION_NAMES = ["read", "write", "publish", "delete"] as const;
+
+// Globals cannot be deleted.
+const GLOBAL_OPTION_NAMES = ["read", "write", "publish"] as const;
 
 const REMOVED_WRITE_MODES: Record<string, string> = {
 	draft: "Use { publish: false } instead.",
@@ -125,19 +133,50 @@ const assertWritable = (
 };
 
 /*
+ * `"unattended"` deletes without approval, so it is held to collections whose
+ * deletes only move to trash.
+ */
+const normalizeDelete = (
+	kind: string,
+	config: CollectionConfig | GlobalConfig,
+	value: unknown,
+): Pick<McpxExposedEntity, "delete" | "deleteUnattended"> => {
+	if (value !== "unattended") {
+		return {
+			delete: readFlag(kind, config.slug, "delete", value) ?? false,
+			deleteUnattended: false,
+		};
+	}
+
+	if (!("trash" in config) || !config.trash) {
+		fail(
+			`${kind} "${config.slug}" has delete: "unattended" but no trash, so a delete without approval would be permanent. Enable trash or set delete: true.`,
+		);
+	}
+
+	return { delete: true, deleteUnattended: true };
+};
+
+/*
  * The config only takes capabilities away: read, write and publish default to
  * everything the entity supports, and a publish that is defaulted but
- * unsupported is derived off rather than refused. Version history follows read
- * where the entity keeps Payload versions. The entity value is checked at
- * runtime: only `true` or an object of the three options exposes it, so a typo
- * or a falsy value never widens access.
+ * unsupported is derived off rather than refused. Delete is the exception and
+ * defaults to off. Version history follows read where the entity keeps
+ * Payload versions. The entity value is checked at runtime: only `true` or an
+ * object of the known options exposes it, so a typo or a falsy value never
+ * widens access.
  */
 const normalizeCapabilities = (
 	kind: string,
 	config: CollectionConfig | GlobalConfig,
 	raw: unknown,
-): Pick<McpxExposedEntity, "hasDrafts" | "hasVersions" | "read" | "write"> => {
+): Pick<
+	McpxExposedEntity,
+	"delete" | "deleteUnattended" | "hasDrafts" | "hasVersions" | "read" | "write"
+> => {
 	const { slug } = config;
+	const names: readonly string[] =
+		kind === "Global" ? GLOBAL_OPTION_NAMES : OPTION_NAMES;
 
 	if (raw === false) {
 		fail(
@@ -147,18 +186,16 @@ const normalizeCapabilities = (
 
 	if (raw !== true && !isPlainObject(raw)) {
 		fail(
-			`${kind} "${slug}" has ${JSON.stringify(raw)}. Use true or an object of ${OPTION_NAMES.join(", ")}.`,
+			`${kind} "${slug}" has ${JSON.stringify(raw)}. Use true or an object of ${names.join(", ")}.`,
 		);
 	}
 
 	const settings: Record<string, unknown> = isPlainObject(raw) ? raw : {};
-	const unknownKey = Object.keys(settings).find(
-		(key) => !(OPTION_NAMES as readonly string[]).includes(key),
-	);
+	const unknownKey = Object.keys(settings).find((key) => !names.includes(key));
 
 	if (unknownKey !== undefined) {
 		fail(
-			`${kind} "${slug}" has the unknown option "${unknownKey}". The options are ${OPTION_NAMES.join(", ")}.`,
+			`${kind} "${slug}" has the unknown option "${unknownKey}". The options are ${names.join(", ")}.`,
 		);
 	}
 
@@ -195,6 +232,7 @@ const normalizeCapabilities = (
 		write: write ? (publish === false ? "draft" : "live") : false,
 		hasDrafts,
 		hasVersions: read && Boolean(config.versions),
+		...normalizeDelete(kind, config, settings["delete"]),
 	};
 };
 
@@ -383,8 +421,22 @@ export const normalizeOptions = (
 
 	assertTools(tools);
 
+	const collections = normalizeCollections(config, options, apiKeysSlug);
+	// Only builtin tools are confirmable, so only `delete` needs approval.
+	const confirmations = collections.some((entity) => entity.delete);
+
+	/*
+	 * Approval lives on the key document and the stored call is run by the key
+	 * alone, which a custom resolver may not be able to replay.
+	 */
+	if (confirmations && options.auth?.resolve) {
+		fail(
+			"delete needs approval on the API key document, which a custom auth.resolve does not support. Remove delete: true or auth.resolve.",
+		);
+	}
+
 	return {
-		collections: normalizeCollections(config, options, apiKeysSlug),
+		collections,
 		globals: normalizeGlobals(config, options),
 		userCollection,
 		apiKeysSlug,
@@ -392,6 +444,7 @@ export const normalizeOptions = (
 		setupGuide: options.apiKeys?.setupGuide ?? true,
 		limits: normalizeLimits(options.limits),
 		tools,
+		confirmations,
 		auth: options.auth,
 		serverInfo: {
 			name: options.serverInfo?.name ?? "payloadcms-mcpx",
