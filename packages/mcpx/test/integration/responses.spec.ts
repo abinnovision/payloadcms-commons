@@ -33,6 +33,18 @@ const normalise = (value: unknown): unknown => {
 					return [key, "<timestamp>"];
 				}
 
+				if (
+					(key === "adminUrl" || key === "previewUrl") &&
+					typeof entry === "string"
+				) {
+					return [
+						key,
+						entry
+							.replace(/^https?:\/\/[^/]+/, "<origin>")
+							.replace(/\/\d+(?=\?|$)/, "/<id>"),
+					];
+				}
+
 				return [key, normalise(entry)];
 			}),
 		);
@@ -368,7 +380,11 @@ describe("tool responses", () => {
 			).toEqual({
 				status: 200,
 				isError: false,
-				payload: { id: "<id>", updatedAt: "<timestamp>" },
+				payload: {
+					id: "<id>",
+					updatedAt: "<timestamp>",
+					adminUrl: "<origin>/admin/collections/tags/<id>?locale=en",
+				},
 			});
 		});
 
@@ -408,7 +424,11 @@ describe("tool responses", () => {
 			).toEqual({
 				status: 200,
 				isError: false,
-				payload: { id: "<id>", updatedAt: "<timestamp>" },
+				payload: {
+					id: "<id>",
+					updatedAt: "<timestamp>",
+					adminUrl: "<origin>/admin/collections/tags/<id>?locale=en",
+				},
 			});
 		});
 
@@ -492,6 +512,46 @@ describe("tool responses", () => {
 		});
 	});
 
+	describe("document links", () => {
+		it("links a created and a patched document with a preview", async () => {
+			const created = await call("createDocument", {
+				collection: "notes",
+				locale: "en",
+				data: { title: "linked" },
+			});
+			const patched = await call("patchDocument", {
+				collection: "notes",
+				locale: "en",
+				id: (await seedNote("patch-linked")).id,
+				patches: [{ op: "replace", path: "/title", value: "patched" }],
+			});
+
+			for (const result of [created, patched]) {
+				expect(result).toMatchObject({
+					payload: {
+						adminUrl: "<origin>/admin/collections/notes/<id>?locale=en",
+						previewUrl: "<origin>/preview/notes/<id>",
+					},
+				});
+			}
+		});
+
+		it("links a written global without a preview", async () => {
+			const result = await call("patchDocument", {
+				global: "site-settings",
+				locale: "en",
+				patches: [{ op: "replace", path: "/tagline", value: "linked" }],
+			});
+
+			expect(result).toMatchObject({
+				payload: {
+					global: "site-settings",
+					adminUrl: "<origin>/admin/globals/site-settings?locale=en",
+				},
+			});
+		});
+	});
+
 	describe("publishDocument", () => {
 		it("publishes the draft", async () => {
 			const note = await seedNote("publish-me");
@@ -501,7 +561,13 @@ describe("tool responses", () => {
 			).toEqual({
 				status: 200,
 				isError: false,
-				payload: { id: "<id>", status: "published", updatedAt: "<timestamp>" },
+				payload: {
+					id: "<id>",
+					status: "published",
+					updatedAt: "<timestamp>",
+					adminUrl: "<origin>/admin/collections/notes/<id>?locale=en",
+					previewUrl: "<origin>/preview/notes/<id>",
+				},
 			});
 		});
 

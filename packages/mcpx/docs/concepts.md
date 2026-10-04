@@ -96,6 +96,11 @@ The response carries the document's `id` (or the global's slug), `status` and `u
   field-level access denies the update. It is compared against the user's read; see
   [security.md](./security.md#privileged-reads).
 - `publishBlockersUnavailable`: the blocker check failed, so an empty list says nothing.
+- `adminUrl`: the document in the admin panel, opened in the written locale. It sits at the origin of
+  `serverURL`, else of the MCP request.
+- `previewUrl`: present when the entity sets `admin.preview` or a `livePreview` URL, in that order.
+  The root `admin.livePreview` counts when it lists the slug. A relative URL is resolved against the
+  same origin. A preview that throws or returns `null` is left out.
 
 `createDocument` takes a seed in `data`, checked against the collection's fields before the
 create. Unknown keys are refused with the valid alternatives, and a top-level `id` is refused. The
