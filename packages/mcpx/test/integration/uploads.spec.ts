@@ -43,7 +43,22 @@ const files: CollectionConfig = {
 		read: ({ req }) => (req.user ? { alt: { not_equals: "Hidden" } } : false),
 	},
 	upload: { staticDir: FILES_DIR, mimeTypes: ["image/*"] },
-	fields: [{ name: "alt", type: "text", required: true }],
+	fields: [
+		{ name: "alt", type: "text", required: true },
+		{
+			// Filled by the hook from the file, so a client cannot supply it.
+			name: "checksum",
+			type: "text",
+			required: true,
+			admin: { hidden: true },
+		},
+	],
+	hooks: {
+		beforeChange: [
+			({ data, req }) =>
+				req.file ? { ...data, checksum: String(req.file.data.length) } : data,
+		],
+	},
 };
 
 /*
@@ -341,6 +356,23 @@ describe("uploads through MCP", () => {
 			});
 		});
 
+		it("fills a required hidden field from the file through the hook", async () => {
+			const { status, data } = await send(
+				await issue("createDocument", {
+					collection: "files",
+					locale: "en",
+					data: { alt: "Hooked" },
+					file: fileOf("hooked.png"),
+				}),
+			);
+
+			expect(status).toBe(200);
+			expect(await readDoc("files", data["id"] as number)).toMatchObject({
+				alt: "Hooked",
+				checksum: String(PIXEL.length),
+			});
+		});
+
 		it("applies patches and the file in one version", async () => {
 			const { id } = await createMedia(booted.payload, "Before");
 			const versions = async () =>
@@ -530,6 +562,24 @@ describe("uploads through MCP", () => {
 				locale: "en",
 				patches: [{ op: "replace", path: "/alt", value: null }],
 				file: fileOf("invalid.png"),
+			});
+
+			expect(result.isError).toBe(true);
+			expect(result.data["validationErrors"]).toEqual([
+				expect.objectContaining({ path: "/alt" }),
+			]);
+			expect(await grantsIn(booted.payload)).toBe(grants);
+			expect(await snapshot()).toEqual(before);
+		});
+
+		it("refuses a create with a file but without a required visible field", async () => {
+			const before = await snapshot();
+			const grants = await grantsIn(booted.payload);
+			const result = await mcp.call("createDocument", {
+				collection: "files",
+				locale: "en",
+				data: {},
+				file: fileOf(),
 			});
 
 			expect(result.isError).toBe(true);

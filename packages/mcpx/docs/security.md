@@ -254,6 +254,8 @@ that is still in use:
   alt-only edit. Publish or discard that draft first.
 - Where Payload validates the write (no drafts, or `drafts.validate`), the document with the
   patches applied is validated before the call returns its `upload`, and refused if it fails.
+  That check skips fields a client cannot write, such as `admin.hidden` fields a hook fills from
+  the file. The upload itself is validated by Payload with all hooks and the file.
 
 ## Custom tools and custom auth
 
