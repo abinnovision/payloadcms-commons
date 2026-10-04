@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { issueGrant, uploadKvSlug } from "./grant.js";
 import { errorResult, jsonResult } from "../result.js";
+import { resolveDataPointer, SchemaError } from "../schema/index.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 import type { DocumentId, ResolvedEntity } from "../entity.js";
@@ -180,11 +181,41 @@ const sharesPublishedFile = async (
 	);
 };
 
+/*
+ * Whether a client could set the field at `path`. A field outside the client
+ * surface (hidden, disabled, virtual) is left to hooks that may fill it.
+ */
+const isClientWritable = (
+	scope: McpxToolScope,
+	target: { entity: CollectionEntity; data: object },
+	path: string,
+): boolean => {
+	try {
+		const resolution = resolveDataPointer(scope.req.payload.config, {
+			ref: target.entity,
+			doc: target.data,
+			pointer: path,
+		});
+
+		return (
+			resolution.readOnly !== true && resolution.descriptor?.readOnly !== true
+		);
+	} catch (error) {
+		if (error instanceof SchemaError) {
+			return false;
+		}
+
+		throw error;
+	}
+};
+
 /**
  * Refuses a file write Payload would turn into data loss: a replace that
  * deletes the published file, or a write that fails validation after the old
  * file is gone. Payload validates only after it moves files, so the merged
- * data is validated here first wherever Payload will validate it.
+ * data is validated here first wherever Payload will validate it, keeping only
+ * failures the client can fix. Once the bytes are attached, Payload validates
+ * with every hook and the file.
  */
 export const fileWriteRefusal = async (
 	scope: McpxToolScope,
@@ -199,16 +230,20 @@ export const fileWriteRefusal = async (
 	}
 
 	if (
-		hasDraftsEnabled(entity.config) &&
-		!hasDraftValidationEnabled(entity.config)
+		uploadedFile(scope.req) !== undefined ||
+		(hasDraftsEnabled(entity.config) &&
+			!hasDraftValidationEnabled(entity.config))
 	) {
 		return undefined;
 	}
 
-	const { blockers } = await collectPublishBlockers(scope.req, {
+	const { blockers: found } = await collectPublishBlockers(scope.req, {
 		doc: { ...target.data, ...(id === undefined ? {} : { id }) },
 		entity,
 	});
+	const blockers = found.filter((blocker) =>
+		isClientWritable(scope, target, blocker.path),
+	);
 
 	return blockers.length === 0
 		? undefined
