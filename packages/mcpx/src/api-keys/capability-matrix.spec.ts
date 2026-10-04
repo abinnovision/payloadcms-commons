@@ -155,16 +155,16 @@ describe("createCapabilityMatrix", () => {
 				publish: false,
 				delete: false,
 				deleteUnattended: false,
-				hint: "Writes go live immediately.",
+				live: true,
 			},
 		]);
 	});
 
-	// A row without drafts departs from the legend because a write is live.
-	it("hints only where a row departs from the legend", () => {
+	// Without drafts a write has no draft stage to land in.
+	it("marks only rows whose writes go live", () => {
 		const rows = createCapabilityMatrix(options).collections;
 
-		expect(rows.filter((row) => row.hint).map((row) => row.label)).toEqual([
+		expect(rows.filter((row) => row.live).map((row) => row.label)).toEqual([
 			"snippets",
 		]);
 	});

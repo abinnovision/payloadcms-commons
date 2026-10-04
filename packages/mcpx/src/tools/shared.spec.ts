@@ -28,8 +28,11 @@ describe("liveWriteSentence", () => {
 				globals: [entity("banner", LIVE_ONLY)],
 			},
 			{
-				collections: { pages: { write: true }, tags: { write: true } },
-				globals: { banner: { write: true } },
+				collections: {
+					pages: { read: true, write: true },
+					tags: { read: true, write: true },
+				},
+				globals: { banner: { read: true, write: true } },
 			},
 		);
 
@@ -54,8 +57,11 @@ describe("slugsFor and patchOnlySlugs", () => {
 			globals: [entity("banner")],
 		},
 		{
-			collections: { pages: { write: true }, media: { write: true } },
-			globals: { banner: { write: true } },
+			collections: {
+				pages: { read: true, write: true },
+				media: { read: true, write: true },
+			},
+			globals: { banner: { read: true, write: true } },
 		},
 	);
 

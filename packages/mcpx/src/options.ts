@@ -202,7 +202,8 @@ const normalizeCapabilities = (
 	const flag = (name: (typeof OPTION_NAMES)[number]): boolean | undefined =>
 		readFlag(kind, slug, name, settings[name]);
 	const read = flag("read") ?? true;
-	const write = flag("write") ?? true;
+	// Writing needs reading, so a write that is defaulted follows read.
+	const write = flag("write") ?? read;
 	const publish = flag("publish");
 	const hasDrafts = hasDraftsEnabled(config);
 
@@ -218,9 +219,23 @@ const normalizeCapabilities = (
 		);
 	}
 
+	if (!read && (flag("write") === true || publish === true)) {
+		fail(
+			`${kind} "${slug}" has read: false but write or publish on. Writing and publishing need read.`,
+		);
+	}
+
 	if (publish === true && !write) {
 		fail(
 			`${kind} "${slug}" has publish: true but write: false. Publishing follows write.`,
+		);
+	}
+
+	const deleting = normalizeDelete(kind, config, settings["delete"]);
+
+	if (!read && deleting.delete) {
+		fail(
+			`${kind} "${slug}" has read: false but delete on. Deleting needs read.`,
 		);
 	}
 
@@ -232,7 +247,7 @@ const normalizeCapabilities = (
 		write: write ? (publish === false ? "draft" : "live") : false,
 		hasDrafts,
 		hasVersions: read && Boolean(config.versions),
-		...normalizeDelete(kind, config, settings["delete"]),
+		...deleting,
 	};
 };
 

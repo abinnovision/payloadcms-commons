@@ -71,7 +71,7 @@ const KEYS: Record<string, KeyCapabilities> = {
 		},
 		globals: { banner: { read: true, write: true } },
 	},
-	/* Writes without read access: no describeSchema, so no schema paths. */
+	/* Write without read: writing needs read, so no write tools are offered. */
 	"write-only": {
 		collections: { posts: { write: true } },
 	},

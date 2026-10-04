@@ -1,9 +1,11 @@
 "use client";
 
 import {
+	Button,
 	CheckboxInput,
 	FieldDescription,
 	FieldLabel,
+	Pill,
 	useForm,
 	useFormFields,
 } from "@payloadcms/ui";
@@ -12,25 +14,32 @@ import React, { useCallback, useMemo } from "react";
 import {
 	CAPABILITY_OPERATIONS,
 	capabilityPaths,
-	cellPath,
+	STORED_OPERATIONS,
 	toolPath,
 } from "../api-keys/capability-matrix.js";
 import { CAPABILITIES_FIELD } from "../capabilities.js";
 import {
+	accessLevelOf,
+	accessLevelsOf,
+	allAccessLevel,
+	allDeleteMode,
 	buildToggleActions,
-	columnState,
-	rowState,
+	deleteModeOf,
 	toolsState,
 } from "./capability-toggles.js";
 
 import type {
+	AccessLevel,
 	CapabilityValues,
 	ColumnState,
+	DeleteMode,
 	ToggleIntent,
 } from "./capability-toggles.js";
 import type {
 	CapabilityMatrix,
 	CapabilityNamespace,
+	CapabilityRow,
+	StoredOperation,
 } from "../api-keys/capability-matrix.js";
 
 interface McpxCapabilityMatrixProps {
@@ -53,43 +62,42 @@ interface McpxCapabilityMatrixProps {
 	withinTab?: boolean;
 }
 
-const NOT_EXPOSED = "The plugin config does not expose this.";
 const BASE_CLASS = "mcpx-capabilities";
+const LIVE_WRITE = "Writes go live immediately.";
 
-/*
- * Three rules that inline styles cannot express. The hover band across a row
- * makes a label and its checkboxes scan as one line, so rows carry no striping
- * or rules of their own. The last table drops its margin because
- * `.render-fields` already spaces the field from the next.
- */
+// Row hover, table spacing, and joining Payload buttons into one segmented control.
 const SHEET = `
 .${BASE_CLASS} tbody tr:hover { background: var(--theme-elevation-50); }
-.${BASE_CLASS}__toggle:hover { text-decoration: underline; }
 .${BASE_CLASS} section:last-of-type { margin-bottom: 0; }
+.${BASE_CLASS}__segments {
+	display: inline-flex;
+	border: 1px solid var(--theme-elevation-150);
+	border-radius: var(--style-radius-s);
+	background: var(--theme-input-bg);
+}
+.${BASE_CLASS}__segments .btn { border: 0; border-radius: 0; white-space: nowrap; }
+.${BASE_CLASS}__segments .btn + .btn { border-inline-start: 1px solid var(--theme-elevation-150); }
+.${BASE_CLASS}__segments .btn:first-child { border-start-start-radius: inherit; border-end-start-radius: inherit; }
+.${BASE_CLASS}__segments .btn:last-child { border-start-end-radius: inherit; border-end-end-radius: inherit; }
+.${BASE_CLASS}__segments .btn--style-transparent { --hover-bg: var(--theme-elevation-100); }
+.${BASE_CLASS}__segments .${BASE_CLASS}__danger { --bg-color: var(--theme-error-500); --hover-bg: var(--theme-error-600); }
 `;
 
 /*
  * Payload's table metrics, so a row is as tall as one elsewhere in the admin:
- * cells at `base(0.6)`, outer edges at `base(0.8)` and a checkbox of
- * `$baseline` square in between.
+ * cells at `base(0.6)` and outer edges at `base(0.8)`.
  */
 const CELL_PADDING = "calc(var(--base) * 0.6)";
 const EDGE_PADDING = "calc(var(--base) * 0.8)";
 
-/*
- * Payload's theme variables, so the matrix follows the admin's light and dark
- * themes without a stylesheet that consumers would have to transpile. The
- * header block copies the admin table: muted, raised a step off the page and
- * closed with a rule. The small-caps section heading is the only literal, as
- * the admin has nothing to borrow it from.
- */
+// Payload's theme variables only, so light and dark themes both work.
 const styles = {
 	section: { marginBottom: "var(--base)" },
 	/*
-	 * Sized to its columns, not the form: at full width the checkboxes end up
-	 * far from their row. Separate borders keep the header's corner radii
-	 * reliable. The layout is fixed because a cell's `min-width` is advisory in
-	 * an auto layout, and the tables must line their columns up with each other.
+	 * Sized to its columns, not the form. Separate borders keep the header's
+	 * corner radii reliable. The layout is fixed because a cell's `min-width` is
+	 * advisory in an auto layout, and the tables must line their columns up
+	 * with each other.
 	 */
 	table: {
 		tableLayout: "fixed",
@@ -133,34 +141,42 @@ const styles = {
 		fontWeight: "normal",
 		wordBreak: "break-word",
 	},
-	// Underlined on hover only, so a column of labels does not read as errors.
-	rowButton: {
-		padding: 0,
-		border: 0,
-		background: "none",
-		color: "inherit",
-		font: "inherit",
-		cursor: "pointer",
-		textAlign: "start",
-		textDecoration: "none",
-	},
 	hint: {
 		display: "block",
 		color: "var(--theme-elevation-400)",
+	},
+	badge: {
+		display: "inline-flex",
+		marginInlineStart: "calc(var(--base) * 0.4)",
+		verticalAlign: "middle",
+		cursor: "help",
+	},
+	// Read by screen readers in place of the badge's one-word label.
+	visuallyHidden: {
+		position: "absolute",
+		width: "1px",
+		height: "1px",
+		overflow: "hidden",
+		clip: "rect(0 0 0 0)",
+		whiteSpace: "nowrap",
 	},
 	cell: {
 		padding: CELL_PADDING,
 		verticalAlign: "middle",
 		textAlign: "center",
 	},
+	controlCell: {
+		padding: CELL_PADDING,
+		verticalAlign: "middle",
+		textAlign: "start",
+	},
 	lastCell: { paddingInlineEnd: EDGE_PADDING },
-	dash: { color: "var(--theme-elevation-400)", cursor: "help" },
 } as const satisfies Record<string, React.CSSProperties>;
 
 /*
  * Payload's checkbox, which carries the admin's styling and the partial state
- * the column and row toggles need. `name` becomes the input's `title`, so it is
- * also the accessible name.
+ * the tools toggle needs. `name` becomes the input's `title`, so it is also the
+ * accessible name.
  */
 const Box: React.FC<{
 	label: string;
@@ -177,27 +193,184 @@ const Box: React.FC<{
 	/>
 );
 
+const descriptionOf = (operation: StoredOperation): string | undefined =>
+	STORED_OPERATIONS.find((candidate) => candidate.id === operation)
+		?.description;
+
+interface SegmentOption<T extends string> {
+	id: T;
+	label: string;
+	title?: string | undefined;
+}
+
+const ACCESS_OPTIONS: SegmentOption<AccessLevel>[] = [
+	{ id: "none", label: "None", title: "No access" },
+	...CAPABILITY_OPERATIONS.filter((operation) => operation.id !== "delete").map(
+		(operation) => ({
+			id: operation.id,
+			label: operation.label,
+			title: operation.description,
+		}),
+	),
+];
+
+const DELETE_OPTIONS: SegmentOption<DeleteMode>[] = [
+	{ id: "off", label: "Off", title: "No delete" },
+	{ id: "approve", label: "Approval", title: descriptionOf("delete") },
+	{ id: "trash", label: "Trash", title: descriptionOf("deleteUnattended") },
+];
+
+const ARROW_STEPS: Record<string, number> = {
+	ArrowDown: 1,
+	ArrowLeft: -1,
+	ArrowRight: 1,
+	ArrowUp: -1,
+};
+
+/*
+ * A radio group of Payload buttons. The selected segment is Payload's primary
+ * button and the ones it includes are its pill button. With nothing selected,
+ * as for an "All" control over differing rows, the first segment takes focus.
+ * Arrow keys move focus and select, as for native radios.
+ */
+const Segments = <T extends string>({
+	included = [],
+	label,
+	onSelect,
+	options,
+	readOnly,
+	selected,
+}: {
+	/**
+	 * Segments that read as included by the selection.
+	 */
+	included?: T[];
+	label: string;
+	onSelect: (id: T) => void;
+	options: SegmentOption<T>[];
+	readOnly: boolean;
+	selected: T | undefined;
+}): React.ReactElement => {
+	const focusable = options.some((option) => option.id === selected)
+		? selected
+		: options[0]?.id;
+
+	const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+		const step = ARROW_STEPS[event.key];
+
+		if (readOnly || step === undefined) {
+			return;
+		}
+
+		event.preventDefault();
+		const radios = [
+			...event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'),
+		];
+		const current = radios.findIndex(
+			(radio) => radio === document.activeElement,
+		);
+		const next = Math.min(Math.max(current + step, 0), radios.length - 1);
+		const option = options[next];
+
+		if (option) {
+			radios[next]?.focus();
+			onSelect(option.id);
+		}
+	};
+
+	return (
+		<div
+			aria-label={label}
+			className={`${BASE_CLASS}__segments`}
+			onKeyDown={onKeyDown}
+			role="radiogroup"
+		>
+			{options.map((option) => {
+				const checked = option.id === selected;
+
+				return (
+					<Button
+						buttonStyle={
+							checked
+								? "primary"
+								: included.includes(option.id)
+									? "pill"
+									: "transparent"
+						}
+						className={
+							checked && option.id === "trash" ? `${BASE_CLASS}__danger` : ""
+						}
+						disabled={readOnly}
+						extraButtonProps={{
+							"aria-checked": checked,
+							role: "radio",
+							tabIndex: option.id === focusable ? 0 : -1,
+							title: option.title,
+						}}
+						key={option.id}
+						margin={false}
+						onClick={() => {
+							onSelect(option.id);
+						}}
+						size="small"
+					>
+						{option.label}
+					</Button>
+				);
+			})}
+		</div>
+	);
+};
+
+// The levels below the selected one, which it includes. "none" never is.
+const includedBelow = (
+	options: SegmentOption<AccessLevel>[],
+	level: AccessLevel | undefined,
+): AccessLevel[] => {
+	const selected = options.findIndex((option) => option.id === level);
+
+	return selected < 1
+		? []
+		: options.slice(1, selected).map((option) => option.id);
+};
+
+// The access segments any of the rows exposes.
+const accessOptions = (rows: CapabilityRow[]): SegmentOption<AccessLevel>[] =>
+	ACCESS_OPTIONS.filter((option) =>
+		rows.some((row) => accessLevelsOf(row).includes(option.id)),
+	);
+
 // Both in `--base` multiples, so the columns keep Payload's rhythm.
 const LABEL_WIDTH = "calc(var(--base) * 9)";
 const OPERATION_WIDTH = "calc(var(--base) * 3.5)";
+const ACCESS_WIDTH = "calc(var(--base) * 13)";
+const DELETE_WIDTH = "calc(var(--base) * 10)";
 
 // Fixed widths, so every table lines its columns up with the others.
-const Columns: React.FC<{ count: number }> = ({ count }) => (
+const Columns: React.FC<{ widths: string[] }> = ({ widths }) => (
 	<colgroup>
 		<col style={{ width: LABEL_WIDTH }} />
-		{Array.from({ length: count }, (_, index) => (
-			<col key={index} style={{ width: OPERATION_WIDTH }} />
+		{widths.map((width, index) => (
+			<col key={index} style={{ width }} />
 		))}
 	</colgroup>
 );
 
 // The rightmost cell carries the table's outer padding, as in Payload.
-const cellStyle = (isLast: boolean): React.CSSProperties =>
-	isLast ? { ...styles.cell, ...styles.lastCell } : styles.cell;
+const lastCellStyle: React.CSSProperties = {
+	...styles.cell,
+	...styles.lastCell,
+};
 
-const Dash: React.FC = () => (
-	<span aria-label={NOT_EXPOSED} style={styles.dash} title={NOT_EXPOSED}>
-		&mdash;
+const controlStyle = (isLast: boolean): React.CSSProperties =>
+	isLast ? { ...styles.controlCell, ...styles.lastCell } : styles.controlCell;
+
+const LiveBadge: React.FC = () => (
+	<span style={styles.badge} title={LIVE_WRITE}>
+		<Pill pillStyle="warning" size="small">
+			<span aria-hidden="true">Live</span>
+			<span style={styles.visuallyHidden}>{LIVE_WRITE}</span>
+		</Pill>
 	</span>
 );
 
@@ -209,151 +382,142 @@ interface TableProps {
 	values: CapabilityValues;
 }
 
-// One namespace: a row per entity, a column per operation.
+/*
+ * One namespace: a row per entity with an Access control and, where the
+ * config lets any row delete, a Delete control. The "All" row picks for every
+ * row at once.
+ */
 const NamespaceTable: React.FC<
 	TableProps & { namespace: { id: CapabilityNamespace; title: string } }
 > = ({ matrix, namespace, path, readOnly, toggle, values }) => {
 	const rows = matrix[namespace.id];
-	// A column no row exposes is dropped, so dashes mark real exceptions.
-	const columns = CAPABILITY_OPERATIONS.filter((operation) =>
-		rows.some((row) => row[operation.id]),
-	);
+	const withDelete = rows.some((row) => row.delete);
+	const allOptions = accessOptions(rows);
+	const allLevel = allAccessLevel(matrix, path, namespace.id, values);
+	const entries = namespace.title.toLowerCase();
 
 	return (
 		<section style={styles.section}>
 			<table style={styles.table}>
-				<Columns count={columns.length} />
+				<Columns
+					widths={withDelete ? [ACCESS_WIDTH, DELETE_WIDTH] : [ACCESS_WIDTH]}
+				/>
 				<thead style={styles.head}>
 					<tr>
 						<th scope="col" style={{ ...styles.headTitle, ...styles.topStart }}>
 							{namespace.title}
 						</th>
-						{columns.map((operation, column) => (
+						<th
+							scope="col"
+							style={{
+								...styles.headOperation,
+								textAlign: "start",
+								...(withDelete ? {} : styles.topEnd),
+							}}
+						>
+							Access
+						</th>
+						{withDelete ? (
 							<th
-								key={operation.id}
 								scope="col"
-								style={
-									column === columns.length - 1
-										? { ...styles.headOperation, ...styles.topEnd }
-										: styles.headOperation
-								}
-								title={operation.description}
+								style={{
+									...styles.headOperation,
+									textAlign: "start",
+									...styles.topEnd,
+								}}
 							>
-								{operation.label}
+								Delete
 							</th>
-						))}
+						) : null}
 					</tr>
 					<tr>
 						<th scope="row" style={{ ...styles.headLabel, ...styles.rule }}>
 							All
 						</th>
-						{columns.map((operation, column) => {
-							const state = columnState(
-								matrix,
-								path,
-								namespace.id,
-								operation.id,
-								values,
-							);
-
-							return (
-								<td
-									key={operation.id}
-									style={{
-										...cellStyle(column === columns.length - 1),
-										...styles.rule,
+						<td style={{ ...controlStyle(!withDelete), ...styles.rule }}>
+							<Segments
+								included={includedBelow(allOptions, allLevel)}
+								label={`Access for every ${entries} entry`}
+								onSelect={(level) => {
+									toggle({ kind: "access", namespace: namespace.id, level });
+								}}
+								options={allOptions}
+								readOnly={readOnly}
+								selected={allLevel}
+							/>
+						</td>
+						{withDelete ? (
+							<td style={{ ...controlStyle(true), ...styles.rule }}>
+								<Segments
+									label={`Delete for every ${entries} entry`}
+									onSelect={(mode) => {
+										toggle({
+											kind: "deleteMode",
+											namespace: namespace.id,
+											mode,
+										});
 									}}
-								>
-									<Box
-										label={`${operation.label} every ${namespace.title.toLowerCase()} entry`}
-										onChange={() => {
-											toggle({
-												kind: "column",
-												namespace: namespace.id,
-												operation: operation.id,
-												value: state !== "on",
-											});
-										}}
-										readOnly={readOnly}
-										state={state}
-									/>
-								</td>
-							);
-						})}
+									options={DELETE_OPTIONS.filter(
+										(option) => option.id !== "trash",
+									)}
+									readOnly={readOnly}
+									selected={allDeleteMode(matrix, path, namespace.id, values)}
+								/>
+							</td>
+						) : null}
 					</tr>
 				</thead>
 				<tbody>
 					{rows.map((row) => {
-						const state = rowState(path, namespace.id, row, values);
+						const options = accessOptions([row]);
+						const level = accessLevelOf(path, namespace.id, row, values);
 
 						return (
 							<tr key={row.fieldName}>
 								<th scope="row" style={styles.rowHeader}>
-									<button
-										className={`${BASE_CLASS}__toggle`}
-										disabled={readOnly}
-										onClick={() => {
+									{row.label}
+									{row.live ? <LiveBadge /> : null}
+								</th>
+								<td style={controlStyle(!withDelete)}>
+									<Segments
+										included={includedBelow(options, level)}
+										label={`Access for ${row.label}`}
+										onSelect={(next) => {
 											toggle({
-												kind: "row",
+												kind: "access",
 												namespace: namespace.id,
 												fieldName: row.fieldName,
-												value: state !== "on",
+												level: next,
 											});
 										}}
-										style={styles.rowButton}
-										title={`Toggle every capability for ${row.label}`}
-										type="button"
-									>
-										{row.label}
-									</button>
-									{row.hint ? (
-										<span style={styles.hint}>{row.hint}</span>
-									) : null}
-								</th>
-								{columns.map((operation, column) => (
-									<td
-										key={operation.id}
-										style={cellStyle(column === columns.length - 1)}
-									>
-										{row[operation.id] ? (
-											<Box
-												label={`${operation.label} ${row.label}`}
-												onChange={() => {
+										options={options}
+										readOnly={readOnly}
+										selected={level}
+									/>
+								</td>
+								{withDelete ? (
+									<td style={controlStyle(true)}>
+										{row.delete ? (
+											<Segments
+												label={`Delete for ${row.label}`}
+												onSelect={(mode) => {
 													toggle({
-														kind: "cell",
+														kind: "deleteMode",
 														namespace: namespace.id,
 														fieldName: row.fieldName,
-														operation: operation.id,
-														value:
-															values[
-																cellPath(
-																	path,
-																	namespace.id,
-																	row.fieldName,
-																	operation.id,
-																)
-															] !== true,
+														mode,
 													});
 												}}
+												options={DELETE_OPTIONS.filter(
+													(option) =>
+														option.id !== "trash" || row.deleteUnattended,
+												)}
 												readOnly={readOnly}
-												state={
-													values[
-														cellPath(
-															path,
-															namespace.id,
-															row.fieldName,
-															operation.id,
-														)
-													] === true
-														? "on"
-														: "off"
-												}
+												selected={deleteModeOf(path, namespace.id, row, values)}
 											/>
-										) : (
-											<Dash />
-										)}
+										) : null}
 									</td>
-								))}
+								) : null}
 							</tr>
 						);
 					})}
@@ -375,7 +539,7 @@ const ToolsTable: React.FC<TableProps> = ({
 	return (
 		<section style={styles.section}>
 			<table style={styles.table}>
-				<Columns count={1} />
+				<Columns widths={[OPERATION_WIDTH]} />
 				<thead style={styles.head}>
 					<tr>
 						<th scope="col" style={{ ...styles.headTitle, ...styles.topStart }}>
@@ -392,7 +556,7 @@ const ToolsTable: React.FC<TableProps> = ({
 						<th scope="row" style={{ ...styles.headLabel, ...styles.rule }}>
 							All
 						</th>
-						<td style={{ ...cellStyle(true), ...styles.rule }}>
+						<td style={{ ...lastCellStyle, ...styles.rule }}>
 							<Box
 								label="Enable every tool"
 								onChange={() => {
@@ -411,7 +575,7 @@ const ToolsTable: React.FC<TableProps> = ({
 								{tool.name}
 								<span style={styles.hint}>{tool.description}</span>
 							</th>
-							<td style={cellStyle(true)}>
+							<td style={lastCellStyle}>
 								<Box
 									label={`Enable ${tool.name}`}
 									onChange={() => {
@@ -436,9 +600,10 @@ const ToolsTable: React.FC<TableProps> = ({
 };
 
 /**
- * What an API key may do, as one table per namespace: a row per entity, a
- * column per operation and a bulk toggle in each column header. The nested
- * checkbox fields back every cell, so the stored document is unaffected.
+ * What an API key may do, as one table per namespace: a row per entity with
+ * segmented Access and Delete controls, and an "All" row that sets every row.
+ * The nested checkbox fields back every control, so the stored document is
+ * unaffected.
  */
 export const McpxCapabilityMatrix: React.FC<McpxCapabilityMatrixProps> = ({
 	field,

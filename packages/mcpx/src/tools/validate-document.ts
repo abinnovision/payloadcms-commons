@@ -12,8 +12,8 @@ import { collectPublishBlockers } from "../write/publish-blockers.js";
 const DESCRIPTION = `Lists what still blocks publishing one document or global, without saving. Checks one locale when "locale" is given, otherwise every locale. Returns "publishBlockers", each with a pointer and a message, and a "locale" when every locale was checked. An empty list means it can be published, unless "publishBlockersUnavailable" is true: then the check itself failed. The check runs the field hooks a save runs.`;
 
 /**
- * Gated on write rather than read, because publish blockers only mean something
- * to a caller who can act on them.
+ * Gated on write, which implies read, because publish blockers only mean
+ * something to a caller who can act on them.
  *
  * It reads the document twice on purpose: once under the key's own access to
  * refuse a caller who may not see it, then privileged, so the check covers every

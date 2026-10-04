@@ -133,6 +133,18 @@ describe("resolveCapabilities", () => {
 		expect(scopeSlugs(resolved.collections).publishable).toEqual([]);
 	});
 
+	it("refuses write and publish to a key that may not read", () => {
+		const resolved = resolveCapabilities(options, {
+			collections: { pages: { write: true, publish: true } },
+		});
+
+		expect(resolved.collections["pages"]).toMatchObject({
+			read: false,
+			write: false,
+			publish: false,
+		});
+	});
+
 	it("closes publish on a key issued before the checkbox existed", () => {
 		const resolved = resolveCapabilities(options, {
 			collections: { pages: { read: true, write: true } },

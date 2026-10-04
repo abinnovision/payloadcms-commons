@@ -42,12 +42,20 @@ const flag = (group: unknown, name: string): boolean =>
 	isPlainObject(group) && group[name] === true;
 
 /*
- * Publishing extends writing: a key that may publish may also edit the draft it
- * publishes. Both checkboxes are required, as well as the config exposing
- * publishing.
+ * Writing extends reading: a write-only key could not learn the schema or find
+ * an id, and its patch errors would leak what it may not read. Publishing
+ * extends writing in turn: a key that may publish may also edit the draft it
+ * publishes. Every checkbox in the chain is required, as well as the config
+ * exposing the operation.
  */
+const writeFlag = (entity: McpxExposedEntity, group: unknown): boolean =>
+	canWrite(entity) &&
+	entity.read &&
+	flag(group, "read") &&
+	flag(group, "write");
+
 const publishFlag = (entity: McpxExposedEntity, group: unknown): boolean =>
-	canPublish(entity) && flag(group, "write") && flag(group, "publish");
+	canPublish(entity) && writeFlag(entity, group) && flag(group, "publish");
 
 /**
  * Capabilities in force for a key: the plugin config decides what can exist,
@@ -77,7 +85,7 @@ export const resolveCapabilities = (
 
 			resolved[entity.slug] = {
 				read: entity.read && flag(group, "read"),
-				write: canWrite(entity) && flag(group, "write"),
+				write: writeFlag(entity, group),
 				publish: publishFlag(entity, group),
 				// Deleting needs read, as publishing needs write.
 				delete: deleting,

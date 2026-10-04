@@ -37,6 +37,7 @@ for any of these:
 - `delete: "unattended"` on a collection without `trash: true`, since a delete without approval
   must only move to trash;
 - `publish: true` on an entity without `versions.drafts`, or with `write: false`;
+- `write: true`, `publish: true` or `delete` on an entity with `read: false`, since each needs read;
 - `publish: false` on an entity without `versions.drafts`, since every write there goes live;
 - `write` on a collection with `timestamps: false`, since the concurrency check needs `updatedAt`;
 - a live `write` on an entity with `versions.drafts.localizeStatus`, which is not supported yet;
@@ -72,18 +73,20 @@ keys.
 
 ### The capability matrix
 
-The capability checkboxes render as one table per namespace (collections, globals, tools): a row
-per entity or tool, a column per operation, and a toggle in each column header that sets or
-clears the whole column. Clicking a row's name does the same for the row. Each column header
-explains its operation.
+The capability checkboxes render as one table per namespace (collections, globals, tools). An
+entity row carries an Access control with the segments None, Read, Write and Publish, where each
+level includes the ones before it, and on collections a Delete control with Off, Approval and
+Trash. Each segment explains itself in a tooltip. The "All" row above the entities offers
+the same controls and applies a pick to every row, capped at what each row exposes. While rows
+differ, it selects nothing. The tools table keeps a checkbox per tool.
 
-A cell the config does not expose shows a dash, so a `write: false` collection reads as a config
-decision rather than an unticked box. A column that no row exposes is left out. Ticking `publish`
-also ticks `write`, and clearing `write` clears `publish`. The `delete` column appears only where
-a collection sets `delete: true`. Ticking `delete` also ticks `read`, clearing `read` clears
-`delete`, and a row's toggle never ticks `delete`. "Delete without approval" appears only where
-a collection sets `delete: "unattended"`; ticking it ticks `delete` and `read`, clearing either
-clears it, and a row's toggle never ticks it.
+A segment the config does not expose is left out, so a `write: false` collection reads as a config
+decision rather than a refusal. Each grant needs the one before it: `publish` needs `write`, and
+`write` and `delete` need `read`. Picking Approval on a row without access raises it to Read, and
+setting access to None clears the delete. The Delete column appears only where a collection enables
+delete, and Trash only where it sets `delete: "unattended"`. The "All" control offers Off
+and Approval, never Trash. The controls write the stored checkboxes, the same
+`read`, `write`, `publish`, `delete` and `deleteUnattended` flags.
 
 ### Waiting calls
 

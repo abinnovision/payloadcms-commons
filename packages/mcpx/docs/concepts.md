@@ -220,6 +220,11 @@ of its `collection` enum and says why in its description. The requirements and r
 | `true`  | `false`   | writes land as drafts, nothing is published             | refused at startup              |
 | `true`  | `true`    | writes land as drafts, and `publishDocument` is exposed | writes change the live document |
 
+Writing needs reading. `write: true`, `publish: true` or `delete` with `read: false` is refused at
+startup, a `write` left at its default follows `read`, and a key's `write` counts only when its
+`read` is ticked. A write-only key could not learn the schema or find an id, and what a patch
+reports would reveal what it may not read.
+
 `publish: true` on an entity without drafts, or with `write: false`, is refused at startup. So is
 `publish: false` on an entity without drafts: every write there goes live, so set `write: false`
 instead. Left at its default, `publish` is derived off. Without drafts there is no draft stage, so a write changes live
@@ -274,11 +279,11 @@ Without trash it is deleted permanently, and an upload collection's file leaves 
 `trash` on every collection exposed with `delete`. [security.md](./security.md#confirmations)
 describes what is checked when.
 
-`delete: "unattended"`, allowed only on a collection with `trash: true`, adds a "Delete without
-approval" checkbox to the key. Where a key ticks it, `deleteDocument` runs the same checks and
-moves the document to trash at once, returning the delete result instead of a confirmation. The
-client has no argument to choose this: the key decides. Every other key, and every collection
-without it, still needs approval.
+`delete: "unattended"`, allowed only on a collection with `trash: true`, lets a key's Delete control
+be set to Trash as well as Approval. Where a key is set to it, `deleteDocument`
+runs the same checks and moves the document to trash at once, returning the delete result instead
+of a confirmation. The client has no argument to choose this: the key decides. Every other key,
+and every collection without it, still needs approval.
 
 ## Versions and diffs
 

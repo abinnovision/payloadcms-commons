@@ -200,7 +200,7 @@ describe("normalizeOptions", () => {
 		it("takes read: false away", () => {
 			expect(
 				normalize({ collections: { pages: { read: false } } }).collections[0],
-			).toMatchObject({ read: false, write: "live" });
+			).toMatchObject({ read: false, write: false });
 		});
 
 		it("takes write: false away", () => {
@@ -252,11 +252,14 @@ describe("normalizeOptions", () => {
 			).toMatchObject({ write: false });
 		});
 
-		it("lets read: false stand with write on", () => {
-			expect(
-				normalize({ collections: { pages: { read: false, write: true } } })
-					.collections[0],
-			).toMatchObject({ read: false, write: "live" });
+		it.each([
+			["write: true", { write: true }],
+			["publish: true", { publish: true }],
+			["delete: true", { delete: true }],
+		])("refuses read: false with %s", (_name, extra) => {
+			expect(() =>
+				normalize({ collections: { pages: { read: false, ...extra } } }),
+			).toThrow(/read: false/);
 		});
 	});
 
