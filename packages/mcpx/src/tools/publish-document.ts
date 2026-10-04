@@ -7,13 +7,14 @@ import {
 	resolveDocument,
 	staleReadResult,
 } from "./document.js";
+import { documentLinks } from "./links.js";
 import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { withPublishIntent } from "../write/publish-intent.js";
 import { withTransaction } from "../write/transaction.js";
 
-const DESCRIPTION = `Makes the current draft of one document or global public, in every locale or only in "locale". A scoped publish keeps the other locales of localized fields as last published, and a never-published document goes live in full. A draft with publish blockers is refused, so call validateDocument first. Payload checks only the published locale, so "otherLocaleBlockers" lists what other locales still lack. There is no unpublish.`;
+const DESCRIPTION = `Makes the current draft of one document or global public, in every locale or only in "locale". A scoped publish keeps the other locales of localized fields as last published, and a never-published document goes live in full. A draft with publish blockers is refused, so call validateDocument first. Payload checks only the published locale, so "otherLocaleBlockers" lists what other locales still lack. There is no unpublish. The response links the document with "adminUrl" and "previewUrl".`;
 
 /**
  * Publishes a draft. Available where the config exposes `publish` on an entity
@@ -107,6 +108,7 @@ export const publishDocument = defineMcpxTool({
 				...identityOf(target, saved["id"]),
 				status: saved["_status"],
 				updatedAt: saved["updatedAt"],
+				...(await documentLinks(scope.req, { target, doc: saved, locale })),
 				...(others.blockers.length > 0
 					? { otherLocaleBlockers: others.blockers }
 					: {}),

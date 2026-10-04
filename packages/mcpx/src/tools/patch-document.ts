@@ -8,6 +8,7 @@ import {
 	resolveDocument,
 	staleReadResult,
 } from "./document.js";
+import { documentLinks } from "./links.js";
 import {
 	idShape,
 	liveWriteSentence,
@@ -46,7 +47,7 @@ Read the document with getDocument right before patching. Append to a list with 
 
 In a rich text field a pointer continues into the rich text state: "/content/root/children/2" is a node, "/content/root/children/2/tag" one of its properties and "/content/root/children/3/fields/tone" a field of a block node. getDocument "outline" lists each node's pointer and "version". Build nodes from describeSchema "nodeProperties". Check a position before writing to it, e.g. {"op":"test","path":"/content/root/children/2/type","value":"heading"}.
 
-The response carries "updatedAt" and, if any, "publishBlockers": what must be fixed before publishing. "publishBlockersUnavailable" means that check failed. The write stands either way. "notApplied" lists pointers whose value did not change or cannot be read back, for example where field access denies the update.`;
+The response carries "updatedAt" and, if any, "publishBlockers": what must be fixed before publishing. "publishBlockersUnavailable" means that check failed. The write stands either way. "notApplied" lists pointers whose value did not change or cannot be read back, for example where field access denies the update. The response links the document with "adminUrl" and "previewUrl".`;
 
 const POINTER = z.string().regex(JSON_POINTER_PATTERN);
 
@@ -244,6 +245,7 @@ export const patchDocument = defineMcpxTool({
 				...identityOf(target, saved["id"]),
 				status: saved["_status"],
 				updatedAt: saved["updatedAt"],
+				...(await documentLinks(scope.req, { target, doc: saved, locale })),
 				...(validation.blockers.length > 0
 					? { publishBlockers: validation.blockers }
 					: {}),

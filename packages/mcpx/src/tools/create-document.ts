@@ -2,6 +2,7 @@ import { APIError } from "payload";
 import { z } from "zod";
 
 import { readDraft, resolveEntity } from "./document.js";
+import { documentLinks } from "./links.js";
 import {
 	liveWriteSentence,
 	localeOf,
@@ -36,7 +37,7 @@ const uploadSentence = (scope: McpxToolScope): string => {
 };
 
 const DESCRIPTION = (scope: McpxToolScope): string =>
-	`Creates a document in a collection. Use it only when the document does not exist yet. Returns "id", "status", "updatedAt" and, if any, "publishBlockers". "publishBlockersUnavailable" means that check failed. "data" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has "draftValidation" true or "drafts" false. A field describeSchema does not list is refused, and "id" is always assigned.
+	`Creates a document in a collection. Use it only when the document does not exist yet. Returns "id", "status", "updatedAt" and, if any, "publishBlockers". "publishBlockersUnavailable" means that check failed. "data" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has "draftValidation" true or "drafts" false. A field describeSchema does not list is refused, and "id" is always assigned. The response links the document with "adminUrl" and "previewUrl".
 
 ${liveWriteSentence(scope, "create")}${uploadSentence(scope)}`;
 
@@ -174,6 +175,7 @@ export const createDocument = defineMcpxTool({
 			id: saved["id"],
 			status: saved["_status"],
 			updatedAt: saved["updatedAt"],
+			...(await documentLinks(scope.req, { target, doc: saved, locale })),
 			...(validation.blockers.length > 0
 				? { publishBlockers: validation.blockers }
 				: {}),

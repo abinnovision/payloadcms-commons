@@ -175,6 +175,7 @@ export const posts: CollectionConfig = {
  */
 export const notes: CollectionConfig = {
 	slug: "notes",
+	admin: { preview: (doc) => `/preview/notes/${String(doc["id"])}` },
 	versions: { drafts: { validate: true } },
 	fields: [{ name: "title", type: "text", required: true }],
 };

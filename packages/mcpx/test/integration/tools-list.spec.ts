@@ -101,6 +101,7 @@ const BUDGET: Record<string, number> = {
 	getDocument: 1200,
 	createDocument: 800,
 	deleteDocument: 800,
+	publishDocument: 700,
 };
 
 const DEFAULT_BUDGET = 600;
