@@ -75,6 +75,13 @@ const KEYS: Record<string, KeyCapabilities> = {
 	"write-only": {
 		collections: { posts: { write: true } },
 	},
+	/* May ask to delete, permanently in tags. */
+	deletes: {
+		collections: {
+			pages: { read: true, delete: true },
+			tags: { read: true, delete: true },
+		},
+	},
 	/* Every write lands as a draft: no live-write slug. */
 	"drafts-only": {
 		collections: {
@@ -93,6 +100,7 @@ const BUDGET: Record<string, number> = {
 	patchDocument: 1700,
 	getDocument: 1200,
 	createDocument: 800,
+	deleteDocument: 800,
 };
 
 const DEFAULT_BUDGET = 600;
@@ -124,9 +132,9 @@ describe("tools/list and initialize", () => {
 			key: CACHE_KEY,
 			plugin: {
 				collections: {
-					pages: true,
+					pages: { delete: true },
 					posts: { publish: false },
-					tags: true,
+					tags: { delete: true },
 					notes: true,
 					snippets: true,
 					media: true,

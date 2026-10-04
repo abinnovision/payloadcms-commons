@@ -118,6 +118,34 @@ export const createKeyFields = (): Field[] => [
 ];
 
 /**
+ * The pending calls of the key, above everything else on its edit view, where
+ * a collection exposes `delete`. The component renders nothing while none is
+ * pending and never touches the form, so deciding does not mark the key
+ * modified.
+ */
+export const createConfirmationFields = (
+	options: NormalizedOptions,
+): Field[] =>
+	options.confirmations
+		? [
+				{
+					name: "confirmations",
+					type: "ui",
+					admin: {
+						disableListColumn: true,
+						components: {
+							Field: {
+								path: "@abinnovision/payloadcms-mcpx/admin",
+								exportName: "McpxConfirmations",
+								clientProps: { endpointPath: options.endpointPath },
+							},
+						},
+					},
+				},
+			]
+		: [];
+
+/**
  * Wraps the key fields and the setup guide in unnamed tabs, so wide snippets
  * get the full form width. Named tabs would nest the data and move
  * `capabilities` off the document root, which capability resolution reads.

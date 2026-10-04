@@ -59,6 +59,8 @@ interface EntityCapabilities {
 	read?: boolean;
 	write?: boolean;
 	publish?: boolean;
+	delete?: boolean;
+	deleteUnattended?: boolean;
 }
 
 export interface KeyCapabilities {

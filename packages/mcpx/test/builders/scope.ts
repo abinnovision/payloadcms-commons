@@ -17,6 +17,8 @@ export const entity = (
 	write: "draft",
 	hasDrafts: true,
 	hasVersions: overrides.hasDrafts ?? true,
+	delete: false,
+	deleteUnattended: false,
 	isUpload: false,
 	fieldName: slug,
 	...overrides,

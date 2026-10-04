@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildToggleActions,
 	columnState,
+	rowState,
 	toolsState,
 } from "./capability-toggles.js";
 
@@ -23,6 +24,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: true,
+			delete: false,
+			deleteUnattended: false,
 		},
 		{
 			fieldName: "posts",
@@ -30,6 +33,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: false,
+			delete: false,
+			deleteUnattended: false,
 		},
 		{
 			fieldName: "tags",
@@ -37,6 +42,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: false,
 			publish: false,
+			delete: true,
+			deleteUnattended: true,
 		},
 		{
 			fieldName: "media",
@@ -44,6 +51,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: false,
+			delete: false,
+			deleteUnattended: false,
 			hint: "Files are uploaded in the admin panel.",
 		},
 	],
@@ -54,6 +63,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: true,
+			delete: false,
+			deleteUnattended: false,
 		},
 	],
 	tools: [
@@ -217,6 +228,107 @@ describe("buildToggleActions", () => {
 				value: true,
 			},
 		]);
+	});
+
+	it("ticks read alongside delete and clears delete with read", () => {
+		const intent = (
+			operation: "delete" | "read",
+			value: boolean,
+		): Parameters<typeof buildToggleActions>[3] => ({
+			kind: "cell",
+			namespace: "collections",
+			fieldName: "tags",
+			operation,
+			value,
+		});
+
+		expect(
+			buildToggleActions(matrix, BASE, {}, intent("delete", true)),
+		).toEqual([
+			{
+				type: "UPDATE",
+				path: "capabilities.collections.tags.read",
+				value: true,
+			},
+			{
+				type: "UPDATE",
+				path: "capabilities.collections.tags.delete",
+				value: true,
+			},
+		]);
+		expect(
+			buildToggleActions(
+				matrix,
+				BASE,
+				{
+					"capabilities.collections.tags.read": true,
+					"capabilities.collections.tags.delete": true,
+				},
+				intent("read", false),
+			).map((action) => action.path),
+		).toEqual([
+			"capabilities.collections.tags.read",
+			"capabilities.collections.tags.delete",
+		]);
+	});
+
+	it("ticks delete and read alongside an unattended delete and clears it with delete", () => {
+		const cell = (
+			operation: "delete" | "deleteUnattended",
+			value: boolean,
+		): Parameters<typeof buildToggleActions>[3] => ({
+			kind: "cell",
+			namespace: "collections",
+			fieldName: "tags",
+			operation,
+			value,
+		});
+
+		expect(
+			buildToggleActions(matrix, BASE, {}, cell("deleteUnattended", true)).map(
+				(action) => action.path,
+			),
+		).toEqual([
+			"capabilities.collections.tags.read",
+			"capabilities.collections.tags.delete",
+			"capabilities.collections.tags.deleteUnattended",
+		]);
+		expect(
+			buildToggleActions(
+				matrix,
+				BASE,
+				{
+					"capabilities.collections.tags.read": true,
+					"capabilities.collections.tags.delete": true,
+					"capabilities.collections.tags.deleteUnattended": true,
+				},
+				cell("delete", false),
+			).map((action) => action.path),
+		).toEqual([
+			"capabilities.collections.tags.delete",
+			"capabilities.collections.tags.deleteUnattended",
+		]);
+	});
+
+	it("reads a row as on without delete and never ticks it", () => {
+		const values = { "capabilities.collections.tags.read": true };
+
+		expect(rowState(BASE, "collections", matrix.collections[2]!, values)).toBe(
+			"on",
+		);
+		expect(
+			buildToggleActions(
+				matrix,
+				BASE,
+				{},
+				{
+					kind: "row",
+					namespace: "collections",
+					fieldName: "tags",
+					value: true,
+				},
+			).map((action) => action.path),
+		).toEqual(["capabilities.collections.tags.read"]);
 	});
 
 	it("grants a whole column across exposed rows only", () => {

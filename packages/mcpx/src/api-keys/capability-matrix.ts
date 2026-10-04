@@ -32,6 +32,17 @@ export const CAPABILITY_OPERATIONS = [
 		label: "Publish",
 		description: "Promote the current draft to what the public sees.",
 	},
+	{
+		id: "delete",
+		label: "Delete",
+		description:
+			"Delete documents, each approved by this key's user in the admin panel.",
+	},
+	{
+		id: "deleteUnattended",
+		label: "Delete without approval",
+		description: "Move documents to trash without asking this key's user.",
+	},
 ] as const;
 
 export type CapabilityOperation = (typeof CAPABILITY_OPERATIONS)[number]["id"];
@@ -55,6 +66,8 @@ export interface CapabilityRow {
 	read: boolean;
 	write: boolean;
 	publish: boolean;
+	delete: boolean;
+	deleteUnattended: boolean;
 	/**
 	 * Said only where a row departs from what its column header promises.
 	 */
@@ -89,6 +102,8 @@ const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 	read: entity.read,
 	write: canWrite(entity),
 	publish: canPublish(entity),
+	delete: entity.delete,
+	deleteUnattended: entity.deleteUnattended,
 	...hintFor(entity),
 });
 

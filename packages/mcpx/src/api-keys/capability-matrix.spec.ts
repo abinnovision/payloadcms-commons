@@ -22,6 +22,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: true,
+			delete: false,
+			deleteUnattended: false,
 		},
 		{
 			fieldName: "posts",
@@ -29,6 +31,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: false,
+			delete: false,
+			deleteUnattended: false,
 		},
 		{
 			fieldName: "tags",
@@ -36,6 +40,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: false,
 			publish: false,
+			delete: false,
+			deleteUnattended: false,
 		},
 		{
 			fieldName: "media",
@@ -43,6 +49,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: false,
+			delete: false,
+			deleteUnattended: false,
 		},
 	],
 	globals: [
@@ -52,6 +60,8 @@ const matrix: CapabilityMatrix = {
 			read: true,
 			write: true,
 			publish: true,
+			delete: false,
+			deleteUnattended: false,
 		},
 	],
 	tools: [
@@ -70,6 +80,8 @@ describe("createCapabilityMatrix", () => {
 				write: "live",
 				hasDrafts: true,
 				isUpload: false,
+				delete: false,
+				deleteUnattended: false,
 			},
 			{
 				slug: "media",
@@ -78,6 +90,8 @@ describe("createCapabilityMatrix", () => {
 				write: "draft",
 				hasDrafts: true,
 				isUpload: true,
+				delete: false,
+				deleteUnattended: false,
 			},
 			{
 				slug: "tags",
@@ -86,6 +100,8 @@ describe("createCapabilityMatrix", () => {
 				write: false,
 				hasDrafts: false,
 				isUpload: false,
+				delete: false,
+				deleteUnattended: false,
 			},
 			{
 				slug: "snippets",
@@ -94,6 +110,8 @@ describe("createCapabilityMatrix", () => {
 				write: "live",
 				hasDrafts: false,
 				isUpload: false,
+				delete: false,
+				deleteUnattended: false,
 			},
 		],
 		globals: [],
@@ -108,6 +126,8 @@ describe("createCapabilityMatrix", () => {
 				read: true,
 				write: true,
 				publish: true,
+				delete: false,
+				deleteUnattended: false,
 			},
 			{
 				fieldName: "media",
@@ -115,6 +135,8 @@ describe("createCapabilityMatrix", () => {
 				read: true,
 				write: true,
 				publish: false,
+				delete: false,
+				deleteUnattended: false,
 			},
 			{
 				fieldName: "tags",
@@ -122,6 +144,8 @@ describe("createCapabilityMatrix", () => {
 				read: true,
 				write: false,
 				publish: false,
+				delete: false,
+				deleteUnattended: false,
 			},
 			{
 				fieldName: "snippets",
@@ -129,6 +153,8 @@ describe("createCapabilityMatrix", () => {
 				read: true,
 				write: true,
 				publish: false,
+				delete: false,
+				deleteUnattended: false,
 				hint: "Writes go live immediately.",
 			},
 		]);

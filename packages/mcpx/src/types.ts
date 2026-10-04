@@ -59,13 +59,21 @@ export interface McpxCollectionOptions {
 	 * `false` keeps writes as drafts and is refused where there are none.
 	 */
 	publish?: boolean;
+	/**
+	 * Expose `deleteDocument`, which deletes one document once the key's user
+	 * approved the call in the admin panel. On a collection with `trash` it
+	 * moves the document to trash. `"unattended"` also lets a key with its own
+	 * checkbox move documents to trash without approval; it needs `trash`.
+	 * Default `false`.
+	 */
+	delete?: boolean | "unattended";
 }
 
 /**
- * The same options. A singleton, so neither `findDocuments` nor
- * `createDocument` reaches one.
+ * The same options without `delete`. A singleton, so neither `findDocuments`,
+ * `createDocument` nor `deleteDocument` reaches one.
  */
-export type McpxGlobalOptions = McpxCollectionOptions;
+export type McpxGlobalOptions = Omit<McpxCollectionOptions, "delete">;
 
 export type McpxToolExtra = RequestHandlerExtra<
 	ServerRequest,
@@ -86,6 +94,14 @@ export interface McpxExposedEntity {
 	 */
 	hasVersions: boolean;
 	/**
+	 * The config exposes `deleteDocument`. Always `false` on a global.
+	 */
+	delete: boolean;
+	/**
+	 * The config lets a key move documents to trash without approval.
+	 */
+	deleteUnattended: boolean;
+	/**
 	 * An upload document is a file, which only an upload grant can supply.
 	 */
 	isUpload: boolean;
@@ -102,6 +118,7 @@ export interface McpxScopeSlugs {
 	readable: string[];
 	writable: string[];
 	publishable: string[];
+	deletable: string[];
 }
 
 /**
@@ -119,7 +136,7 @@ export interface McpxToolScope {
 	limits: { maxLimit: number; maxDepth: number };
 	/**
 	 * Whether files can be uploaded at all: the KV is database-backed and no
-	 * custom `auth.resolve` is configured.
+	 * custom `auth.resolve` is configured. Confirmations need the same.
 	 */
 	uploads: boolean;
 	/**
@@ -133,14 +150,9 @@ export interface McpxToolScope {
 }
 
 /**
- * A tool, builtin or custom. Runs with `req.user` resolved from the key and
- * `req.context.mcpx` set. `Args` only needs stating when `inputSchema` is built
- * per request, leaving no static shape to infer from.
+ * What every tool declares, apart from `confirm` and the handler.
  */
-export interface McpxTool<
-	Shape extends z.ZodRawShape = z.ZodRawShape,
-	Args = z.infer<z.ZodObject<Shape>>,
-> {
+interface McpxToolBase<Shape extends z.ZodRawShape> {
 	/**
 	 * camelCase, unique, not one of the builtin tool names.
 	 */
@@ -162,20 +174,128 @@ export interface McpxTool<
 	 * instead of stripped.
 	 */
 	inputSchema?: Shape | ((scope: McpxToolScope) => z.ZodRawShape);
+}
+
+/**
+ * What a handler receives.
+ */
+export interface McpxToolContext<Args> {
+	args: Args;
+	scope: McpxToolScope;
+	/**
+	 * Shorthand for `scope.req`.
+	 */
+	req: PayloadRequest;
+	extra: McpxToolExtra;
+}
+
+/**
+ * Handed to the handler of a tool with `confirm`. Internal for now.
+ */
+export interface McpxConfirmation {
+	/**
+	 * `true` when `runConfirmed` runs an approved call.
+	 */
+	confirmed: boolean;
+	/**
+	 * Stores the call with `args` for the key's user to approve and returns
+	 * the result that hands its id and URL to the client. Throws in a
+	 * confirmed run.
+	 */
+	request: (args: Record<string, unknown>) => Promise<CallToolResult>;
+}
+
+/**
+ * A tool as `defineMcpxTool` takes it. `Confirm` is inferred from `confirm`,
+ * so only a tool that sets it gets `confirmation` in its handler.
+ */
+export type McpxToolDefinition<
+	Shape extends z.ZodRawShape,
+	Args,
+	Confirm extends McpxToolConfirm | undefined,
+> = McpxToolBase<Shape> & {
+	/**
+	 * Internal: only builtin tools are confirmable for now. The handler gets
+	 * `confirmation`: a call outside a confirmed run stores itself through
+	 * `confirmation.request`, the key's user approves it in the admin panel,
+	 * and `runConfirmed` runs the handler again with `confirmation.confirmed`
+	 * set.
+	 */
+	confirm?: Confirm;
 	/*
 	 * Method syntax keeps the handler bivariant so tools with concrete
 	 * argument types are assignable to `McpxTool[]`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/method-signature-style
-	handler(ctx: {
-		args: Args;
-		scope: McpxToolScope;
-		/**
-		 * Shorthand for `scope.req`.
-		 */
-		req: PayloadRequest;
-		extra: McpxToolExtra;
-	}): CallToolResult | Promise<CallToolResult>;
+	handler(
+		ctx: McpxToolContext<Args> &
+			(Confirm extends McpxToolConfirm
+				? { confirmation: McpxConfirmation }
+				: unknown),
+	): CallToolResult | Promise<CallToolResult>;
+};
+
+/**
+ * A tool, builtin or custom. Runs with `req.user` resolved from the key and
+ * `req.context.mcpx` set. `Args` only needs stating when `inputSchema` is built
+ * per request, leaving no static shape to infer from.
+ */
+export type McpxTool<
+	Shape extends z.ZodRawShape = z.ZodRawShape,
+	Args = z.infer<z.ZodObject<Shape>>,
+> =
+	| McpxToolDefinition<Shape, Args, undefined>
+	| (McpxToolDefinition<Shape, Args, McpxToolConfirm> & {
+			confirm: McpxToolConfirm;
+	  });
+
+/**
+ * How the admin panel shows one stored call of a confirmable tool.
+ */
+export interface McpxConfirmationSummary {
+	/**
+	 * What the call acts on, such as a collection's label.
+	 */
+	label: string;
+	/**
+	 * `undefined` when the target cannot be read.
+	 */
+	title?: string;
+	/**
+	 * The target's `_status`, where it has drafts.
+	 */
+	status?: string;
+	id?: string;
+	/**
+	 * Admin path that opens the target.
+	 */
+	href?: string;
+	/**
+	 * The call cannot be undone.
+	 */
+	permanent: boolean;
+	/**
+	 * Written by the client, so shown as such.
+	 */
+	reason?: string;
+}
+
+/**
+ * Internal for now; see {@link McpxTool.confirm}.
+ */
+export interface McpxToolConfirm {
+	/**
+	 * Heading of the tool's group in the admin panel.
+	 */
+	label: string;
+	/**
+	 * Read at view time with the access of the key's user.
+	 */
+	// eslint-disable-next-line @typescript-eslint/method-signature-style
+	summarize(
+		call: { args: Record<string, unknown> },
+		req: PayloadRequest,
+	): Promise<McpxConfirmationSummary>;
 }
 
 /**
@@ -275,6 +395,14 @@ export interface McpxCollectionCapabilities {
 	 * Only ever true where the config lets writes publish and drafts exist.
 	 */
 	publish: boolean;
+	/**
+	 * Always `false` on a global.
+	 */
+	delete: boolean;
+	/**
+	 * Moves to trash without approval. Only ever true where `delete` is.
+	 */
+	deleteUnattended: boolean;
 }
 
 /**

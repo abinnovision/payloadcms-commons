@@ -201,6 +201,23 @@ describe("api keys collection", () => {
 		);
 	});
 
+	it("lists pending calls above the tabs only where a collection exposes delete", async () => {
+		const built = await buildFixtureConfig({
+			plugin: { collections: { tags: { delete: true } } },
+		});
+		const keys = built.collections.find((c) => c.slug === "mcpx-api-keys");
+		const [first, second] = keys?.fields ?? [];
+
+		expect(first).toMatchObject({ name: "confirmations", type: "ui" });
+		expect(second?.type).toBe("tabs");
+		expect(
+			fieldNames(
+				config.collections.find((c) => c.slug === "mcpx-api-keys")?.fields ??
+					[],
+			),
+		).not.toContain("confirmations");
+	});
+
 	it("applies the collection override", async () => {
 		const overridden = await buildFixtureConfig({
 			plugin: {

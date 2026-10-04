@@ -1,7 +1,7 @@
 import { inMemoryKVAdapter } from "payload";
 import { describe, expect, it } from "vitest";
 
-import { claimGrant, uploadKvSlug } from "./grant.js";
+import { claimGrant, grantKvSlug } from "./grant.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type { Payload } from "payload";
@@ -20,14 +20,14 @@ describe("claimGrant", () => {
 	);
 });
 
-describe("uploadKvSlug", () => {
+describe("grantKvSlug", () => {
 	it("names the collection of Payload's database KV", async () => {
-		expect(uploadKvSlug(await buildFixtureConfig())).toBe("payload-kv");
+		expect(grantKvSlug(await buildFixtureConfig())).toBe("payload-kv");
 	});
 
 	it("is undefined for a KV outside the database", async () => {
 		expect(
-			uploadKvSlug(await buildFixtureConfig({ kv: inMemoryKVAdapter() })),
+			grantKvSlug(await buildFixtureConfig({ kv: inMemoryKVAdapter() })),
 		).toBeUndefined();
 	});
 });

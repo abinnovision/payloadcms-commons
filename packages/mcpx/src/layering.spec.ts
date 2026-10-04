@@ -27,6 +27,7 @@ const LAYERS: Record<string, number> = {
 	"write/": 2,
 	"api-keys/": 2,
 	"upload/": 2,
+	"grants/": 2,
 	"auth/": 3,
 	"tools/": 3,
 	"endpoint/": 4,
@@ -44,6 +45,7 @@ const LAYERS: Record<string, number> = {
 const ADMIN = "admin/";
 const ADMIN_MAY_IMPORT = [
 	"api-keys/capability-matrix.ts",
+	"api-keys/confirmation-view.ts",
 	"api-keys/setup-guide.ts",
 	"capabilities.ts",
 ];
@@ -68,10 +70,20 @@ const sourceFiles = readdirSync(here, { recursive: true, encoding: "utf8" })
  * where naming a higher layer's type is a dependency in the forbidden
  * direction all the same.
  */
-const importsOf = (file: string): string[] => [
-	...(walkModuleGraph(file, { includeTypeImports: true }).imports.get(file) ??
-		[]),
-];
+const walked = new Map<string, Set<string>>();
+
+// One walk records the direct imports of every file it reaches.
+const importsOf = (file: string): string[] => {
+	if (!walked.has(file)) {
+		for (const [source, targets] of walkModuleGraph(file, {
+			includeTypeImports: true,
+		}).imports) {
+			walked.set(source, targets);
+		}
+	}
+
+	return [...(walked.get(file) ?? [])];
+};
 
 const forbiddenImports = (file: string, layer: number): string[] =>
 	importsOf(file)

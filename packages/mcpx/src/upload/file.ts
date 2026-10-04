@@ -6,7 +6,7 @@ import {
 } from "payload/shared";
 import { z } from "zod";
 
-import { issueGrant, uploadKvSlug } from "./grant.js";
+import { issueGrant, grantKvSlug } from "../grants/grant.js";
 import { errorResult, jsonResult } from "../result.js";
 import { resolveDataPointer, SchemaError } from "../schema/index.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
@@ -264,7 +264,7 @@ const handoffUrl = (req: PayloadRequest, path: "file" | "upload"): string => {
 
 // Throws where the endpoint would not offer a handoff.
 const grantContext = (req: PayloadRequest) => {
-	const slug = uploadKvSlug(req.payload.config);
+	const slug = grantKvSlug(req.payload.config);
 	const apiKeyId = req.context.mcpx?.apiKeyId;
 
 	if (slug === undefined || apiKeyId === undefined) {

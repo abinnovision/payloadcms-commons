@@ -261,6 +261,7 @@ export interface Page {
 	};
 	updatedAt: string;
 	createdAt: string;
+	deletedAt?: string | null;
 	_status?: ("draft" | "published") | null;
 }
 /**
@@ -291,6 +292,7 @@ export interface Article {
 	)[];
 	updatedAt: string;
 	createdAt: string;
+	deletedAt?: string | null;
 	_status?: ("draft" | "published") | null;
 }
 /**
@@ -303,6 +305,7 @@ export interface Section {
 	slug: string;
 	updatedAt: string;
 	createdAt: string;
+	deletedAt?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -328,6 +331,7 @@ export interface User {
 	resetPasswordExpiration?: string | null;
 	salt?: string | null;
 	hash?: string | null;
+	resetPasswordRequestedAt?: string | null;
 	loginAttempts?: number | null;
 	lockUntil?: string | null;
 	sessions?:
@@ -367,6 +371,7 @@ export interface Post {
 	tags?: (number | Tag)[] | null;
 	updatedAt: string;
 	createdAt: string;
+	deletedAt?: string | null;
 	_status?: ("draft" | "published") | null;
 }
 /**
@@ -378,6 +383,7 @@ export interface Media {
 	alt?: string | null;
 	updatedAt: string;
 	createdAt: string;
+	deletedAt?: string | null;
 	url?: string | null;
 	thumbnailURL?: string | null;
 	filename?: string | null;
@@ -397,6 +403,7 @@ export interface Tag {
 	name: string;
 	updatedAt: string;
 	createdAt: string;
+	deletedAt?: string | null;
 }
 /**
  * Keys for MCP clients. Each key acts as its user and may only do what its capabilities allow.
@@ -449,6 +456,14 @@ export interface McpxApiKey {
 				 * Promote the current draft to what the public sees.
 				 */
 				publish?: boolean | null;
+				/**
+				 * Delete documents, each approved by this key's user in the admin panel.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
 			};
 			articles?: {
 				/**
@@ -459,6 +474,18 @@ export interface McpxApiKey {
 				 * Create, patch and validate drafts.
 				 */
 				write?: boolean | null;
+				/**
+				 * Promote the current draft to what the public sees.
+				 */
+				publish?: boolean | null;
+				/**
+				 * Delete documents, each approved by this key's user in the admin panel.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
 			};
 			posts?: {
 				/**
@@ -469,6 +496,18 @@ export interface McpxApiKey {
 				 * Create, patch and validate drafts.
 				 */
 				write?: boolean | null;
+				/**
+				 * Promote the current draft to what the public sees.
+				 */
+				publish?: boolean | null;
+				/**
+				 * Delete documents, each approved by this key's user in the admin panel.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
 			};
 			sections?: {
 				/**
@@ -479,12 +518,32 @@ export interface McpxApiKey {
 				 * Create, patch and validate drafts.
 				 */
 				write?: boolean | null;
+				/**
+				 * Delete documents, each approved by this key's user in the admin panel.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
 			};
 			tags?: {
 				/**
 				 * Describe, find and read.
 				 */
 				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Delete documents, each approved by this key's user in the admin panel.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
 			};
 			media?: {
 				/**
@@ -495,6 +554,14 @@ export interface McpxApiKey {
 				 * Create, patch and validate drafts.
 				 */
 				write?: boolean | null;
+				/**
+				 * Delete documents, each approved by this key's user in the admin panel.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
 			};
 		};
 		globals?: {
@@ -627,6 +694,7 @@ export interface UsersSelect<T extends boolean = true> {
 	resetPasswordExpiration?: T;
 	salt?: T;
 	hash?: T;
+	resetPasswordRequestedAt?: T;
 	loginAttempts?: T;
 	lockUntil?: T;
 	sessions?:
@@ -663,6 +731,7 @@ export interface PagesSelect<T extends boolean = true> {
 		  };
 	updatedAt?: T;
 	createdAt?: T;
+	deletedAt?: T;
 	_status?: T;
 }
 /**
@@ -687,6 +756,7 @@ export interface ArticlesSelect<T extends boolean = true> {
 		  };
 	updatedAt?: T;
 	createdAt?: T;
+	deletedAt?: T;
 	_status?: T;
 }
 /**
@@ -698,6 +768,7 @@ export interface SectionsSelect<T extends boolean = true> {
 	slug?: T;
 	updatedAt?: T;
 	createdAt?: T;
+	deletedAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -711,6 +782,7 @@ export interface PostsSelect<T extends boolean = true> {
 	tags?: T;
 	updatedAt?: T;
 	createdAt?: T;
+	deletedAt?: T;
 	_status?: T;
 }
 /**
@@ -721,6 +793,7 @@ export interface TagsSelect<T extends boolean = true> {
 	name?: T;
 	updatedAt?: T;
 	createdAt?: T;
+	deletedAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -730,6 +803,7 @@ export interface MediaSelect<T extends boolean = true> {
 	alt?: T;
 	updatedAt?: T;
 	createdAt?: T;
+	deletedAt?: T;
 	url?: T;
 	thumbnailURL?: T;
 	filename?: T;
@@ -764,35 +838,50 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 										read?: T;
 										write?: T;
 										publish?: T;
+										delete?: T;
+										deleteUnattended?: T;
 								  };
 							articles?:
 								| T
 								| {
 										read?: T;
 										write?: T;
+										publish?: T;
+										delete?: T;
+										deleteUnattended?: T;
 								  };
 							posts?:
 								| T
 								| {
 										read?: T;
 										write?: T;
+										publish?: T;
+										delete?: T;
+										deleteUnattended?: T;
 								  };
 							sections?:
 								| T
 								| {
 										read?: T;
 										write?: T;
+										delete?: T;
+										deleteUnattended?: T;
 								  };
 							tags?:
 								| T
 								| {
 										read?: T;
+										write?: T;
+										delete?: T;
+										deleteUnattended?: T;
 								  };
 							media?:
 								| T
 								| {
 										read?: T;
 										write?: T;
+										delete?: T;
+										deleteUnattended?: T;
 								  };
 					  };
 				globals?:

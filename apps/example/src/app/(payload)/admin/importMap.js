@@ -23,6 +23,7 @@ import { BlockquoteFeatureClient as BlockquoteFeatureClient_e70f5e05f09f93e00b99
 import { UploadFeatureClient as UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { HorizontalRuleFeatureClient as HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { InlineToolbarFeatureClient as InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { McpxConfirmations as McpxConfirmations_cec8d7aa143ac5cb18cc30b30fd1b1f1 } from '@abinnovision/payloadcms-mcpx/admin'
 import { McpxCapabilityMatrix as McpxCapabilityMatrix_cec8d7aa143ac5cb18cc30b30fd1b1f1 } from '@abinnovision/payloadcms-mcpx/admin'
 import { McpxSetupGuide as McpxSetupGuide_cec8d7aa143ac5cb18cc30b30fd1b1f1 } from '@abinnovision/payloadcms-mcpx/admin'
 import { LinkLabelFeatureClient as LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56 } from '@abinnovision/payloadcms-wayfinder/admin'
@@ -56,6 +57,7 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UploadFeatureClient": UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#HorizontalRuleFeatureClient": HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#InlineToolbarFeatureClient": InlineToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "@abinnovision/payloadcms-mcpx/admin#McpxConfirmations": McpxConfirmations_cec8d7aa143ac5cb18cc30b30fd1b1f1,
   "@abinnovision/payloadcms-mcpx/admin#McpxCapabilityMatrix": McpxCapabilityMatrix_cec8d7aa143ac5cb18cc30b30fd1b1f1,
   "@abinnovision/payloadcms-mcpx/admin#McpxSetupGuide": McpxSetupGuide_cec8d7aa143ac5cb18cc30b30fd1b1f1,
   "@abinnovision/payloadcms-wayfinder/admin#LinkLabelFeatureClient": LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56,

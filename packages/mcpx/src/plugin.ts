@@ -1,6 +1,7 @@
 import { definePlugin } from "payload";
 
 import { createApiKeysCollection } from "./api-keys/collection.js";
+import { confirmationEndpoints } from "./endpoint/confirmations.js";
 import { createMcpxHandler, methodNotAllowed } from "./endpoint/handler.js";
 import {
 	createDownloadHandler,
@@ -15,7 +16,8 @@ import {
 import type { McpxPluginOptions } from "./types.js";
 
 /**
- * Mounts the MCP, upload and download endpoints, adds the API key collection
+ * Mounts the MCP, upload and download endpoints, and the confirmation
+ * endpoints where a collection exposes `delete`. Adds the API key collection
  * and installs the draft guard on every collection and global.
  */
 export const mcpxPlugin = definePlugin<McpxPluginOptions>({
@@ -62,6 +64,7 @@ export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 					method: "get",
 					handler: createDownloadHandler(normalized),
 				},
+				...(normalized.confirmations ? confirmationEndpoints(normalized) : []),
 			],
 		};
 	},

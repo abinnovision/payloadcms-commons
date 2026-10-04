@@ -11,6 +11,7 @@ import type { CollectionConfig } from "payload";
  */
 export const articles: CollectionConfig = {
 	slug: "articles",
+	trash: true,
 	admin: {
 		useAsTitle: "title",
 		defaultColumns: ["title", "section", "slug"],

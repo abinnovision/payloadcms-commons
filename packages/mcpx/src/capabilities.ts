@@ -72,10 +72,19 @@ export const resolveCapabilities = (
 				? namespaceGroup[entity.fieldName]
 				: undefined;
 
+			const deleting =
+				entity.delete && flag(group, "read") && flag(group, "delete");
+
 			resolved[entity.slug] = {
 				read: entity.read && flag(group, "read"),
 				write: canWrite(entity) && flag(group, "write"),
 				publish: publishFlag(entity, group),
+				// Deleting needs read, as publishing needs write.
+				delete: deleting,
+				deleteUnattended:
+					deleting &&
+					entity.deleteUnattended &&
+					flag(group, "deleteUnattended"),
 			};
 		}
 
@@ -103,7 +112,9 @@ export const resolveCapabilities = (
 export const scopeSlugs = (
 	entries: Record<string, McpxEntityCapabilities>,
 ): McpxScopeSlugs => {
-	const slugsWith = (operation: "publish" | "read" | "write"): string[] =>
+	const slugsWith = (
+		operation: "delete" | "publish" | "read" | "write",
+	): string[] =>
 		Object.entries(entries)
 			.filter(([, value]) => value[operation])
 			.map(([slug]) => slug);
@@ -112,5 +123,6 @@ export const scopeSlugs = (
 		readable: slugsWith("read"),
 		writable: slugsWith("write"),
 		publishable: slugsWith("publish"),
+		deletable: slugsWith("delete"),
 	};
 };

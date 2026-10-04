@@ -11,4 +11,6 @@ export const BUILTIN_TOOL_NAMES = [
 	"createDocument",
 	"validateDocument",
 	"publishDocument",
+	"deleteDocument",
+	"runConfirmed",
 ] as const;
