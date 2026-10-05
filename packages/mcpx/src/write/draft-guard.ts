@@ -4,6 +4,7 @@ import { hasDraftsEnabled } from "payload/shared";
 import {
 	hasPublishIntent,
 	hasTrashIntent,
+	takeDuplicateIntent,
 	takePublishIntent,
 	takeTrashIntent,
 	withTrashIntent,
@@ -22,7 +23,8 @@ import type {
 
 /*
  * Cleared on every MCP write so a caller cannot supply them, except
- * `publishSpecificLocale`, which a marked publish keeps.
+ * `publishSpecificLocale`, which a marked publish keeps, and `duplicateFromID`,
+ * which a marked duplicate keeps.
  */
 const STRIPPED_ARGS = new Set([
 	"where",
@@ -40,8 +42,9 @@ const STRIPPED_ARGS = new Set([
  * is granted the same way for the write `deleteDocument` marked: it keeps
  * `deletedAt` and nothing else of `data`, and is not a draft save, which would
  * leave the document's own `deletedAt` unchanged. `trash` stays false, so an
- * already trashed document is not found. Not covered: deletes, `duplicate`,
- * files (the local API lifts `file` and `filePath` onto `req` first) and
+ * already trashed document is not found. A duplicate keeps `duplicateFromID`
+ * only on the create `duplicateDocument` marked. Not covered: deletes, files
+ * (the local API lifts `file` and `filePath` onto `req` first) and
  * anything going straight to `payload.db`. `restoreVersion` runs
  * `beforeChange` hooks, so {@link refusePublish} catches it.
  */
@@ -93,6 +96,14 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 		(operation !== "create" && operation !== "update")
 	) {
 		return args;
+	}
+
+	if (operation === "create" && takeDuplicateIntent(args.data)) {
+		const next = scrubWriteArgs(args, undefined);
+
+		next["duplicateFromID"] = args.duplicateFromID;
+
+		return next as typeof args;
 	}
 
 	const intent =

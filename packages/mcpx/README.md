@@ -116,19 +116,20 @@ every check.
 
 ## Tools
 
-| Tool               | What it does                                                       | Needs     |
-| ------------------ | ------------------------------------------------------------------ | --------- |
-| `listCapabilities` | Lists what this key may do. Clients call it first.                 | any key   |
-| `describeSchema`   | Describes the fields at one schema path, with the paths below it.  | `read`    |
-| `findDocuments`    | Queries a collection with a Payload `where`, `sort` and `select`.  | `read`    |
-| `getDocument`      | Reads a document, a subtree of it, an old version or a diff.       | `read`    |
-| `findVersions`     | Lists the version history of a document or global, without bodies. | `read`    |
-| `patchDocument`    | Applies JSON Patch operations to the current draft, or a new file. | `write`   |
-| `createDocument`   | Creates a draft from a seed, with a file in an upload collection.  | `write`   |
-| `validateDocument` | Lists what blocks publishing, without saving.                      | `write`   |
-| `publishDocument`  | Publishes the current draft.                                       | `publish` |
-| `deleteDocument`   | Asks to delete a document, which the key's user approves.          | `delete`  |
-| `runConfirmed`     | Runs the approved calls.                                           | `delete`  |
+| Tool                | What it does                                                       | Needs     |
+| ------------------- | ------------------------------------------------------------------ | --------- |
+| `listCapabilities`  | Lists what this key may do. Clients call it first.                 | any key   |
+| `describeSchema`    | Describes the fields at one schema path, with the paths below it.  | `read`    |
+| `findDocuments`     | Queries a collection with a Payload `where`, `sort` and `select`.  | `read`    |
+| `getDocument`       | Reads a document, a subtree of it, an old version or a diff.       | `read`    |
+| `findVersions`      | Lists the version history of a document or global, without bodies. | `read`    |
+| `patchDocument`     | Applies JSON Patch operations to the current draft, or a new file. | `write`   |
+| `createDocument`    | Creates a draft from a seed, with a file in an upload collection.  | `write`   |
+| `duplicateDocument` | Copies a document into a new draft, in every locale.               | `write`   |
+| `validateDocument`  | Lists what blocks publishing, without saving.                      | `write`   |
+| `publishDocument`   | Publishes the current draft.                                       | `publish` |
+| `deleteDocument`    | Asks to delete a document, which the key's user approves.          | `delete`  |
+| `runConfirmed`      | Runs the approved calls.                                           | `delete`  |
 
 Collections and globals use the same tools. A tool that addresses one document takes either
 `collection` and `id`, or `global` alone. [`docs/concepts.md`](./docs/concepts.md#tools) lists

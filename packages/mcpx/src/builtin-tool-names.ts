@@ -9,6 +9,7 @@ export const BUILTIN_TOOL_NAMES = [
 	"findVersions",
 	"patchDocument",
 	"createDocument",
+	"duplicateDocument",
 	"validateDocument",
 	"publishDocument",
 	"deleteDocument",

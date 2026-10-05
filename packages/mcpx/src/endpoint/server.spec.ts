@@ -166,6 +166,7 @@ describe("builtin tool shapes", () => {
 			"findVersions",
 			"patchDocument",
 			"createDocument",
+			"duplicateDocument",
 			"validateDocument",
 		]);
 		expect(enabled(scopeFor(options, READ_ONLY_KEY, config))).toEqual([

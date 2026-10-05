@@ -11,6 +11,7 @@ import {
 import {
 	hasPublishIntent,
 	hasTrashIntent,
+	withDuplicateIntent,
 	withPublishIntent,
 	withTrashIntent,
 } from "./publish-intent.js";
@@ -199,6 +200,33 @@ describe("forceDraftWrite on a marked publish", () => {
 		);
 
 		expect(args).toMatchObject({ draft: true });
+	});
+});
+
+describe("forceDraftWrite on a marked duplicate", () => {
+	it("keeps the source id and saves a draft without the marker", () => {
+		const args = operationArgumentsFor(
+			{
+				data: withDuplicateIntent({ _status: "published" }),
+				duplicateFromID: "1",
+				selectedLocales: ["de"],
+			},
+			"create",
+		);
+
+		expect(args).toMatchObject({ draft: true, duplicateFromID: "1" });
+		expect(args["data"]).toEqual({});
+		expect(args).not.toHaveProperty("selectedLocales");
+	});
+
+	it("strips the source id on an update", () => {
+		const args = operationArgumentsFor({
+			data: withDuplicateIntent({}),
+			duplicateFromID: "1",
+			id: "2",
+		});
+
+		expect(args).not.toHaveProperty("duplicateFromID");
 	});
 });
 

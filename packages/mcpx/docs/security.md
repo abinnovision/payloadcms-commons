@@ -125,14 +125,15 @@ const published: CollectionConfig = {
 
 Some reads run with full access, because they answer a question about the whole document:
 
-- After `patchDocument`, `createDocument` and `publishDocument` write, the tool re-reads the saved
-  draft with `overrideAccess: true` and hidden fields included.
+- After `patchDocument`, `createDocument`, `duplicateDocument` and `publishDocument` write, the
+  tool re-reads the saved draft with `overrideAccess: true` and hidden fields included.
 - `patchDocument` computes `notApplied` from a second read with the key's access, not from that
   read, so a field the user cannot read gives the same answer whatever value was sent. When the
   patch leaves the document unreadable to the user, that read fails and `notApplied` is left out.
-- `patchDocument`, `createDocument` and `validateDocument` run Payload's field validation over
-  that read with `overrideAccess: true` to collect publish blockers. `validateDocument` first
-  reads the document with the key's access and fails if the user cannot see it.
+- `patchDocument`, `createDocument`, `duplicateDocument` and `validateDocument` run Payload's
+  field validation over that read with `overrideAccess: true` to collect publish blockers.
+  `validateDocument` first reads the document with the key's access and fails if the user cannot
+  see it.
 - The publish-blocker check runs the fields' `beforeValidate` and `beforeChange` hooks, including
   on `validateDocument`, which saves nothing. It runs once per locale on `validateDocument` without
   `locale` and once per other locale on `publishDocument`.
@@ -191,10 +192,12 @@ draft save would leave the document itself, which carries `deletedAt`, unchanged
 own move to trash, it writes the latest version to the document; the trashed document is not
 public either way.
 
+A marked duplicate from `duplicateDocument` keeps `duplicateFromID` and is saved as a draft like
+any other create.
+
 The guard does not cover:
 
 - deletes;
-- `duplicate`;
 - files: the Local API moves `file` and `filePath` onto the request before the hook runs;
 - direct `payload.db` access;
 - collections and globals without drafts, where a write changes the live document;

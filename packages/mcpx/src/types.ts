@@ -48,8 +48,9 @@ export interface McpxCollectionOptions {
 	 */
 	read?: boolean;
 	/**
-	 * Expose `patchDocument`, `validateDocument` and `createDocument`. An upload
-	 * collection is created in only where MCP accepts its files. Without drafts
+	 * Expose `patchDocument`, `validateDocument`, `createDocument` and
+	 * `duplicateDocument`. An upload collection is created in only where MCP
+	 * accepts its files, and is never duplicated. Without drafts
 	 * a write changes live content. Needs `read`. Default `true` while `read` is.
 	 */
 	write?: boolean;

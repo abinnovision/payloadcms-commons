@@ -2,7 +2,7 @@ Call the tools in this order:
 1. listCapabilities: what this key may access.
 2. describeSchema: the fields.
 3. findDocuments or getDocument: the content and its "updatedAt".
-4. patchDocument or createDocument: the write.
+4. patchDocument or createDocument or duplicateDocument: the write.
 5. A write that returns "upload": PUT the file bytes to its "url" with its "headers". The response is the result of the write.
 6. validateDocument: what blocks publishing.
 

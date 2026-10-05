@@ -8,19 +8,20 @@ the same.
 
 ## Tools
 
-| Tool               | Arguments                                                                                                      |
-| ------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `listCapabilities` | none                                                                                                           |
-| `describeSchema`   | `collection` or `global`, `paths?`, `expand?`                                                                  |
-| `findDocuments`    | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?`                   |
-| `getDocument`      | `collection` + `id` or `global`, `path?`, `depth?`, `locale?`, `draft?`, `outline?`, `versionId?`, `diffFrom?` |
-| `findVersions`     | `collection` + `id` or `global`, `limit?`, `page?`, `status?`, `locale?`                                       |
-| `patchDocument`    | `collection` + `id` or `global`, `locale`, `patches`, `expectedUpdatedAt?`, `file?`                            |
-| `createDocument`   | `collection`, `locale`, `data`, `file?`                                                                        |
-| `validateDocument` | `collection` + `id` or `global`, `locale?`                                                                     |
-| `publishDocument`  | `collection` + `id` or `global`, `locale?`, `expectedUpdatedAt?`                                               |
-| `deleteDocument`   | `collection`, `id`, `expectedUpdatedAt?`, `reason?`                                                            |
-| `runConfirmed`     | `ids`                                                                                                          |
+| Tool                | Arguments                                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `listCapabilities`  | none                                                                                                           |
+| `describeSchema`    | `collection` or `global`, `paths?`, `expand?`                                                                  |
+| `findDocuments`     | `collection`, `where?`, `sort?`, `limit?`, `page?`, `depth?`, `select?`, `locale?`, `draft?`                   |
+| `getDocument`       | `collection` + `id` or `global`, `path?`, `depth?`, `locale?`, `draft?`, `outline?`, `versionId?`, `diffFrom?` |
+| `findVersions`      | `collection` + `id` or `global`, `limit?`, `page?`, `status?`, `locale?`                                       |
+| `patchDocument`     | `collection` + `id` or `global`, `locale`, `patches`, `expectedUpdatedAt?`, `file?`                            |
+| `createDocument`    | `collection`, `locale`, `data`, `file?`                                                                        |
+| `duplicateDocument` | `collection`, `id`                                                                                             |
+| `validateDocument`  | `collection` + `id` or `global`, `locale?`                                                                     |
+| `publishDocument`   | `collection` + `id` or `global`, `locale?`, `expectedUpdatedAt?`                                               |
+| `deleteDocument`    | `collection`, `id`, `expectedUpdatedAt?`, `reason?`                                                            |
+| `runConfirmed`      | `ids`                                                                                                          |
 
 `locale` is only present when the config has localization. `depth` defaults to 0 and is capped
 by `limits.maxDepth`; `limit` defaults to 10 and is capped by `limits.maxLimit`. `draft` defaults
@@ -105,6 +106,11 @@ The response carries the document's `id` (or the global's slug), `status` and `u
 `createDocument` takes a seed in `data`, checked against the collection's fields before the
 create. Unknown keys are refused with the valid alternatives, and a top-level `id` is refused. The
 document may be incomplete; the response lists its publish blockers.
+
+`duplicateDocument` runs Payload's duplicate: it copies the latest version of a document, the
+draft if there is one, in every locale, and appends ` - Copy` to unique text fields. It needs read
+access on the source and create access on the copy, and returns what `createDocument` returns. It
+leaves out upload collections and collections with `disableDuplicate`.
 
 ## Rich text
 
