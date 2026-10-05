@@ -11,7 +11,7 @@ export interface DocumentLinks {
 interface LinkArgs {
 	target: ResolvedEntity;
 	doc: Record<string, unknown>;
-	locale: string | null | undefined;
+	locale: string | undefined;
 }
 
 // The entity's own `livePreview`, else the root one when it lists the slug.

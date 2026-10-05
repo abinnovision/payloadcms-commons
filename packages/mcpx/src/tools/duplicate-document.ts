@@ -1,12 +1,11 @@
 import { Forbidden } from "payload";
 
-import { createdResult } from "./create-document.js";
-import { resolveEntity } from "./document.js";
+import { resolveCollection, writtenResult } from "./document.js";
 import {
 	idSchema,
 	liveWriteSentence,
 	localeOf,
-	slugEnum,
+	stringEnum,
 	slugsFor,
 } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
@@ -22,9 +21,7 @@ import type { McpxToolScope } from "../types.js";
 const duplicableSlugs = (scope: McpxToolScope): string[] =>
 	slugsFor(scope, "create").collections.filter(
 		(slug) =>
-			scope.req.payload.config.collections.find(
-				(collection) => collection.slug === slug,
-			)?.disableDuplicate !== true &&
+			scope.req.payload.collections[slug]?.config.disableDuplicate !== true &&
 			!scope.exposure.collections.some(
 				(entity) => entity.slug === slug && entity.isUpload,
 			),
@@ -50,20 +47,13 @@ export const duplicateDocument = defineMcpxTool({
 	},
 	isEnabled: (scope) => duplicableSlugs(scope).length > 0,
 	inputSchema: (scope) => ({
-		collection: slugEnum(duplicableSlugs(scope)),
+		collection: stringEnum(duplicableSlugs(scope)),
 		id: idSchema,
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveEntity(
-			scope,
-			{ collection: args.collection },
-			"create",
-		);
+		const target = resolveCollection(scope, args.collection, "create");
 
-		if (
-			target.kind === "global" ||
-			!duplicableSlugs(scope).includes(target.slug)
-		) {
+		if (!duplicableSlugs(scope).includes(target.slug)) {
 			throw new Forbidden(scope.req.t);
 		}
 
@@ -78,9 +68,8 @@ export const duplicateDocument = defineMcpxTool({
 			req: scope.req,
 		})) as Record<string, unknown>;
 
-		return await createdResult(scope, {
-			target,
-			id: created["id"] as DocumentId,
+		return await writtenResult(scope, {
+			target: { ...target, id: created["id"] as DocumentId },
 			locale: localeOf(scope, undefined),
 		});
 	},

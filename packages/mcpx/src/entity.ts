@@ -17,6 +17,11 @@ export type ResolvedEntity =
 	| { kind: "collection"; slug: string; config: SanitizedCollectionConfig }
 	| { kind: "global"; slug: string; config: SanitizedGlobalConfig };
 
+export type ResolvedCollection = Extract<
+	ResolvedEntity,
+	{ kind: "collection" }
+>;
+
 /**
  * The id type follows the database adapter and a collection's own `id` field,
  * so one project can have both. Payload's `DefaultDocumentIDType` narrows to
@@ -24,6 +29,7 @@ export type ResolvedEntity =
  */
 export type DocumentId = number | string;
 
+export type CollectionRef = ResolvedCollection & { id: DocumentId };
+
 export type DocumentRef =
-	| (Extract<ResolvedEntity, { kind: "collection" }> & { id: DocumentId })
-	| Extract<ResolvedEntity, { kind: "global" }>;
+	CollectionRef | Extract<ResolvedEntity, { kind: "global" }>;

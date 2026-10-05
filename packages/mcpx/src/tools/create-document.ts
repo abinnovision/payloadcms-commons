@@ -1,18 +1,18 @@
 import { APIError } from "payload";
 import { z } from "zod";
 
-import { readDraft, resolveEntity } from "./document.js";
-import { documentLinks } from "./links.js";
+import { resolveCollection, writtenResult } from "./document.js";
 import {
 	liveWriteSentence,
 	localeOf,
 	localeShape,
 	patchOnlySlugs,
-	slugEnum,
+	stringEnum,
 	slugsFor,
 } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
-import { errorResult, jsonResult } from "../result.js";
+import { definedProps } from "../guards.js";
+import { errorResult } from "../result.js";
 import { validateWriteValue } from "../schema/index.js";
 import {
 	assertAcceptsFile,
@@ -21,13 +21,10 @@ import {
 	uploadedFile,
 	uploadHandoff,
 } from "../upload/file.js";
-import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { stripRowIds } from "../write/row-ids.js";
 
-import type { DocumentId, ResolvedEntity } from "../entity.js";
+import type { DocumentId } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { TypedLocale } from "payload";
 
 // Names the writable slugs this tool leaves out, so the gap reads as intent.
 const uploadSentence = (scope: McpxToolScope): string => {
@@ -42,42 +39,6 @@ const DESCRIPTION = (scope: McpxToolScope): string =>
 	`Creates a document in a collection. Use it only when the document does not exist yet. Returns "id", "status", "updatedAt" and, if any, "publishBlockers". "publishBlockersUnavailable" means that check failed. "data" may leave required fields empty for patchDocument to fill later, except in a collection whose listCapabilities entry has "draftValidation" true or "drafts" false. A field describeSchema does not list is refused, and "id" is always assigned. The response links the document with "adminUrl" and "previewUrl".
 
 ${liveWriteSentence(scope, "create")}${uploadSentence(scope)}`;
-
-/**
- * What createDocument and duplicateDocument return: the new document, re-read
- * privileged in `locale`, with its links and publish blockers.
- */
-export const createdResult = async (
-	scope: McpxToolScope,
-	args: {
-		target: Extract<ResolvedEntity, { kind: "collection" }>;
-		id: DocumentId;
-		locale: TypedLocale | undefined;
-	},
-): Promise<CallToolResult> => {
-	const { target, locale } = args;
-	const saved = await readDraft(scope, {
-		target: { ...target, id: args.id },
-		locale,
-		privileged: true,
-	});
-
-	const validation = await collectPublishBlockers(scope.req, {
-		doc: saved,
-		entity: target,
-	});
-
-	return jsonResult({
-		id: saved["id"],
-		status: saved["_status"],
-		updatedAt: saved["updatedAt"],
-		...(await documentLinks(scope.req, { target, doc: saved, locale })),
-		...(validation.blockers.length > 0
-			? { publishBlockers: validation.blockers }
-			: {}),
-		...(validation.unavailable ? { publishBlockersUnavailable: true } : {}),
-	});
-};
 
 /**
  * Collection-only, because a global always exists. A create in an upload
@@ -101,7 +62,7 @@ export const createDocument = defineMcpxTool({
 	},
 	isEnabled: (scope) => slugsFor(scope, "create").collections.length > 0,
 	inputSchema: (scope) => ({
-		collection: slugEnum(slugsFor(scope, "create").collections),
+		collection: stringEnum(slugsFor(scope, "create").collections),
 		...localeShape(scope, {
 			required: true,
 			description: 'Locale of the localized fields in "data".',
@@ -116,15 +77,7 @@ export const createDocument = defineMcpxTool({
 		),
 	}),
 	handler: async ({ args, scope }) => {
-		const target = resolveEntity(
-			scope,
-			{ collection: args.collection },
-			"create",
-		);
-
-		if (target.kind === "global") {
-			throw new Error("createDocument resolved a global.");
-		}
+		const target = resolveCollection(scope, args.collection, "create");
 
 		const { payload } = scope.req;
 		const locale = localeOf(scope, args.locale);
@@ -189,18 +142,16 @@ export const createDocument = defineMcpxTool({
 
 		const created = (await payload.create({
 			collection: args.collection,
-			data: stripRowIds(args.data) as Record<string, unknown>,
+			data: stripRowIds(args.data),
 			depth: 0,
 			draft: true,
 			overrideAccess: false,
 			req: scope.req,
-			...(locale === undefined ? {} : { locale }),
-			...(bytes === undefined ? {} : { file: bytes }),
+			...definedProps({ locale, file: bytes }),
 		})) as Record<string, unknown>;
 
-		return await createdResult(scope, {
-			target,
-			id: created["id"] as DocumentId,
+		return await writtenResult(scope, {
+			target: { ...target, id: created["id"] as DocumentId },
 			locale,
 		});
 	},

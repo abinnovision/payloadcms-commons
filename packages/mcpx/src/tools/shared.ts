@@ -9,17 +9,17 @@ import type {
 	McpxScopeSlugs,
 	McpxToolScope,
 } from "../types.js";
-import type { TypedLocale } from "payload";
 
 export type Operation =
 	"create" | "delete" | "publish" | "read" | "versions" | "write";
 
 /**
- * An out-of-scope slug fails schema validation before a handler runs, so a
+ * A value outside the list fails schema validation before a handler runs, so a
  * client only ever sees what its key may touch.
  */
-export const slugEnum = (slugs: string[]): z.ZodEnum<Record<string, string>> =>
-	z.enum(slugs as [string, ...string[]]);
+export const stringEnum = (
+	values: string[],
+): z.ZodEnum<Record<string, string>> => z.enum(values as [string, ...string[]]);
 
 /**
  * Payload's id type follows the adapter, so both forms are handed on as read.
@@ -29,7 +29,7 @@ export const idSchema: z.ZodType<DocumentId> = z.union([
 	z.number(),
 ]);
 
-type SlugEnum = z.ZodEnum<Record<string, string>>;
+type StringEnum = z.ZodEnum<Record<string, string>>;
 
 const slugsOf = (
 	scope: McpxToolScope,
@@ -39,20 +39,20 @@ const slugsOf = (
 	globals: scope.globals[key],
 });
 
-const slugsWhere = (
+export const slugsWhere = (
 	scope: McpxToolScope,
 	predicate: (entity: McpxExposedEntity) => boolean,
 	allowed: { collections: string[]; globals: string[] },
-): string[] => {
+): { collections: string[]; globals: string[] } => {
 	const pick = (entities: McpxExposedEntity[], slugs: string[]): string[] =>
 		entities
 			.filter((entity) => slugs.includes(entity.slug) && predicate(entity))
 			.map((entity) => entity.slug);
 
-	return [
-		...pick(scope.exposure.collections, allowed.collections),
-		...pick(scope.exposure.globals, allowed.globals),
-	];
+	return {
+		collections: pick(scope.exposure.collections, allowed.collections),
+		globals: pick(scope.exposure.globals, allowed.globals),
+	};
 };
 
 /**
@@ -75,11 +75,11 @@ export const patchOnlySlugs = (scope: McpxToolScope): string[] => {
  */
 /* eslint-disable @typescript-eslint/consistent-type-definitions */
 type EntityShape = {
-	collection: z.ZodOptional<SlugEnum>;
-	global: z.ZodOptional<SlugEnum>;
+	collection: z.ZodOptional<StringEnum>;
+	global: z.ZodOptional<StringEnum>;
 };
 type IdShape = { id: z.ZodOptional<typeof idSchema> };
-type LocaleShape = { locale: z.ZodOptional<SlugEnum> };
+type LocaleShape = { locale: z.ZodOptional<StringEnum> };
 type DepthShape = { depth: z.ZodOptional<z.ZodNumber> };
 /* eslint-enable @typescript-eslint/consistent-type-definitions */
 
@@ -109,17 +109,14 @@ export const slugsFor = (
 ): { collections: string[]; globals: string[] } => {
 	switch (operation) {
 		case "create":
-			return {
-				collections: slugsWhere(
-					scope,
-					(entity) =>
-						canCreate(entity) &&
-						(!entity.isUpload || acceptsFiles(scope, entity.slug)),
-					{ collections: scope.collections.writable, globals: [] },
-				),
-				// A global always exists, so nothing creates one.
-				globals: [],
-			};
+			// A global always exists, so nothing creates one.
+			return slugsWhere(
+				scope,
+				(entity) =>
+					canCreate(entity) &&
+					(!entity.isUpload || acceptsFiles(scope, entity.slug)),
+				{ collections: scope.collections.writable, globals: [] },
+			);
 		case "delete":
 			// Globals are never deletable.
 			return { collections: scope.collections.deletable, globals: [] };
@@ -129,40 +126,26 @@ export const slugsFor = (
 			return slugsOf(scope, "readable");
 		case "versions":
 			// Version history is a read, of entities that keep one and expose it.
-			return {
-				collections: slugsWhere(scope, (entity) => entity.hasVersions, {
-					collections: scope.collections.readable,
-					globals: [],
-				}),
-				globals: slugsWhere(scope, (entity) => entity.hasVersions, {
-					collections: [],
-					globals: scope.globals.readable,
-				}),
-			};
+			return slugsWhere(
+				scope,
+				(entity) => entity.hasVersions,
+				slugsOf(scope, "readable"),
+			);
 		case "write":
 			return slugsOf(scope, "writable");
 	}
 };
 
 /**
- * The slugs of {@link slugsFor} `"versions"` that also have drafts. Only they
- * have `_status` on their versions, so only they can be queried by status.
+ * Whether `operation` reaches any collection or global.
  */
-export const draftVersionSlugs = (
+export const reaches = (
 	scope: McpxToolScope,
-): { collections: string[]; globals: string[] } => {
-	const { collections, globals } = slugsFor(scope, "versions");
+	operation: Operation,
+): boolean => {
+	const { collections, globals } = slugsFor(scope, operation);
 
-	return {
-		collections: slugsWhere(scope, (entity) => entity.hasDrafts, {
-			collections,
-			globals: [],
-		}),
-		globals: slugsWhere(scope, (entity) => entity.hasDrafts, {
-			collections: [],
-			globals,
-		}),
-	};
+	return collections.length + globals.length > 0;
 };
 
 /**
@@ -172,7 +155,15 @@ export const draftVersionSlugs = (
 export const liveWriteSlugs = (
 	scope: McpxToolScope,
 	operation: "create" | "write",
-): string[] => slugsWhere(scope, isLiveWrite, slugsFor(scope, operation));
+): string[] => {
+	const { collections, globals } = slugsWhere(
+		scope,
+		isLiveWrite,
+		slugsFor(scope, operation),
+	);
+
+	return [...collections, ...globals];
+};
 
 /**
  * Stated on the tools that write, since a client calling them must know before
@@ -203,17 +194,17 @@ export const entityShape = (
 	const { collections, globals } = slugsFor(scope, operation);
 
 	if (globals.length === 0) {
-		return widen<EntityShape>({ collection: slugEnum(collections) });
+		return widen<EntityShape>({ collection: stringEnum(collections) });
 	}
 
 	if (collections.length === 0) {
-		return widen<EntityShape>({ global: slugEnum(globals) });
+		return widen<EntityShape>({ global: stringEnum(globals) });
 	}
 
-	const global = slugEnum(globals).optional();
+	const global = stringEnum(globals).optional();
 
 	return widen<EntityShape>({
-		collection: slugEnum(collections).optional(),
+		collection: stringEnum(collections).optional(),
 		global: globalRule === undefined ? global : global.describe(globalRule),
 	});
 };
@@ -257,9 +248,7 @@ export const localeShape = (
 		return widen<LocaleShape>({});
 	}
 
-	const enumerated = z.enum(
-		scope.localization.locales as [string, ...string[]],
-	);
+	const enumerated = stringEnum(scope.localization.locales);
 	const locale = options.required ? enumerated : enumerated.optional();
 
 	return widen<LocaleShape>({
@@ -287,13 +276,57 @@ export const depthShape = (scope: McpxToolScope): DepthShape => ({
 });
 
 /**
+ * For the writes that refuse a document changed since the client read it.
+ */
+export const expectedUpdatedAtShape = {
+	expectedUpdatedAt: z
+		.string()
+		.optional()
+		.describe(
+			'"updatedAt" from your last read. Refused if the document changed since.',
+		),
+};
+
+/**
+ * `limit` is bounded by the configured ceiling, so the client sees it instead
+ * of being clamped silently.
+ */
+export const pageShape = (scope: McpxToolScope) => ({
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.max(scope.limits.maxLimit)
+		.optional()
+		.describe("Default 10."),
+	page: z.number().int().min(1).optional(),
+});
+
+/**
+ * The paging fields of a result.
+ */
+export const pageFields = (result: {
+	totalDocs: number;
+	page?: number | undefined;
+	totalPages: number;
+	limit: number;
+	hasNextPage: boolean;
+}) => ({
+	totalDocs: result.totalDocs,
+	page: result.page,
+	totalPages: result.totalPages,
+	limit: result.limit,
+	hasNextPage: result.hasNextPage,
+});
+
+/**
  * The locale to operate on: the explicit argument, else the request's, else
  * the default. `undefined` when localization is off.
  */
 export const localeOf = (
 	scope: McpxToolScope,
 	locale: string | undefined,
-): TypedLocale | undefined => {
+): string | undefined => {
 	if (!scope.localization) {
 		return undefined;
 	}

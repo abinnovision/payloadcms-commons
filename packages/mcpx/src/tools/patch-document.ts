@@ -3,22 +3,24 @@ import { Pointer } from "rfc6902";
 import { z } from "zod";
 
 import {
-	identityOf,
 	readDraft,
 	resolveDocument,
 	staleReadResult,
+	updateTarget,
+	writtenResult,
 } from "./document.js";
-import { documentLinks } from "./links.js";
 import {
+	expectedUpdatedAtShape,
 	idShape,
 	liveWriteSentence,
 	localeOf,
 	localeShape,
+	reaches,
 	entityShape,
 } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { isPlainObject } from "../guards.js";
-import { errorResult, jsonResult } from "../result.js";
+import { errorResult } from "../result.js";
 import { JSON_POINTER_PATTERN } from "../schema/index.js";
 import {
 	assertAcceptsFile,
@@ -29,7 +31,6 @@ import {
 	uploadHandoff,
 } from "../upload/file.js";
 import { applyPatchOperations, isElementPointer } from "../write/patch.js";
-import { collectPublishBlockers } from "../write/publish-blockers.js";
 import { withTransaction } from "../write/transaction.js";
 import { buildWriteData } from "../write/write-data.js";
 
@@ -157,8 +158,7 @@ export const patchDocument = defineMcpxTool({
 		idempotentHint: false,
 		openWorldHint: false,
 	},
-	isEnabled: (scope) =>
-		scope.collections.writable.length + scope.globals.writable.length > 0,
+	isEnabled: (scope) => reaches(scope, "write"),
 	inputSchema: (scope) => ({
 		...entityShape(scope, "write"),
 		...idShape(scope, "write"),
@@ -173,12 +173,7 @@ export const patchDocument = defineMcpxTool({
 						.array(PATCH_OPERATION_SCHEMA)
 						.max(PATCHES_LIMIT)
 						.describe('May be empty when "file" is given.'),
-		expectedUpdatedAt: z
-			.string()
-			.optional()
-			.describe(
-				'"updatedAt" from your last read. Refused if the document changed since.',
-			),
+		...expectedUpdatedAtShape,
 		...fileShape(
 			scope,
 			(slugs) =>
@@ -212,12 +207,6 @@ export const patchDocument = defineMcpxTool({
 		const report = async (
 			next: Record<string, unknown>,
 		): Promise<CallToolResult> => {
-			const saved = await readDraft(scope, {
-				target,
-				locale,
-				privileged: true,
-			});
-
 			/*
 			 * `notApplied` compares against what the user can read, so a closed field
 			 * answers the same whether or not the guess matched. A patch that leaves
@@ -236,21 +225,11 @@ export const patchDocument = defineMcpxTool({
 			const notApplied = readable
 				? notAppliedPointers(patches, next, readable)
 				: [];
-			const validation = await collectPublishBlockers(scope.req, {
-				doc: saved,
-				entity: target,
-			});
 
-			return jsonResult({
-				...identityOf(target, saved["id"]),
-				status: saved["_status"],
-				updatedAt: saved["updatedAt"],
-				...(await documentLinks(scope.req, { target, doc: saved, locale })),
-				...(validation.blockers.length > 0
-					? { publishBlockers: validation.blockers }
-					: {}),
-				...(validation.unavailable ? { publishBlockersUnavailable: true } : {}),
-				...(notApplied.length > 0 ? { notApplied } : {}),
+			return await writtenResult(scope, {
+				target,
+				locale,
+				extra: notApplied.length > 0 ? { notApplied } : {},
 			});
 		};
 
@@ -299,35 +278,12 @@ export const patchDocument = defineMcpxTool({
 				}
 			}
 
-			const write = {
+			await updateTarget(scope, target, {
 				data: buildWriteData(payload.config, target.config, applied.next),
-				depth: 0,
 				draft: true,
-				overrideAccess: false,
-				req: scope.req,
-				...(locale === undefined ? {} : { locale }),
-			};
-
-			if (target.kind === "collection") {
-				await payload.update({
-					...write,
-					collection: target.slug,
-					id: target.id,
-					...(bytes === undefined ? {} : { file: bytes }),
-				});
-			} else {
-				/*
-				 * `updateGlobal` passes `fallbackLocale` through to the read it merges
-				 * the write onto, and Payload defaults that to the default locale.
-				 * Without this, a value missing in the written locale would be
-				 * backfilled from another locale and persisted.
-				 */
-				await payload.updateGlobal({
-					...write,
-					fallbackLocale: false,
-					slug: target.slug,
-				});
-			}
+				locale,
+				file: bytes,
+			});
 
 			return bytes === undefined
 				? { done: await report(applied.next) }

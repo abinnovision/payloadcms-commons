@@ -1,6 +1,7 @@
 import { APIError } from "payload";
 import { z } from "zod";
 
+import { withRequestLocale } from "./document.js";
 import {
 	defineMcpxTool,
 	isToolEnabled,
@@ -74,47 +75,39 @@ const execute = async (
 		return { status: "skipped", reason: NO_LONGER_ALLOWED };
 	}
 
-	const { fallbackLocale, locale } = req;
+	return await withRequestLocale(req, async (): Promise<Result> => {
+		req.locale = confirmation.locale;
+		req.fallbackLocale = confirmation.fallbackLocale as Exclude<
+			typeof req.fallbackLocale,
+			undefined
+		>;
 
-	req.locale = confirmation.locale;
-	req.fallbackLocale = confirmation.fallbackLocale as Exclude<
-		typeof fallbackLocale,
-		undefined
-	>;
+		try {
+			const result = await tool.handler({
+				args: args.data as never,
+				scope,
+				req,
+				extra,
+				confirmation: CONFIRMED,
+			});
+			const data = parseResult(result);
 
-	try {
-		const result = await tool.handler({
-			args: args.data as never,
-			scope,
-			req,
-			extra,
-			confirmation: CONFIRMED,
-		});
-		const data = parseResult(result);
+			return result.isError === true
+				? { status: "skipped", reason: String(data["error"]) }
+				: { status: "done", result: data };
+		} catch (error) {
+			if (error instanceof APIError && error.isPublic) {
+				return { status: "skipped", reason: error.message };
+			}
 
-		return result.isError === true
-			? { status: "skipped", reason: String(data["error"]) }
-			: { status: "done", result: data };
-	} catch (error) {
-		if (error instanceof APIError && error.isPublic) {
-			return { status: "skipped", reason: error.message };
+			req.payload.logger.error({
+				err: error,
+				msg: "[payloadcms-mcpx] Confirmed call failed.",
+			});
+
+			return { status: "skipped", reason: "Internal error" };
 		}
-
-		req.payload.logger.error({
-			err: error,
-			msg: "[payloadcms-mcpx] Confirmed call failed.",
-		});
-
-		return { status: "skipped", reason: "Internal error" };
-	} finally {
-		if (locale !== undefined) {
-			req.locale = locale;
-		}
-
-		if (fallbackLocale !== undefined) {
-			req.fallbackLocale = fallbackLocale;
-		}
-	}
+	});
 };
 
 /*

@@ -1,10 +1,16 @@
 import {
 	collectLocaleBlockers,
-	identityOf,
+	documentSummary,
 	readDraft,
 	resolveDocument,
 } from "./document.js";
-import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
+import {
+	idShape,
+	localeOf,
+	localeShape,
+	reaches,
+	entityShape,
+} from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
@@ -24,8 +30,7 @@ export const validateDocument = defineMcpxTool({
 	name: "validateDocument",
 	description: DESCRIPTION,
 	annotations: { openWorldHint: false },
-	isEnabled: (scope) =>
-		scope.collections.writable.length + scope.globals.writable.length > 0,
+	isEnabled: (scope) => reaches(scope, "write"),
 	inputSchema: (scope) => ({
 		...entityShape(scope, "write"),
 		...idShape(scope, "write"),
@@ -51,9 +56,7 @@ export const validateDocument = defineMcpxTool({
 				: await collectPublishBlockers(scope.req, { doc, entity: target });
 
 		return jsonResult({
-			...identityOf(target, doc["id"]),
-			status: doc["_status"],
-			updatedAt: doc["updatedAt"],
+			...documentSummary(target, doc),
 			publishBlockers: validation.blockers,
 			...(validation.unavailable ? { publishBlockersUnavailable: true } : {}),
 		});

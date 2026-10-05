@@ -116,14 +116,14 @@ export const assertQueryable = (
 		collection: string;
 		where?: unknown;
 		sort?: string | undefined;
-		locale?: string | null | undefined;
+		locale?: string | undefined;
 	},
 ): void => {
 	const reaches = (path: string): boolean =>
 		isRefusedPath(scope, {
 			collection: args.collection,
 			path: normalise(path),
-			locale: args.locale ?? undefined,
+			locale: args.locale,
 		});
 
 	for (const path of wherePaths(args.where)) {

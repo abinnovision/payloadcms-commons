@@ -72,7 +72,7 @@ export const reconcileRowIds = (next: JsonObject, stored: JsonObject): void => {
 /**
  * For create, where no stored row exists and any incoming id is invented.
  */
-export const stripRowIds = (value: unknown): unknown => {
+export const stripRowIds = <T>(value: T): T => {
 	const next = structuredClone(value);
 
 	walkRows(next, (row) => {

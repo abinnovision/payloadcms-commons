@@ -10,6 +10,7 @@ import {
 	localeOf,
 	localeShape,
 	READ_LOCALE_DESCRIPTION,
+	reaches,
 	slugsFor,
 	entityShape,
 	widen,
@@ -46,13 +47,6 @@ const VERSION_PARAGRAPH = `
 "versionId" and "diffFrom" work where findVersions does. To revert, call getDocument with the old version as "versionId", the version findVersions marks "latest" as "diffFrom" and the locale you will write, then apply the returned "patch" with patchDocument.`;
 
 const DESCRIPTION = `Reads one document or global, or with "path" only the value at that pointer. Returns the latest draft by default, with the "updatedAt" a write takes as "expectedUpdatedAt".`;
-
-// Whether the key reaches any entity whose version history the config exposes.
-const exposesVersions = (scope: McpxToolScope): boolean => {
-	const { collections, globals } = slugsFor(scope, "versions");
-
-	return collections.length + globals.length > 0;
-};
 
 // Refuses `versionId` and `diffFrom` where they cannot apply.
 const assertVersionArgs = (
@@ -130,7 +124,7 @@ type VersionShape = {
  * client is never offered what the refusal would answer.
  */
 const versionShape = (scope: McpxToolScope): VersionShape => {
-	if (!exposesVersions(scope)) {
+	if (!reaches(scope, "versions")) {
 		return widen<VersionShape>({});
 	}
 
@@ -213,10 +207,9 @@ const withDownload = async (
 export const getDocument = defineMcpxTool({
 	name: "getDocument",
 	description: (scope) =>
-		exposesVersions(scope) ? DESCRIPTION + VERSION_PARAGRAPH : DESCRIPTION,
+		reaches(scope, "versions") ? DESCRIPTION + VERSION_PARAGRAPH : DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
-	isEnabled: (scope) =>
-		scope.collections.readable.length + scope.globals.readable.length > 0,
+	isEnabled: (scope) => reaches(scope, "read"),
 	inputSchema: (scope) => ({
 		...entityShape(scope, "read"),
 		...idShape(scope, "read"),
@@ -310,7 +303,7 @@ export const getDocument = defineMcpxTool({
 		const value = pointer.get(doc) as unknown;
 
 		const envelope = {
-			...identityOf(target, args.id),
+			...identityOf(target),
 			status: doc["_status"],
 			updatedAt: doc["updatedAt"],
 			path,

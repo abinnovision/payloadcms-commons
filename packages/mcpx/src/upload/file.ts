@@ -11,7 +11,11 @@ import { errorResult, jsonResult } from "../result.js";
 import { resolveDataPointer, SchemaError } from "../schema/index.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
-import type { DocumentId, ResolvedEntity } from "../entity.js";
+import type {
+	DocumentId,
+	ResolvedCollection,
+	ResolvedEntity,
+} from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { File, PayloadRequest, SanitizedConfig } from "payload";
@@ -28,8 +32,6 @@ const MIME_TYPE = /^[\w.+-]+\/[\w.+-]+$/;
  * that claimed a grant for exactly this call.
  */
 const uploadedFiles = new WeakMap<PayloadRequest, File>();
-
-type CollectionEntity = Extract<ResolvedEntity, { kind: "collection" }>;
 
 const fileSchema = (maxBytes: number) =>
 	z.strictObject({
@@ -62,9 +64,7 @@ const allowedMimeTypes = (scope: McpxToolScope, slug: string): string[] => {
 	const entity = scope.exposure.collections.find(
 		(candidate) => candidate.slug === slug,
 	);
-	const config = scope.req.payload.config.collections.find(
-		(candidate) => candidate.slug === slug,
-	);
+	const config = scope.req.payload.collections[slug]?.config;
 
 	return entity?.isUpload === true && Array.isArray(config?.upload.mimeTypes)
 		? config.upload.mimeTypes
@@ -153,7 +153,7 @@ export const uploadedFile = (req: PayloadRequest): File | undefined =>
  */
 const sharesPublishedFile = async (
 	req: PayloadRequest,
-	entity: CollectionEntity,
+	entity: ResolvedCollection,
 	id: DocumentId,
 ): Promise<boolean> => {
 	if (!hasDraftsEnabled(entity.config)) {
@@ -187,7 +187,7 @@ const sharesPublishedFile = async (
  */
 const isClientWritable = (
 	scope: McpxToolScope,
-	target: { entity: CollectionEntity; data: object },
+	target: { entity: ResolvedCollection; data: object },
 	path: string,
 ): boolean => {
 	try {
@@ -219,7 +219,7 @@ const isClientWritable = (
  */
 export const fileWriteRefusal = async (
 	scope: McpxToolScope,
-	target: { entity: CollectionEntity; id?: DocumentId; data: object },
+	target: { entity: ResolvedCollection; id?: DocumentId; data: object },
 ): Promise<CallToolResult | undefined> => {
 	const { entity, id } = target;
 

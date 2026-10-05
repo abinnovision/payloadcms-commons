@@ -11,3 +11,14 @@ export const ownValue = <T>(
 	key: string,
 ): T | undefined =>
 	record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined;
+
+/**
+ * The entries whose value is not `undefined`, for spreading optional arguments
+ * into a call.
+ */
+export const definedProps = <T extends object>(
+	props: T,
+): { [K in keyof T]?: Exclude<T[K], undefined> } =>
+	Object.fromEntries(
+		Object.entries(props).filter(([, value]) => value !== undefined),
+	) as { [K in keyof T]?: Exclude<T[K], undefined> };

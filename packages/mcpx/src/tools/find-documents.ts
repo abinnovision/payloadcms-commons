@@ -1,16 +1,19 @@
 import { z } from "zod";
 
-import { resolveEntity } from "./document.js";
+import { resolveCollection } from "./document.js";
 import { assertQueryable } from "./query-paths.js";
 import { mcpxReadRequest } from "./read-request.js";
 import {
-	slugEnum,
+	stringEnum,
 	depthShape,
 	localeOf,
 	localeShape,
+	pageFields,
+	pageShape,
 	READ_LOCALE_DESCRIPTION,
 } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
+import { definedProps } from "../guards.js";
 import { jsonResult } from "../result.js";
 import { stripAdminHidden } from "../schema/index.js";
 
@@ -32,17 +35,10 @@ export const findDocuments = defineMcpxTool({
 	annotations: { readOnlyHint: true, openWorldHint: false },
 	isEnabled: (scope) => scope.collections.readable.length > 0,
 	inputSchema: (scope) => ({
-		collection: slugEnum(scope.collections.readable),
+		collection: stringEnum(scope.collections.readable),
 		where: z.record(z.string(), z.unknown()).optional(),
 		sort: z.string().optional().describe('e.g. "-updatedAt" for descending.'),
-		limit: z
-			.number()
-			.int()
-			.min(1)
-			.max(scope.limits.maxLimit)
-			.optional()
-			.describe("Default 10."),
-		page: z.number().int().min(1).optional(),
+		...pageShape(scope),
 		...depthShape(scope),
 		select: z
 			.record(z.string(), z.unknown())
@@ -55,7 +51,7 @@ export const findDocuments = defineMcpxTool({
 		draft: z.boolean().optional().describe("Default true: latest drafts."),
 	}),
 	handler: async ({ args, scope }) => {
-		resolveEntity(scope, { collection: args.collection }, "read");
+		const target = resolveCollection(scope, args.collection, "read");
 
 		const locale = localeOf(scope, args.locale);
 
@@ -73,28 +69,20 @@ export const findDocuments = defineMcpxTool({
 			limit: args.limit ?? 10,
 			overrideAccess: false,
 			req: mcpxReadRequest(scope),
-			...(args.page === undefined ? {} : { page: args.page }),
-			...(args.sort === undefined ? {} : { sort: args.sort }),
-			...(args.where === undefined ? {} : { where: args.where as Where }),
-			...(args.select === undefined
-				? {}
-				: { select: args.select as SelectType }),
-			...(locale === undefined ? {} : { locale }),
+			...definedProps({
+				page: args.page,
+				sort: args.sort,
+				where: args.where as Where | undefined,
+				select: args.select as SelectType | undefined,
+				locale,
+			}),
 		});
 
 		return jsonResult({
 			docs: result.docs.map((doc) =>
-				stripAdminHidden(
-					scope.req.payload.config,
-					{ kind: "collection", slug: args.collection },
-					doc,
-				),
+				stripAdminHidden(scope.req.payload.config, target, doc),
 			),
-			totalDocs: result.totalDocs,
-			page: result.page,
-			totalPages: result.totalPages,
-			limit: result.limit,
-			hasNextPage: result.hasNextPage,
+			...pageFields(result),
 		});
 	},
 });
