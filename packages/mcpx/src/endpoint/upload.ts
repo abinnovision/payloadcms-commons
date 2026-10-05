@@ -114,7 +114,13 @@ export const createUploadHandler =
 		const { payload } = req;
 		const claimed = await claimAs(req, options, "upload");
 
-		if (!claimed || !UPLOAD_TOOLS.has(claimed.grant.tool)) {
+		if (
+			!claimed ||
+			!UPLOAD_TOOLS.has(claimed.grant.tool) ||
+			// Grants issued before `file` was required carry none.
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+			!claimed.grant.file
+		) {
 			return refused();
 		}
 

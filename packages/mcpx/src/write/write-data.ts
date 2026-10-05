@@ -1,9 +1,11 @@
 import { isPlainObject } from "../guards.js";
 import {
-	blockRows,
+	blockForRow,
 	classifyKey,
 	descriptorsUnder,
+	findFieldAt,
 	ROW_KEYS,
+	splitPath,
 } from "../schema/index.js";
 
 import type { FlattenedField, JsonObject, SanitizedConfig } from "payload";
@@ -33,12 +35,8 @@ const pickDescribed = (
 
 	const pick = (
 		row: unknown,
-		next: { fields: FlattenedField[]; prefix: readonly string[] },
-		isNextRow: boolean,
-	): unknown =>
-		isPlainObject(row)
-			? pickDescribed(config, row, { ...next, isRow: isNextRow })
-			: row;
+		at: { fields: FlattenedField[]; prefix: readonly string[]; isRow: boolean },
+	): unknown => (isPlainObject(row) ? pickDescribed(config, row, at) : row);
 
 	for (const [key, entry] of Object.entries(value)) {
 		const found = classifyKey(relative, prefix, key);
@@ -48,24 +46,33 @@ const pickDescribed = (
 		}
 
 		if (found.kind === "leaf") {
-			const blocks =
-				found.descriptor.type === "blocks" && Array.isArray(entry)
-					? blockRows(config, fields, found.descriptor, entry)
+			const field =
+				found.descriptor.type === "blocks"
+					? findFieldAt(fields, splitPath(found.descriptor.path), "blocks")
 					: undefined;
 
-			result[key] = blocks
-				? blocks.entries.map(({ block, row }) =>
-						block
-							? pick(row, { fields: block.flattenedFields, prefix: [] }, true)
-							: row,
-					)
-				: entry;
+			result[key] =
+				field && Array.isArray(entry)
+					? entry.map((row: unknown) => {
+							const block = blockForRow(config, field, row);
+
+							return block
+								? pick(row, {
+										fields: block.flattenedFields,
+										prefix: [],
+										isRow: true,
+									})
+								: row;
+						})
+					: entry;
 		} else if (found.kind === "rows") {
 			result[key] = Array.isArray(entry)
-				? entry.map((row) => pick(row, { fields, prefix: found.prefix }, true))
+				? entry.map((row) =>
+						pick(row, { fields, prefix: found.prefix, isRow: true }),
+					)
 				: entry;
 		} else {
-			result[key] = pick(entry, { fields, prefix: found.prefix }, false);
+			result[key] = pick(entry, { fields, prefix: found.prefix, isRow: false });
 		}
 	}
 

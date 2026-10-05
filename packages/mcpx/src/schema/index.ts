@@ -19,7 +19,7 @@ export { resolveDataPointer } from "./pointer.js";
 export type { PointerResolution } from "./pointer.js";
 export { EMPTY_ROOT, validateWriteValue } from "./shape.js";
 export {
-	blockRows,
+	blockForRow,
 	classifyKey,
 	descriptorsUnder,
 	findFieldAt,

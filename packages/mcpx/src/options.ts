@@ -298,7 +298,9 @@ const normalizeEntities = (
 
 		// Globals have no `timestamps` option and always get `updatedAt`.
 		if (normalized.write) {
-			if ("timestamps" in config && !config.timestamps) {
+			// Only an explicit `false` disables timestamps; `undefined` keeps the default.
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
+			if ("timestamps" in config && config.timestamps === false) {
 				fail(
 					`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
 				);
@@ -379,7 +381,7 @@ const normalizeLimits = (
 export const normalizeOptions = (
 	config: Config,
 	options: McpxPluginOptions,
-	reservedToolNames: readonly string[] = [],
+	reservedToolNames: readonly string[],
 ): NormalizedOptions => {
 	const apiKeysSlug = options.apiKeys?.slug ?? DEFAULT_API_KEYS_SLUG;
 	const userCollection =

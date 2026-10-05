@@ -96,7 +96,8 @@ const SHEET = `
 	font-weight: normal;
 	text-align: center;
 }
-.${BASE_CLASS}__table thead th { color: var(--theme-elevation-400); white-space: nowrap; }
+.${BASE_CLASS}__table thead th { color: var(--theme-elevation-400); }
+.${BASE_CLASS}__table .${BASE_CLASS}__head { white-space: nowrap; }
 .${BASE_CLASS}__table .${BASE_CLASS}__start { text-align: start; }
 .${BASE_CLASS}__table .${BASE_CLASS}__row,
 .${BASE_CLASS}__table .${BASE_CLASS}__title {
@@ -396,8 +397,8 @@ const MatrixTable: React.FC<{
 		<table className={`${BASE_CLASS}__table`}>
 			<colgroup>
 				<col style={{ width: LABEL_WIDTH }} />
-				{widths.map((width) => (
-					<col key={width} style={{ width }} />
+				{widths.map((width, index) => (
+					<col key={index} style={{ width }} />
 				))}
 			</colgroup>
 			<thead>
@@ -407,7 +408,7 @@ const MatrixTable: React.FC<{
 					</th>
 					{heads.map((head) => (
 						<th
-							className={start ? `${BASE_CLASS}__start` : undefined}
+							className={`${BASE_CLASS}__head${start ? ` ${BASE_CLASS}__start` : ""}`}
 							key={head}
 							scope="col"
 						>

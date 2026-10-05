@@ -123,7 +123,9 @@ export const createMcpxHandler =
 			}
 
 			parsedBody =
-				body === undefined ? undefined : JSON.parse(body.toString("utf8"));
+				body === undefined
+					? undefined
+					: JSON.parse(new TextDecoder().decode(body));
 		} catch {
 			return jsonRpcError({
 				status: 400,

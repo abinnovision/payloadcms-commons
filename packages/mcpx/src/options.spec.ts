@@ -488,6 +488,17 @@ describe("normalizeOptions", () => {
 		);
 	});
 
+	it("accepts a collection with timestamps undefined", () => {
+		const config = rawConfig([
+			users,
+			{ ...pages, timestamps: undefined } as unknown as CollectionConfig,
+		]);
+
+		expect(() =>
+			normalize({ collections: { pages: true } }, config),
+		).not.toThrow();
+	});
+
 	it("leaves globals empty when the option is omitted", () => {
 		expect(normalize({ collections: { pages: true } }).globals).toEqual([]);
 	});

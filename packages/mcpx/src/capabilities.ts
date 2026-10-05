@@ -54,7 +54,8 @@ const DELETE_UNATTENDED = {
 
 /**
  * Every operation with a stored checkbox: the capability operations plus
- * the unattended delete.
+ * the unattended delete. Each follows the one it requires, which the resolve
+ * loop depends on.
  */
 export const STORED_OPERATIONS = [
 	...CAPABILITY_OPERATIONS,

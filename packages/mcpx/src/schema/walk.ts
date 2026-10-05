@@ -275,32 +275,7 @@ const isInformative = (descriptor: FieldDescriptor): boolean =>
 	descriptor.required === true ||
 	descriptor.localized === true;
 
-/**
- * Named tabs, groups and arrays add a path segment and are described
- * themselves only when they declare something of their own: an array always,
- * since its row counts live nowhere else. The walk stops at every blocks field
- * and names the slugs, so a node's size follows the number of blocks it
- * allows, not their definitions. Omitting `translate` costs language
- * selection, never the description itself.
- */
-export const describeFields = (
-	fields: FlattenedField[],
-	translate: Translate = translateAny,
-): FieldDescriptor[] => {
-	if (translate !== translateAny) {
-		return describeWith(fields, translate);
-	}
-
-	let described = describedByFields.get(fields);
-
-	if (!described) {
-		described = describeWith(fields, translate);
-		describedByFields.set(fields, described);
-	}
-
-	return described;
-};
-
+// Keyed on fields alone, so only the default translator is cached.
 const describedByFields = new WeakMap<FlattenedField[], FieldDescriptor[]>();
 
 const describeWith = (
@@ -350,6 +325,32 @@ const describeWith = (
 		});
 
 	return walk(fields, [], false);
+};
+
+/**
+ * Named tabs, groups and arrays add a path segment and are described
+ * themselves only when they declare something of their own: an array always,
+ * since its row counts live nowhere else. The walk stops at every blocks field
+ * and names the slugs, so a node's size follows the number of blocks it
+ * allows, not their definitions. Omitting `translate` costs language
+ * selection, never the description itself.
+ */
+export const describeFields = (
+	fields: FlattenedField[],
+	translate: Translate = translateAny,
+): FieldDescriptor[] => {
+	if (translate !== translateAny) {
+		return describeWith(fields, translate);
+	}
+
+	let described = describedByFields.get(fields);
+
+	if (!described) {
+		described = describeWith(fields, translate);
+		describedByFields.set(fields, described);
+	}
+
+	return described;
 };
 
 /**
@@ -451,31 +452,6 @@ export const classifyKey = (
 	return candidates.some(({ parts }) => parts[1] === ARRAY_MARKER)
 		? { kind: "rows", prefix: [...prefix, key, ARRAY_MARKER] }
 		: { kind: "group", prefix: [...prefix, key] };
-};
-
-// Each row with the block it names, absent for a row the field does not accept.
-export const blockRows = (
-	config: SanitizedConfig,
-	fields: FlattenedField[],
-	descriptor: FieldDescriptor,
-	rows: unknown[],
-):
-	| {
-			entries: { block: FlattenedBlock | undefined; row: unknown }[];
-			field: FlattenedBlocksField;
-	  }
-	| undefined => {
-	const field = findFieldAt(fields, splitPath(descriptor.path), "blocks");
-
-	return field
-		? {
-				entries: rows.map((row) => ({
-					block: blockForRow(config, field, row),
-					row,
-				})),
-				field,
-			}
-		: undefined;
 };
 
 /**

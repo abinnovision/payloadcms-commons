@@ -10,7 +10,6 @@ import {
 import { splitPath } from "./path.js";
 import {
 	blockForRow,
-	blockRows,
 	blockSlugsOf,
 	classifyKey,
 	descriptorsUnder,
@@ -399,12 +398,18 @@ const checkLeafValue = (
 		return;
 	}
 
-	const found = blockRows(scope.config, scope.fields, descriptor, value);
+	const field = findFieldAt(scope.fields, splitPath(descriptor.path), "blocks");
 
-	found?.entries.forEach(({ block, row }, index) => {
+	value.forEach((row, index) => {
+		const block = field && blockForRow(scope.config, field, row);
+
+		if (!field) {
+			return;
+		}
+
 		if (!block) {
 			scope.problems.push(
-				`${scope.pointer}/${String(index)}: ${refusedSlug(propOf(row, "blockType"))}. Allowed: ${blockSlugsOf(found.field).join(", ")}`,
+				`${scope.pointer}/${String(index)}: ${refusedSlug(propOf(row, "blockType"))}. Allowed: ${blockSlugsOf(field).join(", ")}`,
 			);
 
 			return;
