@@ -6,7 +6,8 @@ import {
 } from "payload/shared";
 import { z } from "zod";
 
-import { issueGrant, grantKvSlug } from "../grants/grant.js";
+import { grantContext, issueGrant } from "../grants/grant.js";
+import { publicOrigin } from "../request.js";
 import { errorResult, jsonResult } from "../result.js";
 import { resolveDataPointer, SchemaError } from "../schema/index.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
@@ -16,6 +17,7 @@ import type {
 	ResolvedCollection,
 	ResolvedEntity,
 } from "../entity.js";
+import type { UploadFile } from "../grants/grant.js";
 import type { McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { File, PayloadRequest, SanitizedConfig } from "payload";
@@ -252,26 +254,12 @@ export const fileWriteRefusal = async (
 			});
 };
 
-// At the origin of `serverURL` when set, else of the MCP request.
 const handoffUrl = (req: PayloadRequest, path: "file" | "upload"): string => {
-	const request = new URL(req.url ?? "");
-	const url = new URL(req.payload.config.serverURL || request.origin);
+	const url = new URL(publicOrigin(req));
 
-	url.pathname = `${request.pathname.replace(/\/+$/, "")}/${path}`;
+	url.pathname = `${new URL(req.url ?? "").pathname.replace(/\/+$/, "")}/${path}`;
 
 	return url.toString();
-};
-
-// Throws where the endpoint would not offer a handoff.
-const grantContext = (req: PayloadRequest) => {
-	const slug = grantKvSlug(req.payload.config);
-	const apiKeyId = req.context.mcpx?.apiKeyId;
-
-	if (slug === undefined || apiKeyId === undefined) {
-		throw new Error("A handoff was offered without a database KV or key.");
-	}
-
-	return { slug, apiKeyId };
 };
 
 /**
@@ -280,18 +268,19 @@ const grantContext = (req: PayloadRequest) => {
  */
 export const uploadHandoff = async (
 	scope: McpxToolScope,
-	call: { tool: string; args: Record<string, unknown> & { file: object } },
+	call: { tool: string; args: Record<string, unknown> & { file: UploadFile } },
 ): Promise<CallToolResult> => {
 	const { req } = scope;
 	const { payload } = req;
 	const { slug, apiKeyId } = grantContext(req);
 	// Before the grant, so a URL that fails to build leaves none behind.
 	const url = handoffUrl(req, "upload");
-	const { grantId, exp } = await issueGrant(payload, slug, {
+	const { id, exp } = await issueGrant(payload, slug, {
 		kind: "upload",
 		apiKeyId,
 		tool: call.tool,
 		args: call.args,
+		file: call.args.file,
 		locale: req.locale ?? null,
 		fallbackLocale: req.fallbackLocale ?? null,
 	});
@@ -301,8 +290,8 @@ export const uploadHandoff = async (
 			url,
 			method: "PUT",
 			headers: {
-				"content-type": (call.args.file as { mimeType: string }).mimeType,
-				"x-mcpx-grant": grantId,
+				"content-type": call.args.file.mimeType,
+				"x-mcpx-grant": id,
 			},
 			expiresAt: new Date(exp).toISOString(),
 			maxBytes: uploadMaxBytes(payload.config),
@@ -344,7 +333,7 @@ export const downloadHandoff = async (
 	const { req } = scope;
 	const { slug, apiKeyId } = grantContext(req);
 	const url = handoffUrl(req, "file");
-	const { grantId, exp } = await issueGrant(req.payload, slug, {
+	const { id, exp } = await issueGrant(req.payload, slug, {
 		kind: "download",
 		apiKeyId,
 		...target,
@@ -354,7 +343,7 @@ export const downloadHandoff = async (
 	return {
 		url,
 		method: "GET",
-		headers: { "x-mcpx-grant": grantId },
+		headers: { "x-mcpx-grant": id },
 		expiresAt: new Date(exp).toISOString(),
 	};
 };

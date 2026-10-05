@@ -97,7 +97,7 @@ export interface McpxExposedEntity extends McpxEntityCapabilities {
 }
 
 /**
- * The slugs a key may read, write and publish.
+ * The slugs a key may read, write, publish and delete.
  */
 export interface McpxScopeSlugs {
 	readable: string[];

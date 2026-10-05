@@ -12,8 +12,8 @@ import {
 	claimConfirmation,
 	readConfirmation,
 } from "../grants/confirmation.js";
-import { grantKvSlug } from "../grants/grant.js";
-import { jsonResult } from "../result.js";
+import { grantContext } from "../grants/grant.js";
+import { jsonResult, parseResult } from "../result.js";
 
 import type { DocumentId } from "../entity.js";
 import type { Confirmation } from "../grants/confirmation.js";
@@ -23,7 +23,6 @@ import type {
 	McpxToolExtra,
 	McpxToolScope,
 } from "../types.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PayloadRequest } from "payload";
 
 const DESCRIPTION = `Runs calls that returned a "confirmation", once the user approved them in the admin panel. Returns one result per id, in the order given: "done" with the call's "result", "pending" while it awaits a decision, "skipped" with a "reason" when it no longer passes its checks, or "refused" when it was rejected, expired, already run or is unknown. A pending id stays usable; no other id can run again.`;
@@ -43,18 +42,6 @@ type Result =
 	| { status: "skipped"; reason: string };
 
 type Outcome = Result & { id: string };
-
-const parseResult = (result: CallToolResult): Record<string, unknown> => {
-	const [first] = result.content;
-
-	try {
-		return first?.type === "text"
-			? (JSON.parse(first.text) as Record<string, unknown>)
-			: {};
-	} catch {
-		return { text: first?.type === "text" ? first.text : undefined };
-	}
-};
 
 /*
  * Runs the stored call as the tool would on a fresh request: the scope is the
@@ -77,10 +64,7 @@ const execute = async (
 
 	return await withRequestLocale(req, async (): Promise<Result> => {
 		req.locale = confirmation.locale;
-		req.fallbackLocale = confirmation.fallbackLocale as Exclude<
-			typeof req.fallbackLocale,
-			undefined
-		>;
+		req.fallbackLocale = confirmation.fallbackLocale;
 
 		try {
 			const result = await tool.handler({
@@ -167,13 +151,7 @@ export const createRunConfirmed = (tools: () => McpxAnyTool[]): McpxAnyTool =>
 		},
 		handler: async ({ args, scope, extra }) => {
 			const { req } = scope;
-			const { payload } = req;
-			const slug = grantKvSlug(payload.config);
-			const apiKeyId = req.context.mcpx?.apiKeyId;
-
-			if (slug === undefined || apiKeyId === undefined) {
-				throw new Error("Confirmations need a database KV and a key.");
-			}
+			const { slug, apiKeyId } = grantContext(req);
 
 			const outcomes: Outcome[] = [];
 

@@ -26,4 +26,6 @@ export interface ConfirmationView {
 	summary: McpxConfirmationSummary;
 }
 
-export type ConfirmationDecision = "approved" | "rejected";
+export const DECISIONS = ["approved", "rejected"] as const;
+
+export type ConfirmationDecision = (typeof DECISIONS)[number];

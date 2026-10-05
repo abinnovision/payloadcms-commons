@@ -1,8 +1,10 @@
 import { authenticateAs } from "./handler.js";
+import { grantsAvailable, readCapped, respond } from "./http.js";
 import { runTool } from "./server.js";
-import { checkApiKey } from "../auth/resolve.js";
+import { resolveApiKeyById } from "../auth/resolve.js";
 import { isToolEnabled, toolInputSchema } from "../define-tool.js";
-import { claimGrant, grantKvSlug } from "../grants/grant.js";
+import { claimGrant } from "../grants/grant.js";
+import { parseResult } from "../result.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 import {
 	downloadSlugs,
@@ -10,7 +12,6 @@ import {
 	uploadMaxBytes,
 } from "../upload/file.js";
 
-import type { ApiKeyDoc } from "../auth/resolve.js";
 import type { Grant } from "../grants/grant.js";
 import type { NormalizedOptions } from "../options.js";
 import type { McpxToolExtra, McpxToolScope } from "../types.js";
@@ -18,9 +19,6 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
 const UPLOAD_TOOLS = new Set(["createDocument", "patchDocument"]);
-
-const respond = (status: number, body: unknown): Response =>
-	Response.json(body, { status });
 
 /*
  * One answer for every grant that cannot be used, so a caller learns nothing
@@ -31,41 +29,6 @@ const refused = (): Response =>
 		error:
 			"The request was refused: the grant is unknown, expired or used, or the key no longer allows it. Call the tool again for a new one.",
 	});
-
-/*
- * The body, or `null` once it differs from `size`. A declared length is
- * checked unread. A chunked body is read until it passes `size`.
- */
-const readExactly = async (
-	req: PayloadRequest,
-	size: number,
-): Promise<Buffer | null> => {
-	const declared = req.headers.get("content-length");
-
-	if (declared !== null && Number(declared) !== size) {
-		return null;
-	}
-
-	if (!req.body) {
-		return null;
-	}
-
-	const chunks: Uint8Array[] = [];
-	let total = 0;
-
-	// Returning from inside the loop cancels the stream.
-	for await (const chunk of req.body) {
-		total += chunk.byteLength;
-
-		if (total > size) {
-			return null;
-		}
-
-		chunks.push(chunk);
-	}
-
-	return total === size ? Buffer.concat(chunks) : null;
-};
 
 // What the tool result's status means over HTTP.
 const statusOf = (result: CallToolResult, data: Record<string, unknown>) => {
@@ -84,14 +47,6 @@ const statusOf = (result: CallToolResult, data: Record<string, unknown>) => {
 	return data["error"] === "Internal error" ? 500 : 422;
 };
 
-const parseResult = (result: CallToolResult): Record<string, unknown> => {
-	const [first] = result.content;
-
-	return first?.type === "text"
-		? (JSON.parse(first.text) as Record<string, unknown>)
-		: {};
-};
-
 // The upload runs outside an MCP session, so there is nothing to notify.
 const NO_SESSION = {
 	signal: new AbortController().signal,
@@ -99,23 +54,6 @@ const NO_SESSION = {
 	sendNotification: () => Promise.resolve(),
 	sendRequest: () => Promise.reject(new Error("No MCP session.")),
 } as unknown as McpxToolExtra;
-
-const reauthenticate = async (
-	req: PayloadRequest,
-	options: NormalizedOptions,
-	grant: Grant,
-) => {
-	const keyDoc = (await req.payload.findByID({
-		collection: options.apiKeysSlug,
-		id: grant.apiKeyId,
-		depth: 0,
-		overrideAccess: true,
-		disableErrors: true,
-		select: { enabled: true, user: true, capabilities: true, expiresAt: true },
-	})) as ApiKeyDoc | null;
-
-	return await checkApiKey(req, options, keyDoc ?? undefined);
-};
 
 /*
  * Claims the grant in `x-mcpx-grant` and makes `req` act as its key again, or
@@ -131,10 +69,10 @@ const claimAs = async <Kind extends Grant["kind"]>(
 ): Promise<
 	{ grant: Extract<Grant, { kind: Kind }>; scope: McpxToolScope } | undefined
 > => {
-	const slug = grantKvSlug(req.payload.config);
+	const slug = grantsAvailable(req, options);
 	const grantId = req.headers.get("x-mcpx-grant");
 
-	if (slug === undefined || options.auth?.resolve || grantId === null) {
+	if (slug === undefined || grantId === null) {
 		return undefined;
 	}
 
@@ -144,7 +82,7 @@ const claimAs = async <Kind extends Grant["kind"]>(
 		return undefined;
 	}
 
-	const auth = await reauthenticate(req, options, grant);
+	const auth = await resolveApiKeyById(req, options, grant.apiKeyId);
 
 	if (!auth) {
 		return undefined;
@@ -159,10 +97,7 @@ const claimAs = async <Kind extends Grant["kind"]>(
 	}
 
 	req.locale = grant.locale;
-	req.fallbackLocale = grant.fallbackLocale as Exclude<
-		PayloadRequest["fallbackLocale"],
-		undefined
-	>;
+	req.fallbackLocale = grant.fallbackLocale;
 
 	return { grant: grant as Extract<Grant, { kind: Kind }>, scope };
 };
@@ -178,14 +113,13 @@ export const createUploadHandler =
 	async (req) => {
 		const { payload } = req;
 		const claimed = await claimAs(req, options, "upload");
-		const file = claimed?.grant.args["file"] as
-			undefined | { filename: string; mimeType: string; size: number };
 
-		if (!claimed || !UPLOAD_TOOLS.has(claimed.grant.tool) || !file) {
+		if (!claimed || !UPLOAD_TOOLS.has(claimed.grant.tool)) {
 			return refused();
 		}
 
 		const { grant, scope } = claimed;
+		const { file } = grant;
 		const tool = BUILTIN_TOOLS.find(
 			(candidate) => candidate.name === grant.tool,
 		);
@@ -204,9 +138,9 @@ export const createUploadHandler =
 			return respond(413, { error: "The file is larger than allowed." });
 		}
 
-		const data = await readExactly(req, file.size);
+		const data = await readCapped(req, file.size);
 
-		if (data === null) {
+		if (data?.length !== file.size) {
 			return respond(400, {
 				error: `The body must be exactly ${String(file.size)} bytes, the size the tool call declared.`,
 			});

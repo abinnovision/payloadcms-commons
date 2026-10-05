@@ -3,8 +3,8 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { isValidAuthResult, resolveApiKeyAuth } from "../auth/resolve.js";
 import { resolveCapabilities, scopeSlugs } from "../capabilities.js";
 import { jsonRpcError } from "./errors.js";
+import { grantsAvailable, readCapped } from "./http.js";
 import { createMcpServer } from "./server.js";
-import { grantKvSlug } from "../grants/grant.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAuthResult, McpxToolScope } from "../types.js";
@@ -13,41 +13,6 @@ import type { PayloadHandler, PayloadRequest } from "payload";
 const BODY_BYTES_LIMIT = 4 * 1024 * 1024;
 
 const BATCH_MESSAGES_LIMIT = 10;
-
-/*
- * The body as text, `null` once it passes {@link BODY_BYTES_LIMIT}, or
- * `undefined` when there is none. A declared length over the limit is refused
- * unread. A chunked body declares none, so bytes are counted as they arrive and
- * reading stops at the limit.
- */
-const readBody = async (
-	req: PayloadRequest,
-): Promise<string | null | undefined> => {
-	if (Number(req.headers.get("content-length")) > BODY_BYTES_LIMIT) {
-		return null;
-	}
-
-	if (!req.body) {
-		return undefined;
-	}
-
-	const decoder = new TextDecoder();
-	let text = "";
-	let size = 0;
-
-	// Returning from inside the loop cancels the stream.
-	for await (const chunk of req.body) {
-		size += chunk.byteLength;
-
-		if (size > BODY_BYTES_LIMIT) {
-			return null;
-		}
-
-		text += decoder.decode(chunk, { stream: true });
-	}
-
-	return text + decoder.decode();
-};
 
 /**
  * The scope the tools of one request see: the key's resolved capabilities, the
@@ -72,16 +37,8 @@ export const buildScope = (
 				}
 			: null,
 		limits: options.limits,
-		/*
-		 * A custom resolver may authenticate by more than the key, which the
-		 * upload endpoint cannot replay, so it turns uploads off.
-		 */
-		uploads:
-			options.auth?.resolve === undefined &&
-			grantKvSlug(req.payload.config) !== undefined,
-		diagnostics: options.diagnostics
-			? { name: options.serverInfo.name, version: options.serverInfo.version }
-			: null,
+		uploads: grantsAvailable(req, options) !== undefined,
+		diagnostics: options.diagnostics ? options.serverInfo : null,
 		exposure: { collections: options.collections, globals: options.globals },
 	};
 };
@@ -155,9 +112,9 @@ export const createMcpxHandler =
 
 		let parsedBody: unknown;
 		try {
-			const text = await readBody(req);
+			const body = await readCapped(req, BODY_BYTES_LIMIT);
 
-			if (text === null) {
+			if (body === null) {
 				return jsonRpcError({
 					status: 413,
 					code: -32000,
@@ -165,7 +122,8 @@ export const createMcpxHandler =
 				});
 			}
 
-			parsedBody = text === undefined ? undefined : JSON.parse(text);
+			parsedBody =
+				body === undefined ? undefined : JSON.parse(body.toString("utf8"));
 		} catch {
 			return jsonRpcError({
 				status: 400,

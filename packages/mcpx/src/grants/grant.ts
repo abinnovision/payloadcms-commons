@@ -1,18 +1,22 @@
-import crypto from "node:crypto";
 import { APIError, ValidationError } from "payload";
 
-import { hashApiKey } from "../api-keys/key.js";
+import { generateApiKey, hashApiKey } from "../api-keys/key.js";
 import { isPlainObject } from "../guards.js";
 
 import type { DocumentId } from "../entity.js";
-import type { KVAdapterResult, Payload, SanitizedConfig } from "payload";
+import type {
+	KVAdapterResult,
+	Payload,
+	PayloadRequest,
+	SanitizedConfig,
+} from "payload";
 
 const GRANT_TTL_MS = 5 * 60 * 1000;
 
 const GRANTS_PER_KEY = 10;
 
 // 32 random bytes in base64url.
-export const GRANT_ID = /^[\w-]{43}$/;
+export const ROW_ID = /^[\w-]{43}$/;
 
 /*
  * The KV collection is only ever written through `payload.db`, which runs no
@@ -21,19 +25,36 @@ export const GRANT_ID = /^[\w-]{43}$/;
  */
 export const NO_REQ = {};
 
+// An unset fallback locale is stored as `null`.
+type FallbackLocale = Exclude<PayloadRequest["fallbackLocale"], undefined>;
+
 /**
- * A tool call waiting for its file, stored until the PUT that completes it.
+ * A call stored with the request's locale and fallback locale at issue,
+ * `null` when unset.
  */
-export interface UploadGrant {
-	kind: "upload";
+export interface StoredCall {
 	apiKeyId: DocumentId;
 	tool: string;
 	args: Record<string, unknown>;
-	/**
-	 * The request's locale and fallback locale at issue, `null` when unset.
-	 */
 	locale: null | string;
-	fallbackLocale: unknown;
+	fallbackLocale: FallbackLocale;
+}
+
+/**
+ * The file an upload call declared.
+ */
+export interface UploadFile {
+	filename: string;
+	mimeType: string;
+	size: number;
+}
+
+/**
+ * A tool call waiting for its file, stored until the PUT that completes it.
+ */
+export interface UploadGrant extends StoredCall {
+	kind: "upload";
+	file: UploadFile;
 	/**
 	 * Epoch milliseconds.
 	 */
@@ -57,7 +78,7 @@ export interface DownloadGrant {
 	 * The locale read and the request's fallback locale, `null` when unset.
 	 */
 	locale: null | string;
-	fallbackLocale: unknown;
+	fallbackLocale: FallbackLocale;
 	/**
 	 * Epoch milliseconds.
 	 */
@@ -66,16 +87,28 @@ export interface DownloadGrant {
 
 export type Grant = DownloadGrant | UploadGrant;
 
-export interface KvRow {
+export interface KvRow<T = unknown> {
 	key: string;
-	data: unknown;
+	data: T;
 }
 
-const grantPrefix = (apiKeyId: DocumentId): string =>
-	`mcpx-grant:${String(apiKeyId)}:`;
+/**
+ * The key prefixes of a kind of row: waiting rows and the markers of used
+ * ones.
+ */
+export const rowPrefixes = (
+	kind: "confirmation" | "grant",
+	apiKeyId: DocumentId,
+): { prefix: string; usedPrefix: string } => ({
+	prefix: `mcpx-${kind}:${String(apiKeyId)}:`,
+	usedPrefix: `mcpx-${kind}-used:${String(apiKeyId)}:`,
+});
 
-const usedPrefix = (apiKeyId: DocumentId): string =>
-	`mcpx-grant-used:${String(apiKeyId)}:`;
+/**
+ * What a row is addressed by: the HMAC of its id, which the row key ends in.
+ */
+export const rowHandle = (payload: Payload, id: string): string =>
+	hashApiKey(payload.secret, id);
 
 export const expOf = (data: unknown): number =>
 	isPlainObject(data) && typeof data["exp"] === "number" ? data["exp"] : 0;
@@ -98,11 +131,11 @@ export const grantKvSlug = (config: SanitizedConfig): string | undefined => {
 /**
  * KV rows whose key contains one of `fragments`.
  */
-const findRows = async (
+const findRows = async <T>(
 	payload: Payload,
 	slug: string,
 	fragments: string[],
-): Promise<KvRow[]> => {
+): Promise<KvRow<T>[]> => {
 	const { docs } = await payload.db.find({
 		collection: slug,
 		where: { or: fragments.map((fragment) => ({ key: { like: fragment } })) },
@@ -111,19 +144,19 @@ const findRows = async (
 		req: NO_REQ,
 	});
 
-	return docs as unknown as KvRow[];
+	return docs as unknown as KvRow<T>[];
 };
 
 /**
  * KV rows whose key starts with one of `prefixes`. `like` matches a
  * substring, so the prefix is checked again here.
  */
-export const rowsWith = async (
+export const rowsWith = async <T = unknown>(
 	payload: Payload,
 	slug: string,
 	prefixes: string[],
-): Promise<KvRow[]> =>
-	(await findRows(payload, slug, prefixes)).filter((row) =>
+): Promise<KvRow<T>[]> =>
+	(await findRows<T>(payload, slug, prefixes)).filter((row) =>
 		prefixes.some((prefix) => row.key.startsWith(prefix)),
 	);
 
@@ -165,19 +198,70 @@ export const issueRow = async (
 		throw new APIError(args.capMessage, 429);
 	}
 
-	const id = crypto.randomBytes(32).toString("base64url");
+	const id = generateApiKey();
 	const exp = now + args.ttlMs;
 
 	await payload.db.create({
 		collection: slug,
 		data: {
-			key: `${args.prefix}${hashApiKey(payload.secret, id)}`,
+			key: `${args.prefix}${rowHandle(payload, id)}`,
 			data: { ...args.data, exp },
 		},
 		req: NO_REQ,
 	});
 
 	return { id, exp };
+};
+
+/**
+ * Marks the row under `handle` used and removes it. The marker is a
+ * unique-key insert, so of two concurrent claims exactly one returns `true`.
+ */
+export const claimRow = async (
+	payload: Payload,
+	slug: string,
+	prefixes: { prefix: string; usedPrefix: string },
+	handle: string,
+	exp: number,
+): Promise<boolean> => {
+	try {
+		await payload.db.create({
+			collection: slug,
+			data: { key: `${prefixes.usedPrefix}${handle}`, data: { exp } },
+			req: NO_REQ,
+		});
+	} catch (error) {
+		if (error instanceof ValidationError) {
+			return false;
+		}
+
+		throw error;
+	}
+
+	await payload.db.deleteOne({
+		collection: slug,
+		where: { key: { equals: `${prefixes.prefix}${handle}` } },
+		req: NO_REQ,
+	});
+
+	return true;
+};
+
+/**
+ * The KV slug and key id of the request, which a call that stores a grant or
+ * a confirmation needs. Throws where the endpoint would not offer one.
+ */
+export const grantContext = (
+	req: PayloadRequest,
+): { slug: string; apiKeyId: DocumentId } => {
+	const slug = grantKvSlug(req.payload.config);
+	const apiKeyId = req.context.mcpx?.apiKeyId;
+
+	if (slug === undefined || apiKeyId === undefined) {
+		throw new Error("A grant or confirmation needs a database KV and a key.");
+	}
+
+	return { slug, apiKeyId };
 };
 
 /**
@@ -188,73 +272,45 @@ export const issueGrant = async (
 	payload: Payload,
 	slug: string,
 	grant: Omit<DownloadGrant, "exp"> | Omit<UploadGrant, "exp">,
-): Promise<{ grantId: string; exp: number }> => {
-	const { id, exp } = await issueRow(payload, slug, {
-		prefix: grantPrefix(grant.apiKeyId),
-		usedPrefix: usedPrefix(grant.apiKeyId),
+): Promise<{ id: string; exp: number }> =>
+	await issueRow(payload, slug, {
+		...rowPrefixes("grant", grant.apiKeyId),
 		cap: GRANTS_PER_KEY,
 		capMessage: `This key already has ${String(GRANTS_PER_KEY)} uploads or downloads waiting. Use or abandon them first; each expires 5 minutes after it was issued.`,
 		ttlMs: GRANT_TTL_MS,
 		data: grant,
 	});
 
-	return { grantId: id, exp };
-};
-
 /**
  * Loads the grant for `grantId` and marks it used, or returns `undefined` for
- * a malformed, unknown, expired or used one. The marker is a unique-key
- * insert, so of two concurrent claims exactly one succeeds. A malformed id
- * is refused before any database read.
+ * a malformed, unknown, expired or used one. A malformed id is refused before
+ * any database read.
  */
 export const claimGrant = async (
 	payload: Payload,
 	slug: string,
 	grantId: string,
 ): Promise<Grant | undefined> => {
-	if (!GRANT_ID.test(grantId)) {
+	if (!ROW_ID.test(grantId)) {
 		return undefined;
 	}
 
-	const hash = hashApiKey(payload.secret, grantId);
-	const row = (await findRows(payload, slug, [hash])).find(
+	const handle = rowHandle(payload, grantId);
+	const row = (await findRows<Grant>(payload, slug, [handle])).find(
 		(candidate) =>
 			candidate.key.startsWith("mcpx-grant:") &&
-			candidate.key.endsWith(`:${hash}`),
+			candidate.key.endsWith(`:${handle}`),
 	);
-	const grant = row?.data as Grant | undefined;
+	const grant = row?.data;
 
-	if (
-		!row ||
-		!isPlainObject(grant) ||
-		row.key !== `${grantPrefix(grant.apiKeyId)}${hash}` ||
-		expOf(grant) <= Date.now()
-	) {
+	if (!row || !isPlainObject(grant) || expOf(grant) <= Date.now()) {
 		return undefined;
 	}
 
-	try {
-		await payload.db.create({
-			collection: slug,
-			data: {
-				key: `${usedPrefix(grant.apiKeyId)}${hash}`,
-				data: { exp: grant.exp },
-			},
-			req: NO_REQ,
-		});
-	} catch (error) {
-		if (error instanceof ValidationError) {
-			return undefined;
-		}
+	const prefixes = rowPrefixes("grant", grant.apiKeyId);
 
-		throw error;
-	}
-
-	await payload.db.deleteOne({
-		collection: slug,
-		where: { key: { equals: row.key } },
-		req: NO_REQ,
-	});
-
-	return grant;
+	return row.key === `${prefixes.prefix}${handle}` &&
+		(await claimRow(payload, slug, prefixes, handle, grant.exp))
+		? grant
+		: undefined;
 };

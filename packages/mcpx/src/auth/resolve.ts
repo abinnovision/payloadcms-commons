@@ -17,16 +17,18 @@ const toTime = (value: unknown): number =>
 		? new Date(value).getTime()
 		: Number.NaN;
 
-const relationId = (value: unknown): DocumentId | undefined => {
-	if (typeof value === "string" || typeof value === "number") {
+const isId = (value: unknown): value is DocumentId =>
+	typeof value === "string" || typeof value === "number";
+
+/**
+ * The id of a relationship value, populated or not.
+ */
+export const relationId = (value: unknown): DocumentId | undefined => {
+	if (isId(value)) {
 		return value;
 	}
 
-	if (typeof value === "object" && value !== null && "id" in value) {
-		return (value as { id: DocumentId }).id;
-	}
-
-	return undefined;
+	return isPlainObject(value) && isId(value["id"]) ? value["id"] : undefined;
 };
 
 export const parseBearer = (headers: Headers): null | string => {
@@ -38,9 +40,6 @@ export const parseBearer = (headers: Headers): null | string => {
 
 	return BEARER.exec(header.trim())?.[1] ?? null;
 };
-
-const isId = (value: unknown): value is number | string =>
-	typeof value === "string" || typeof value === "number";
 
 /**
  * Whether a resolved auth, from the default or a custom resolver, may become
@@ -136,6 +135,35 @@ export const checkApiKey = async (
 	};
 };
 
+// The key fields {@link checkApiKey} reads.
+const KEY_SELECT = {
+	enabled: true,
+	user: true,
+	capabilities: true,
+	expiresAt: true,
+} as const;
+
+/**
+ * The user the key `id` acts as, or `null`, under the same checks as the
+ * bearer lookup.
+ */
+export const resolveApiKeyById = async (
+	req: PayloadRequest,
+	options: NormalizedOptions,
+	id: DocumentId,
+): Promise<McpxAuthResult | null> => {
+	const keyDoc = (await req.payload.findByID({
+		collection: options.apiKeysSlug,
+		id,
+		depth: 0,
+		overrideAccess: true,
+		disableErrors: true,
+		select: KEY_SELECT,
+	})) as ApiKeyDoc | null;
+
+	return await checkApiKey(req, options, keyDoc ?? undefined);
+};
+
 /**
  * Resolves the bearer key of a request to the user it acts as.
  *
@@ -160,13 +188,7 @@ export const resolveApiKeyAuth = async (
 		pagination: false,
 		depth: 0,
 		overrideAccess: true,
-		select: {
-			enabled: true,
-			user: true,
-			capabilities: true,
-			expiresAt: true,
-			lastUsedAt: true,
-		},
+		select: { ...KEY_SELECT, lastUsedAt: true },
 	});
 
 	const keyDoc = docs[0] as ApiKeyDoc | undefined;
@@ -195,7 +217,7 @@ export const resolveApiKeyAuth = async (
 		} catch (error) {
 			payload.logger.warn({
 				err: error,
-				msg: "Could not record the last use of an MCP API key",
+				msg: "[payloadcms-mcpx] Could not record the last use of an MCP API key.",
 			});
 		}
 	}
