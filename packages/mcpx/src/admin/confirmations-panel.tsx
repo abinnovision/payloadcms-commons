@@ -72,20 +72,57 @@ const styles = {
 	footer: { display: "flex", gap: "calc(var(--base) * 0.5)" },
 } as const satisfies Record<string, React.CSSProperties>;
 
+const HEADS = ["Collection", "Document", "Effect", "Reason"];
+
 const groupsOf = (
 	confirmations: ConfirmationView[],
 ): [string, ConfirmationView[]][] => {
 	const groups = new Map<string, ConfirmationView[]>();
 
 	for (const confirmation of confirmations) {
-		groups.set(confirmation.group, [
-			...(groups.get(confirmation.group) ?? []),
-			confirmation,
-		]);
+		const entries = groups.get(confirmation.group) ?? [];
+
+		entries.push(confirmation);
+		groups.set(confirmation.group, entries);
 	}
 
 	return [...groups];
 };
+
+const DecisionButtons: React.FC<{
+	approve: React.ReactNode;
+	busy: boolean;
+	onDecide: (decision: ConfirmationDecision) => void;
+	reject: React.ReactNode;
+	small?: boolean;
+}> = ({ approve, busy, onDecide, reject, small = false }) => (
+	<>
+		<Button
+			buttonStyle="primary"
+			disabled={busy}
+			margin={false}
+			onClick={() => {
+				onDecide("approved");
+			}}
+			size={small ? "small" : "medium"}
+			type="button"
+		>
+			{approve}
+		</Button>
+		<Button
+			buttonStyle="secondary"
+			disabled={busy}
+			margin={false}
+			onClick={() => {
+				onDecide("rejected");
+			}}
+			size={small ? "small" : "medium"}
+			type="button"
+		>
+			{reject}
+		</Button>
+	</>
+);
 
 // The irreversible ones are counted apart, so the bulk approval names them.
 const approveAllLabel = (confirmations: ConfirmationView[]): string => {
@@ -149,30 +186,15 @@ const Row: React.FC<{
 			</td>
 			<td style={cell}>
 				<div style={styles.actions}>
-					<Button
-						buttonStyle="primary"
-						disabled={busy}
-						margin={false}
-						onClick={() => {
-							onDecide([handle], "approved");
+					<DecisionButtons
+						approve="Approve"
+						busy={busy}
+						onDecide={(decision) => {
+							onDecide([handle], decision);
 						}}
-						size="small"
-						type="button"
-					>
-						Approve
-					</Button>
-					<Button
-						buttonStyle="secondary"
-						disabled={busy}
-						margin={false}
-						onClick={() => {
-							onDecide([handle], "rejected");
-						}}
-						size="small"
-						type="button"
-					>
-						Reject
-					</Button>
+						reject="Reject"
+						small
+					/>
 				</div>
 			</td>
 		</tr>
@@ -208,18 +230,11 @@ export const ConfirmationsPanel: React.FC<ConfirmationsPanelProps> = ({
 					<table style={styles.table}>
 						<thead>
 							<tr>
-								<th scope="col" style={styles.head}>
-									Collection
-								</th>
-								<th scope="col" style={styles.head}>
-									Document
-								</th>
-								<th scope="col" style={styles.head}>
-									Effect
-								</th>
-								<th scope="col" style={styles.head}>
-									Reason
-								</th>
+								{HEADS.map((head) => (
+									<th key={head} scope="col" style={styles.head}>
+										{head}
+									</th>
+								))}
 								<th scope="col" style={styles.head}>
 									<span className="sr-only">Decision</span>
 								</th>
@@ -239,28 +254,14 @@ export const ConfirmationsPanel: React.FC<ConfirmationsPanelProps> = ({
 				</div>
 			))}
 			<div style={styles.footer}>
-				<Button
-					buttonStyle="primary"
-					disabled={busy}
-					margin={false}
-					onClick={() => {
-						onDecide(handles, "approved");
+				<DecisionButtons
+					approve={approveAllLabel(confirmations)}
+					busy={busy}
+					onDecide={(decision) => {
+						onDecide(handles, decision);
 					}}
-					type="button"
-				>
-					{approveAllLabel(confirmations)}
-				</Button>
-				<Button
-					buttonStyle="secondary"
-					disabled={busy}
-					margin={false}
-					onClick={() => {
-						onDecide(handles, "rejected");
-					}}
-					type="button"
-				>
-					Reject all
-				</Button>
+					reject="Reject all"
+				/>
 			</div>
 		</section>
 	);

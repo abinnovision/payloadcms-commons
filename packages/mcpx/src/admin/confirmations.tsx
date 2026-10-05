@@ -7,6 +7,7 @@ import {
 	ConfirmationsPanel,
 	confirmationRowId,
 } from "./confirmations-panel.js";
+import { endpointUrl } from "./endpoint-url.js";
 import { CONFIRMATIONS_PATH } from "../api-keys/confirmation-view.js";
 
 import type {
@@ -35,7 +36,7 @@ export const McpxConfirmations: React.FC<McpxConfirmationsProps> = ({
 	const [busy, setBusy] = useState(false);
 	// Bumped after a decision, which lists the calls again.
 	const [version, setVersion] = useState(0);
-	const url = `${config.serverURL}${config.routes.api}${endpointPath}${CONFIRMATIONS_PATH}`;
+	const url = `${endpointUrl(config.serverURL, config.routes.api, endpointPath)}${CONFIRMATIONS_PATH}`;
 
 	useEffect(() => {
 		if (id === undefined) {
