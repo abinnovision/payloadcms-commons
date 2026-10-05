@@ -1,7 +1,6 @@
 import { InvalidConfiguration } from "payload";
 import { hasDraftsEnabled, hasLocalizeStatusEnabled } from "payload/shared";
 
-import { BUILTIN_TOOL_NAMES } from "./builtin-tool-names.js";
 import { isPlainObject } from "./guards.js";
 import { MCPX_VERSION } from "./version.js";
 
@@ -46,6 +45,8 @@ export interface NormalizedOptions {
 	diagnostics: boolean;
 }
 
+type EntityKind = "Collection" | "Global";
+
 const fail = (message: string): never => {
 	throw new InvalidConfiguration(`[payloadcms-mcpx] ${message}`);
 };
@@ -65,16 +66,20 @@ export const toCamelCase = (value: string): string =>
  * read, and email or lockout state is PII either way. Refused for read too.
  */
 const assertExposable = (
-	collection: CollectionConfig,
+	kind: EntityKind,
+	config: CollectionConfig | GlobalConfig,
 	apiKeysSlug: string,
 ): void => {
-	const { slug } = collection;
+	const { slug } = config;
 
-	if (slug === apiKeysSlug || slug.startsWith("payload-")) {
-		fail(`Collection "${slug}" cannot be exposed.`);
+	if (
+		slug.startsWith("payload-") ||
+		(kind === "Collection" && slug === apiKeysSlug)
+	) {
+		fail(`${kind} "${slug}" cannot be exposed.`);
 	}
 
-	if (collection.auth) {
+	if ("auth" in config && config.auth) {
 		fail(
 			`Auth collection "${slug}" cannot be exposed. Its documents carry credentials.`,
 		);
@@ -93,7 +98,7 @@ const REMOVED_WRITE_MODES: Record<string, string> = {
 
 // Checked at runtime too: a truthy string would otherwise count as opted in.
 const readFlag = (
-	kind: string,
+	kind: EntityKind,
 	slug: string,
 	name: string,
 	value: unknown,
@@ -120,7 +125,7 @@ const readFlag = (
  * is refused.
  */
 const assertWritable = (
-	kind: string,
+	kind: EntityKind,
 	config: CollectionConfig | GlobalConfig,
 	publish: boolean,
 ): void => {
@@ -136,7 +141,7 @@ const assertWritable = (
  * deletes only move to trash.
  */
 const normalizeDelete = (
-	kind: string,
+	kind: EntityKind,
 	config: CollectionConfig | GlobalConfig,
 	value: unknown,
 ): Pick<McpxExposedEntity, "delete" | "deleteUnattended"> => {
@@ -166,7 +171,7 @@ const normalizeDelete = (
  * widens access.
  */
 const normalizeCapabilities = (
-	kind: string,
+	kind: EntityKind,
 	config: CollectionConfig | GlobalConfig,
 	raw: unknown,
 ): Pick<
@@ -257,134 +262,80 @@ const normalizeCapabilities = (
 	};
 };
 
-// Globals cannot be auth or upload, so only the reserved namespace is left.
-const assertGlobalExposable = (global: GlobalConfig): void => {
-	if (global.slug.startsWith("payload-")) {
-		fail(`Global "${global.slug}" cannot be exposed.`);
-	}
-};
+type ConfigBySlug = Map<string, CollectionConfig | GlobalConfig>;
 
-const normalizeCollections = (
-	config: Config,
-	options: McpxPluginOptions,
+const bySlug = (configs: (CollectionConfig | GlobalConfig)[]): ConfigBySlug =>
+	new Map(configs.map((config) => [config.slug, config]));
+
+const normalizeEntities = (
+	kind: EntityKind,
+	configs: ConfigBySlug,
+	entries: Record<string, unknown>,
 	apiKeysSlug: string,
 ): McpxExposedEntity[] => {
-	const collections = config.collections ?? [];
+	// A global and a collection may share a camelCase name: separate capability groups.
 	const fieldNames = new Set<string>();
 
-	return Object.entries(options.collections).flatMap(
-		([slug, raw]): McpxExposedEntity[] => {
-			if (raw === undefined) {
-				return [];
+	return Object.entries(entries).flatMap(([slug, raw]): McpxExposedEntity[] => {
+		if (raw === undefined) {
+			return [];
+		}
+
+		const config = configs.get(slug);
+
+		if (!config) {
+			return fail(`Exposed ${kind.toLowerCase()} "${slug}" does not exist.`);
+		}
+
+		assertExposable(kind, config, apiKeysSlug);
+
+		const normalized: McpxExposedEntity = {
+			slug,
+			...normalizeCapabilities(kind, config, raw),
+			isUpload: "upload" in config && Boolean(config.upload),
+			fieldName: toCamelCase(slug),
+		};
+
+		// Globals have no `timestamps` option and always get `updatedAt`.
+		if (normalized.write) {
+			if ("timestamps" in config && !config.timestamps) {
+				fail(
+					`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
+				);
 			}
 
-			const collection = collections.find(
-				(candidate) => candidate.slug === slug,
+			assertWritable(kind, config, normalized.publish);
+		}
+
+		if (fieldNames.has(normalized.fieldName)) {
+			fail(
+				`${kind} "${slug}" maps to capability field "${normalized.fieldName}", which another exposed ${kind.toLowerCase()} already uses.`,
 			);
+		}
 
-			if (!collection) {
-				return fail(`Exposed collection "${slug}" does not exist.`);
-			}
+		fieldNames.add(normalized.fieldName);
 
-			assertExposable(collection, apiKeysSlug);
-
-			const normalized: McpxExposedEntity = {
-				slug,
-				...normalizeCapabilities("Collection", collection, raw),
-				isUpload: Boolean(collection.upload),
-				fieldName: toCamelCase(slug),
-			};
-
-			if (normalized.write) {
-				if (collection.timestamps === false) {
-					fail(
-						`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
-					);
-				}
-
-				assertWritable("Collection", collection, normalized.publish);
-			}
-
-			if (fieldNames.has(normalized.fieldName)) {
-				fail(
-					`Collection "${slug}" maps to capability field "${normalized.fieldName}", which another exposed collection already uses.`,
-				);
-			}
-
-			fieldNames.add(normalized.fieldName);
-
-			return [normalized];
-		},
-	);
+		return [normalized];
+	});
 };
 
-const normalizeGlobals = (
-	config: Config,
-	options: McpxPluginOptions,
-): McpxExposedEntity[] => {
-	const globals = config.globals ?? [];
-	/*
-	 * Scoped to globals on purpose: a global and a collection may share a
-	 * camelCase name because they land in separate capability groups.
-	 */
-	const fieldNames = new Set<string>();
-
-	return Object.entries(options.globals ?? {}).flatMap(
-		([slug, raw]): McpxExposedEntity[] => {
-			if (raw === undefined) {
-				return [];
-			}
-
-			const global = globals.find((candidate) => candidate.slug === slug);
-
-			if (!global) {
-				return fail(`Exposed global "${slug}" does not exist.`);
-			}
-
-			assertGlobalExposable(global);
-
-			const normalized: McpxExposedEntity = {
-				slug,
-				...normalizeCapabilities("Global", global, raw),
-				isUpload: false,
-				fieldName: toCamelCase(slug),
-			};
-
-			/*
-			 * `GlobalConfig` has no `timestamps` option and `sanitizeGlobal` always
-			 * appends `createdAt`/`updatedAt`, so the concurrency check a collection
-			 * is held to is always available here.
-			 */
-			if (normalized.write) {
-				assertWritable("Global", global, normalized.publish);
-			}
-
-			if (fieldNames.has(normalized.fieldName)) {
-				fail(
-					`Global "${slug}" maps to capability field "${normalized.fieldName}", which another exposed global already uses.`,
-				);
-			}
-
-			fieldNames.add(normalized.fieldName);
-
-			return [normalized];
-		},
-	);
-};
-
-const assertUserCollection = (config: Config, slug: string): void => {
-	const collection = (config.collections ?? []).find(
-		(candidate) => candidate.slug === slug,
-	);
+const assertUserCollection = (
+	collections: ConfigBySlug,
+	slug: string,
+): void => {
+	const collection = collections.get(slug);
 
 	if (!collection) {
 		fail(`User collection "${slug}" does not exist.`);
-	} else if (!collection.auth) {
+	} else if (!("auth" in collection && collection.auth)) {
 		fail(`User collection "${slug}" is not an auth collection.`);
 	}
 };
 
-const assertTools = (tools: McpxAnyTool[]): void => {
+const assertTools = (
+	tools: McpxAnyTool[],
+	reserved: readonly string[],
+): void => {
 	const names = new Set<string>();
 
 	for (const tool of tools) {
@@ -392,7 +343,7 @@ const assertTools = (tools: McpxAnyTool[]): void => {
 			fail(`Tool name "${tool.name}" must match ${String(TOOL_NAME_PATTERN)}.`);
 		}
 
-		if ((BUILTIN_TOOL_NAMES as readonly string[]).includes(tool.name)) {
+		if (reserved.includes(tool.name)) {
 			fail(`Tool name "${tool.name}" is reserved for a builtin tool.`);
 		}
 
@@ -423,26 +374,35 @@ const normalizeLimits = (
 
 /**
  * Every problem is an `InvalidConfiguration`, so it fails at startup.
+ * `reservedToolNames` are the builtin tool names custom tools must not reuse.
  */
 export const normalizeOptions = (
 	config: Config,
 	options: McpxPluginOptions,
+	reservedToolNames: readonly string[] = [],
 ): NormalizedOptions => {
 	const apiKeysSlug = options.apiKeys?.slug ?? DEFAULT_API_KEYS_SLUG;
 	const userCollection =
 		options.userCollection ?? config.admin?.user ?? "users";
 
-	if ((config.collections ?? []).some((c) => c.slug === apiKeysSlug)) {
+	const collectionConfigs = bySlug(config.collections ?? []);
+
+	if (collectionConfigs.has(apiKeysSlug)) {
 		fail(`API key collection slug "${apiKeysSlug}" is already taken.`);
 	}
 
-	assertUserCollection(config, userCollection);
+	assertUserCollection(collectionConfigs, userCollection);
 
 	const tools = options.tools ?? [];
 
-	assertTools(tools);
+	assertTools(tools, reservedToolNames);
 
-	const collections = normalizeCollections(config, options, apiKeysSlug);
+	const collections = normalizeEntities(
+		"Collection",
+		collectionConfigs,
+		options.collections,
+		apiKeysSlug,
+	);
 	// Only builtin tools are confirmable, so only `delete` needs approval.
 	const confirmations = collections.some((entity) => entity.delete);
 
@@ -458,7 +418,12 @@ export const normalizeOptions = (
 
 	return {
 		collections,
-		globals: normalizeGlobals(config, options),
+		globals: normalizeEntities(
+			"Global",
+			bySlug(config.globals ?? []),
+			options.globals ?? {},
+			apiKeysSlug,
+		),
 		userCollection,
 		apiKeysSlug,
 		endpointPath: options.endpoint?.path ?? DEFAULT_ENDPOINT_PATH,
