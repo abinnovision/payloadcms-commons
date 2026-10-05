@@ -79,7 +79,9 @@ describe("normalizeOptions", () => {
 				{
 					slug: "pages",
 					read: true,
-					write: "live",
+					write: true,
+					publish: true,
+					liveWrite: false,
 					hasDrafts: true,
 					hasVersions: true,
 					delete: false,
@@ -95,7 +97,9 @@ describe("normalizeOptions", () => {
 				{
 					slug: "tags",
 					read: true,
-					write: "live",
+					write: true,
+					publish: false,
+					liveWrite: true,
 					hasDrafts: false,
 					hasVersions: false,
 					delete: false,
@@ -152,7 +156,9 @@ describe("normalizeOptions", () => {
 				{
 					slug: "media",
 					read: true,
-					write: "live",
+					write: true,
+					publish: true,
+					liveWrite: false,
 					hasDrafts: true,
 					hasVersions: true,
 					delete: false,
@@ -173,7 +179,9 @@ describe("normalizeOptions", () => {
 				{
 					slug: "site-settings",
 					read: true,
-					write: "live",
+					write: true,
+					publish: true,
+					liveWrite: false,
 					hasDrafts: true,
 					hasVersions: true,
 					delete: false,
@@ -184,7 +192,9 @@ describe("normalizeOptions", () => {
 				{
 					slug: "banner",
 					read: true,
-					write: "live",
+					write: true,
+					publish: false,
+					liveWrite: true,
 					hasDrafts: false,
 					hasVersions: false,
 					delete: false,
@@ -213,7 +223,12 @@ describe("normalizeOptions", () => {
 			expect(
 				normalize({ collections: { pages: { publish: false } } })
 					.collections[0],
-			).toMatchObject({ write: "draft", hasDrafts: true });
+			).toMatchObject({
+				write: true,
+				publish: false,
+				liveWrite: false,
+				hasDrafts: true,
+			});
 		});
 
 		it("leaves delete off unless it is set", () => {
@@ -242,7 +257,12 @@ describe("normalizeOptions", () => {
 			expect(
 				normalize({ collections: { tags: { write: false, publish: false } } })
 					.collections[0],
-			).toMatchObject({ write: false, hasDrafts: false });
+			).toMatchObject({
+				write: false,
+				publish: false,
+				liveWrite: false,
+				hasDrafts: false,
+			});
 		});
 
 		it("ignores publish when write is off", () => {
@@ -263,28 +283,33 @@ describe("normalizeOptions", () => {
 		});
 	});
 
-	describe("the write mode", () => {
+	describe("the write flags", () => {
+		const off = { write: false, publish: false, liveWrite: false };
+		const drafted = { write: true, publish: false, liveWrite: false };
+		const published = { write: true, publish: true, liveWrite: false };
+		const live = { write: true, publish: false, liveWrite: true };
+
 		it.each([
-			["tags", { write: false }, false],
-			["pages", { write: false }, false],
-			["pages", {}, "live"],
-			["pages", { publish: false }, "draft"],
-			["tags", {}, "live"],
+			["tags", { write: false }, off],
+			["pages", { write: false }, off],
+			["pages", {}, published],
+			["pages", { publish: false }, drafted],
+			["tags", {}, live],
 		] as const)("maps %s with %j to %j", (slug, settings, expected) => {
 			expect(
-				normalize({ collections: { [slug]: settings } }).collections[0]?.write,
-			).toBe(expected);
+				normalize({ collections: { [slug]: settings } }).collections[0],
+			).toMatchObject(expected);
 		});
 
 		it("maps a global the same way", () => {
-			const write = (global: string, settings: object) =>
+			const flags = (global: string, settings: object) =>
 				normalize({ collections: {}, globals: { [global]: settings } })
-					.globals[0]?.write;
+					.globals[0];
 
-			expect(write("site-settings", {})).toBe("live");
-			expect(write("site-settings", { publish: false })).toBe("draft");
-			expect(write("banner", {})).toBe("live");
-			expect(write("banner", { write: false })).toBe(false);
+			expect(flags("site-settings", {})).toMatchObject(published);
+			expect(flags("site-settings", { publish: false })).toMatchObject(drafted);
+			expect(flags("banner", {})).toMatchObject(live);
+			expect(flags("banner", { write: false })).toMatchObject(off);
 		});
 	});
 
@@ -430,8 +455,8 @@ describe("normalizeOptions", () => {
 			);
 			expect(
 				normalize({ collections: { pages: { publish: false } } }, config)
-					.collections[0]?.write,
-			).toBe("draft");
+					.collections[0],
+			).toMatchObject({ write: true, publish: false });
 			expect(
 				normalize({ collections: { pages: { write: false } } }, config)
 					.collections[0]?.write,

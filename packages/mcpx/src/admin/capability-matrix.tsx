@@ -13,12 +13,8 @@ import {
 } from "@payloadcms/ui";
 import React, { useCallback, useMemo } from "react";
 
-import {
-	CAPABILITY_OPERATIONS,
-	capabilityPaths,
-	toolPath,
-} from "../api-keys/capability-matrix.js";
-import { CAPABILITIES_FIELD } from "../capabilities.js";
+import { capabilityPaths, toolPath } from "../api-keys/capability-matrix.js";
+import { ACCESS_CHAIN, CAPABILITIES_FIELD } from "../capabilities.js";
 import { translateStatic } from "../i18n.js";
 import {
 	accessLevelOf,
@@ -225,13 +221,11 @@ interface SegmentOption<T extends string> {
 
 const ACCESS_OPTIONS: SegmentOption<AccessLevel>[] = [
 	{ id: "none", label: "None", title: "No access" },
-	...CAPABILITY_OPERATIONS.filter((operation) => operation.id !== "delete").map(
-		(operation) => ({
-			id: operation.id,
-			label: operation.label,
-			title: operation.description,
-		}),
-	),
+	...ACCESS_CHAIN.map((operation) => ({
+		id: operation.id,
+		label: operation.label,
+		title: operation.description,
+	})),
 ];
 
 const ARROW_STEPS: Record<string, number> = {

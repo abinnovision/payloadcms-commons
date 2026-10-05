@@ -26,18 +26,6 @@ declare module "payload" {
 }
 
 /**
- * How far an exposed entity lets MCP writes reach.
- *
- * - `false`: no write tool touches it.
- * - `"draft"`: writes land as drafts and nothing MCP does changes what the
- *   public sees. Requires `versions.drafts`.
- * - `"live"`: MCP may change live content. On an entity with drafts that
- *   exposes `publishDocument`. On one without, there is no draft, so the write
- *   itself is permitted and lands live.
- */
-export type McpxWriteMode = "draft" | "live" | false;
-
-/**
  * What an entity exposes. The config names the entities that are reachable and
  * only takes capabilities away; a key's checkboxes decide per key. `true` is
  * shorthand for `{}`, which exposes everything the entity supports.
@@ -82,12 +70,12 @@ export type McpxToolExtra = RequestHandlerExtra<
 >;
 
 /**
- * What the config exposes, before an API key's checkboxes narrow it.
+ * What the config exposes, before an API key's checkboxes narrow it. The
+ * operations are the config's side of {@link McpxEntityCapabilities}: `write`
+ * covers draft and live writes, and `publish` is only true where drafts exist.
  */
-export interface McpxExposedEntity {
+export interface McpxExposedEntity extends McpxEntityCapabilities {
 	slug: string;
-	read: boolean;
-	write: McpxWriteMode;
 	hasDrafts: boolean;
 	/**
 	 * The entity has Payload `versions`, with or without drafts, and is
@@ -95,13 +83,9 @@ export interface McpxExposedEntity {
 	 */
 	hasVersions: boolean;
 	/**
-	 * The config exposes `deleteDocument`. Always `false` on a global.
+	 * Writes go live immediately, as the entity keeps no drafts.
 	 */
-	delete: boolean;
-	/**
-	 * The config lets a key move documents to trash without approval.
-	 */
-	deleteUnattended: boolean;
+	liveWrite: boolean;
 	/**
 	 * An upload document is a file, which only an upload grant can supply.
 	 */
@@ -387,9 +371,10 @@ export type McpxPluginOptions = {
 };
 
 /**
- * What a key may do with one entity. Globals reuse this shape.
+ * One entity's operations, as the config exposes them or as a key may use
+ * them. Globals reuse this shape.
  */
-export interface McpxCollectionCapabilities {
+export interface McpxEntityCapabilities {
 	read: boolean;
 	write: boolean;
 	/**
@@ -410,8 +395,8 @@ export interface McpxCollectionCapabilities {
  * In force for one request: the plugin config and the key checkboxes together.
  */
 export interface McpxResolvedCapabilities {
-	collections: Record<string, McpxCollectionCapabilities>;
-	globals: Record<string, McpxCollectionCapabilities>;
+	collections: Record<string, McpxEntityCapabilities>;
+	globals: Record<string, McpxEntityCapabilities>;
 	tools: Record<string, boolean>;
 }
 

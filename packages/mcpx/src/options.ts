@@ -9,7 +9,6 @@ import type {
 	McpxAnyTool,
 	McpxExposedEntity,
 	McpxPluginOptions,
-	McpxWriteMode,
 } from "./types.js";
 import type { CollectionConfig, Config, GlobalConfig } from "payload";
 
@@ -123,9 +122,9 @@ const readFlag = (
 const assertWritable = (
 	kind: string,
 	config: CollectionConfig | GlobalConfig,
-	write: McpxWriteMode,
+	publish: boolean,
 ): void => {
-	if (write === "live" && hasLocalizeStatusEnabled(config)) {
+	if (publish && hasLocalizeStatusEnabled(config)) {
 		fail(
 			`${kind} "${config.slug}" has versions.drafts.localizeStatus enabled, which live writes do not support yet. Set publish: false or write: false.`,
 		);
@@ -172,7 +171,14 @@ const normalizeCapabilities = (
 	raw: unknown,
 ): Pick<
 	McpxExposedEntity,
-	"delete" | "deleteUnattended" | "hasDrafts" | "hasVersions" | "read" | "write"
+	| "delete"
+	| "deleteUnattended"
+	| "hasDrafts"
+	| "hasVersions"
+	| "liveWrite"
+	| "publish"
+	| "read"
+	| "write"
 > => {
 	const { slug } = config;
 	const names: readonly string[] =
@@ -241,10 +247,10 @@ const normalizeCapabilities = (
 
 	return {
 		read,
-		/*
-		 * Without drafts a write changes live content, so it maps to "live" too.
-		 */
-		write: write ? (publish === false ? "draft" : "live") : false,
+		write,
+		// Without drafts there is nothing to publish and every write goes live.
+		publish: write && publish !== false && hasDrafts,
+		liveWrite: write && !hasDrafts,
 		hasDrafts,
 		hasVersions: read && Boolean(config.versions),
 		...deleting,
@@ -289,14 +295,14 @@ const normalizeCollections = (
 				fieldName: toCamelCase(slug),
 			};
 
-			if (normalized.write !== false) {
+			if (normalized.write) {
 				if (collection.timestamps === false) {
 					fail(
 						`Collection "${slug}" has timestamps disabled, which write tools need for concurrency checks.`,
 					);
 				}
 
-				assertWritable("Collection", collection, normalized.write);
+				assertWritable("Collection", collection, normalized.publish);
 			}
 
 			if (fieldNames.has(normalized.fieldName)) {
@@ -349,8 +355,8 @@ const normalizeGlobals = (
 			 * appends `createdAt`/`updatedAt`, so the concurrency check a collection
 			 * is held to is always available here.
 			 */
-			if (normalized.write !== false) {
-				assertWritable("Global", global, normalized.write);
+			if (normalized.write) {
+				assertWritable("Global", global, normalized.publish);
 			}
 
 			if (fieldNames.has(normalized.fieldName)) {

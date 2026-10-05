@@ -14,7 +14,9 @@ export const entity = (
 ): McpxExposedEntity => ({
 	slug,
 	read: true,
-	write: "draft",
+	write: true,
+	publish: false,
+	liveWrite: false,
 	hasDrafts: true,
 	hasVersions: overrides.hasDrafts ?? true,
 	delete: false,

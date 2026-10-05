@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { canCreate, isLiveWrite } from "../capabilities.js";
 import { acceptsFiles } from "../upload/file.js";
 
 import type { DocumentId } from "../entity.js";
@@ -113,7 +112,7 @@ export const slugsFor = (
 			return slugsWhere(
 				scope,
 				(entity) =>
-					canCreate(entity) &&
+					entity.write &&
 					(!entity.isUpload || acceptsFiles(scope, entity.slug)),
 				{ collections: scope.collections.writable, globals: [] },
 			);
@@ -158,7 +157,7 @@ export const liveWriteSlugs = (
 ): string[] => {
 	const { collections, globals } = slugsWhere(
 		scope,
-		isLiveWrite,
+		(entity) => entity.liveWrite,
 		slugsFor(scope, operation),
 	);
 
