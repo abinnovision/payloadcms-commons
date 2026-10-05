@@ -73,20 +73,26 @@ keys.
 
 ### The capability matrix
 
-The capability checkboxes render as one table per namespace (collections, globals, tools). An
-entity row carries an Access control with the segments None, Read, Write and Publish, where each
-level includes the ones before it, and on collections a Delete control with Off, Approval and
-Trash. Each segment explains itself in a tooltip. The "All" row above the entities offers
-the same controls and applies a pick to every row, capped at what each row exposes. While rows
-differ, it selects nothing. The tools table keeps a checkbox per tool.
+The capabilities sit in their own tab on the key form. The checkboxes render as one table per
+namespace (collections, globals, tools), side by side where the form is wide enough. A row names
+the entity by its admin label, in the admin's language, with the slug beneath. It carries an
+Access control with the segments None, Read, Write and Publish, where each level includes the ones
+before it, and on collections a Delete checkbox. Each control explains itself in a tooltip. The
+"All" row above the entities offers the same controls and applies a pick to every row, capped at
+what each row exposes. While rows differ, it selects nothing. The tools table keeps a checkbox per
+tool.
+
+A checked Delete shows a shield beside it. The shield on means the key's user approves each
+delete. Clicking it off moves documents to trash without approval, which is only possible where
+the collection sets `delete: "unattended"`; elsewhere the shield stays on. The "All" row has no
+shield, so no single click turns a whole namespace unattended.
 
 A segment the config does not expose is left out, so a `write: false` collection reads as a config
 decision rather than a refusal. Each grant needs the one before it: `publish` needs `write`, and
-`write` and `delete` need `read`. Picking Approval on a row without access raises it to Read, and
+`write` and `delete` need `read`. Checking Delete on a row without access raises it to Read, and
 setting access to None clears the delete. The Delete column appears only where a collection enables
-delete, and Trash only where it sets `delete: "unattended"`. The "All" control offers Off
-and Approval, never Trash. The controls write the stored checkboxes, the same
-`read`, `write`, `publish`, `delete` and `deleteUnattended` flags.
+delete. The controls write the stored checkboxes, the same `read`, `write`, `publish`, `delete`
+and `deleteUnattended` flags.
 
 ### Waiting calls
 

@@ -107,19 +107,19 @@ describe("api keys collection", () => {
 								collections: [
 									{
 										fieldName: "pages",
-										label: "pages",
+										slug: "pages",
 										read: true,
 										write: true,
 									},
 									{
 										fieldName: "posts",
-										label: "posts",
+										slug: "posts",
 										read: true,
 										write: true,
 									},
 									{
 										fieldName: "tags",
-										label: "tags",
+										slug: "tags",
 										read: true,
 										write: false,
 										publish: false,
@@ -172,7 +172,7 @@ describe("api keys collection", () => {
 
 	it("hides the guide tab on create and shows it on update", () => {
 		const [tabs] = collection.fields;
-		const guideTab = tabs?.type === "tabs" ? tabs.tabs[1] : undefined;
+		const guideTab = tabs?.type === "tabs" ? tabs.tabs[2] : undefined;
 		const condition = guideTab?.admin?.condition;
 
 		const args = (operation: Operation): Parameters<Condition>[2] => ({
@@ -187,15 +187,28 @@ describe("api keys collection", () => {
 		expect(condition?.({}, {}, args("update"))).toBe(true);
 	});
 
-	it("drops the tabs entirely when the guide is turned off", async () => {
+	it("keeps the capabilities in a tab of their own", () => {
+		const [tabs] = collection.fields;
+		const labels = tabs?.type === "tabs" ? tabs.tabs.map((t) => t.label) : [];
+
+		expect(labels).toEqual(["Key", "Capabilities", "Connect a client"]);
+		expect(
+			fieldNames(tabs?.type === "tabs" ? (tabs.tabs[1]?.fields ?? []) : []),
+		).toEqual(["capabilities"]);
+	});
+
+	it("drops only the guide tab when the guide is turned off", async () => {
 		const built = await buildFixtureConfig({
 			plugin: { apiKeys: { setupGuide: false } },
 		});
 		const without = built.collections.find((c) => c.slug === "mcpx-api-keys");
+		const [tabs] = without?.fields ?? [];
 
 		expect(fieldNames(without?.fields ?? [])).not.toContain("setupGuide");
-		expect(without?.fields.some((field) => field.type === "tabs")).toBe(false);
-		// The opt-out must leave the original flat layout untouched.
+		expect(tabs?.type === "tabs" ? tabs.tabs.map((t) => t.label) : []).toEqual([
+			"Key",
+			"Capabilities",
+		]);
 		expect(fieldNames(without?.fields ?? [])).toEqual(
 			expect.arrayContaining(["user", "label", "apiKey", "capabilities"]),
 		);

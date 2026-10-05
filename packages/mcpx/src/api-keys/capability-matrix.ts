@@ -10,10 +10,10 @@ import type { McpxExposedEntity } from "../types.js";
 
 /**
  * The group's `admin.description`, rendered by the matrix in Payload's
- * description slot. It explains how to read the segmented controls.
+ * description slot. It explains how to read the controls.
  */
 export const CAPABILITIES_DESCRIPTION =
-	"What this key may do. Each level includes the ones before it, and a missing segment means the plugin config does not expose it.";
+	"What this key may do. Each level includes the ones before it, and a missing segment means the plugin config does not expose it. A shield means this key's user approves each call.";
 
 /**
  * The operations a collection or global can expose. The generated checkboxes
@@ -44,7 +44,7 @@ export const CAPABILITY_OPERATIONS = [
 ] as const;
 
 /**
- * Stored as a checkbox of its own but drawn as the Trash segment of the Delete
+ * Stored as a checkbox of its own but drawn as the approval shield of the Delete
  * control.
  */
 const DELETE_UNATTENDED = {
@@ -79,7 +79,7 @@ export interface CapabilityRow {
 	/**
 	 * The slug, which is what MCP clients send and what refusals name.
 	 */
-	label: string;
+	slug: string;
 	read: boolean;
 	write: boolean;
 	publish: boolean;
@@ -109,7 +109,7 @@ export interface CapabilityMatrix {
 
 const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 	fieldName: entity.fieldName,
-	label: entity.slug,
+	slug: entity.slug,
 	read: entity.read,
 	write: canWrite(entity),
 	publish: canPublish(entity),

@@ -6,18 +6,20 @@ import {
 	FieldDescription,
 	FieldLabel,
 	Pill,
+	useConfig,
 	useForm,
 	useFormFields,
+	useTranslation,
 } from "@payloadcms/ui";
 import React, { useCallback, useMemo } from "react";
 
 import {
 	CAPABILITY_OPERATIONS,
 	capabilityPaths,
-	STORED_OPERATIONS,
 	toolPath,
 } from "../api-keys/capability-matrix.js";
 import { CAPABILITIES_FIELD } from "../capabilities.js";
+import { translateStatic } from "../i18n.js";
 import {
 	accessLevelOf,
 	accessLevelsOf,
@@ -32,14 +34,12 @@ import type {
 	AccessLevel,
 	CapabilityValues,
 	ColumnState,
-	DeleteMode,
 	ToggleIntent,
 } from "./capability-toggles.js";
 import type {
 	CapabilityMatrix,
 	CapabilityNamespace,
 	CapabilityRow,
-	StoredOperation,
 } from "../api-keys/capability-matrix.js";
 
 interface McpxCapabilityMatrixProps {
@@ -65,10 +65,9 @@ interface McpxCapabilityMatrixProps {
 const BASE_CLASS = "mcpx-capabilities";
 const LIVE_WRITE = "Writes go live immediately.";
 
-// Row hover, table spacing, and joining Payload buttons into one segmented control.
+// Row hover, the approval shield, and joining Payload buttons into one segmented control.
 const SHEET = `
 .${BASE_CLASS} tbody tr:hover { background: var(--theme-elevation-50); }
-.${BASE_CLASS} section:last-of-type { margin-bottom: 0; }
 .${BASE_CLASS}__segments {
 	display: inline-flex;
 	border: 1px solid var(--theme-elevation-150);
@@ -80,7 +79,21 @@ const SHEET = `
 .${BASE_CLASS}__segments .btn:first-child { border-start-start-radius: inherit; border-end-start-radius: inherit; }
 .${BASE_CLASS}__segments .btn:last-child { border-start-end-radius: inherit; border-end-end-radius: inherit; }
 .${BASE_CLASS}__segments .btn--style-transparent { --hover-bg: var(--theme-elevation-100); }
-.${BASE_CLASS}__segments .${BASE_CLASS}__danger { --bg-color: var(--theme-error-500); --hover-bg: var(--theme-error-600); }
+.${BASE_CLASS}__shield {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: calc(var(--base) * 0.2);
+	border: 0;
+	border-radius: var(--style-radius-s);
+	background: transparent;
+	color: var(--theme-elevation-800);
+	line-height: 0;
+	cursor: pointer;
+}
+.${BASE_CLASS}__shield:hover:not(:disabled) { background: var(--theme-elevation-100); }
+.${BASE_CLASS}__shield:disabled { cursor: not-allowed; opacity: 0.6; }
+.${BASE_CLASS}__shield.${BASE_CLASS}__danger { color: var(--theme-error-500); }
 `;
 
 /*
@@ -92,7 +105,13 @@ const EDGE_PADDING = "calc(var(--base) * 0.8)";
 
 // Payload's theme variables only, so light and dark themes both work.
 const styles = {
-	section: { marginBottom: "var(--base)" },
+	// Tables sit side by side where there is room and stack where there is not.
+	sections: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: "var(--base) calc(var(--base) * 2)",
+		alignItems: "flex-start",
+	},
 	/*
 	 * Sized to its columns, not the form. Separate borders keep the header's
 	 * corner radii reliable. The layout is fixed because a cell's `min-width` is
@@ -171,6 +190,11 @@ const styles = {
 		textAlign: "start",
 	},
 	lastCell: { paddingInlineEnd: EDGE_PADDING },
+	deleteControls: {
+		display: "inline-flex",
+		alignItems: "center",
+		gap: "calc(var(--base) * 0.4)",
+	},
 } as const satisfies Record<string, React.CSSProperties>;
 
 /*
@@ -193,10 +217,6 @@ const Box: React.FC<{
 	/>
 );
 
-const descriptionOf = (operation: StoredOperation): string | undefined =>
-	STORED_OPERATIONS.find((candidate) => candidate.id === operation)
-		?.description;
-
 interface SegmentOption<T extends string> {
 	id: T;
 	label: string;
@@ -212,12 +232,6 @@ const ACCESS_OPTIONS: SegmentOption<AccessLevel>[] = [
 			title: operation.description,
 		}),
 	),
-];
-
-const DELETE_OPTIONS: SegmentOption<DeleteMode>[] = [
-	{ id: "off", label: "Off", title: "No delete" },
-	{ id: "approve", label: "Approval", title: descriptionOf("delete") },
-	{ id: "trash", label: "Trash", title: descriptionOf("deleteUnattended") },
 ];
 
 const ARROW_STEPS: Record<string, number> = {
@@ -297,9 +311,6 @@ const Segments = <T extends string>({
 									? "pill"
 									: "transparent"
 						}
-						className={
-							checked && option.id === "trash" ? `${BASE_CLASS}__danger` : ""
-						}
 						disabled={readOnly}
 						extraButtonProps={{
 							"aria-checked": checked,
@@ -340,11 +351,11 @@ const accessOptions = (rows: CapabilityRow[]): SegmentOption<AccessLevel>[] =>
 		rows.some((row) => accessLevelsOf(row).includes(option.id)),
 	);
 
-// Both in `--base` multiples, so the columns keep Payload's rhythm.
-const LABEL_WIDTH = "calc(var(--base) * 9)";
+// In `--base` multiples, so the columns keep Payload's rhythm.
+const LABEL_WIDTH = "calc(var(--base) * 11)";
 const OPERATION_WIDTH = "calc(var(--base) * 3.5)";
 const ACCESS_WIDTH = "calc(var(--base) * 13)";
-const DELETE_WIDTH = "calc(var(--base) * 10)";
+const DELETE_WIDTH = "calc(var(--base) * 4)";
 
 // Fixed widths, so every table lines its columns up with the others.
 const Columns: React.FC<{ widths: string[] }> = ({ widths }) => (
@@ -374,6 +385,57 @@ const LiveBadge: React.FC = () => (
 	</span>
 );
 
+const APPROVED_ALWAYS =
+	"Always approved: the plugin config does not allow unattended deletes";
+
+/*
+ * A shield on a gated operation. Pressed means a person approves each call.
+ * Unpressed lets the call run unattended. `locked` pins it pressed.
+ */
+const ApprovalToggle: React.FC<{
+	label: string;
+	locked?: boolean;
+	onToggle: () => void;
+	operation: string;
+	pressed: boolean;
+	readOnly: boolean;
+}> = ({ label, locked = false, onToggle, operation, pressed, readOnly }) => {
+	const title = locked
+		? APPROVED_ALWAYS
+		: pressed
+			? `A person approves each ${operation}`
+			: `Each ${operation} runs without approval`;
+
+	return (
+		<button
+			aria-pressed={pressed}
+			className={[`${BASE_CLASS}__shield`, !pressed && `${BASE_CLASS}__danger`]
+				.filter(Boolean)
+				.join(" ")}
+			disabled={readOnly || locked}
+			onClick={onToggle}
+			title={title}
+			type="button"
+		>
+			<svg
+				aria-hidden="true"
+				fill="none"
+				height="16"
+				stroke="currentColor"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				strokeWidth="2"
+				viewBox="0 0 24 24"
+				width="16"
+			>
+				<path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z" />
+				{pressed ? <path d="M9 12l2 2 4-4" /> : null}
+			</svg>
+			<span style={styles.visuallyHidden}>{`${label}: ${title}`}</span>
+		</button>
+	);
+};
+
 interface TableProps {
 	matrix: CapabilityMatrix;
 	path: string;
@@ -395,9 +457,24 @@ const NamespaceTable: React.FC<
 	const allOptions = accessOptions(rows);
 	const allLevel = allAccessLevel(matrix, path, namespace.id, values);
 	const entries = namespace.title.toLowerCase();
+	const { i18n } = useTranslation();
+	const { getEntityConfig } = useConfig();
+
+	/*
+	 * Read from the client config, where Payload has already resolved function
+	 * labels and filled in its defaults.
+	 */
+	const nameOf = (row: CapabilityRow): string =>
+		translateStatic(
+			namespace.id === "collections"
+				? getEntityConfig({ collectionSlug: row.slug }).labels.plural
+				: getEntityConfig({ globalSlug: row.slug }).label,
+			i18n,
+		) ?? row.slug;
+	const allDelete = allDeleteMode(matrix, path, namespace.id, values);
 
 	return (
-		<section style={styles.section}>
+		<section>
 			<table style={styles.table}>
 				<Columns
 					widths={withDelete ? [ACCESS_WIDTH, DELETE_WIDTH] : [ACCESS_WIDTH]}
@@ -448,20 +525,26 @@ const NamespaceTable: React.FC<
 						</td>
 						{withDelete ? (
 							<td style={{ ...controlStyle(true), ...styles.rule }}>
-								<Segments
+								<Box
 									label={`Delete for every ${entries} entry`}
-									onSelect={(mode) => {
+									onChange={() => {
 										toggle({
 											kind: "deleteMode",
 											namespace: namespace.id,
-											mode,
+											mode:
+												allDelete === "off" || allDelete === undefined
+													? "approve"
+													: "off",
 										});
 									}}
-									options={DELETE_OPTIONS.filter(
-										(option) => option.id !== "trash",
-									)}
 									readOnly={readOnly}
-									selected={allDeleteMode(matrix, path, namespace.id, values)}
+									state={
+										allDelete === undefined
+											? "mixed"
+											: allDelete === "off"
+												? "off"
+												: "on"
+									}
 								/>
 							</td>
 						) : null}
@@ -471,17 +554,22 @@ const NamespaceTable: React.FC<
 					{rows.map((row) => {
 						const options = accessOptions([row]);
 						const level = accessLevelOf(path, namespace.id, row, values);
+						const mode = deleteModeOf(path, namespace.id, row, values);
+						const name = nameOf(row);
 
 						return (
 							<tr key={row.fieldName}>
 								<th scope="row" style={styles.rowHeader}>
-									{row.label}
+									{name}
 									{row.live ? <LiveBadge /> : null}
+									{name === row.slug ? null : (
+										<span style={styles.hint}>{row.slug}</span>
+									)}
 								</th>
 								<td style={controlStyle(!withDelete)}>
 									<Segments
 										included={includedBelow(options, level)}
-										label={`Access for ${row.label}`}
+										label={`Access for ${name}`}
 										onSelect={(next) => {
 											toggle({
 												kind: "access",
@@ -498,23 +586,38 @@ const NamespaceTable: React.FC<
 								{withDelete ? (
 									<td style={controlStyle(true)}>
 										{row.delete ? (
-											<Segments
-												label={`Delete for ${row.label}`}
-												onSelect={(mode) => {
-													toggle({
-														kind: "deleteMode",
-														namespace: namespace.id,
-														fieldName: row.fieldName,
-														mode,
-													});
-												}}
-												options={DELETE_OPTIONS.filter(
-													(option) =>
-														option.id !== "trash" || row.deleteUnattended,
+											<span style={styles.deleteControls}>
+												<Box
+													label={`Delete ${name}`}
+													onChange={() => {
+														toggle({
+															kind: "deleteMode",
+															namespace: namespace.id,
+															fieldName: row.fieldName,
+															mode: mode === "off" ? "approve" : "off",
+														});
+													}}
+													readOnly={readOnly}
+													state={mode === "off" ? "off" : "on"}
+												/>
+												{mode === "off" ? null : (
+													<ApprovalToggle
+														label={`Approval for deleting ${name}`}
+														locked={!row.deleteUnattended}
+														onToggle={() => {
+															toggle({
+																kind: "deleteMode",
+																namespace: namespace.id,
+																fieldName: row.fieldName,
+																mode: mode === "trash" ? "approve" : "trash",
+															});
+														}}
+														operation="delete"
+														pressed={mode !== "trash"}
+														readOnly={readOnly}
+													/>
 												)}
-												readOnly={readOnly}
-												selected={deleteModeOf(path, namespace.id, row, values)}
-											/>
+											</span>
 										) : null}
 									</td>
 								) : null}
@@ -537,7 +640,7 @@ const ToolsTable: React.FC<TableProps> = ({
 	const toolState = toolsState(matrix, path, values);
 
 	return (
-		<section style={styles.section}>
+		<section>
 			<table style={styles.table}>
 				<Columns widths={[OPERATION_WIDTH]} />
 				<thead style={styles.head}>
@@ -601,7 +704,8 @@ const ToolsTable: React.FC<TableProps> = ({
 
 /**
  * What an API key may do, as one table per namespace: a row per entity with
- * segmented Access and Delete controls, and an "All" row that sets every row.
+ * an Access control and a Delete checkbox with an approval shield, and an
+ * "All" row that sets every row.
  * The nested checkbox fields back every control, so the stored document is
  * unaffected.
  */
@@ -671,9 +775,11 @@ export const McpxCapabilityMatrix: React.FC<McpxCapabilityMatrixProps> = ({
 			<div className="group-field__wrap">
 				<div className="group-field__header">
 					<header>
-						<h3 className="group-field__title">
-							<FieldLabel as="span" label="Capabilities" />
-						</h3>
+						{withinTab ? null : (
+							<h3 className="group-field__title">
+								<FieldLabel as="span" label="Capabilities" />
+							</h3>
+						)}
 						{/*
 						 * Read off the field rather than hardcoded, so a consumer who
 						 * rewords it through `overrideCollection` is honoured.
@@ -686,26 +792,28 @@ export const McpxCapabilityMatrix: React.FC<McpxCapabilityMatrixProps> = ({
 						) : null}
 					</header>
 				</div>
-				{namespaces.map((namespace) => (
-					<NamespaceTable
-						key={namespace.id}
-						matrix={matrix}
-						namespace={namespace}
-						path={path}
-						readOnly={readOnly}
-						toggle={toggle}
-						values={values}
-					/>
-				))}
-				{matrix.tools.length > 0 ? (
-					<ToolsTable
-						matrix={matrix}
-						path={path}
-						readOnly={readOnly}
-						toggle={toggle}
-						values={values}
-					/>
-				) : null}
+				<div style={styles.sections}>
+					{namespaces.map((namespace) => (
+						<NamespaceTable
+							key={namespace.id}
+							matrix={matrix}
+							namespace={namespace}
+							path={path}
+							readOnly={readOnly}
+							toggle={toggle}
+							values={values}
+						/>
+					))}
+					{matrix.tools.length > 0 ? (
+						<ToolsTable
+							matrix={matrix}
+							path={path}
+							readOnly={readOnly}
+							toggle={toggle}
+							values={values}
+						/>
+					) : null}
+				</div>
 			</div>
 		</div>
 	);

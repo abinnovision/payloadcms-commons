@@ -18,7 +18,7 @@ const matrix: CapabilityMatrix = {
 	collections: [
 		{
 			fieldName: "pages",
-			label: "pages",
+			slug: "pages",
 			read: true,
 			write: true,
 			publish: true,
@@ -27,7 +27,7 @@ const matrix: CapabilityMatrix = {
 		},
 		{
 			fieldName: "posts",
-			label: "posts",
+			slug: "posts",
 			read: true,
 			write: true,
 			publish: false,
@@ -36,7 +36,7 @@ const matrix: CapabilityMatrix = {
 		},
 		{
 			fieldName: "tags",
-			label: "tags",
+			slug: "tags",
 			read: true,
 			write: false,
 			publish: false,
@@ -45,7 +45,7 @@ const matrix: CapabilityMatrix = {
 		},
 		{
 			fieldName: "media",
-			label: "media",
+			slug: "media",
 			read: true,
 			write: true,
 			publish: false,
@@ -56,7 +56,7 @@ const matrix: CapabilityMatrix = {
 	globals: [
 		{
 			fieldName: "siteSettings",
-			label: "site-settings",
+			slug: "site-settings",
 			read: true,
 			write: true,
 			publish: true,
@@ -122,7 +122,7 @@ describe("createCapabilityMatrix", () => {
 		expect(createCapabilityMatrix(options).collections).toEqual([
 			{
 				fieldName: "pages",
-				label: "pages",
+				slug: "pages",
 				read: true,
 				write: true,
 				publish: true,
@@ -131,7 +131,7 @@ describe("createCapabilityMatrix", () => {
 			},
 			{
 				fieldName: "media",
-				label: "media",
+				slug: "media",
 				read: true,
 				write: true,
 				publish: false,
@@ -140,7 +140,7 @@ describe("createCapabilityMatrix", () => {
 			},
 			{
 				fieldName: "tags",
-				label: "tags",
+				slug: "tags",
 				read: true,
 				write: false,
 				publish: false,
@@ -149,7 +149,7 @@ describe("createCapabilityMatrix", () => {
 			},
 			{
 				fieldName: "snippets",
-				label: "snippets",
+				slug: "snippets",
 				read: true,
 				write: true,
 				publish: false,
@@ -164,7 +164,7 @@ describe("createCapabilityMatrix", () => {
 	it("marks only rows whose writes go live", () => {
 		const rows = createCapabilityMatrix(options).collections;
 
-		expect(rows.filter((row) => row.live).map((row) => row.label)).toEqual([
+		expect(rows.filter((row) => row.live).map((row) => row.slug)).toEqual([
 			"snippets",
 		]);
 	});

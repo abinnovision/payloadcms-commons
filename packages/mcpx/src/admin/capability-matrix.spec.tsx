@@ -5,7 +5,10 @@ import type { CapabilityMatrix } from "../api-keys/capability-matrix.js";
 
 type Fields = Record<string, { value: unknown } | undefined>;
 
-const state: { fields: Fields } = { fields: {} };
+const state: { fields: Fields; language: string } = {
+	fields: {},
+	language: "en",
+};
 
 /*
  * The real module pulls in the whole admin bundle, including SCSS. Only what
@@ -63,7 +66,27 @@ vi.mock("@payloadcms/ui", () => ({
 	Pill: ({ children }: { children?: React.ReactNode }) => (
 		<div className="pill">{children}</div>
 	),
+	useConfig: () => ({
+		getEntityConfig: ({
+			collectionSlug,
+			globalSlug,
+		}: {
+			collectionSlug?: string;
+			globalSlug?: string;
+		}) => ({
+			label: globalSlug,
+			labels: {
+				plural:
+					collectionSlug === "bins"
+						? { en: "Bins", de: "Behälter" }
+						: collectionSlug,
+			},
+		}),
+	}),
 	useForm: () => ({ dispatchFields: vi.fn(), setModified: vi.fn() }),
+	useTranslation: () => ({
+		i18n: { fallbackLanguage: "en", language: state.language },
+	}),
 	useFormFields: (selector: (args: [Fields]) => unknown) =>
 		selector([state.fields]),
 }));
@@ -74,7 +97,7 @@ const matrix: CapabilityMatrix = {
 	collections: [
 		{
 			fieldName: "pages",
-			label: "pages",
+			slug: "pages",
 			read: true,
 			write: true,
 			publish: true,
@@ -83,7 +106,7 @@ const matrix: CapabilityMatrix = {
 		},
 		{
 			fieldName: "tags",
-			label: "tags",
+			slug: "tags",
 			read: true,
 			write: false,
 			publish: false,
@@ -92,7 +115,7 @@ const matrix: CapabilityMatrix = {
 		},
 		{
 			fieldName: "bins",
-			label: "bins",
+			slug: "bins",
 			read: true,
 			write: false,
 			publish: false,
@@ -100,8 +123,17 @@ const matrix: CapabilityMatrix = {
 			deleteUnattended: true,
 		},
 		{
+			fieldName: "crates",
+			slug: "crates",
+			read: true,
+			write: false,
+			publish: false,
+			delete: true,
+			deleteUnattended: false,
+		},
+		{
 			fieldName: "media",
-			label: "media",
+			slug: "media",
 			read: true,
 			write: true,
 			publish: false,
@@ -113,7 +145,7 @@ const matrix: CapabilityMatrix = {
 	globals: [
 		{
 			fieldName: "siteSettings",
-			label: "site-settings",
+			slug: "site-settings",
 			read: true,
 			write: false,
 			publish: false,
@@ -154,6 +186,18 @@ const included = (html: string): string[] =>
 		(match) => match[1]!,
 	);
 
+// The checkbox of a control, by its accessible name.
+const checkbox = (html: string, name: string): string =>
+	html.match(new RegExp(`<input[^>]*aria-label="${name}"[^>]*>`))?.[0] ?? "";
+
+// The approval shield of a delete control, by its accessible label.
+const shield = (html: string, name: string): string =>
+	html.match(
+		new RegExp(
+			`<button[^>]*class="[^"]*__shield[^"]*"[^>]*>(?:(?!</button>).)*${name}`,
+		),
+	)?.[0] ?? "";
+
 const render = (
 	props: Partial<{
 		field: { admin?: { description?: unknown } };
@@ -165,11 +209,20 @@ const render = (
 describe("the McpxCapabilityMatrix component", () => {
 	beforeEach(() => {
 		state.fields = {};
+		state.language = "en";
 	});
 
 	/* The custom Field replaces the group's rendering, title included. */
 	it("titles the group", () => {
 		expect(render()).toContain(">Capabilities<");
+	});
+
+	it("leaves the title to the tab when it sits in one", () => {
+		const html = renderToStaticMarkup(
+			<McpxCapabilityMatrix matrix={matrix} withinTab />,
+		);
+
+		expect(html).not.toContain(">Capabilities<");
 	});
 
 	/*
@@ -188,13 +241,28 @@ describe("the McpxCapabilityMatrix component", () => {
 		for (const label of [
 			"pages",
 			"tags",
-			"bins",
+			"Bins",
 			"media",
 			"site-settings",
 			"echo",
 		]) {
 			expect(html).toContain(`>${label}<`);
 		}
+	});
+
+	it("shows the label in the admin language with the slug beneath", () => {
+		const html = render();
+
+		expect(html).toContain(">Bins<");
+		expect(html).toMatch(/<span[^>]*>bins<\/span>/);
+		expect(html).toContain("Access for Bins");
+
+		state.language = "de";
+		expect(render()).toContain(">Behälter<");
+	});
+
+	it("shows the slug alone where the label matches it", () => {
+		expect(render()).not.toMatch(/<span[^>]*>pages<\/span>/);
 	});
 
 	it("draws no dashes", () => {
@@ -219,26 +287,73 @@ describe("the McpxCapabilityMatrix component", () => {
 		]);
 	});
 
-	it("draws a Delete control only for collections that expose delete", () => {
+	it("draws a Delete checkbox only for collections that expose delete", () => {
 		const html = render();
 
-		expect(group(html, "Delete for bins")).not.toBe("");
-		expect(group(html, "Delete for pages")).toBe("");
-		expect(html).not.toContain("Delete for site-settings");
+		expect(checkbox(html, "Delete Bins")).not.toBe("");
+		expect(checkbox(html, "Delete pages")).toBe("");
+		expect(html).not.toContain("Delete site-settings");
 		expect(html).not.toContain("Delete for every globals entry");
 	});
 
-	it("offers trash only where the config allows it, and never for all", () => {
+	it("checks Delete for approval and shows the shield pressed", () => {
+		grant(
+			"capabilities.collections.bins.read",
+			"capabilities.collections.bins.delete",
+		);
 		const html = render();
 
-		expect(segments(group(html, "Delete for bins"))).toEqual([
-			"Off",
-			"Approval",
-			"Trash",
-		]);
-		expect(segments(group(html, "Delete for every collections entry"))).toEqual(
-			["Off", "Approval"],
+		expect(checkbox(html, "Delete Bins")).toContain('data-state="on"');
+		expect(shield(html, "Approval for deleting Bins")).toContain(
+			'aria-pressed="true"',
 		);
+		expect(shield(html, "Approval for deleting Bins")).not.toContain(
+			"mcpx-capabilities__danger",
+		);
+	});
+
+	it("shows the shield unpressed and dangerous for a direct trash", () => {
+		grant(
+			"capabilities.collections.bins.read",
+			"capabilities.collections.bins.delete",
+			"capabilities.collections.bins.deleteUnattended",
+		);
+		const bins = shield(render(), "Approval for deleting Bins");
+
+		expect(bins).toContain('aria-pressed="false"');
+		expect(bins).toContain("mcpx-capabilities__danger");
+	});
+
+	it("draws no shield while Delete is off", () => {
+		const html = render();
+
+		expect(checkbox(html, "Delete Bins")).toContain('data-state="off"');
+		expect(html).not.toContain("Approval for deleting");
+	});
+
+	it("pins the shield pressed where the config disallows unattended deletes", () => {
+		grant(
+			"capabilities.collections.crates.read",
+			"capabilities.collections.crates.delete",
+		);
+		const crates = shield(render(), "Approval for deleting crates");
+
+		expect(crates).toContain('aria-pressed="true"');
+		expect(crates).toContain('disabled=""');
+		expect(crates).toContain("does not allow unattended deletes");
+	});
+
+	it("marks the All delete checkbox mixed while rows differ", () => {
+		grant(
+			"capabilities.collections.bins.read",
+			"capabilities.collections.bins.delete",
+		);
+		const html = render();
+
+		expect(checkbox(html, "Delete for every collections entry")).toContain(
+			'data-state="mixed"',
+		);
+		expect(html).not.toContain("Approval for deleting every");
 	});
 
 	it("selects the granted level and marks the ones it includes", () => {
@@ -251,18 +366,6 @@ describe("the McpxCapabilityMatrix component", () => {
 		expect(checked(pages)).toBe("Write");
 		expect(included(pages)).toEqual(["Read"]);
 		expect(pages.match(/role="radio"/g)).toHaveLength(4);
-	});
-
-	it("marks a selected trash as dangerous", () => {
-		grant(
-			"capabilities.collections.bins.read",
-			"capabilities.collections.bins.delete",
-			"capabilities.collections.bins.deleteUnattended",
-		);
-		const bins = group(render(), "Delete for bins");
-
-		expect(checked(bins)).toBe("Trash");
-		expect(bins).toContain("mcpx-capabilities__danger");
 	});
 
 	it("selects nothing in the All control while rows differ", () => {

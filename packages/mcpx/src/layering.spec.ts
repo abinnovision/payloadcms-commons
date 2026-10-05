@@ -48,6 +48,7 @@ const ADMIN_MAY_IMPORT = [
 	"api-keys/confirmation-view.ts",
 	"api-keys/setup-guide.ts",
 	"capabilities.ts",
+	"i18n.ts",
 ];
 
 const pathOf = (file: string): string => relative(here, file);
