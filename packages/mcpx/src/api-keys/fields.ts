@@ -12,6 +12,7 @@ import type {
 	Field,
 	FieldHook,
 	GroupField,
+	Tab,
 	TypeWithID,
 } from "payload";
 
@@ -146,55 +147,55 @@ export const createConfirmationFields = (
 		: [];
 
 /**
- * Wraps the key fields and the setup guide in unnamed tabs, so wide snippets
- * get the full form width. Named tabs would nest the data and move
- * `capabilities` off the document root, which capability resolution reads.
+ * Wraps the key fields, the capabilities and the setup guide in unnamed tabs,
+ * so wide tables and snippets get the full form width. Named tabs would nest
+ * the data and move `capabilities` off the document root, which capability
+ * resolution reads.
  *
  * The guide tab only shows on update: on create there is no key to hand out.
  */
-export const withSetupGuideTab = (
+export const withKeyTabs = (
 	keyFields: Field[],
+	capabilityFields: Field[],
 	options: NormalizedOptions,
 ): Field[] => {
-	if (!options.setupGuide) {
-		return keyFields;
+	const tabs: Tab[] = [{ label: "Key", fields: keyFields }];
+
+	if (capabilityFields.length > 0) {
+		tabs.push({ label: "Capabilities", fields: capabilityFields });
 	}
 
-	return [
-		{
-			type: "tabs",
-			tabs: [
-				{ label: "Key", fields: keyFields },
+	if (options.setupGuide) {
+		tabs.push({
+			label: "Connect a client",
+			admin: {
+				condition: (_data, _siblingData, { operation }) =>
+					operation === "update",
+			},
+			fields: [
 				{
-					label: "Connect a client",
+					name: SETUP_GUIDE_FIELD,
+					/*
+					 * A `ui` field carries no value: the component builds every
+					 * snippet client-side from form state and the admin config.
+					 */
+					type: "ui",
 					admin: {
-						condition: (_data, _siblingData, { operation }) =>
-							operation === "update",
-					},
-					fields: [
-						{
-							name: SETUP_GUIDE_FIELD,
-							/*
-							 * A `ui` field carries no value: the component builds every
-							 * snippet client-side from form state and the admin config.
-							 */
-							type: "ui",
-							admin: {
-								disableListColumn: true,
-								components: {
-									Field: {
-										path: "@abinnovision/payloadcms-mcpx/admin",
-										exportName: "McpxSetupGuide",
-										clientProps: { endpointPath: options.endpointPath },
-									},
-								},
+						disableListColumn: true,
+						components: {
+							Field: {
+								path: "@abinnovision/payloadcms-mcpx/admin",
+								exportName: "McpxSetupGuide",
+								clientProps: { endpointPath: options.endpointPath },
 							},
 						},
-					],
+					},
 				},
 			],
-		},
-	];
+		});
+	}
+
+	return [{ type: "tabs", tabs }];
 };
 
 /**
@@ -214,7 +215,7 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 		rows.map((row) => ({
 			name: row.fieldName,
 			type: "group",
-			label: row.label,
+			label: row.slug,
 			fields: STORED_OPERATIONS.filter((operation) => row[operation.id]).map(
 				(operation) => checkbox(operation.id, operation.description),
 			),
@@ -272,7 +273,7 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 						 * `withinTab` is needed because Payload drops a group's outer
 						 * border only when the group sits at a tab's edge.
 						 */
-						clientProps: { matrix, withinTab: options.setupGuide },
+						clientProps: { matrix, withinTab: true },
 					},
 				},
 			},

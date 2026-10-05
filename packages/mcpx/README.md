@@ -145,7 +145,7 @@ each one is readable, writable and publishable. A key cannot go past it.
 Each key carries one checkbox per exposed entity and operation (`read`, `write`, `publish`,
 `delete`, `deleteUnattended`), and
 one per custom tool. The admin panel shows them as a matrix with a row per entity, an Access
-control (None, Read, Write, Publish) and a Delete control (Off, Approval, Trash). Each access level
+control (None, Read, Write, Publish) and a Delete checkbox with an approval shield. Each access level
 includes the ones before it, and a level the config does not expose has no segment. `publish`
 exists only where the config exposes `write` and `publish` on an entity with drafts, and counts
 only when `write` is ticked as well. `write` counts only when `read` is ticked, so a key never
@@ -154,7 +154,7 @@ immediately.
 `delete` exists only where the config sets `delete: true` on a collection, and counts only when
 `read` is ticked as well. Setting access to None clears it. A delete runs only after the key's user
 approved it on the key's edit view, except where the config sets `delete: "unattended"` and the
-key's Delete control is set to Trash: there the document moves to trash at once. See
+key's approval shield is off: there the document moves to trash at once. See
 [deleting](./docs/concepts.md#deleting).
 
 `tools/list` follows the key. A tool the key cannot use is not listed, and each `collection` and

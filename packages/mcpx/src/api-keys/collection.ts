@@ -2,7 +2,7 @@ import {
 	createCapabilityFields,
 	createConfirmationFields,
 	createKeyFields,
-	withSetupGuideTab,
+	withKeyTabs,
 } from "./fields.js";
 import { generateApiKey, hashApiKey } from "./key.js";
 
@@ -77,7 +77,7 @@ export const createApiKeysCollection = (
 		},
 		fields: [
 			...createConfirmationFields(options),
-			...withSetupGuideTab(
+			...withKeyTabs(
 				[
 					{
 						name: "user",
@@ -95,8 +95,8 @@ export const createApiKeysCollection = (
 						},
 					},
 					...createKeyFields(),
-					...createCapabilityFields(options),
 				],
+				createCapabilityFields(options),
 				options,
 			),
 		],

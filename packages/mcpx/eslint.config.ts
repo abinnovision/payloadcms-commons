@@ -44,9 +44,9 @@ export default defineConfig([
 						},
 						{
 							regex:
-								"^\\.\\./(?!(?:api-keys/capability-matrix|api-keys/confirmation-view|api-keys/setup-guide|capabilities)\\.js$)",
+								"^\\.\\./(?!(?:api-keys/capability-matrix|api-keys/confirmation-view|api-keys/setup-guide|capabilities|i18n)\\.js$)",
 							message:
-								"./admin may import only api-keys/capability-matrix, api-keys/confirmation-view, api-keys/setup-guide and capabilities from the rest of src/, which are plain data and pure functions.",
+								"./admin may import only api-keys/capability-matrix, api-keys/confirmation-view, api-keys/setup-guide, capabilities and i18n from the rest of src/, which are plain data and pure functions.",
 						},
 					],
 				},
