@@ -1,10 +1,11 @@
 import { isPlainObject } from "../guards.js";
+import { editorRoot } from "../schema/index.js";
 
 import type { JsonObject } from "payload";
 
 // A rich text state's nodes manage their own ids, so it is never descended into.
 const isRichTextState = (value: Record<string, unknown>): boolean =>
-	isPlainObject(value["root"]) && Array.isArray(value["root"]["children"]);
+	Array.isArray(editorRoot(value)?.["children"]);
 
 // A row is a plain object carrying `blockType`, or one sitting in an array.
 const walkRows = (

@@ -9,6 +9,7 @@ import {
 	takeTrashIntent,
 	withTrashIntent,
 } from "./publish-intent.js";
+import { propOf } from "../guards.js";
 import { isMcpxRequest } from "../request.js";
 
 import type {
@@ -173,7 +174,7 @@ const refuseUnlessExpected = (
 		return;
 	}
 
-	const status = (data as { _status?: unknown })._status;
+	const status = propOf(data, "_status");
 	const expected = publishing ? "published" : "draft";
 
 	if (status === expected) {
@@ -218,33 +219,53 @@ export const refusePublishGlobal: GlobalBeforeChangeHook = ({
 	return next;
 };
 
-/**
- * Attaches the draft guard to every collection: `forceDraftWrite` everywhere
- * (it does nothing outside MCP requests) and `refusePublish` wherever drafts
- * exist. It runs on the final collection list, so no collection escapes it, and
- * both hooks are appended last, so a user hook cannot override them.
+interface Guarded<Operation, Change> {
+	hooks?: { beforeChange?: Change[]; beforeOperation?: Operation[] };
+}
+
+/*
+ * The operation guard goes on every entity and the change guard wherever drafts
+ * exist. Both are appended last, so a user hook cannot override them.
  */
-export const installDraftGuards = (
-	collections: CollectionConfig[],
-): CollectionConfig[] =>
-	collections.map((collection) => ({
-		...collection,
+const appendGuards = <
+	Operation,
+	Change,
+	T extends Guarded<Operation, Change> & Parameters<typeof hasDraftsEnabled>[0],
+>(
+	entities: T[],
+	guards: { beforeChange: Change; beforeOperation: Operation },
+): T[] =>
+	entities.map((entity) => ({
+		...entity,
 		hooks: {
-			...collection.hooks,
+			...entity.hooks,
 			beforeOperation: [
-				...(collection.hooks?.beforeOperation ?? []),
-				forceDraftWrite,
+				...(entity.hooks?.beforeOperation ?? []),
+				guards.beforeOperation,
 			],
-			...(hasDraftsEnabled(collection)
+			...(hasDraftsEnabled(entity)
 				? {
 						beforeChange: [
-							...(collection.hooks?.beforeChange ?? []),
-							refusePublish,
+							...(entity.hooks?.beforeChange ?? []),
+							guards.beforeChange,
 						],
 					}
 				: {}),
 		},
 	}));
+
+/**
+ * Attaches the draft guard to every collection: `forceDraftWrite` everywhere
+ * (it does nothing outside MCP requests) and `refusePublish` wherever drafts
+ * exist. It runs on the final collection list, so no collection escapes it.
+ */
+export const installDraftGuards = (
+	collections: CollectionConfig[],
+): CollectionConfig[] =>
+	appendGuards(collections, {
+		beforeChange: refusePublish,
+		beforeOperation: forceDraftWrite,
+	});
 
 /**
  * Attaches the guard to every global, exposed or not: a custom tool running on
@@ -254,21 +275,7 @@ export const installDraftGuards = (
 export const installGlobalDraftGuards = (
 	globals: GlobalConfig[],
 ): GlobalConfig[] =>
-	globals.map((global) => ({
-		...global,
-		hooks: {
-			...global.hooks,
-			beforeOperation: [
-				...(global.hooks?.beforeOperation ?? []),
-				forceDraftWriteGlobal,
-			],
-			...(hasDraftsEnabled(global)
-				? {
-						beforeChange: [
-							...(global.hooks?.beforeChange ?? []),
-							refusePublishGlobal,
-						],
-					}
-				: {}),
-		},
-	}));
+	appendGuards(globals, {
+		beforeChange: refusePublishGlobal,
+		beforeOperation: forceDraftWriteGlobal,
+	});

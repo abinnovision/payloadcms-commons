@@ -2,11 +2,11 @@ import { SchemaError } from "./errors.js";
 import { lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
 import { joinPath, splitPath } from "./path.js";
 import {
-	blockOf,
 	blockSlugsOf,
 	describeFields,
-	findBlocksField,
-	findRichTextField,
+	findFieldAt,
+	longestMatch,
+	requireBlock,
 	schemaOf,
 } from "./walk.js";
 import { translateAny } from "../i18n.js";
@@ -42,17 +42,6 @@ interface Branch {
 	token: string;
 }
 
-const matchSchemaSegments = (
-	descriptors: FieldDescriptor[],
-	remaining: readonly string[],
-): string[] | undefined =>
-	descriptors
-		.map((descriptor) => splitPath(descriptor.path))
-		.filter((parts) =>
-			parts.every((part, offset) => part === remaining[offset]),
-		)
-		.sort((left, right) => right.length - left.length)[0];
-
 /*
  * A position mid-walk: the fields in scope, the descriptor path matched there,
  * and the segments still to consume.
@@ -76,7 +65,7 @@ const stepThroughBlocks = ({
 	match,
 	remaining,
 }: StepAt): Step => {
-	const field = findBlocksField(fields, match);
+	const field = findFieldAt(fields, match, "blocks");
 
 	// The match came from these fields, so a miss is a fault in the walk.
 	if (!field) {
@@ -91,13 +80,7 @@ const stepThroughBlocks = ({
 		);
 	}
 
-	const block = blockOf(config, field, slug);
-
-	if (!block) {
-		throw new SchemaError(
-			`"${slug}" is not allowed at "${joinPath(match)}". Allowed: ${blockSlugsOf(field).join(", ")}`,
-		);
-	}
+	const block = requireBlock(config, field, slug, joinPath(match));
 
 	return {
 		blockType: slug,
@@ -117,7 +100,7 @@ const stepThroughLexical = ({
 	match,
 	remaining,
 }: StepAt): Step => {
-	const field = findRichTextField(fields, match);
+	const field = findFieldAt(fields, match, "richText");
 
 	// The match came from these fields, so a miss is a fault in the walk.
 	if (!field) {
@@ -147,21 +130,14 @@ const stepThroughLexical = ({
 	}
 
 	const slug = remaining.at(match.length + 1);
-	const slugs = blockSlugsOf(sub.blocksField).join(", ");
 
 	if (slug === undefined) {
 		throw new SchemaError(
-			`"${reached}" selects a block; append one of: ${slugs}`,
+			`"${reached}" selects a block; append one of: ${blockSlugsOf(sub.blocksField).join(", ")}`,
 		);
 	}
 
-	const block = blockOf(config, sub.blocksField, slug);
-
-	if (!block) {
-		throw new SchemaError(
-			`"${slug}" is not allowed at "${reached}". Allowed: ${slugs}`,
-		);
-	}
+	const block = requireBlock(config, sub.blocksField, slug, reached);
 
 	return {
 		blockType: slug,
@@ -197,9 +173,13 @@ const fieldsAtSchemaPath = (
 		 * A field's own path may span several segments (`/layout/sections`), so
 		 * the longest match is taken.
 		 */
-		const match = matchSchemaSegments(descendable, remaining);
+		const found = longestMatch(
+			descendable,
+			remaining,
+			(part, segment) => part === segment,
+		);
 
-		if (!match) {
+		if (!found) {
 			throw new SchemaError(
 				`"${joinPath(remaining)}" does not address a blocks or rich text field. Available here: ${
 					descendable.map((descriptor) => descriptor.path).join(", ") || "none"
@@ -207,11 +187,11 @@ const fieldsAtSchemaPath = (
 			);
 		}
 
-		const at = { config, fields, match, remaining };
+		const at = { config, fields, match: found.parts, remaining };
 		const step =
-			findBlocksField(fields, match) === undefined
-				? stepThroughLexical(at)
-				: stepThroughBlocks(at);
+			found.descriptor.type === "blocks"
+				? stepThroughBlocks(at)
+				: stepThroughLexical(at);
 
 		blockType = step.blockType;
 		fields = step.fields;
@@ -233,7 +213,7 @@ const branchesOf = (
 	const base = `${schemaPath}${descriptor.path}`;
 
 	if (descriptor.type === "richText") {
-		const field = findRichTextField(fields, splitPath(descriptor.path));
+		const field = findFieldAt(fields, splitPath(descriptor.path), "richText");
 
 		if (!field) {
 			return [];

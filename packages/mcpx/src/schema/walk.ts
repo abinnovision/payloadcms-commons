@@ -1,7 +1,9 @@
 import { fieldIsHiddenOrDisabled, fieldIsVirtual } from "payload/shared";
 
+import { SchemaError } from "./errors.js";
 import { allowedNodeTypes, nodeOptions } from "./lexical.js";
 import { joinPath, splitPath } from "./path.js";
+import { propOf } from "../guards.js";
 import { translateAny } from "../i18n.js";
 
 import type { NodeOptions } from "./lexical.js";
@@ -112,8 +114,37 @@ export const blockOf = (
  * Payload's `fieldIsHiddenOrDisabled` reads `hidden` and `admin.disabled`, not
  * `admin.hidden`, which its own upload base fields carry.
  */
-export const isAdminHidden = (field: FlattenedField): boolean =>
-	"admin" in field && field.admin.hidden === true;
+export const adminFlag = (
+	field: FlattenedField,
+	key: "hidden" | "readOnly",
+): boolean => "admin" in field && field.admin[key] === true;
+
+export const blockForRow = (
+	config: SanitizedConfig,
+	field: FlattenedBlocksField,
+	row: unknown,
+): FlattenedBlock | undefined => {
+	const slug = propOf(row, "blockType");
+
+	return typeof slug === "string" ? blockOf(config, field, slug) : undefined;
+};
+
+export const requireBlock = (
+	config: SanitizedConfig,
+	field: FlattenedBlocksField,
+	slug: string,
+	at: string,
+): FlattenedBlock => {
+	const block = blockOf(config, field, slug);
+
+	if (!block) {
+		throw new SchemaError(
+			`"${slug}" is not allowed at "${at}". Allowed: ${blockSlugsOf(field).join(", ")}`,
+		);
+	}
+
+	return block;
+};
 
 // A field kept out of the admin panel is kept out of the MCP surface too.
 const isSkipped = (field: FlattenedField): boolean =>
@@ -121,11 +152,8 @@ const isSkipped = (field: FlattenedField): boolean =>
 	field.type === "join" ||
 	RESERVED_FIELD_NAMES.has(field.name) ||
 	fieldIsVirtual(field) ||
-	isAdminHidden(field) ||
+	adminFlag(field, "hidden") ||
 	fieldIsHiddenOrDisabled(field as Field | TabAsField);
-
-const isReadOnly = (field: FlattenedField): boolean =>
-	"admin" in field && field.admin.readOnly === true;
 
 /*
  * Where one field sits in the walk: its resolved path, whether anything above
@@ -259,6 +287,26 @@ export const describeFields = (
 	fields: FlattenedField[],
 	translate: Translate = translateAny,
 ): FieldDescriptor[] => {
+	if (translate !== translateAny) {
+		return describeWith(fields, translate);
+	}
+
+	let described = describedByFields.get(fields);
+
+	if (!described) {
+		described = describeWith(fields, translate);
+		describedByFields.set(fields, described);
+	}
+
+	return described;
+};
+
+const describedByFields = new WeakMap<FlattenedField[], FieldDescriptor[]>();
+
+const describeWith = (
+	fields: FlattenedField[],
+	translate: Translate,
+): FieldDescriptor[] => {
 	const walk = (
 		current: FlattenedField[],
 		prefix: readonly string[],
@@ -269,7 +317,7 @@ export const describeFields = (
 				return [];
 			}
 
-			const readOnly = parentReadOnly || isReadOnly(field);
+			const readOnly = parentReadOnly || adminFlag(field, "readOnly");
 			const path = [...prefix, field.name];
 			const at = { path: joinPath(path), readOnly, translate };
 
@@ -321,7 +369,7 @@ export const describeAddressableFields = (
 export const descriptorsUnder = (
 	fields: FlattenedField[],
 	prefix: readonly string[],
-): { descriptor: FieldDescriptor; parts: string[] }[] =>
+): Relative[] =>
 	describeAddressableFields(fields).flatMap((descriptor) => {
 		const parts = splitPath(descriptor.path);
 
@@ -335,7 +383,7 @@ interface FieldOfType {
 	richText: RichTextField;
 }
 
-const findFieldAt = <T extends keyof FieldOfType>(
+export const findFieldAt = <T extends keyof FieldOfType>(
 	fields: FlattenedField[],
 	path: readonly string[],
 	type: T,
@@ -361,19 +409,74 @@ const findFieldAt = <T extends keyof FieldOfType>(
 	return undefined;
 };
 
-export const findBlocksField = (
-	fields: FlattenedField[],
-	path: readonly string[],
-): FlattenedBlocksField | undefined => findFieldAt(fields, path, "blocks");
+interface Relative {
+	descriptor: FieldDescriptor;
+	parts: string[];
+}
 
-/**
- * Locates the rich text field a resolved descriptor path refers to, so its
- * editor can be introspected for the fields its nodes carry.
- */
-export const findRichTextField = (
+// The descriptor with the longest path the leading segments consume.
+export const longestMatch = (
+	descriptors: FieldDescriptor[],
+	segments: readonly string[],
+	eq: (part: string, segment: string | undefined) => boolean,
+): Relative | undefined =>
+	descriptors
+		.map((descriptor) => ({ descriptor, parts: splitPath(descriptor.path) }))
+		.filter(({ parts }) =>
+			parts.every((part, offset) => eq(part, segments[offset])),
+		)
+		.sort((left, right) => right.parts.length - left.parts.length)[0];
+
+type KeyClass =
+	| { kind: "none" }
+	| { descriptor: FieldDescriptor; kind: "leaf" }
+	| { kind: "group" | "rows"; prefix: string[] };
+
+export const classifyKey = (
+	relative: Relative[],
+	prefix: readonly string[],
+	key: string,
+): KeyClass => {
+	const candidates = relative.filter(({ parts }) => parts[0] === key);
+	const exact = candidates.find(({ parts }) => parts.length === 1);
+
+	if (exact) {
+		return { descriptor: exact.descriptor, kind: "leaf" };
+	}
+
+	if (candidates.length === 0) {
+		return { kind: "none" };
+	}
+
+	return candidates.some(({ parts }) => parts[1] === ARRAY_MARKER)
+		? { kind: "rows", prefix: [...prefix, key, ARRAY_MARKER] }
+		: { kind: "group", prefix: [...prefix, key] };
+};
+
+// Each row with the block it names, absent for a row the field does not accept.
+export const blockRows = (
+	config: SanitizedConfig,
 	fields: FlattenedField[],
-	path: readonly string[],
-): RichTextField | undefined => findFieldAt(fields, path, "richText");
+	descriptor: FieldDescriptor,
+	rows: unknown[],
+):
+	| {
+			entries: { block: FlattenedBlock | undefined; row: unknown }[];
+			field: FlattenedBlocksField;
+	  }
+	| undefined => {
+	const field = findFieldAt(fields, splitPath(descriptor.path), "blocks");
+
+	return field
+		? {
+				entries: rows.map((row) => ({
+					block: blockForRow(config, field, row),
+					row,
+				})),
+				field,
+			}
+		: undefined;
+};
 
 /**
  * The part of a sanitized config the schema walkers consume. Collection and

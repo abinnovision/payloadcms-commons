@@ -1,7 +1,8 @@
 import {
+	adminFlag,
+	blockForRow,
 	blockOf,
 	blockSlugsOf,
-	isAdminHidden,
 	RESERVED_FIELD_NAMES,
 	ROW_KEYS,
 	schemaOf,
@@ -74,7 +75,7 @@ const stripFields = (
 			continue;
 		}
 
-		if (isAdminHidden(field)) {
+		if (adminFlag(field, "hidden")) {
 			Reflect.deleteProperty(result, field.name);
 		} else {
 			result[field.name] = stripValue(config, field, result[field.name]);
@@ -133,10 +134,7 @@ const stripValue = (
 			);
 		case "blocks":
 			return mapEach(value, (row) => {
-				const block =
-					isPlainObject(row) && typeof row["blockType"] === "string"
-						? blockOf(config, field, row["blockType"])
-						: undefined;
+				const block = blockForRow(config, field, row);
 
 				return block && isPlainObject(row)
 					? stripFields(config, block.flattenedFields, row)
@@ -214,7 +212,7 @@ export const addressesAdminHidden = (
 		}
 
 		return matches.some((field) => {
-			if (isAdminHidden(field)) {
+			if (adminFlag(field, "hidden")) {
 				return true;
 			}
 

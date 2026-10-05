@@ -1,6 +1,6 @@
 import { flattenAllFields } from "payload";
 
-import { isPlainObject, ownValue } from "../guards.js";
+import { isPlainObject, ownValue, propOf } from "../guards.js";
 
 import type {
 	Field,
@@ -260,6 +260,25 @@ export const REQUIRED_NODE_PROPERTIES: Readonly<
 };
 
 /**
+ * The `root` node of an editor state, if it has one.
+ */
+export const editorRoot = (
+	state: unknown,
+): Record<string, unknown> | undefined => {
+	const root = propOf(state, "root");
+
+	return isPlainObject(root) ? root : undefined;
+};
+
+// Every node carries the universal properties, then whatever its type adds.
+const constraintsFor = (
+	type: string,
+): Readonly<Record<string, Constraint>> => ({
+	...UNIVERSAL_PROPERTIES,
+	...ownValue(REQUIRED_NODE_PROPERTIES, type),
+});
+
+/**
  * Whether the table already says what a node type's `fields` must be, so the
  * sub-field walk does not report the same problem twice.
  */
@@ -292,11 +311,7 @@ export const nodePropertiesFor = (
 				// The root is closed, not extended: these six and nothing else.
 				type === "root"
 					? ROOT_PROPERTIES
-					: {
-							...ownValue(REQUIRED_NODE_PROPERTIES, type),
-							...UNIVERSAL_PROPERTIES,
-							type: "string",
-						},
+					: { ...constraintsFor(type), type: "string" },
 			),
 		]),
 	);
@@ -334,10 +349,7 @@ const check = (
 };
 
 export const nodeProblems = (node: Record<string, unknown>): PropertyProblems =>
-	check(node, {
-		...UNIVERSAL_PROPERTIES,
-		...ownValue(REQUIRED_NODE_PROPERTIES, node["type"] as string),
-	});
+	check(node, constraintsFor(node["type"] as string));
 
 /**
  * The root is the one node Payload describes itself, down to refusing an
@@ -363,15 +375,10 @@ export const propertyProblem = (
 	property: string,
 	value: unknown,
 ): { needs: string } | undefined => {
-	const constraints: Readonly<Record<string, Constraint>> =
-		nodeType === "root"
-			? ROOT_PROPERTIES
-			: {
-					...UNIVERSAL_PROPERTIES,
-					...ownValue(REQUIRED_NODE_PROPERTIES, nodeType),
-				};
-
-	const constraint = ownValue(constraints, property);
+	const constraint = ownValue(
+		nodeType === "root" ? ROOT_PROPERTIES : constraintsFor(nodeType),
+		property,
+	);
 
 	return constraint === undefined || accepts(constraint, value)
 		? undefined

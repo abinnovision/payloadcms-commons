@@ -1,4 +1,4 @@
-import { allowedNodeTypes, nodeOptions } from "./lexical.js";
+import { allowedNodeTypes, editorRoot, nodeOptions } from "./lexical.js";
 import { isPlainObject, ownValue } from "../guards.js";
 
 import type { NodeOptions } from "./lexical.js";
@@ -127,20 +127,16 @@ export const lexicalOutline = (
 	basePointer: string,
 	field: RichTextField,
 ): LexicalOutlineEntry[] => {
-	if (!isPlainObject(state)) {
-		return [];
-	}
+	const rootChildren = editorRoot(state)?.["children"];
 
-	const root = state["root"];
-
-	if (!isPlainObject(root) || !Array.isArray(root["children"])) {
+	if (!Array.isArray(rootChildren)) {
 		return [];
 	}
 
 	const options = nodeOptions(field, allowedNodeTypes(field));
 	const entries: LexicalOutlineEntry[] = [];
 
-	root["children"].forEach((child, index) => {
+	rootChildren.forEach((child, index) => {
 		if (isPlainObject(child)) {
 			walk(
 				child,

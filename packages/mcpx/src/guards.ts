@@ -4,6 +4,12 @@ export const isPlainObject = (
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
+ * A property of a plain object, `undefined` for any other value.
+ */
+export const propOf = (value: unknown, key: string): unknown =>
+	isPlainObject(value) ? value[key] : undefined;
+
+/**
  * An own property only, so a client-chosen key never reads the prototype.
  */
 export const ownValue = <T>(

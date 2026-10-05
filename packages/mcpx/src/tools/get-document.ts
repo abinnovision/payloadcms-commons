@@ -24,7 +24,7 @@ import {
 import { defineMcpxTool } from "../define-tool.js";
 import { errorResult, jsonResult } from "../result.js";
 import {
-	findRichTextField,
+	findFieldAt,
 	JSON_POINTER_PATTERN,
 	lexicalOutline,
 	prototypeSegmentProblem,
@@ -336,9 +336,10 @@ export const getDocument = defineMcpxTool({
 		 */
 		const field =
 			resolution.descriptor?.type === "richText" && !resolution.lexical
-				? findRichTextField(
+				? findFieldAt(
 						resolution.fields,
 						splitPath(resolution.descriptor.path),
+						"richText",
 					)
 				: undefined;
 

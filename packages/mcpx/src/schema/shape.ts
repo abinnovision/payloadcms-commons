@@ -1,5 +1,6 @@
 import {
 	constrainsFields,
+	editorRoot,
 	lexicalSubSchema,
 	nodeProblems,
 	propertyProblem,
@@ -8,15 +9,15 @@ import {
 } from "./lexical.js";
 import { splitPath } from "./path.js";
 import {
-	ARRAY_MARKER,
-	blockOf,
+	blockForRow,
+	blockRows,
 	blockSlugsOf,
+	classifyKey,
 	descriptorsUnder,
-	findBlocksField,
-	findRichTextField,
+	findFieldAt,
 	ROW_KEYS,
 } from "./walk.js";
-import { isPlainObject, ownValue } from "../guards.js";
+import { isPlainObject, ownValue, propOf } from "../guards.js";
 
 import type { LexicalPosition } from "./lexical-pointer.js";
 import type { NodeOptions } from "./lexical.js";
@@ -96,15 +97,11 @@ const checkNodeFields = (
 		return;
 	}
 
-	const slug = data["blockType"];
-	const block =
-		typeof slug === "string"
-			? blockOf(scope.config, sub.blocksField, slug)
-			: undefined;
+	const block = blockForRow(scope.config, sub.blocksField, data);
 
 	if (!block) {
 		scope.problems.push(
-			`${scope.pointer}/fields: ${refusedSlug(slug)}. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
+			`${scope.pointer}/fields: ${refusedSlug(data["blockType"])}. Allowed: ${blockSlugsOf(sub.blocksField).join(", ")}`,
 		);
 
 		return;
@@ -227,7 +224,9 @@ const checkRichText = (
 	editor: EditorScope,
 	value: unknown,
 ): void => {
-	if (!isPlainObject(value) || !isPlainObject(value["root"])) {
+	const root = editorRoot(value);
+
+	if (!root) {
 		scope.problems.push(
 			`${scope.pointer}: expected a Lexical editor state with a "root".`,
 		);
@@ -235,7 +234,6 @@ const checkRichText = (
 		return;
 	}
 
-	const root = value["root"];
 	const { missing, rejected, unexpected } = rootProblems(root);
 
 	if (missing.length > 0) {
@@ -378,7 +376,11 @@ const checkLeafValue = (
 			scope,
 			{
 				allowed: descriptor.nodes ?? [],
-				field: findRichTextField(scope.fields, splitPath(descriptor.path)),
+				field: findFieldAt(
+					scope.fields,
+					splitPath(descriptor.path),
+					"richText",
+				),
 				nodeOptions: descriptor.nodeOptions,
 			},
 			value,
@@ -397,20 +399,12 @@ const checkLeafValue = (
 		return;
 	}
 
-	const field = findBlocksField(scope.fields, splitPath(descriptor.path));
+	const found = blockRows(scope.config, scope.fields, descriptor, value);
 
-	if (!field) {
-		return;
-	}
-
-	value.forEach((row, index) => {
-		const slug = isPlainObject(row) ? row["blockType"] : undefined;
-		const block =
-			typeof slug === "string" ? blockOf(scope.config, field, slug) : undefined;
-
+	found?.entries.forEach(({ block, row }, index) => {
 		if (!block) {
 			scope.problems.push(
-				`${scope.pointer}/${String(index)}: ${refusedSlug(slug)}. Allowed: ${blockSlugsOf(field).join(", ")}`,
+				`${scope.pointer}/${String(index)}: ${refusedSlug(propOf(row, "blockType"))}. Allowed: ${blockSlugsOf(found.field).join(", ")}`,
 			);
 
 			return;
@@ -441,58 +435,48 @@ const checkValue = (scope: ValueCheck, value: unknown): void => {
 		return;
 	}
 
-	const prefixParts = scope.prefix;
-
-	const relative = descriptorsUnder(scope.fields, prefixParts);
+	const relative = descriptorsUnder(scope.fields, scope.prefix);
 
 	for (const [key, entry] of Object.entries(value)) {
 		if (ROW_KEYS.has(key)) {
 			continue;
 		}
 
-		const candidates = relative.filter(({ parts }) => parts[0] === key);
 		const pointer = `${scope.pointer}/${key}`;
+		const found = classifyKey(relative, scope.prefix, key);
 
-		if (candidates.length === 0) {
-			scope.problems.push(
-				`${pointer}: no such field. Available: ${[
-					...new Set(relative.map(({ parts }) => parts[0])),
-				].join(", ")}`,
-			);
-
-			continue;
-		}
-
-		const exact = candidates.find(({ parts }) => parts.length === 1);
-
-		if (exact) {
-			checkLeafValue({ ...scope, pointer }, exact.descriptor, entry);
-
-			continue;
-		}
-
-		if (candidates.some(({ parts }) => parts[1] === ARRAY_MARKER)) {
-			if (!Array.isArray(entry)) {
-				scope.problems.push(`${pointer}: expected an array.`);
-
-				continue;
-			}
-
-			entry.forEach((row, index) => {
-				checkValue(
-					{
-						...scope,
-						pointer: `${pointer}/${String(index)}`,
-						prefix: [...prefixParts, key, ARRAY_MARKER],
-					},
-					row,
+		switch (found.kind) {
+			case "none":
+				scope.problems.push(
+					`${pointer}: no such field. Available: ${[
+						...new Set(relative.map(({ parts }) => parts[0])),
+					].join(", ")}`,
 				);
-			});
+				break;
+			case "leaf":
+				checkLeafValue({ ...scope, pointer }, found.descriptor, entry);
+				break;
+			case "rows":
+				if (Array.isArray(entry)) {
+					entry.forEach((row, index) => {
+						checkValue(
+							{
+								...scope,
+								pointer: `${pointer}/${String(index)}`,
+								prefix: found.prefix,
+							},
+							row,
+						);
+					});
+				} else {
+					scope.problems.push(`${pointer}: expected an array.`);
+				}
 
-			continue;
+				break;
+			case "group":
+				checkValue({ ...scope, pointer, prefix: found.prefix }, entry);
+				break;
 		}
-
-		checkValue({ ...scope, pointer, prefix: [...prefixParts, key] }, entry);
 	}
 };
 

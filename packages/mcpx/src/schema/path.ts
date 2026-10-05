@@ -42,3 +42,9 @@ export const isIndexSegment = (segment: string): boolean =>
  */
 export const pointerFromPayloadPath = (path: string): string =>
 	path ? joinPath(path.split(".")) : "";
+
+/**
+ * The pointer one segment up. The root pointer stays the root.
+ */
+export const parentPointer = (pointer: string): string =>
+	joinPath(splitPath(pointer).slice(0, -1));
