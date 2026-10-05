@@ -500,6 +500,42 @@
     }
   },
   {
+    "name": "duplicateDocument",
+    "description": "Copies a document into a new one in the same collection. Use it instead of getDocument and createDocument to copy a document. It copies the latest version, the draft if there is one, in every locale. Unique text fields get \" - Copy\" appended. Returns the same fields as createDocument. To rename the copy, call patchDocument with the returned \"updatedAt\".\n\nEvery write is saved as a draft.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "enum": [
+            "posts"
+          ]
+        },
+        "id": {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "collection",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
     "name": "validateDocument",
     "description": "Lists what still blocks publishing one document or global, without saving. Checks one locale when \"locale\" is given, otherwise every locale. Returns \"publishBlockers\", each with a pointer and a message, and a \"locale\" when every locale was checked. An empty list means it can be published, unless \"publishBlockersUnavailable\" is true: then the check itself failed. The check runs the field hooks a save runs.",
     "inputSchema": {

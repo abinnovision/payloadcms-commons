@@ -56,7 +56,7 @@ export const runTool = async (
 };
 
 const WRITE_STEP = {
-	tools: ["patchDocument", "createDocument"],
+	tools: ["patchDocument", "createDocument", "duplicateDocument"],
 	does: "the write",
 };
 

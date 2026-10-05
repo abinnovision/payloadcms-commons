@@ -13,6 +13,8 @@ import { isPlainObject } from "../guards.js";
 const PUBLISH_INTENT = "__mcpxPublishIntent";
 // The same, for the trash move `deleteDocument` makes.
 const TRASH_INTENT = "__mcpxTrashIntent";
+// The same, for the duplicate `duplicateDocument` makes.
+const DUPLICATE_INTENT = "__mcpxDuplicateIntent";
 const TOKEN = randomUUID();
 
 const take = (data: unknown, key: string): boolean => {
@@ -61,3 +63,14 @@ export const hasTrashIntent = (
  */
 export const takeTrashIntent = (data: unknown): boolean =>
 	take(data, TRASH_INTENT);
+
+export const withDuplicateIntent = <T extends object>(data: T): T => ({
+	...data,
+	[DUPLICATE_INTENT]: TOKEN,
+});
+
+/**
+ * Removes the marker, so it never reaches the operation.
+ */
+export const takeDuplicateIntent = (data: unknown): boolean =>
+	take(data, DUPLICATE_INTENT);

@@ -1,6 +1,7 @@
 import { createDocument } from "./create-document.js";
 import { deleteDocument } from "./delete-document.js";
 import { describeSchema } from "./describe-schema.js";
+import { duplicateDocument } from "./duplicate-document.js";
 import { findDocuments } from "./find-documents.js";
 import { findVersions } from "./find-versions.js";
 import { getDocument } from "./get-document.js";
@@ -26,6 +27,7 @@ export const BUILTIN_TOOLS: McpxAnyTool[] = [
 	findVersions,
 	patchDocument,
 	createDocument,
+	duplicateDocument,
 	validateDocument,
 	publishDocument,
 	deleteDocument,

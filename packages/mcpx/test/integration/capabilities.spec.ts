@@ -15,10 +15,16 @@ const BUILTIN = [
 	"findVersions",
 	"patchDocument",
 	"createDocument",
+	"duplicateDocument",
 	"validateDocument",
 ];
 
-const WRITE_TOOLS = ["patchDocument", "createDocument", "validateDocument"];
+const WRITE_TOOLS = [
+	"patchDocument",
+	"createDocument",
+	"duplicateDocument",
+	"validateDocument",
+];
 
 describe("capabilities", () => {
 	let booted: Booted;
