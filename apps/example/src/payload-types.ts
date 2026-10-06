@@ -439,7 +439,7 @@ export interface McpxApiKey {
 	apiKey?: string | null;
 	apiKeyIndex?: string | null;
 	/**
-	 * What this key may do. An unticked box is a refusal, and a dash means the plugin config does not expose that operation at all.
+	 * What this key may do. Each level includes the ones before it, and a missing segment means the plugin config does not expose it. A shield means this key's user approves each call.
 	 */
 	capabilities?: {
 		collections?: {
@@ -457,7 +457,7 @@ export interface McpxApiKey {
 				 */
 				publish?: boolean | null;
 				/**
-				 * Delete documents, each approved by this key's user in the admin panel.
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
 				 */
 				delete?: boolean | null;
 				/**
@@ -479,7 +479,7 @@ export interface McpxApiKey {
 				 */
 				publish?: boolean | null;
 				/**
-				 * Delete documents, each approved by this key's user in the admin panel.
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
 				 */
 				delete?: boolean | null;
 				/**
@@ -501,7 +501,7 @@ export interface McpxApiKey {
 				 */
 				publish?: boolean | null;
 				/**
-				 * Delete documents, each approved by this key's user in the admin panel.
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
 				 */
 				delete?: boolean | null;
 				/**
@@ -519,7 +519,7 @@ export interface McpxApiKey {
 				 */
 				write?: boolean | null;
 				/**
-				 * Delete documents, each approved by this key's user in the admin panel.
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
 				 */
 				delete?: boolean | null;
 				/**
@@ -537,7 +537,7 @@ export interface McpxApiKey {
 				 */
 				write?: boolean | null;
 				/**
-				 * Delete documents, each approved by this key's user in the admin panel.
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
 				 */
 				delete?: boolean | null;
 				/**
@@ -555,7 +555,7 @@ export interface McpxApiKey {
 				 */
 				write?: boolean | null;
 				/**
-				 * Delete documents, each approved by this key's user in the admin panel.
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
 				 */
 				delete?: boolean | null;
 				/**
