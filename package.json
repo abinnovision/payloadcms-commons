@@ -44,7 +44,7 @@
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@commitlint/cli": "^21.2.3",
-		"@vitest/coverage-v8": "^5.0.2",
+		"@vitest/coverage-v8": "^5.0.3",
 		"eslint": "^10.11.0",
 		"husky": "^9.1.7",
 		"lint-staged": "^17.6.0",
@@ -54,7 +54,7 @@
 		"turbo": "^2.11.5",
 		"typescript": "^6.0.3",
 		"vite": "^8.3.1",
-		"vitest": "^5.0.2"
+		"vitest": "^5.0.3"
 	},
 	"packageManager": "yarn@4.18.0"
 }

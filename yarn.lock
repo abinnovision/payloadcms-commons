@@ -40,10 +40,10 @@ __metadata:
     "@arethetypeswrong/core": "npm:^0.18.5"
     "@internal/test-utils": "workspace:*"
     "@payloadcms/ui": "npm:3.90.2"
-    "@swc/core": "npm:^1.16.12"
+    "@swc/core": "npm:^1.16.13"
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.0.2"
+    "@vitest/coverage-v8": "npm:^5.0.3"
     eslint: "npm:^10.11.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
@@ -53,7 +53,7 @@ __metadata:
     tsdown: "npm:^0.23.0"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
   peerDependencies:
     "@payloadcms/ui": ">=3.88.0 <4"
     payload: ">=3.88.0 <4"
@@ -72,10 +72,10 @@ __metadata:
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@arethetypeswrong/core": "npm:^0.18.5"
     "@payloadcms/db-sqlite": "npm:3.90.2"
-    "@swc/core": "npm:^1.16.12"
+    "@swc/core": "npm:^1.16.13"
     "@types/node": "npm:^26.6.3"
     "@types/nodemailer": "npm:^8.0.2"
-    "@vitest/coverage-v8": "npm:^5.0.2"
+    "@vitest/coverage-v8": "npm:^5.0.3"
     eslint: "npm:^10.11.0"
     lettermint: "npm:^2.7.0"
     payload: "npm:3.90.2"
@@ -84,7 +84,7 @@ __metadata:
     tsdown: "npm:^0.23.0"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
   peerDependencies:
     payload: ">=3.88.0 <4"
   languageName: unknown
@@ -102,10 +102,10 @@ __metadata:
     "@payloadcms/db-sqlite": "npm:3.90.2"
     "@payloadcms/richtext-lexical": "npm:3.90.2"
     "@payloadcms/ui": "npm:3.90.2"
-    "@swc/core": "npm:^1.16.12"
+    "@swc/core": "npm:^1.16.13"
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.0.2"
+    "@vitest/coverage-v8": "npm:^5.0.3"
     eslint: "npm:^10.11.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
@@ -116,7 +116,7 @@ __metadata:
     tsdown: "npm:^0.23.0"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
     zod: "npm:^4.6.5"
   peerDependencies:
     "@payloadcms/ui": ">=3.88.0 <4"
@@ -140,10 +140,10 @@ __metadata:
     "@internal/test-utils": "workspace:*"
     "@payloadcms/db-sqlite": "npm:3.90.2"
     "@payloadcms/richtext-lexical": "npm:3.90.2"
-    "@swc/core": "npm:^1.16.12"
+    "@swc/core": "npm:^1.16.13"
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.0.2"
+    "@vitest/coverage-v8": "npm:^5.0.3"
     eslint: "npm:^10.11.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
@@ -153,7 +153,7 @@ __metadata:
     tsdown: "npm:^0.23.0"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
   peerDependencies:
     "@payloadcms/richtext-lexical": ">=3.88.0 <4"
     payload: ">=3.88.0 <4"
@@ -173,10 +173,10 @@ __metadata:
     "@arethetypeswrong/core": "npm:^0.18.5"
     "@internal/test-utils": "workspace:*"
     "@payloadcms/ui": "npm:3.90.2"
-    "@swc/core": "npm:^1.16.12"
+    "@swc/core": "npm:^1.16.13"
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.0.2"
+    "@vitest/coverage-v8": "npm:^5.0.3"
     eslint: "npm:^10.11.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
@@ -186,7 +186,7 @@ __metadata:
     tsdown: "npm:^0.23.0"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
   peerDependencies:
     "@payloadcms/ui": ">=3.88.0 <4"
     payload: ">=3.88.0 <4"
@@ -211,10 +211,10 @@ __metadata:
     "@payloadcms/db-sqlite": "npm:3.90.2"
     "@payloadcms/richtext-lexical": "npm:3.90.2"
     "@payloadcms/ui": "npm:3.90.2"
-    "@swc/core": "npm:^1.16.12"
+    "@swc/core": "npm:^1.16.13"
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.0.2"
+    "@vitest/coverage-v8": "npm:^5.0.3"
     eslint: "npm:^10.11.0"
     lexical: "npm:0.50.0"
     path-to-regexp: "npm:^8.4.2"
@@ -225,7 +225,7 @@ __metadata:
     tsdown: "npm:^0.23.0"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
   peerDependencies:
     "@abinnovision/payloadcms-montage": ">=1.0.0-beta.1"
     "@lexical/react": ">=0.35 <1"
@@ -1909,7 +1909,7 @@ __metadata:
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
     typescript: "npm:^6.0.3"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
   languageName: unknown
   linkType: soft
 
@@ -1921,7 +1921,7 @@ __metadata:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@commitlint/cli": "npm:^21.2.3"
-    "@vitest/coverage-v8": "npm:^5.0.2"
+    "@vitest/coverage-v8": "npm:^5.0.3"
     eslint: "npm:^10.11.0"
     husky: "npm:^9.1.7"
     lint-staged: "npm:^17.6.0"
@@ -1931,7 +1931,7 @@ __metadata:
     turbo: "npm:^2.11.5"
     typescript: "npm:^6.0.3"
     vite: "npm:^8.3.1"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
   languageName: unknown
   linkType: soft
 
@@ -1945,7 +1945,7 @@ __metadata:
     eslint: "npm:^10.11.0"
     prettier: "npm:^3.9.9"
     typescript: "npm:^6.0.3"
-    vitest: "npm:^5.0.2"
+    vitest: "npm:^5.0.3"
   languageName: unknown
   linkType: soft
 
@@ -3100,106 +3100,106 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@swc/core-darwin-arm64@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-darwin-arm64@npm:1.16.12"
+"@swc/core-darwin-arm64@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-darwin-arm64@npm:1.16.13"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@swc/core-darwin-x64@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-darwin-x64@npm:1.16.12"
+"@swc/core-darwin-x64@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-darwin-x64@npm:1.16.13"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm-gnueabihf@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-linux-arm-gnueabihf@npm:1.16.12"
+"@swc/core-linux-arm-gnueabihf@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-linux-arm-gnueabihf@npm:1.16.13"
   conditions: os=linux & cpu=arm
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm64-gnu@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-linux-arm64-gnu@npm:1.16.12"
+"@swc/core-linux-arm64-gnu@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-linux-arm64-gnu@npm:1.16.13"
   conditions: os=linux & cpu=arm64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm64-musl@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-linux-arm64-musl@npm:1.16.12"
+"@swc/core-linux-arm64-musl@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-linux-arm64-musl@npm:1.16.13"
   conditions: os=linux & cpu=arm64 & libc=musl
   languageName: node
   linkType: hard
 
-"@swc/core-linux-ppc64-gnu@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-linux-ppc64-gnu@npm:1.16.12"
+"@swc/core-linux-ppc64-gnu@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-linux-ppc64-gnu@npm:1.16.13"
   conditions: os=linux & cpu=ppc64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-s390x-gnu@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-linux-s390x-gnu@npm:1.16.12"
+"@swc/core-linux-s390x-gnu@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-linux-s390x-gnu@npm:1.16.13"
   conditions: os=linux & cpu=s390x & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-x64-gnu@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-linux-x64-gnu@npm:1.16.12"
+"@swc/core-linux-x64-gnu@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-linux-x64-gnu@npm:1.16.13"
   conditions: os=linux & cpu=x64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-x64-musl@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-linux-x64-musl@npm:1.16.12"
+"@swc/core-linux-x64-musl@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-linux-x64-musl@npm:1.16.13"
   conditions: os=linux & cpu=x64 & libc=musl
   languageName: node
   linkType: hard
 
-"@swc/core-win32-arm64-msvc@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-win32-arm64-msvc@npm:1.16.12"
+"@swc/core-win32-arm64-msvc@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-win32-arm64-msvc@npm:1.16.13"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
-"@swc/core-win32-ia32-msvc@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-win32-ia32-msvc@npm:1.16.12"
+"@swc/core-win32-ia32-msvc@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-win32-ia32-msvc@npm:1.16.13"
   conditions: os=win32 & cpu=ia32
   languageName: node
   linkType: hard
 
-"@swc/core-win32-x64-msvc@npm:1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core-win32-x64-msvc@npm:1.16.12"
+"@swc/core-win32-x64-msvc@npm:1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core-win32-x64-msvc@npm:1.16.13"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
-"@swc/core@npm:^1.16.12":
-  version: 1.16.12
-  resolution: "@swc/core@npm:1.16.12"
+"@swc/core@npm:^1.16.13":
+  version: 1.16.13
+  resolution: "@swc/core@npm:1.16.13"
   dependencies:
-    "@swc/core-darwin-arm64": "npm:1.16.12"
-    "@swc/core-darwin-x64": "npm:1.16.12"
-    "@swc/core-linux-arm-gnueabihf": "npm:1.16.12"
-    "@swc/core-linux-arm64-gnu": "npm:1.16.12"
-    "@swc/core-linux-arm64-musl": "npm:1.16.12"
-    "@swc/core-linux-ppc64-gnu": "npm:1.16.12"
-    "@swc/core-linux-s390x-gnu": "npm:1.16.12"
-    "@swc/core-linux-x64-gnu": "npm:1.16.12"
-    "@swc/core-linux-x64-musl": "npm:1.16.12"
-    "@swc/core-win32-arm64-msvc": "npm:1.16.12"
-    "@swc/core-win32-ia32-msvc": "npm:1.16.12"
-    "@swc/core-win32-x64-msvc": "npm:1.16.12"
+    "@swc/core-darwin-arm64": "npm:1.16.13"
+    "@swc/core-darwin-x64": "npm:1.16.13"
+    "@swc/core-linux-arm-gnueabihf": "npm:1.16.13"
+    "@swc/core-linux-arm64-gnu": "npm:1.16.13"
+    "@swc/core-linux-arm64-musl": "npm:1.16.13"
+    "@swc/core-linux-ppc64-gnu": "npm:1.16.13"
+    "@swc/core-linux-s390x-gnu": "npm:1.16.13"
+    "@swc/core-linux-x64-gnu": "npm:1.16.13"
+    "@swc/core-linux-x64-musl": "npm:1.16.13"
+    "@swc/core-win32-arm64-msvc": "npm:1.16.13"
+    "@swc/core-win32-ia32-msvc": "npm:1.16.13"
+    "@swc/core-win32-x64-msvc": "npm:1.16.13"
     "@swc/counter": "npm:^0.1.3"
     "@swc/types": "npm:^0.1.28"
   peerDependencies:
@@ -3232,7 +3232,7 @@ __metadata:
   peerDependenciesMeta:
     "@swc/helpers":
       optional: true
-  checksum: 10/c4e040ffc52b570f076da5ed3be900598c57a445060d1ac2c8773a7725ffc2e8f77a752d54d94b85d8744f5367422bb1baeada8234c57c7b68d2283b63e04f0d
+  checksum: 10/f90e98685ffa43be9a49ea17b02482dab6f1455e0cb9aacbacae47b829cc9aaeaeaa70c23d32dd7a6d179e02890b6ad52ec78ce81ef5c14fa2025b6225066ae0
   languageName: node
   linkType: hard
 
@@ -3817,9 +3817,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/coverage-v8@npm:^5.0.2":
-  version: 5.0.2
-  resolution: "@vitest/coverage-v8@npm:5.0.2"
+"@vitest/coverage-v8@npm:^5.0.3":
+  version: 5.0.3
+  resolution: "@vitest/coverage-v8@npm:5.0.3"
   dependencies:
     "@bcoe/v8-coverage": "npm:^1.0.2"
     "@vitest/istanbul-lib-coverage": "npm:^1.0.0"
@@ -3830,12 +3830,12 @@ __metadata:
     std-env: "npm:^4.2.0"
     tinyrainbow: "npm:^3.1.1"
   peerDependencies:
-    "@vitest/browser": 5.0.2
-    vitest: 5.0.2
+    "@vitest/browser": 5.0.3
+    vitest: 5.0.3
   peerDependenciesMeta:
     "@vitest/browser":
       optional: true
-  checksum: 10/2d3a4f12f0dce6e65085a1eaaa688f19cb5b41f353756b41069089991edea3bfabdc41b9c0ee653cda79b47483146fbe2626b05eaaa7cdb16102af607cbaf5c6
+  checksum: 10/06c13198db770b7ccf8d6c3b8c8ca747f18f4ea0fde934a8478dfadb0f78ada6d2d0633833db7d6e1e8e21427d9c496b85b346e32acbddbfd11ec0b059bc304f
   languageName: node
   linkType: hard
 
@@ -3877,12 +3877,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/mocker@npm:5.0.2":
-  version: 5.0.2
-  resolution: "@vitest/mocker@npm:5.0.2"
+"@vitest/mocker@npm:5.0.3":
+  version: 5.0.3
+  resolution: "@vitest/mocker@npm:5.0.3"
   dependencies:
     "@jridgewell/trace-mapping": "npm:0.3.31"
-    "@vitest/spy": "npm:5.0.2"
+    "@vitest/spy": "npm:5.0.3"
     estree-walker: "npm:^3.0.3"
     magic-string: "npm:^1.2.3"
   peerDependencies:
@@ -3893,14 +3893,14 @@ __metadata:
       optional: true
     vite:
       optional: true
-  checksum: 10/005d6d0d56d2ebf4f5cf9ed9420b787fe52247409751d05f0bbc1b4e8aa9ad800207688d48d8f4e7e2d7d31148187f9a85e937948298b9e9308896a80786c84e
+  checksum: 10/40affdebd815d2153fd8708874ac8134472f8921baac3c7109ec8bd2bb2ba60aac0f3ded81a2acdab4688345d74659f9c89479c38795eda222f7faff87ed8e52
   languageName: node
   linkType: hard
 
-"@vitest/spy@npm:5.0.2":
-  version: 5.0.2
-  resolution: "@vitest/spy@npm:5.0.2"
-  checksum: 10/f8f8ea61fb366d7b159719d1cffaac396a0419a9c5f4048715e2de6e2251bfe6825389e6abdf7405fb9f936d260403d307c2c4e52e7e090b4374e92bad2c1e11
+"@vitest/spy@npm:5.0.3":
+  version: 5.0.3
+  resolution: "@vitest/spy@npm:5.0.3"
+  checksum: 10/df07c7648f43225656d1856a10459254c3e0fe5e788b7f80cd49de4a1d9ed87dfc7c29fb328fba6df6a0d3d74f76a3ee41ef27710409fba233d9310b854c9cb4
   languageName: node
   linkType: hard
 
@@ -9469,12 +9469,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vitest@npm:^5.0.2":
-  version: 5.0.2
-  resolution: "vitest@npm:5.0.2"
+"vitest@npm:^5.0.3":
+  version: 5.0.3
+  resolution: "vitest@npm:5.0.3"
   dependencies:
     "@types/chai": "npm:^5.2.2"
-    "@vitest/mocker": "npm:5.0.2"
+    "@vitest/mocker": "npm:5.0.3"
     chai: "npm:^6.2.2"
     es-module-lexer: "npm:^2.3.2"
     expect-type: "npm:^1.4.0"
@@ -9485,17 +9485,17 @@ __metadata:
     tinybench: "npm:^6.1.4"
     tinyexec: "npm:^1.3.0"
     tinyglobby: "npm:^0.2.17"
-    why-is-node-running: "npm:^3.2.1"
+    why-is-node-running: "npm:3.2.1"
   peerDependencies:
     "@edge-runtime/vm": "*"
     "@opentelemetry/api": ^1.9.0
     "@types/node": ^22.0.0 || >=24.0.0
-    "@vitest/browser-playwright": 5.0.2
-    "@vitest/browser-preview": 5.0.2
+    "@vitest/browser-playwright": 5.0.3
+    "@vitest/browser-preview": 5.0.3
     "@vitest/browser-webdriverio": ^5.0.0-beta.5 || >=5.0.0
-    "@vitest/coverage-istanbul": 5.0.2
-    "@vitest/coverage-v8": 5.0.2
-    "@vitest/ui": 5.0.2
+    "@vitest/coverage-istanbul": 5.0.3
+    "@vitest/coverage-v8": 5.0.3
+    "@vitest/ui": 5.0.3
     happy-dom: "*"
     jsdom: "*"
     vite: ^6.4.0 || ^7.0.0 || ^8.0.0
@@ -9526,7 +9526,7 @@ __metadata:
       optional: false
   bin:
     vitest: ./vitest.mjs
-  checksum: 10/3c6048ac0e2c9e6bb7ebb5a5c84c647f1570fa99bb142133ac2f8ab299f52eac52e55355098ae15c34609a79034f3b56553e5a41f8cd34a48ce90f7879557e4f
+  checksum: 10/4ac26bfd065401008772678640e264737e75c4d8c47a2b68e17d73f27cec00128ae53e027a9368741094d08bc5e0ada0d56bcfce4fa5831b6ae0b97a976ac332
   languageName: node
   linkType: hard
 
@@ -9573,12 +9573,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"why-is-node-running@npm:^3.2.1":
-  version: 3.2.2
-  resolution: "why-is-node-running@npm:3.2.2"
+"why-is-node-running@npm:3.2.1":
+  version: 3.2.1
+  resolution: "why-is-node-running@npm:3.2.1"
   bin:
     why-is-node-running: cli.js
-  checksum: 10/b57146897f676cf01fe30ac415f66dd72b54218e6fee8eb4479251f72a2e064bc18ed7eaddac18513f978353ce2b758d16a4de126cd3e47e467631c1ec5a50af
+  checksum: 10/26eb50212cf6059756fe95a169a4ae6cbd12978ef42bd6d3348a39adcc82d5669486de81354267476a7a6cc09a156be914730485a954785d9f50b5a0e814aea8
   languageName: node
   linkType: hard
 
