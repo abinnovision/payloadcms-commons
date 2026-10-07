@@ -47,7 +47,7 @@ __metadata:
     eslint: "npm:^10.11.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
-    publint: "npm:^0.3.24"
+    publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
     tsdown: "npm:^0.23.0"
@@ -80,7 +80,7 @@ __metadata:
     lettermint: "npm:^2.8.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
-    publint: "npm:^0.3.24"
+    publint: "npm:^0.3.25"
     tsdown: "npm:^0.23.0"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
@@ -109,7 +109,7 @@ __metadata:
     eslint: "npm:^10.11.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
-    publint: "npm:^0.3.24"
+    publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
     rfc6902: "npm:^5.3.0"
@@ -147,7 +147,7 @@ __metadata:
     eslint: "npm:^10.11.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
-    publint: "npm:^0.3.24"
+    publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
     tsdown: "npm:^0.23.0"
@@ -180,7 +180,7 @@ __metadata:
     eslint: "npm:^10.11.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
-    publint: "npm:^0.3.24"
+    publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
     tsdown: "npm:^0.23.0"
@@ -220,7 +220,7 @@ __metadata:
     path-to-regexp: "npm:^8.4.2"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.9"
-    publint: "npm:^0.3.24"
+    publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     tsdown: "npm:^0.23.0"
     typescript: "npm:^6.0.3"
@@ -1928,9 +1928,9 @@ __metadata:
     prettier: "npm:^3.9.9"
     rimraf: "npm:^6.1.3"
     sort-package-json: "npm:^4.0.0"
-    turbo: "npm:^2.11.5"
+    turbo: "npm:^2.11.6"
     typescript: "npm:^6.0.3"
-    vite: "npm:^8.3.1"
+    vite: "npm:^8.3.2"
     vitest: "npm:^5.0.3"
   languageName: unknown
   linkType: soft
@@ -3278,44 +3278,44 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@turbo/darwin-64@npm:2.11.5":
-  version: 2.11.5
-  resolution: "@turbo/darwin-64@npm:2.11.5"
+"@turbo/darwin-64@npm:2.11.6":
+  version: 2.11.6
+  resolution: "@turbo/darwin-64@npm:2.11.6"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/darwin-arm64@npm:2.11.5":
-  version: 2.11.5
-  resolution: "@turbo/darwin-arm64@npm:2.11.5"
+"@turbo/darwin-arm64@npm:2.11.6":
+  version: 2.11.6
+  resolution: "@turbo/darwin-arm64@npm:2.11.6"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/linux-64@npm:2.11.5":
-  version: 2.11.5
-  resolution: "@turbo/linux-64@npm:2.11.5"
+"@turbo/linux-64@npm:2.11.6":
+  version: 2.11.6
+  resolution: "@turbo/linux-64@npm:2.11.6"
   conditions: (os=android | os=linux) & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/linux-arm64@npm:2.11.5":
-  version: 2.11.5
-  resolution: "@turbo/linux-arm64@npm:2.11.5"
+"@turbo/linux-arm64@npm:2.11.6":
+  version: 2.11.6
+  resolution: "@turbo/linux-arm64@npm:2.11.6"
   conditions: (os=android | os=linux) & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/windows-64@npm:2.11.5":
-  version: 2.11.5
-  resolution: "@turbo/windows-64@npm:2.11.5"
+"@turbo/windows-64@npm:2.11.6":
+  version: 2.11.6
+  resolution: "@turbo/windows-64@npm:2.11.6"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/windows-arm64@npm:2.11.5":
-  version: 2.11.5
-  resolution: "@turbo/windows-arm64@npm:2.11.5"
+"@turbo/windows-arm64@npm:2.11.6":
+  version: 2.11.6
+  resolution: "@turbo/windows-arm64@npm:2.11.6"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
@@ -7903,9 +7903,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"publint@npm:^0.3.24":
-  version: 0.3.24
-  resolution: "publint@npm:0.3.24"
+"publint@npm:^0.3.25":
+  version: 0.3.25
+  resolution: "publint@npm:0.3.25"
   dependencies:
     "@publint/pack": "npm:^0.1.7"
     package-manager-detector: "npm:^1.8.0"
@@ -7913,7 +7913,7 @@ __metadata:
     sade: "npm:^1.8.1"
   bin:
     publint: ./src/cli.js
-  checksum: 10/85054e87a8efa54ef398613604368c87c8bd006b954e7999b898e6a0d8284c7b9022808e8890876ead304172002ca9cd5192d9f3780f907389caf58bf335d575
+  checksum: 10/1a4269b08d969c25ea5be32c6026703484113aac8ea61eb70ab3c73f145407add935b5d5ee97ffa4d0dfbab4b7a7f7e54315acb7da31464457bdbbfbef7fba2f
   languageName: node
   linkType: hard
 
@@ -8214,7 +8214,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rolldown@npm:~1.2.7, rolldown@npm:~1.2.9":
+"rolldown@npm:~1.2.11, rolldown@npm:~1.2.7":
   version: 1.2.12
   resolution: "rolldown@npm:1.2.12"
   dependencies:
@@ -9008,16 +9008,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"turbo@npm:^2.11.5":
-  version: 2.11.5
-  resolution: "turbo@npm:2.11.5"
+"turbo@npm:^2.11.6":
+  version: 2.11.6
+  resolution: "turbo@npm:2.11.6"
   dependencies:
-    "@turbo/darwin-64": "npm:2.11.5"
-    "@turbo/darwin-arm64": "npm:2.11.5"
-    "@turbo/linux-64": "npm:2.11.5"
-    "@turbo/linux-arm64": "npm:2.11.5"
-    "@turbo/windows-64": "npm:2.11.5"
-    "@turbo/windows-arm64": "npm:2.11.5"
+    "@turbo/darwin-64": "npm:2.11.6"
+    "@turbo/darwin-arm64": "npm:2.11.6"
+    "@turbo/linux-64": "npm:2.11.6"
+    "@turbo/linux-arm64": "npm:2.11.6"
+    "@turbo/windows-64": "npm:2.11.6"
+    "@turbo/windows-arm64": "npm:2.11.6"
   dependenciesMeta:
     "@turbo/darwin-64":
       optional: true
@@ -9033,7 +9033,7 @@ __metadata:
       optional: true
   bin:
     turbo: bin/turbo
-  checksum: 10/a1df5a868a398232e46f4d53c83f0d137fc8cc351781d538cad5e03644485e282e64a768a68ab497dc41612dfbc595aa0a75eb5cd375c473aec3886c7e99e358
+  checksum: 10/88a9a683dfe68e2b8b9d3f6b23c851002eda6ade4b83ee842ee85d4419894f64a9cec7ef2147331bb44c6beca2b53d4f9eb9cdcf139241f65a8a0f774e079164
   languageName: node
   linkType: hard
 
@@ -9412,15 +9412,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:^8.3.1":
-  version: 8.3.1
-  resolution: "vite@npm:8.3.1"
+"vite@npm:^8.3.2":
+  version: 8.3.2
+  resolution: "vite@npm:8.3.2"
   dependencies:
     fsevents: "npm:~2.3.3"
     lightningcss: "npm:^1.33.0"
     picomatch: "npm:^4.0.7"
     postcss: "npm:^8.5.28"
-    rolldown: "npm:~1.2.9"
+    rolldown: "npm:~1.2.11"
     tinyglobby: "npm:^0.2.17"
   peerDependencies:
     "@types/node": ^20.19.0 || >=22.12.0
@@ -9465,7 +9465,7 @@ __metadata:
       optional: true
   bin:
     vite: bin/vite.js
-  checksum: 10/bdeacfa4336ee75596916a8feb3ffaffd46b568832ffe3d886d6dd0e5dd001beb2f8e2e7875ca6ba16e3e60bf7f6eeed59ec8c0871559758e7e4aafb9a83a3cf
+  checksum: 10/34f35807d10f24d4f5bd80454e4ad3bd8f4f793c8559f6c15261f9165d39a9cb423b5e799e1ad09bd795d2e84202bbbd3aeae9f28d74ed13da89d5a5fbba73be
   languageName: node
   linkType: hard
 

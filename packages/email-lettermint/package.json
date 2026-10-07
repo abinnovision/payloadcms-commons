@@ -67,7 +67,7 @@
 		"eslint": "^10.11.0",
 		"payload": "3.90.2",
 		"prettier": "^3.9.9",
-		"publint": "^0.3.24",
+		"publint": "^0.3.25",
 		"tsdown": "^0.23.0",
 		"typescript": "^6.0.3",
 		"unplugin-swc": "^2.0.0",
