@@ -76,15 +76,20 @@ beforeAll(async () => {
 		posts: { publish: false },
 		tags: { write: false },
 	} as const;
+	const reserved = BUILTIN_TOOLS.map((tool) => tool.name);
 	const tools = [
 		{ name: "echo", description: "", handler: () => ({ content: [] }) },
 	];
 
-	options = normalizeOptions(raw, { collections, tools });
-	withUpload = normalizeOptions(raw, {
-		collections: { ...collections, media: { publish: false } },
-		tools,
-	});
+	options = normalizeOptions(raw, { collections, tools }, reserved);
+	withUpload = normalizeOptions(
+		raw,
+		{
+			collections: { ...collections, media: { publish: false } },
+			tools,
+		},
+		reserved,
+	);
 	withGlobals = normalizeOptions(
 		{ ...raw, globals: [siteSettings, banner] },
 		{
@@ -94,6 +99,7 @@ beforeAll(async () => {
 			},
 			tools,
 		},
+		reserved,
 	);
 });
 

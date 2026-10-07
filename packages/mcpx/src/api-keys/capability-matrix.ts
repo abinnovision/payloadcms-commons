@@ -1,12 +1,8 @@
-import {
-	canPublish,
-	canWrite,
-	CAPABILITIES_FIELD,
-	isLiveWrite,
-} from "../capabilities.js";
+import { CAPABILITIES_FIELD, STORED_OPERATIONS } from "../capabilities.js";
 
+import type { StoredOperation } from "../capabilities.js";
 import type { NormalizedOptions } from "../options.js";
-import type { McpxExposedEntity } from "../types.js";
+import type { McpxEntityCapabilities, McpxExposedEntity } from "../types.js";
 
 /**
  * The group's `admin.description`, rendered by the matrix in Payload's
@@ -14,56 +10,6 @@ import type { McpxExposedEntity } from "../types.js";
  */
 export const CAPABILITIES_DESCRIPTION =
 	"What this key may do. Each level includes the ones before it, and a missing segment means the plugin config does not expose it. A shield means this key's user approves each call.";
-
-/**
- * The operations a collection or global can expose. The generated checkboxes
- * and the matrix segments share this wording. `requires` names the
- * operation a grant depends on, which the server and the matrix both enforce.
- */
-export const CAPABILITY_OPERATIONS = [
-	{ id: "read", label: "Read", description: "Describe, find and read." },
-	{
-		id: "write",
-		label: "Write",
-		description: "Create, patch and validate drafts.",
-		requires: "read",
-	},
-	{
-		id: "publish",
-		label: "Publish",
-		description: "Promote the current draft to what the public sees.",
-		requires: "write",
-	},
-	{
-		id: "delete",
-		label: "Delete",
-		description:
-			"Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.",
-		requires: "read",
-	},
-] as const;
-
-/**
- * Stored as a checkbox of its own but drawn as the approval shield of the Delete
- * control.
- */
-const DELETE_UNATTENDED = {
-	id: "deleteUnattended",
-	label: "Trash directly",
-	description: "Move documents to trash without asking this key's user.",
-	requires: "delete",
-} as const;
-
-/**
- * Every operation with a stored checkbox: the capability operations plus
- * the unattended delete.
- */
-export const STORED_OPERATIONS = [
-	...CAPABILITY_OPERATIONS,
-	DELETE_UNATTENDED,
-] as const;
-
-export type StoredOperation = (typeof STORED_OPERATIONS)[number]["id"];
 
 /**
  * The two entity namespaces, kept apart so slugs may collide across them.
@@ -74,17 +20,12 @@ export type CapabilityNamespace = "collections" | "globals";
  * One entity's row. The booleans say what the plugin config exposes, not what
  * the key was granted. A `false` leaves its segment out of the row's controls.
  */
-export interface CapabilityRow {
+export interface CapabilityRow extends McpxEntityCapabilities {
 	fieldName: string;
 	/**
 	 * The slug, which is what MCP clients send and what refusals name.
 	 */
 	slug: string;
-	read: boolean;
-	write: boolean;
-	publish: boolean;
-	delete: boolean;
-	deleteUnattended: boolean;
 	/**
 	 * Writes go live immediately, as the entity keeps no drafts.
 	 */
@@ -111,12 +52,20 @@ const toRow = (entity: McpxExposedEntity): CapabilityRow => ({
 	fieldName: entity.fieldName,
 	slug: entity.slug,
 	read: entity.read,
-	write: canWrite(entity),
-	publish: canPublish(entity),
+	write: entity.write,
+	publish: entity.publish,
 	delete: entity.delete,
 	deleteUnattended: entity.deleteUnattended,
-	...(isLiveWrite(entity) ? { live: true } : {}),
+	...(entity.liveWrite ? { live: true } : {}),
 });
+
+/**
+ * The operations a row exposes, in stored order.
+ */
+export const rowOperations = (
+	row: CapabilityRow,
+): (typeof STORED_OPERATIONS)[number][] =>
+	STORED_OPERATIONS.filter((operation) => row[operation.id]);
 
 /**
  * The single description of what the config exposes. `createCapabilityFields`
@@ -158,9 +107,8 @@ export const capabilityPaths = (
 ): string[] => [
 	...(["collections", "globals"] as const).flatMap((namespace) =>
 		matrix[namespace].flatMap((row) =>
-			STORED_OPERATIONS.filter((operation) => row[operation.id]).map(
-				(operation) =>
-					cellPath(basePath, namespace, row.fieldName, operation.id),
+			rowOperations(row).map((operation) =>
+				cellPath(basePath, namespace, row.fieldName, operation.id),
 			),
 		),
 	),

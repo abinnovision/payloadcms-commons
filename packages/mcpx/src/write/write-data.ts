@@ -1,9 +1,9 @@
 import { isPlainObject } from "../guards.js";
 import {
-	ARRAY_MARKER,
-	blockOf,
+	blockForRow,
+	classifyKey,
 	descriptorsUnder,
-	findBlocksField,
+	findFieldAt,
 	ROW_KEYS,
 	splitPath,
 } from "../schema/index.js";
@@ -33,65 +33,47 @@ const pickDescribed = (
 		}
 	}
 
+	const pick = (
+		row: unknown,
+		at: { fields: FlattenedField[]; prefix: readonly string[]; isRow: boolean },
+	): unknown => (isPlainObject(row) ? pickDescribed(config, row, at) : row);
+
 	for (const [key, entry] of Object.entries(value)) {
-		const candidates = relative.filter(({ parts }) => parts[0] === key);
+		const found = classifyKey(relative, prefix, key);
 
-		if (candidates.length === 0) {
+		if (found.kind === "none") {
 			continue;
 		}
 
-		const exact = candidates.find(({ parts }) => parts.length === 1);
+		if (found.kind === "leaf") {
+			const field =
+				found.descriptor.type === "blocks"
+					? findFieldAt(fields, splitPath(found.descriptor.path), "blocks")
+					: undefined;
 
-		if (exact?.descriptor.type === "blocks" && Array.isArray(entry)) {
-			const field = findBlocksField(fields, splitPath(exact.descriptor.path));
+			result[key] =
+				field && Array.isArray(entry)
+					? entry.map((row: unknown) => {
+							const block = blockForRow(config, field, row);
 
-			result[key] = (entry as unknown[]).map((row) => {
-				const block =
-					field && isPlainObject(row) && typeof row["blockType"] === "string"
-						? blockOf(config, field, row["blockType"])
-						: undefined;
-
-				return block && isPlainObject(row)
-					? pickDescribed(config, row, {
-							fields: block.flattenedFields,
-							prefix: [],
-							isRow: true,
+							return block
+								? pick(row, {
+										fields: block.flattenedFields,
+										prefix: [],
+										isRow: true,
+									})
+								: row;
 						})
-					: row;
-			});
-
-			continue;
-		}
-
-		if (exact) {
-			result[key] = entry;
-
-			continue;
-		}
-
-		if (candidates.some(({ parts }) => parts[1] === ARRAY_MARKER)) {
+					: entry;
+		} else if (found.kind === "rows") {
 			result[key] = Array.isArray(entry)
-				? (entry as unknown[]).map((row) =>
-						isPlainObject(row)
-							? pickDescribed(config, row, {
-									fields,
-									prefix: [...prefix, key, ARRAY_MARKER],
-									isRow: true,
-								})
-							: row,
+				? entry.map((row) =>
+						pick(row, { fields, prefix: found.prefix, isRow: true }),
 					)
 				: entry;
-
-			continue;
+		} else {
+			result[key] = pick(entry, { fields, prefix: found.prefix, isRow: false });
 		}
-
-		result[key] = isPlainObject(entry)
-			? pickDescribed(config, entry, {
-					fields,
-					prefix: [...prefix, key],
-					isRow: false,
-				})
-			: entry;
 	}
 
 	return result;

@@ -7,7 +7,7 @@ import {
 	EMPTY_ROOT,
 	descriptorsUnder,
 	isIndexSegment,
-	joinPath,
+	parentPointer,
 	prototypeSegmentProblem,
 	RESERVED_FIELD_NAMES,
 	SchemaError,
@@ -93,7 +93,7 @@ const isReadOnlyPointer = (
 		resolveDataPointer(config, {
 			doc: target.doc,
 			pointer: isElementPointer(target.pointer)
-				? joinPath(splitPath(target.pointer).slice(0, -1))
+				? parentPointer(target.pointer)
 				: target.pointer,
 			ref: target.ref,
 		}),
@@ -151,7 +151,7 @@ const emptiesTheRoot = (
 	config: SanitizedConfig,
 	target: { doc: JsonObject; pointer: string; ref: EntityRef },
 ): boolean => {
-	const list = joinPath(splitPath(target.pointer).slice(0, -1));
+	const list = parentPointer(target.pointer);
 	const owner = resolutionAt(config, { ...target, pointer: list })?.lexical;
 
 	if (owner?.kind !== "nodes" || owner.isRoot !== true) {

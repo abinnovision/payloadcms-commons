@@ -2,7 +2,7 @@ import { isPlainObject } from "./guards.js";
 
 import type { NormalizedOptions } from "./options.js";
 import type {
-	McpxCollectionCapabilities as McpxEntityCapabilities,
+	McpxEntityCapabilities,
 	McpxExposedEntity,
 	McpxResolvedCapabilities,
 	McpxScopeSlugs,
@@ -14,48 +14,80 @@ import type {
 export const CAPABILITIES_FIELD = "capabilities";
 
 /**
- * Covers draft and live writes; {@link isLiveWrite} separates them.
+ * The operations a collection or global can expose. The generated checkboxes
+ * and the matrix segments share this wording. `requires` names the
+ * operation a grant depends on, which the server and the matrix both enforce.
  */
-export const canWrite = (entity: McpxExposedEntity): boolean =>
-	entity.write !== false;
+export const CAPABILITY_OPERATIONS = [
+	{ id: "read", label: "Read", description: "Describe, find and read." },
+	{
+		id: "write",
+		label: "Write",
+		description: "Create, patch and validate drafts.",
+		requires: "read",
+	},
+	{
+		id: "publish",
+		label: "Publish",
+		description: "Promote the current draft to what the public sees.",
+		requires: "write",
+	},
+	{
+		id: "delete",
+		label: "Delete",
+		description:
+			"Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.",
+		requires: "read",
+	},
+] as const;
 
 /**
- * The config lets MCP change live content and a draft exists to promote.
+ * Stored as a checkbox of its own but drawn as the approval shield of the Delete
+ * control.
  */
-export const canPublish = (entity: McpxExposedEntity): boolean =>
-	entity.write === "live" && entity.hasDrafts;
+const DELETE_UNATTENDED = {
+	id: "deleteUnattended",
+	label: "Trash directly",
+	description: "Move documents to trash without asking this key's user.",
+	requires: "delete",
+} as const;
 
 /**
- * Any writable collection. An upload collection also needs a file, which
- * depends on the request, so the tools check it per call.
+ * Every operation with a stored checkbox: the capability operations plus
+ * the unattended delete. Each follows the one it requires, which the resolve
+ * loop depends on.
  */
-export const canCreate = (entity: McpxExposedEntity): boolean =>
-	canWrite(entity);
+export const STORED_OPERATIONS = [
+	...CAPABILITY_OPERATIONS,
+	DELETE_UNATTENDED,
+] as const;
+
+export type StoredOperation = (typeof STORED_OPERATIONS)[number]["id"];
 
 /**
- * Without drafts there is no draft stage, so every write is live.
+ * The operations in one run of the access levels, each requiring the one
+ * before it. Delete is chosen separately.
  */
-export const isLiveWrite = (entity: McpxExposedEntity): boolean =>
-	entity.write === "live" && !entity.hasDrafts;
+export const ACCESS_CHAIN = CAPABILITY_OPERATIONS.filter(
+	(operation) => operation.id !== "delete",
+);
+
+/**
+ * What an operation depends on. `resolveCapabilities` discards a grant whose
+ * prerequisite is off.
+ */
+export const requiresOf = (
+	operation: StoredOperation,
+): StoredOperation | undefined => {
+	const found = STORED_OPERATIONS.find(
+		(candidate) => candidate.id === operation,
+	);
+
+	return found && "requires" in found ? found.requires : undefined;
+};
 
 const flag = (group: unknown, name: string): boolean =>
 	isPlainObject(group) && group[name] === true;
-
-/*
- * Writing extends reading: a write-only key could not learn the schema or find
- * an id, and its patch errors would leak what it may not read. Publishing
- * extends writing in turn: a key that may publish may also edit the draft it
- * publishes. Every checkbox in the chain is required, as well as the config
- * exposing the operation.
- */
-const writeFlag = (entity: McpxExposedEntity, group: unknown): boolean =>
-	canWrite(entity) &&
-	entity.read &&
-	flag(group, "read") &&
-	flag(group, "write");
-
-const publishFlag = (entity: McpxExposedEntity, group: unknown): boolean =>
-	canPublish(entity) && writeFlag(entity, group) && flag(group, "publish");
 
 /**
  * Capabilities in force for a key: the plugin config decides what can exist,
@@ -80,20 +112,31 @@ export const resolveCapabilities = (
 				? namespaceGroup[entity.fieldName]
 				: undefined;
 
-			const deleting =
-				entity.delete && flag(group, "read") && flag(group, "delete");
-
-			resolved[entity.slug] = {
-				read: entity.read && flag(group, "read"),
-				write: writeFlag(entity, group),
-				publish: publishFlag(entity, group),
-				// Deleting needs read, as publishing needs write.
-				delete: deleting,
-				deleteUnattended:
-					deleting &&
-					entity.deleteUnattended &&
-					flag(group, "deleteUnattended"),
+			/*
+			 * Writing extends reading: a write-only key could not learn the schema or
+			 * find an id, and its patch errors would leak what it may not read. Each
+			 * operation also needs the one it `requires`, so publishing needs
+			 * writing and deleting needs reading. The config must expose the
+			 * operation and the key must tick its checkbox.
+			 */
+			const granted: McpxEntityCapabilities = {
+				read: false,
+				write: false,
+				publish: false,
+				delete: false,
+				deleteUnattended: false,
 			};
+
+			for (const { id } of STORED_OPERATIONS) {
+				const needs = requiresOf(id);
+
+				granted[id] =
+					entity[id] &&
+					flag(group, id) &&
+					(needs === undefined || granted[needs]);
+			}
+
+			resolved[entity.slug] = granted;
 		}
 
 		return resolved;
@@ -120,9 +163,7 @@ export const resolveCapabilities = (
 export const scopeSlugs = (
 	entries: Record<string, McpxEntityCapabilities>,
 ): McpxScopeSlugs => {
-	const slugsWith = (
-		operation: "delete" | "publish" | "read" | "write",
-	): string[] =>
+	const slugsWith = (operation: StoredOperation): string[] =>
 		Object.entries(entries)
 			.filter(([, value]) => value[operation])
 			.map(([slug]) => slug);

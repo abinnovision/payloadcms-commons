@@ -2,6 +2,7 @@ import {
 	createCapabilityFields,
 	createConfirmationFields,
 	createKeyFields,
+	SERVER_ONLY,
 	withKeyTabs,
 } from "./fields.js";
 import { generateApiKey, hashApiKey } from "./key.js";
@@ -84,10 +85,7 @@ export const createApiKeysCollection = (
 						type: "relationship",
 						relationTo: userCollection,
 						required: true,
-						access: {
-							create: () => false,
-							update: () => false,
-						},
+						access: SERVER_ONLY,
 						defaultValue: ({ req }: { req: PayloadRequest }) =>
 							isUser({ req }) ? req.user?.id : undefined,
 						admin: {

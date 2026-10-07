@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCreate, resolveCapabilities, scopeSlugs } from "./capabilities.js";
+import { resolveCapabilities, scopeSlugs } from "./capabilities.js";
 import { entity } from "../test/builders/scope.js";
 
 import type { NormalizedOptions } from "./options.js";
@@ -10,7 +10,8 @@ const options = {
 		{
 			slug: "pages",
 			read: true,
-			write: "live",
+			write: true,
+			publish: true,
 			hasDrafts: true,
 			fieldName: "pages",
 		},
@@ -18,6 +19,7 @@ const options = {
 			slug: "my-tags",
 			read: true,
 			write: false,
+			publish: false,
 			hasDrafts: false,
 			fieldName: "myTags",
 		},
@@ -26,7 +28,8 @@ const options = {
 		{
 			slug: "site-settings",
 			read: true,
-			write: "draft",
+			write: true,
+			publish: false,
 			hasDrafts: true,
 			fieldName: "siteSettings",
 		},
@@ -34,6 +37,7 @@ const options = {
 			slug: "banner",
 			read: true,
 			write: false,
+			publish: false,
 			hasDrafts: false,
 			fieldName: "banner",
 		},
@@ -121,7 +125,7 @@ describe("resolveCapabilities", () => {
 		});
 
 		expect(scopeSlugs(ticked.collections).publishable).toEqual(["pages"]);
-		// site-settings has write "draft", so the config never offers publish.
+		// site-settings keeps writes as drafts, so the config never offers publish.
 		expect(scopeSlugs(ticked.globals).publishable).toEqual([]);
 	});
 
@@ -218,14 +222,5 @@ describe("resolveCapabilities", () => {
 		});
 
 		expect(resolved.collections).not.toHaveProperty("users");
-	});
-});
-
-describe("canCreate", () => {
-	it("follows write, upload collections included", () => {
-		expect(canCreate(entity("pages"))).toBe(true);
-		expect(canCreate(entity("pages", { write: "live" }))).toBe(true);
-		expect(canCreate(entity("pages", { write: false }))).toBe(false);
-		expect(canCreate(entity("pages", { isUpload: true }))).toBe(true);
 	});
 });

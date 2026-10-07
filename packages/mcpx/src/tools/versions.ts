@@ -2,11 +2,12 @@ import { hasDraftsEnabled } from "payload/shared";
 import { createPatch, Pointer } from "rfc6902";
 
 import { mcpxReadRequest } from "./read-request.js";
+import { definedProps, isPlainObject } from "../guards.js";
 import { stripAdminHidden } from "../schema/index.js";
 
 import type { DocumentId, DocumentRef } from "../entity.js";
 import type { McpxToolScope } from "../types.js";
-import type { PaginatedDocs, SelectType, TypedLocale, Where } from "payload";
+import type { PaginatedDocs, SelectType, Where } from "payload";
 import type { Operation } from "rfc6902";
 
 // A stored version: its metadata plus the document body under `version`.
@@ -21,7 +22,7 @@ export interface VersionRead {
 	 */
 	target: DocumentRef;
 	depth: number;
-	locale: TypedLocale | undefined;
+	locale: string | undefined;
 }
 
 // Bookkeeping that differs between saves without saying anything about content.
@@ -44,8 +45,7 @@ export const readLive = async (
 		draft: options.draft,
 		overrideAccess: false,
 		req: mcpxReadRequest(scope),
-		...(options.select === undefined ? {} : { select: options.select }),
-		...(read.locale === undefined ? {} : { locale: read.locale }),
+		...definedProps({ select: options.select, locale: read.locale }),
 	};
 
 	const doc = await (read.target.kind === "collection"
@@ -92,10 +92,7 @@ export const isVersionOf = (
 	id: DocumentId,
 ): boolean => {
 	const parent = version["parent"];
-	const parentId =
-		typeof parent === "object" && parent !== null
-			? (parent as Record<string, unknown>)["id"]
-			: parent;
+	const parentId = isPlainObject(parent) ? parent["id"] : parent;
 
 	return (
 		(typeof parentId === "string" || typeof parentId === "number") &&
@@ -123,7 +120,7 @@ export const loadVersion = async (
 		disableErrors: true,
 		overrideAccess: false,
 		req: mcpxReadRequest(scope),
-		...(read.locale === undefined ? {} : { locale: read.locale }),
+		...definedProps({ locale: read.locale }),
 	};
 
 	const version = (await (read.target.kind === "collection"
@@ -172,8 +169,7 @@ export const queryVersions = async (
 		overrideAccess: false,
 		req: mcpxReadRequest(scope),
 		where,
-		...(options.page === undefined ? {} : { page: options.page }),
-		...(read.locale === undefined ? {} : { locale: read.locale }),
+		...definedProps({ page: options.page, locale: read.locale }),
 	};
 
 	return await (read.target.kind === "collection"

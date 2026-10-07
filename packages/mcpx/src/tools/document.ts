@@ -1,15 +1,55 @@
 import { APIError, Forbidden, NotFound } from "payload";
 
+import { documentLinks } from "./links.js";
 import { slugsFor } from "./shared.js";
-import { errorResult } from "../result.js";
+import { definedProps } from "../guards.js";
+import { errorResult, jsonResult } from "../result.js";
 import { collectPublishBlockers } from "../write/publish-blockers.js";
 
 import type { Operation } from "./shared.js";
-import type { DocumentId, DocumentRef, ResolvedEntity } from "../entity.js";
+import type {
+	DocumentId,
+	DocumentRef,
+	ResolvedCollection,
+	ResolvedEntity,
+} from "../entity.js";
 import type { McpxToolScope } from "../types.js";
 import type { PublishBlocker } from "../write/publish-blockers.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { TypedLocale } from "payload";
+import type {
+	File,
+	Payload,
+	PayloadRequest,
+	SanitizedGlobalConfig,
+} from "payload";
+
+/**
+ * `payload.globals` is `{ config: SanitizedGlobalConfig[] }`, an array, not the
+ * slug-keyed map `payload.collections` is.
+ */
+export const globalConfig = (
+	payload: Payload,
+	slug: string,
+): SanitizedGlobalConfig | undefined =>
+	payload.globals.config.find((candidate) => candidate.slug === slug);
+
+/**
+ * For a tool that takes a collection and no global, so the result needs no
+ * check for one.
+ */
+export const resolveCollection = (
+	scope: McpxToolScope,
+	slug: string,
+	operation: Operation,
+): ResolvedCollection => {
+	const found = scope.req.payload.collections[slug]?.config;
+
+	if (!slugsFor(scope, operation).collections.includes(slug) || !found) {
+		throw new Forbidden(scope.req.t);
+	}
+
+	return { kind: "collection", slug, config: found };
+};
 
 /**
  * A raw input shape leaves no top-level `.refine` to express "exactly one of
@@ -22,43 +62,29 @@ export const resolveEntity = (
 	operation: Operation,
 ): ResolvedEntity => {
 	const { collection, global } = args;
-	const allowedSlugs = slugsFor(scope, operation);
 
 	if (collection !== undefined && global !== undefined) {
 		throw new APIError('Pass either "collection" or "global", not both.', 400);
 	}
 
-	if (collection === undefined && global === undefined) {
-		throw new APIError(
-			'One of "collection" or "global" is required. Call listCapabilities to see which slugs are available.',
-			400,
-		);
+	if (collection !== undefined) {
+		return resolveCollection(scope, collection, operation);
 	}
 
-	if (collection !== undefined) {
-		const found = scope.req.payload.collections[collection];
+	if (global !== undefined) {
+		const found = globalConfig(scope.req.payload, global);
 
-		if (!allowedSlugs.collections.includes(collection) || !found) {
+		if (!slugsFor(scope, operation).globals.includes(global) || !found) {
 			throw new Forbidden(scope.req.t);
 		}
 
-		return { kind: "collection", slug: collection, config: found.config };
+		return { kind: "global", slug: global, config: found };
 	}
 
-	const slug = global as string;
-	/*
-	 * `payload.globals` is `{ config: SanitizedGlobalConfig[] }`, an array,
-	 * not the slug-keyed map `payload.collections` is.
-	 */
-	const found = scope.req.payload.globals.config.find(
-		(candidate) => candidate.slug === slug,
+	throw new APIError(
+		'One of "collection" or "global" is required. Call listCapabilities to see which slugs are available.',
+		400,
 	);
-
-	if (!allowedSlugs.globals.includes(slug) || !found) {
-		throw new Forbidden(scope.req.t);
-	}
-
-	return { kind: "global", slug, config: found };
 };
 
 /**
@@ -102,10 +128,61 @@ export const resolveDocument = (
  * What a response names its subject by: a document's id, or a global's slug.
  */
 export const identityOf = (
+	target: DocumentRef,
+): { id: DocumentId } | { global: string } =>
+	target.kind === "collection" ? { id: target.id } : { global: target.slug };
+
+/**
+ * The fields every write result starts with, read from the saved `doc`.
+ */
+export const documentSummary = (
 	target: ResolvedEntity,
-	id: unknown,
-): { id: unknown } | { global: string } =>
-	target.kind === "collection" ? { id } : { global: target.slug };
+	doc: Record<string, unknown>,
+) => ({
+	...(target.kind === "collection"
+		? { id: doc["id"] }
+		: { global: target.slug }),
+	status: doc["_status"],
+	updatedAt: doc["updatedAt"],
+});
+
+/**
+ * Names the blockers of a check, and whether the check itself failed.
+ */
+export const blockerFields = (
+	result: { blockers: PublishBlocker[]; unavailable?: true },
+	key: "otherLocaleBlockers" | "publishBlockers",
+) => ({
+	...(result.blockers.length > 0 ? { [key]: result.blockers } : {}),
+	...(result.unavailable ? { [`${key}Unavailable`]: true } : {}),
+});
+
+/**
+ * What a tool that wrote a document returns: the document, re-read privileged
+ * in `locale`, with its links and publish blockers. `extra` follows them.
+ */
+export const writtenResult = async (
+	scope: McpxToolScope,
+	args: {
+		target: DocumentRef;
+		locale: string | undefined;
+		extra?: Record<string, unknown>;
+	},
+): Promise<CallToolResult> => {
+	const { target, locale } = args;
+	const saved = await readDraft(scope, { target, locale, privileged: true });
+	const validation = await collectPublishBlockers(scope.req, {
+		doc: saved,
+		entity: target,
+	});
+
+	return jsonResult({
+		...documentSummary(target, saved),
+		...(await documentLinks(scope.req, { target, doc: saved, locale })),
+		...blockerFields(validation, "publishBlockers"),
+		...args.extra,
+	});
+};
 
 // The client's value is a string, but the stored one may be a Date.
 const sameInstant = (left: unknown, right: string): boolean =>
@@ -133,8 +210,9 @@ export const readDraft = async (
 	scope: McpxToolScope,
 	args: {
 		target: DocumentRef;
-		locale: TypedLocale | undefined;
+		locale: string | undefined;
 		privileged?: boolean;
+		trash?: boolean;
 	},
 ): Promise<Record<string, unknown>> => {
 	const { payload } = scope.req;
@@ -156,6 +234,7 @@ export const readDraft = async (
 			collection: args.target.slug,
 			id: args.target.id,
 			disableErrors: true,
+			...(args.trash ? { trash: true } : {}),
 		})) as null | Record<string, unknown>;
 
 		if (!doc) {
@@ -178,6 +257,68 @@ export const readDraft = async (
 };
 
 /**
+ * Updates a collection document or a global with no fallback locale, so a value
+ * missing in the written locale is not backfilled from another and persisted.
+ */
+export const updateTarget = async (
+	scope: McpxToolScope,
+	target: DocumentRef,
+	write: {
+		data: Record<string, unknown>;
+		draft: boolean;
+		locale: string | undefined;
+		publishSpecificLocale?: string | undefined;
+		file?: File | undefined;
+	},
+): Promise<void> => {
+	const { payload } = scope.req;
+	const { data, draft, file, ...optional } = write;
+	const shared = {
+		data,
+		depth: 0,
+		draft,
+		fallbackLocale: false as const,
+		overrideAccess: false,
+		req: scope.req,
+		...definedProps(optional),
+	};
+
+	if (target.kind === "collection") {
+		await payload.update({
+			...shared,
+			...definedProps({ file }),
+			collection: target.slug,
+			id: target.id,
+		});
+	} else {
+		await payload.updateGlobal({ ...shared, slug: target.slug });
+	}
+};
+
+/**
+ * Runs `run`, then puts back the request's locale and fallback locale, which
+ * Payload's local API assigns in place.
+ */
+export const withRequestLocale = async <T>(
+	req: PayloadRequest,
+	run: () => Promise<T>,
+): Promise<T> => {
+	const { fallbackLocale, locale } = req;
+
+	try {
+		return await run();
+	} finally {
+		if (locale !== undefined) {
+			req.locale = locale;
+		}
+
+		if (fallbackLocale !== undefined) {
+			req.fallbackLocale = fallbackLocale;
+		}
+	}
+};
+
+/**
  * {@link collectPublishBlockers} over the draft of each locale, each blocker
  * tagged with its locale. Locales run in turn because hooks share `req`, and
  * the request's locale and fallback locale are restored afterwards.
@@ -188,34 +329,39 @@ export const collectLocaleBlockers = async (
 	locales: readonly string[],
 ): Promise<{ blockers: PublishBlocker[]; unavailable?: true }> => {
 	const { req } = scope;
-	const { fallbackLocale, locale: requestLocale } = req;
 	const blockers: PublishBlocker[] = [];
-	let unavailable = false;
 
-	for (const locale of locales) {
-		try {
-			// eslint-disable-next-line no-await-in-loop
-			const doc = await readDraft(scope, { target, locale, privileged: true });
-			// eslint-disable-next-line no-await-in-loop
-			const result = await collectPublishBlockers(req, { doc, entity: target });
+	const unavailable = await withRequestLocale(req, async () => {
+		let failed = false;
 
-			unavailable ||= result.unavailable === true;
-			blockers.push(...result.blockers.map((entry) => ({ ...entry, locale })));
-		} catch (error) {
-			req.payload.logger.warn(
-				`[payloadcms-mcpx] Could not read the ${target.slug} draft in ${locale}: ${error instanceof Error ? error.message : "unknown error"}`,
-			);
-			unavailable = true;
+		for (const locale of locales) {
+			try {
+				// eslint-disable-next-line no-await-in-loop
+				const doc = await readDraft(scope, {
+					target,
+					locale,
+					privileged: true,
+				});
+				// eslint-disable-next-line no-await-in-loop
+				const result = await collectPublishBlockers(req, {
+					doc,
+					entity: target,
+				});
+
+				failed ||= result.unavailable === true;
+				blockers.push(
+					...result.blockers.map((entry) => ({ ...entry, locale })),
+				);
+			} catch (error) {
+				req.payload.logger.warn(
+					`[payloadcms-mcpx] Could not read the ${target.slug} draft in ${locale}: ${error instanceof Error ? error.message : "unknown error"}`,
+				);
+				failed = true;
+			}
 		}
-	}
 
-	if (requestLocale !== undefined) {
-		req.locale = requestLocale;
-	}
-
-	if (fallbackLocale !== undefined) {
-		req.fallbackLocale = fallbackLocale;
-	}
+		return failed;
+	});
 
 	return { blockers, ...(unavailable ? { unavailable: true as const } : {}) };
 };

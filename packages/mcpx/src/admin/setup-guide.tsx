@@ -8,6 +8,7 @@ import {
 } from "@payloadcms/ui";
 import React, { useEffect, useState } from "react";
 
+import { endpointUrl } from "./endpoint-url.js";
 import { buildSetupGuide } from "../api-keys/setup-guide.js";
 
 interface McpxSetupGuideProps {
@@ -85,7 +86,7 @@ export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
 	}
 
 	const sections = buildSetupGuide({
-		endpointUrl: `${origin.replace(/\/+$/, "")}${config.routes.api}${endpointPath}`,
+		endpointUrl: endpointUrl(origin, config.routes.api, endpointPath),
 		apiKey: asString(apiKey),
 		label: asString(label),
 	});

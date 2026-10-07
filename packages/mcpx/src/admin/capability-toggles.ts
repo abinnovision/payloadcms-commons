@@ -1,15 +1,20 @@
 import {
 	cellPath,
-	STORED_OPERATIONS,
+	rowOperations,
 	toolPath,
 } from "../api-keys/capability-matrix.js";
+import {
+	ACCESS_CHAIN,
+	requiresOf,
+	STORED_OPERATIONS,
+} from "../capabilities.js";
 
 import type {
 	CapabilityMatrix,
 	CapabilityNamespace,
 	CapabilityRow,
-	StoredOperation,
 } from "../api-keys/capability-matrix.js";
+import type { StoredOperation } from "../capabilities.js";
 
 /**
  * Form-state values, keyed by the same dotted paths the form uses.
@@ -19,7 +24,7 @@ export type CapabilityValues = Record<string, boolean>;
 /**
  * How far a key may go with an entity. Each level includes the ones before it.
  */
-const ACCESS_LEVELS = ["none", "read", "write", "publish"] as const;
+const ACCESS_LEVELS = ["none" as const, ...ACCESS_CHAIN.map(({ id }) => id)];
 
 export type AccessLevel = (typeof ACCESS_LEVELS)[number];
 
@@ -56,13 +61,38 @@ export type ToggleIntent =
 	| { kind: "tool"; name: string; value: boolean }
 	| { kind: "tools"; value: boolean };
 
+const toolGranted = (
+	values: CapabilityValues,
+	basePath: string,
+	name: string,
+): boolean => values[toolPath(basePath, name)] === true;
+
+const cellGranted = (
+	values: CapabilityValues,
+	basePath: string,
+	namespace: CapabilityNamespace,
+	row: CapabilityRow,
+	operation: StoredOperation,
+): boolean =>
+	values[cellPath(basePath, namespace, row.fieldName, operation)] === true;
+
+/**
+ * One value per stored operation.
+ */
+const byOperation = <T>(
+	valueOf: (operation: StoredOperation) => T,
+): Record<StoredOperation, T> =>
+	Object.fromEntries(
+		STORED_OPERATIONS.map(({ id }) => [id, valueOf(id)]),
+	) as Record<StoredOperation, T>;
+
 export const toolsState = (
 	matrix: CapabilityMatrix,
 	basePath: string,
 	values: CapabilityValues,
 ): ColumnState => {
-	const granted = matrix.tools.filter(
-		(tool) => values[toolPath(basePath, tool.name)] === true,
+	const granted = matrix.tools.filter((tool) =>
+		toolGranted(values, basePath, tool.name),
 	).length;
 
 	if (granted === 0) {
@@ -90,19 +120,12 @@ export const accessLevelOf = (
 ): AccessLevel => {
 	let reached: AccessLevel = "none";
 
-	for (const level of ACCESS_LEVELS) {
-		if (level === "none") {
-			continue;
-		}
-
-		if (
-			!row[level] ||
-			values[cellPath(basePath, namespace, row.fieldName, level)] !== true
-		) {
+	for (const { id } of ACCESS_CHAIN) {
+		if (!row[id] || !cellGranted(values, basePath, namespace, row, id)) {
 			break;
 		}
 
-		reached = level;
+		reached = id;
 	}
 
 	return reached;
@@ -118,7 +141,7 @@ export const deleteModeOf = (
 	values: CapabilityValues,
 ): DeleteMode => {
 	const granted = (operation: StoredOperation): boolean =>
-		values[cellPath(basePath, namespace, row.fieldName, operation)] === true;
+		cellGranted(values, basePath, namespace, row, operation);
 
 	// The server ignores a delete without read, so it reads as off.
 	if (!granted("read") || !granted("delete")) {
@@ -131,20 +154,6 @@ export const deleteModeOf = (
 };
 
 type StoredValues = Record<StoredOperation, boolean>;
-
-/*
- * What each operation depends on, taken from the operations themselves.
- * `resolveCapabilities` discards a grant whose prerequisite is off.
- */
-const requiresOf = (
-	operation: StoredOperation,
-): StoredOperation | undefined => {
-	const found = STORED_OPERATIONS.find(
-		(candidate) => candidate.id === operation,
-	);
-
-	return found && "requires" in found ? found.requires : undefined;
-};
 
 // The operations a grant depends on, nearest first.
 const prerequisitesOf = (operation: StoredOperation): StoredOperation[] => {
@@ -187,22 +196,18 @@ const rowActions = (
 	values: CapabilityValues,
 	changes: Partial<StoredValues>,
 ): CapabilityAction[] => {
-	const current = Object.fromEntries(
-		STORED_OPERATIONS.map((operation) => [
-			operation.id,
-			values[cellPath(basePath, namespace, row.fieldName, operation.id)] ===
-				true,
-		]),
-	) as StoredValues;
+	const current = byOperation((operation) =>
+		cellGranted(values, basePath, namespace, row, operation),
+	);
 
 	const touched = new Set<StoredOperation>();
 	const next = { ...current };
 
-	for (const operation of STORED_OPERATIONS) {
+	// A change to an operation the config does not expose has nowhere to go.
+	for (const operation of rowOperations(row)) {
 		const change = changes[operation.id];
 
-		// A change to an operation the config does not expose has nowhere to go.
-		if (change !== undefined && row[operation.id]) {
+		if (change !== undefined) {
 			next[operation.id] = change;
 			touched.add(operation.id);
 		}
@@ -210,21 +215,20 @@ const rowActions = (
 
 	const reconciled = reconcile(next, touched);
 
-	return STORED_OPERATIONS.filter(
-		(operation) =>
-			row[operation.id] && reconciled[operation.id] !== current[operation.id],
-	).map((operation) => ({
-		type: "UPDATE" as const,
-		path: cellPath(basePath, namespace, row.fieldName, operation.id),
-		value: reconciled[operation.id],
-	}));
+	return rowOperations(row)
+		.filter((operation) => reconciled[operation.id] !== current[operation.id])
+		.map((operation) => ({
+			type: "UPDATE" as const,
+			path: cellPath(basePath, namespace, row.fieldName, operation.id),
+			value: reconciled[operation.id],
+		}));
 };
 
 // A level grants its own operation and every one before it.
 const grantsOf = (level: AccessLevel): Partial<StoredValues> => {
 	const rank = ACCESS_LEVELS.indexOf(level);
 
-	return { read: rank >= 1, write: rank >= 2, publish: rank >= 3 };
+	return Object.fromEntries(ACCESS_CHAIN.map(({ id }, i) => [id, rank > i]));
 };
 
 /**
@@ -246,8 +250,7 @@ export const buildToggleActions = (
 		return matrix.tools
 			.filter((tool) => intent.kind === "tools" || tool.name === intent.name)
 			.filter(
-				(tool) =>
-					(values[toolPath(basePath, tool.name)] === true) !== intent.value,
+				(tool) => toolGranted(values, basePath, tool.name) !== intent.value,
 			)
 			.map((tool) => ({
 				type: "UPDATE" as const,
@@ -274,6 +277,20 @@ export const buildToggleActions = (
 	);
 };
 
+// The first candidate whose intent would change nothing.
+const firstNoop = <T>(
+	candidates: readonly T[],
+	matrix: CapabilityMatrix,
+	basePath: string,
+	values: CapabilityValues,
+	intentOf: (candidate: T) => ToggleIntent,
+): T | undefined =>
+	candidates.find(
+		(candidate) =>
+			buildToggleActions(matrix, basePath, values, intentOf(candidate))
+				.length === 0,
+	);
+
 /**
  * The level a namespace's "All" control shows: the one that would change
  * nothing if picked, so rows capped below it still count. `undefined` while
@@ -285,14 +302,11 @@ export const allAccessLevel = (
 	namespace: CapabilityNamespace,
 	values: CapabilityValues,
 ): AccessLevel | undefined =>
-	ACCESS_LEVELS.find(
-		(level) =>
-			buildToggleActions(matrix, basePath, values, {
-				kind: "access",
-				namespace,
-				level,
-			}).length === 0,
-	);
+	firstNoop(ACCESS_LEVELS, matrix, basePath, values, (level) => ({
+		kind: "access",
+		namespace,
+		level,
+	}));
 
 /**
  * The delete mode the "All" control shows, by the same rule. It offers no
@@ -304,11 +318,8 @@ export const allDeleteMode = (
 	namespace: CapabilityNamespace,
 	values: CapabilityValues,
 ): DeleteMode | undefined =>
-	(["off", "approve"] as const).find(
-		(mode) =>
-			buildToggleActions(matrix, basePath, values, {
-				kind: "deleteMode",
-				namespace,
-				mode,
-			}).length === 0,
-	);
+	firstNoop(["off", "approve"] as const, matrix, basePath, values, (mode) => ({
+		kind: "deleteMode",
+		namespace,
+		mode,
+	}));

@@ -13,12 +13,8 @@ import {
 } from "@payloadcms/ui";
 import React, { useCallback, useMemo } from "react";
 
-import {
-	CAPABILITY_OPERATIONS,
-	capabilityPaths,
-	toolPath,
-} from "../api-keys/capability-matrix.js";
-import { CAPABILITIES_FIELD } from "../capabilities.js";
+import { capabilityPaths, toolPath } from "../api-keys/capability-matrix.js";
+import { ACCESS_CHAIN, CAPABILITIES_FIELD } from "../capabilities.js";
 import { translateStatic } from "../i18n.js";
 import {
 	accessLevelOf,
@@ -34,6 +30,7 @@ import type {
 	AccessLevel,
 	CapabilityValues,
 	ColumnState,
+	DeleteMode,
 	ToggleIntent,
 } from "./capability-toggles.js";
 import type {
@@ -65,9 +62,71 @@ interface McpxCapabilityMatrixProps {
 const BASE_CLASS = "mcpx-capabilities";
 const LIVE_WRITE = "Writes go live immediately.";
 
-// Row hover, the approval shield, and joining Payload buttons into one segmented control.
+const cx = (...names: (false | string | undefined)[]): string =>
+	names.filter(Boolean).join(" ");
+
+/*
+ * Payload's table metrics, so a row is as tall as one elsewhere in the admin:
+ * cells at `base(0.6)` and outer edges at `base(0.8)`. Payload's theme variables
+ * only, so light and dark themes both work. The layout is fixed because a
+ * cell's `min-width` is advisory in an auto layout, and the tables must line
+ * their columns up with each other. Separate borders keep the header's corner
+ * radii reliable.
+ */
 const SHEET = `
 .${BASE_CLASS} tbody tr:hover { background: var(--theme-elevation-50); }
+.${BASE_CLASS}__sections {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--base) calc(var(--base) * 2);
+	align-items: flex-start;
+}
+.${BASE_CLASS}__table {
+	table-layout: fixed;
+	width: auto;
+	border-collapse: separate;
+	border-spacing: 0;
+	text-align: left;
+}
+.${BASE_CLASS}__table thead { background: var(--theme-elevation-50); }
+.${BASE_CLASS}__table th,
+.${BASE_CLASS}__table td {
+	padding: calc(var(--base) * 0.6);
+	vertical-align: middle;
+	font-weight: normal;
+	text-align: center;
+}
+.${BASE_CLASS}__table thead th { color: var(--theme-elevation-400); }
+.${BASE_CLASS}__table .${BASE_CLASS}__head { white-space: nowrap; }
+.${BASE_CLASS}__table .${BASE_CLASS}__start { text-align: start; }
+.${BASE_CLASS}__table .${BASE_CLASS}__row,
+.${BASE_CLASS}__table .${BASE_CLASS}__title {
+	padding-inline-start: calc(var(--base) * 0.8);
+	text-align: inherit;
+}
+.${BASE_CLASS}__table .${BASE_CLASS}__row { word-break: break-word; }
+.${BASE_CLASS}__table thead .${BASE_CLASS}__row { color: var(--theme-elevation-500); }
+.${BASE_CLASS}__table .${BASE_CLASS}__title {
+	font-size: 0.8em;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.${BASE_CLASS}__table td:last-child { padding-inline-end: calc(var(--base) * 0.8); }
+.${BASE_CLASS}__table thead tr:first-child th:first-child { border-start-start-radius: var(--style-radius-s); }
+.${BASE_CLASS}__table thead tr:first-child th:last-child { border-start-end-radius: var(--style-radius-s); }
+.${BASE_CLASS}__table thead tr:last-child > * { border-bottom: 1px solid var(--theme-border-color); }
+.${BASE_CLASS}__hint { display: block; color: var(--theme-elevation-400); }
+.${BASE_CLASS}__badge {
+	display: inline-flex;
+	margin-inline-start: calc(var(--base) * 0.4);
+	vertical-align: middle;
+	cursor: help;
+}
+.${BASE_CLASS}__delete {
+	display: inline-flex;
+	align-items: center;
+	gap: calc(var(--base) * 0.4);
+}
 .${BASE_CLASS}__segments {
 	display: inline-flex;
 	border: 1px solid var(--theme-elevation-150);
@@ -97,107 +156,6 @@ const SHEET = `
 `;
 
 /*
- * Payload's table metrics, so a row is as tall as one elsewhere in the admin:
- * cells at `base(0.6)` and outer edges at `base(0.8)`.
- */
-const CELL_PADDING = "calc(var(--base) * 0.6)";
-const EDGE_PADDING = "calc(var(--base) * 0.8)";
-
-// Payload's theme variables only, so light and dark themes both work.
-const styles = {
-	// Tables sit side by side where there is room and stack where there is not.
-	sections: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: "var(--base) calc(var(--base) * 2)",
-		alignItems: "flex-start",
-	},
-	/*
-	 * Sized to its columns, not the form. Separate borders keep the header's
-	 * corner radii reliable. The layout is fixed because a cell's `min-width` is
-	 * advisory in an auto layout, and the tables must line their columns up
-	 * with each other.
-	 */
-	table: {
-		tableLayout: "fixed",
-		width: "auto",
-		borderCollapse: "separate",
-		borderSpacing: 0,
-		textAlign: "left",
-	},
-	head: { background: "var(--theme-elevation-50)" },
-	// The section name heads the label column in place of a separate title.
-	headTitle: {
-		padding: `${CELL_PADDING} ${CELL_PADDING} ${CELL_PADDING} ${EDGE_PADDING}`,
-		verticalAlign: "middle",
-		fontSize: "0.8em",
-		letterSpacing: "0.08em",
-		textTransform: "uppercase",
-		color: "var(--theme-elevation-400)",
-		fontWeight: "normal",
-	},
-	headOperation: {
-		padding: CELL_PADDING,
-		verticalAlign: "middle",
-		color: "var(--theme-elevation-400)",
-		fontWeight: "normal",
-		textAlign: "center",
-		whiteSpace: "nowrap",
-	},
-	headLabel: {
-		padding: `${CELL_PADDING} ${CELL_PADDING} ${CELL_PADDING} ${EDGE_PADDING}`,
-		verticalAlign: "middle",
-		color: "var(--theme-elevation-500)",
-		fontWeight: "normal",
-	},
-	// Closes the header block across every column, not only the first.
-	rule: { borderBottom: "1px solid var(--theme-border-color)" },
-	topStart: { borderStartStartRadius: "var(--style-radius-s)" },
-	topEnd: { borderStartEndRadius: "var(--style-radius-s)" },
-	rowHeader: {
-		padding: `${CELL_PADDING} ${CELL_PADDING} ${CELL_PADDING} ${EDGE_PADDING}`,
-		verticalAlign: "middle",
-		fontWeight: "normal",
-		wordBreak: "break-word",
-	},
-	hint: {
-		display: "block",
-		color: "var(--theme-elevation-400)",
-	},
-	badge: {
-		display: "inline-flex",
-		marginInlineStart: "calc(var(--base) * 0.4)",
-		verticalAlign: "middle",
-		cursor: "help",
-	},
-	// Read by screen readers in place of the badge's one-word label.
-	visuallyHidden: {
-		position: "absolute",
-		width: "1px",
-		height: "1px",
-		overflow: "hidden",
-		clip: "rect(0 0 0 0)",
-		whiteSpace: "nowrap",
-	},
-	cell: {
-		padding: CELL_PADDING,
-		verticalAlign: "middle",
-		textAlign: "center",
-	},
-	controlCell: {
-		padding: CELL_PADDING,
-		verticalAlign: "middle",
-		textAlign: "start",
-	},
-	lastCell: { paddingInlineEnd: EDGE_PADDING },
-	deleteControls: {
-		display: "inline-flex",
-		alignItems: "center",
-		gap: "calc(var(--base) * 0.4)",
-	},
-} as const satisfies Record<string, React.CSSProperties>;
-
-/*
  * Payload's checkbox, which carries the admin's styling and the partial state
  * the tools toggle needs. `name` becomes the input's `title`, so it is also the
  * accessible name.
@@ -217,6 +175,13 @@ const Box: React.FC<{
 	/>
 );
 
+// `undefined` is an "All" control over rows that differ.
+const deleteBoxState = (mode: DeleteMode | undefined): ColumnState =>
+	mode === undefined ? "mixed" : mode === "off" ? "off" : "on";
+
+const nextDeleteMode = (mode: DeleteMode | undefined): DeleteMode =>
+	mode === "off" || mode === undefined ? "approve" : "off";
+
 interface SegmentOption<T extends string> {
 	id: T;
 	label: string;
@@ -225,13 +190,11 @@ interface SegmentOption<T extends string> {
 
 const ACCESS_OPTIONS: SegmentOption<AccessLevel>[] = [
 	{ id: "none", label: "None", title: "No access" },
-	...CAPABILITY_OPERATIONS.filter((operation) => operation.id !== "delete").map(
-		(operation) => ({
-			id: operation.id,
-			label: operation.label,
-			title: operation.description,
-		}),
-	),
+	...ACCESS_CHAIN.map((operation) => ({
+		id: operation.id,
+		label: operation.label,
+		title: operation.description,
+	})),
 ];
 
 const ARROW_STEPS: Record<string, number> = {
@@ -357,30 +320,11 @@ const OPERATION_WIDTH = "calc(var(--base) * 3.5)";
 const ACCESS_WIDTH = "calc(var(--base) * 13)";
 const DELETE_WIDTH = "calc(var(--base) * 4)";
 
-// Fixed widths, so every table lines its columns up with the others.
-const Columns: React.FC<{ widths: string[] }> = ({ widths }) => (
-	<colgroup>
-		<col style={{ width: LABEL_WIDTH }} />
-		{widths.map((width, index) => (
-			<col key={index} style={{ width }} />
-		))}
-	</colgroup>
-);
-
-// The rightmost cell carries the table's outer padding, as in Payload.
-const lastCellStyle: React.CSSProperties = {
-	...styles.cell,
-	...styles.lastCell,
-};
-
-const controlStyle = (isLast: boolean): React.CSSProperties =>
-	isLast ? { ...styles.controlCell, ...styles.lastCell } : styles.controlCell;
-
 const LiveBadge: React.FC = () => (
-	<span style={styles.badge} title={LIVE_WRITE}>
+	<span className={`${BASE_CLASS}__badge`} title={LIVE_WRITE}>
 		<Pill pillStyle="warning" size="small">
 			<span aria-hidden="true">Live</span>
-			<span style={styles.visuallyHidden}>{LIVE_WRITE}</span>
+			<span className="sr-only">{LIVE_WRITE}</span>
 		</Pill>
 	</span>
 );
@@ -389,29 +333,29 @@ const APPROVED_ALWAYS =
 	"Always approved: the plugin config does not allow unattended deletes";
 
 /*
- * A shield on a gated operation. Pressed means a person approves each call.
+ * A shield on a gated delete. Pressed means a person approves each call.
  * Unpressed lets the call run unattended. `locked` pins it pressed.
  */
 const ApprovalToggle: React.FC<{
 	label: string;
 	locked?: boolean;
 	onToggle: () => void;
-	operation: string;
 	pressed: boolean;
 	readOnly: boolean;
-}> = ({ label, locked = false, onToggle, operation, pressed, readOnly }) => {
+}> = ({ label, locked = false, onToggle, pressed, readOnly }) => {
 	const title = locked
 		? APPROVED_ALWAYS
 		: pressed
-			? `A person approves each ${operation}`
-			: `Each ${operation} runs without approval`;
+			? "A person approves each delete"
+			: "Each delete runs without approval";
 
 	return (
 		<button
 			aria-pressed={pressed}
-			className={[`${BASE_CLASS}__shield`, !pressed && `${BASE_CLASS}__danger`]
-				.filter(Boolean)
-				.join(" ")}
+			className={cx(
+				`${BASE_CLASS}__shield`,
+				!pressed && `${BASE_CLASS}__danger`,
+			)}
 			disabled={readOnly || locked}
 			onClick={onToggle}
 			title={title}
@@ -431,10 +375,58 @@ const ApprovalToggle: React.FC<{
 				<path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z" />
 				{pressed ? <path d="M9 12l2 2 4-4" /> : null}
 			</svg>
-			<span style={styles.visuallyHidden}>{`${label}: ${title}`}</span>
+			<span className="sr-only">{`${label}: ${title}`}</span>
 		</button>
 	);
 };
+
+/*
+ * The shared scaffold: the title and column headings, an "All" row whose
+ * control cells are `all`, and the body rows as children. The first column
+ * carries the label, so `widths` and `heads` describe the rest.
+ */
+const MatrixTable: React.FC<{
+	all: React.ReactNode;
+	children: React.ReactNode;
+	heads: string[];
+	start?: boolean;
+	title: string;
+	widths: string[];
+}> = ({ all, children, heads, start = false, title, widths }) => (
+	<section>
+		<table className={`${BASE_CLASS}__table`}>
+			<colgroup>
+				<col style={{ width: LABEL_WIDTH }} />
+				{widths.map((width, index) => (
+					<col key={index} style={{ width }} />
+				))}
+			</colgroup>
+			<thead>
+				<tr>
+					<th className={`${BASE_CLASS}__title`} scope="col">
+						{title}
+					</th>
+					{heads.map((head) => (
+						<th
+							className={`${BASE_CLASS}__head${start ? ` ${BASE_CLASS}__start` : ""}`}
+							key={head}
+							scope="col"
+						>
+							{head}
+						</th>
+					))}
+				</tr>
+				<tr>
+					<th className={`${BASE_CLASS}__row`} scope="row">
+						All
+					</th>
+					{all}
+				</tr>
+			</thead>
+			<tbody>{children}</tbody>
+		</table>
+	</section>
+);
 
 interface TableProps {
 	matrix: CapabilityMatrix;
@@ -474,159 +466,117 @@ const NamespaceTable: React.FC<
 	const allDelete = allDeleteMode(matrix, path, namespace.id, values);
 
 	return (
-		<section>
-			<table style={styles.table}>
-				<Columns
-					widths={withDelete ? [ACCESS_WIDTH, DELETE_WIDTH] : [ACCESS_WIDTH]}
-				/>
-				<thead style={styles.head}>
-					<tr>
-						<th scope="col" style={{ ...styles.headTitle, ...styles.topStart }}>
-							{namespace.title}
-						</th>
-						<th
-							scope="col"
-							style={{
-								...styles.headOperation,
-								textAlign: "start",
-								...(withDelete ? {} : styles.topEnd),
+		<MatrixTable
+			all={
+				<>
+					<td className={`${BASE_CLASS}__start`}>
+						<Segments
+							included={includedBelow(allOptions, allLevel)}
+							label={`Access for every ${entries} entry`}
+							onSelect={(level) => {
+								toggle({ kind: "access", namespace: namespace.id, level });
 							}}
-						>
-							Access
-						</th>
-						{withDelete ? (
-							<th
-								scope="col"
-								style={{
-									...styles.headOperation,
-									textAlign: "start",
-									...styles.topEnd,
+							options={allOptions}
+							readOnly={readOnly}
+							selected={allLevel}
+						/>
+					</td>
+					{withDelete ? (
+						<td className={`${BASE_CLASS}__start`}>
+							<Box
+								label={`Delete for every ${entries} entry`}
+								onChange={() => {
+									toggle({
+										kind: "deleteMode",
+										namespace: namespace.id,
+										mode: nextDeleteMode(allDelete),
+									});
 								}}
-							>
-								Delete
-							</th>
-						) : null}
-					</tr>
-					<tr>
-						<th scope="row" style={{ ...styles.headLabel, ...styles.rule }}>
-							All
-						</th>
-						<td style={{ ...controlStyle(!withDelete), ...styles.rule }}>
-							<Segments
-								included={includedBelow(allOptions, allLevel)}
-								label={`Access for every ${entries} entry`}
-								onSelect={(level) => {
-									toggle({ kind: "access", namespace: namespace.id, level });
-								}}
-								options={allOptions}
 								readOnly={readOnly}
-								selected={allLevel}
+								state={deleteBoxState(allDelete)}
+							/>
+						</td>
+					) : null}
+				</>
+			}
+			heads={withDelete ? ["Access", "Delete"] : ["Access"]}
+			start
+			title={namespace.title}
+			widths={withDelete ? [ACCESS_WIDTH, DELETE_WIDTH] : [ACCESS_WIDTH]}
+		>
+			{rows.map((row) => {
+				const options = accessOptions([row]);
+				const level = accessLevelOf(path, namespace.id, row, values);
+				const mode = deleteModeOf(path, namespace.id, row, values);
+				const name = nameOf(row);
+
+				return (
+					<tr key={row.fieldName}>
+						<th className={`${BASE_CLASS}__row`} scope="row">
+							{name}
+							{row.live ? <LiveBadge /> : null}
+							{name === row.slug ? null : (
+								<span className={`${BASE_CLASS}__hint`}>{row.slug}</span>
+							)}
+						</th>
+						<td className={`${BASE_CLASS}__start`}>
+							<Segments
+								included={includedBelow(options, level)}
+								label={`Access for ${name}`}
+								onSelect={(next) => {
+									toggle({
+										kind: "access",
+										namespace: namespace.id,
+										fieldName: row.fieldName,
+										level: next,
+									});
+								}}
+								options={options}
+								readOnly={readOnly}
+								selected={level}
 							/>
 						</td>
 						{withDelete ? (
-							<td style={{ ...controlStyle(true), ...styles.rule }}>
-								<Box
-									label={`Delete for every ${entries} entry`}
-									onChange={() => {
-										toggle({
-											kind: "deleteMode",
-											namespace: namespace.id,
-											mode:
-												allDelete === "off" || allDelete === undefined
-													? "approve"
-													: "off",
-										});
-									}}
-									readOnly={readOnly}
-									state={
-										allDelete === undefined
-											? "mixed"
-											: allDelete === "off"
-												? "off"
-												: "on"
-									}
-								/>
+							<td className={`${BASE_CLASS}__start`}>
+								{row.delete ? (
+									<span className={`${BASE_CLASS}__delete`}>
+										<Box
+											label={`Delete ${name}`}
+											onChange={() => {
+												toggle({
+													kind: "deleteMode",
+													namespace: namespace.id,
+													fieldName: row.fieldName,
+													mode: nextDeleteMode(mode),
+												});
+											}}
+											readOnly={readOnly}
+											state={deleteBoxState(mode)}
+										/>
+										{mode === "off" ? null : (
+											<ApprovalToggle
+												label={`Approval for deleting ${name}`}
+												locked={!row.deleteUnattended}
+												onToggle={() => {
+													toggle({
+														kind: "deleteMode",
+														namespace: namespace.id,
+														fieldName: row.fieldName,
+														mode: mode === "trash" ? "approve" : "trash",
+													});
+												}}
+												pressed={mode !== "trash"}
+												readOnly={readOnly}
+											/>
+										)}
+									</span>
+								) : null}
 							</td>
 						) : null}
 					</tr>
-				</thead>
-				<tbody>
-					{rows.map((row) => {
-						const options = accessOptions([row]);
-						const level = accessLevelOf(path, namespace.id, row, values);
-						const mode = deleteModeOf(path, namespace.id, row, values);
-						const name = nameOf(row);
-
-						return (
-							<tr key={row.fieldName}>
-								<th scope="row" style={styles.rowHeader}>
-									{name}
-									{row.live ? <LiveBadge /> : null}
-									{name === row.slug ? null : (
-										<span style={styles.hint}>{row.slug}</span>
-									)}
-								</th>
-								<td style={controlStyle(!withDelete)}>
-									<Segments
-										included={includedBelow(options, level)}
-										label={`Access for ${name}`}
-										onSelect={(next) => {
-											toggle({
-												kind: "access",
-												namespace: namespace.id,
-												fieldName: row.fieldName,
-												level: next,
-											});
-										}}
-										options={options}
-										readOnly={readOnly}
-										selected={level}
-									/>
-								</td>
-								{withDelete ? (
-									<td style={controlStyle(true)}>
-										{row.delete ? (
-											<span style={styles.deleteControls}>
-												<Box
-													label={`Delete ${name}`}
-													onChange={() => {
-														toggle({
-															kind: "deleteMode",
-															namespace: namespace.id,
-															fieldName: row.fieldName,
-															mode: mode === "off" ? "approve" : "off",
-														});
-													}}
-													readOnly={readOnly}
-													state={mode === "off" ? "off" : "on"}
-												/>
-												{mode === "off" ? null : (
-													<ApprovalToggle
-														label={`Approval for deleting ${name}`}
-														locked={!row.deleteUnattended}
-														onToggle={() => {
-															toggle({
-																kind: "deleteMode",
-																namespace: namespace.id,
-																fieldName: row.fieldName,
-																mode: mode === "trash" ? "approve" : "trash",
-															});
-														}}
-														operation="delete"
-														pressed={mode !== "trash"}
-														readOnly={readOnly}
-													/>
-												)}
-											</span>
-										) : null}
-									</td>
-								) : null}
-							</tr>
-						);
-					})}
-				</tbody>
-			</table>
-		</section>
+				);
+			})}
+		</MatrixTable>
 	);
 };
 
@@ -640,65 +590,46 @@ const ToolsTable: React.FC<TableProps> = ({
 	const toolState = toolsState(matrix, path, values);
 
 	return (
-		<section>
-			<table style={styles.table}>
-				<Columns widths={[OPERATION_WIDTH]} />
-				<thead style={styles.head}>
-					<tr>
-						<th scope="col" style={{ ...styles.headTitle, ...styles.topStart }}>
-							Tools
+		<MatrixTable
+			all={
+				<td>
+					<Box
+						label="Enable every tool"
+						onChange={() => {
+							toggle({ kind: "tools", value: toolState !== "on" });
+						}}
+						readOnly={readOnly}
+						state={toolState}
+					/>
+				</td>
+			}
+			heads={["Enabled"]}
+			title="Tools"
+			widths={[OPERATION_WIDTH]}
+		>
+			{matrix.tools.map((tool) => {
+				const granted = values[toolPath(path, tool.name)] === true;
+
+				return (
+					<tr key={tool.name}>
+						<th className={`${BASE_CLASS}__row`} scope="row">
+							{tool.name}
+							<span className={`${BASE_CLASS}__hint`}>{tool.description}</span>
 						</th>
-						<th
-							scope="col"
-							style={{ ...styles.headOperation, ...styles.topEnd }}
-						>
-							Enabled
-						</th>
-					</tr>
-					<tr>
-						<th scope="row" style={{ ...styles.headLabel, ...styles.rule }}>
-							All
-						</th>
-						<td style={{ ...lastCellStyle, ...styles.rule }}>
+						<td>
 							<Box
-								label="Enable every tool"
+								label={`Enable ${tool.name}`}
 								onChange={() => {
-									toggle({ kind: "tools", value: toolState !== "on" });
+									toggle({ kind: "tool", name: tool.name, value: !granted });
 								}}
 								readOnly={readOnly}
-								state={toolState}
+								state={granted ? "on" : "off"}
 							/>
 						</td>
 					</tr>
-				</thead>
-				<tbody>
-					{matrix.tools.map((tool) => (
-						<tr key={tool.name}>
-							<th scope="row" style={styles.rowHeader}>
-								{tool.name}
-								<span style={styles.hint}>{tool.description}</span>
-							</th>
-							<td style={lastCellStyle}>
-								<Box
-									label={`Enable ${tool.name}`}
-									onChange={() => {
-										toggle({
-											kind: "tool",
-											name: tool.name,
-											value: values[toolPath(path, tool.name)] !== true,
-										});
-									}}
-									readOnly={readOnly}
-									state={
-										values[toolPath(path, tool.name)] === true ? "on" : "off"
-									}
-								/>
-							</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
-		</section>
+				);
+			})}
+		</MatrixTable>
 	);
 };
 
@@ -761,15 +692,13 @@ export const McpxCapabilityMatrix: React.FC<McpxCapabilityMatrixProps> = ({
 
 	return (
 		<div
-			className={[
+			className={cx(
 				"field-type",
 				"group-field",
 				"group-field--top-level",
 				withinTab && "group-field--within-tab",
 				BASE_CLASS,
-			]
-				.filter(Boolean)
-				.join(" ")}
+			)}
 		>
 			<style>{SHEET}</style>
 			<div className="group-field__wrap">
@@ -792,7 +721,7 @@ export const McpxCapabilityMatrix: React.FC<McpxCapabilityMatrixProps> = ({
 						) : null}
 					</header>
 				</div>
-				<div style={styles.sections}>
+				<div className={`${BASE_CLASS}__sections`}>
 					{namespaces.map((namespace) => (
 						<NamespaceTable
 							key={namespace.id}

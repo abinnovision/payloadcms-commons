@@ -6,7 +6,7 @@ import {
 	blockSlugsOf,
 	describeAddressableFields,
 	describeFields,
-	findBlocksField,
+	findFieldAt,
 	schemaOf,
 } from "./walk.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
@@ -258,13 +258,15 @@ describe("describeFields", () => {
 	});
 });
 
-describe("findBlocksField, blockSlugsOf and blockOf", () => {
+describe("findFieldAt, blockSlugsOf and blockOf", () => {
 	const sectionsField = () =>
-		findBlocksField(pagesFields(), ["layout", "sections"])!;
+		findFieldAt(pagesFields(), ["layout", "sections"], "blocks")!;
 
 	it("finds a blocks field through a named tab", () => {
 		expect(sectionsField()).toMatchObject({ name: "sections", type: "blocks" });
-		expect(findBlocksField(pagesFields(), ["layout", "color"])).toBeUndefined();
+		expect(
+			findFieldAt(pagesFields(), ["layout", "color"], "blocks"),
+		).toBeUndefined();
 	});
 
 	it("lists slugs from references and inline definitions alike", () => {

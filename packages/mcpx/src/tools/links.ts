@@ -1,5 +1,7 @@
 import { formatAdminURL } from "payload/shared";
 
+import { publicOrigin } from "../request.js";
+
 import type { ResolvedEntity } from "../entity.js";
 import type { PayloadRequest, RootLivePreviewConfig } from "payload";
 
@@ -11,7 +13,7 @@ export interface DocumentLinks {
 interface LinkArgs {
 	target: ResolvedEntity;
 	doc: Record<string, unknown>;
-	locale: string | null | undefined;
+	locale: string | undefined;
 }
 
 // The entity's own `livePreview`, else the root one when it lists the slug.
@@ -73,7 +75,7 @@ export const documentLinks = async (
 ): Promise<DocumentLinks> => {
 	const { target, doc, locale } = args;
 	const { config } = req.payload;
-	const origin = config.serverURL || new URL(req.url ?? "").origin;
+	const origin = publicOrigin(req);
 	const path: `/${string}` =
 		target.kind === "collection"
 			? `/collections/${target.slug}/${String(doc["id"])}`

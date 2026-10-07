@@ -1,45 +1,45 @@
 import { formatAdminURL } from "payload/shared";
 
-import { CONFIRMATIONS_PATH } from "../api-keys/confirmation-view.js";
+import { respond } from "./http.js";
+import {
+	CONFIRMATIONS_PATH,
+	DECISIONS,
+} from "../api-keys/confirmation-view.js";
+import { relationId } from "../auth/resolve.js";
 import {
 	CONFIRMATIONS_PER_KEY,
-	confirmationHandle,
 	decideConfirmations,
 	issueConfirmation,
 	listConfirmations,
 } from "../grants/confirmation.js";
-import { grantKvSlug } from "../grants/grant.js";
+import { grantContext, grantKvSlug, rowHandle } from "../grants/grant.js";
 import { isPlainObject } from "../guards.js";
+import { publicOrigin } from "../request.js";
 import { jsonResult } from "../result.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 
-import type { ConfirmationView } from "../api-keys/confirmation-view.js";
+import type {
+	ConfirmationDecision,
+	ConfirmationView,
+} from "../api-keys/confirmation-view.js";
 import type { DocumentId } from "../entity.js";
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAnyTool, McpxConfirmation, McpxToolScope } from "../types.js";
 import type { Endpoint, PayloadHandler, PayloadRequest } from "payload";
 
-const respond = (status: number, body: unknown): Response =>
-	Response.json(body, { status });
-
 const confirmableTool = (name: string): McpxAnyTool | undefined =>
 	BUILTIN_TOOLS.find((tool) => tool.name === name && tool.confirm);
 
-/*
- * The key's own edit view, where its user decides. At the origin of
- * `serverURL` when set, else of the MCP request.
- */
+// The key's own edit view, where its user decides.
 const keyViewUrl = (
 	req: PayloadRequest,
 	options: NormalizedOptions,
 	apiKeyId: DocumentId,
 ): string => {
-	const { config } = req.payload;
-
 	return formatAdminURL({
-		adminRoute: config.routes.admin,
+		adminRoute: req.payload.config.routes.admin,
 		path: `/collections/${options.apiKeysSlug}/${String(apiKeyId)}`,
-		serverURL: config.serverURL || new URL(req.url ?? "").origin,
+		serverURL: publicOrigin(req),
 	});
 };
 
@@ -56,12 +56,7 @@ export const confirmationFor = (
 	confirmed: false,
 	request: async (args) => {
 		const { req } = scope;
-		const slug = grantKvSlug(req.payload.config);
-		const apiKeyId = req.context.mcpx?.apiKeyId;
-
-		if (slug === undefined || apiKeyId === undefined) {
-			throw new Error("A confirmation was requested without a database KV.");
-		}
+		const { slug, apiKeyId } = grantContext(req);
 
 		// Before the entry, so a URL that fails to build leaves none behind.
 		const view = keyViewUrl(req, options, apiKeyId);
@@ -117,13 +112,9 @@ const authorize = async (
 					})
 					.catch(() => null)) as null | { id: DocumentId; user?: unknown })
 			: null;
-	const user: unknown = isPlainObject(key?.user) ? key.user["id"] : key?.user;
+	const user = relationId(key?.user);
 
-	if (
-		!key ||
-		(typeof user !== "string" && typeof user !== "number") ||
-		String(user) !== String(req.user.id)
-	) {
+	if (!key || user === undefined || String(user) !== String(req.user.id)) {
 		return respond(403, {
 			error: "Only the user of this key may decide on its calls.",
 		});
@@ -178,9 +169,7 @@ const listHandler =
 		const { payload } = req;
 		const highlighted = req.searchParams.get("confirmation");
 		const highlight =
-			highlighted === null
-				? undefined
-				: confirmationHandle(payload, highlighted);
+			highlighted === null ? undefined : rowHandle(payload, highlighted);
 		const entries = (
 			await listConfirmations(payload, allowed.slug, allowed.apiKeyId)
 		).filter((entry) => entry.confirmation.state === "pending");
@@ -216,12 +205,14 @@ const decideHandler =
 
 		const handles = isPlainObject(body) ? body["handles"] : undefined;
 		const decision = isPlainObject(body) ? body["decision"] : undefined;
+		const isDecision = (value: unknown): value is ConfirmationDecision =>
+			DECISIONS.some((candidate) => candidate === value);
 
 		if (
 			!Array.isArray(handles) ||
 			handles.length > CONFIRMATIONS_PER_KEY ||
 			!handles.every((handle) => typeof handle === "string") ||
-			(decision !== "approved" && decision !== "rejected")
+			!isDecision(decision)
 		) {
 			return respond(400, {
 				error: `Send "handles", at most ${String(CONFIRMATIONS_PER_KEY)}, and a "decision" of "approved" or "rejected".`,

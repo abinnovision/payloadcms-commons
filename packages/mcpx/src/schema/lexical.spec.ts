@@ -12,7 +12,7 @@ import {
 	REQUIRED_NODE_PROPERTIES,
 	ROOT_PROPERTIES,
 } from "./lexical.js";
-import { blockOf, findBlocksField } from "./walk.js";
+import { blockOf, findFieldAt } from "./walk.js";
 import { node, state, text } from "../../test/builders/lexical.js";
 import { buildFixtureConfig, fieldOf } from "../../test/fixtures/config.js";
 
@@ -456,10 +456,11 @@ describe("allowedNodeTypes", () => {
 	});
 
 	it("reports the nodes a field's editor enables", () => {
-		const sections = findBlocksField(
+		const sections = findFieldAt(
 			config.collections.find((collection) => collection.slug === "pages")!
 				.flattenedFields,
 			["layout", "sections"],
+			"blocks",
 		)!;
 		const wrapper = blockOf(config, sections, "sectionWrapper")!;
 		const modules = wrapper.flattenedFields.find(

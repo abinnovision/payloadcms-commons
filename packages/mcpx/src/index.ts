@@ -8,8 +8,8 @@ export type { DocumentId as McpxDocumentId } from "./entity.js";
 export type {
 	McpxAnyTool,
 	McpxAuthResult,
-	McpxCollectionCapabilities,
 	McpxCollectionOptions,
+	McpxEntityCapabilities,
 	McpxExposedEntity,
 	McpxGlobalOptions,
 	McpxPluginOptions,
@@ -19,5 +19,4 @@ export type {
 	McpxTool,
 	McpxToolExtra,
 	McpxToolScope,
-	McpxWriteMode,
 } from "./types.js";

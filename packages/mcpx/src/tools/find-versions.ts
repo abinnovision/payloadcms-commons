@@ -4,16 +4,20 @@ import { z } from "zod";
 
 import { resolveDocument } from "./document.js";
 import {
-	draftVersionSlugs,
 	idShape,
 	localeOf,
 	localeShape,
+	pageFields,
+	pageShape,
+	reaches,
 	slugsFor,
+	slugsWhere,
 	entityShape,
 	widen,
 } from "./shared.js";
 import { queryVersions } from "./versions.js";
 import { defineMcpxTool } from "../define-tool.js";
+import { definedProps } from "../guards.js";
 import { jsonResult } from "../result.js";
 
 import type { McpxToolScope } from "../types.js";
@@ -30,7 +34,11 @@ type StatusShape = {
  * reaches none never sees the argument.
  */
 const statusShape = (scope: McpxToolScope): StatusShape => {
-	const { collections, globals } = draftVersionSlugs(scope);
+	const { collections, globals } = slugsWhere(
+		scope,
+		(entity) => entity.hasDrafts,
+		slugsFor(scope, "versions"),
+	);
 
 	if (collections.length + globals.length === 0) {
 		return widen<StatusShape>({});
@@ -51,22 +59,11 @@ export const findVersions = defineMcpxTool({
 	name: "findVersions",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
-	isEnabled: (scope) => {
-		const { collections, globals } = slugsFor(scope, "versions");
-
-		return collections.length + globals.length > 0;
-	},
+	isEnabled: (scope) => reaches(scope, "versions"),
 	inputSchema: (scope) => ({
 		...entityShape(scope, "versions"),
 		...idShape(scope, "versions"),
-		limit: z
-			.number()
-			.int()
-			.min(1)
-			.max(scope.limits.maxLimit)
-			.optional()
-			.describe("Default 10."),
-		page: z.number().int().min(1).optional(),
+		...pageShape(scope),
 		...statusShape(scope),
 		...localeShape(scope, {
 			required: false,
@@ -89,8 +86,7 @@ export const findVersions = defineMcpxTool({
 			{ target, depth: 0, locale: localeOf(scope, args.locale) },
 			{
 				limit: args.limit ?? 10,
-				...(args.page === undefined ? {} : { page: args.page }),
-				...(args.status === undefined ? {} : { status: args.status }),
+				...definedProps({ page: args.page, status: args.status }),
 			},
 		);
 
@@ -108,10 +104,7 @@ export const findVersions = defineMcpxTool({
 
 		return jsonResult({
 			versions,
-			totalDocs: result.totalDocs,
-			page: result.page,
-			totalPages: result.totalPages,
-			hasNextPage: result.hasNextPage,
+			...pageFields(result),
 		});
 	},
 });

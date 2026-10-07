@@ -14,7 +14,9 @@ export const entity = (
 ): McpxExposedEntity => ({
 	slug,
 	read: true,
-	write: "draft",
+	write: true,
+	publish: false,
+	liveWrite: false,
 	hasDrafts: true,
 	hasVersions: overrides.hasDrafts ?? true,
 	delete: false,
@@ -42,7 +44,15 @@ export const scopeFor = (
 	};
 	const normalized = resolved as NormalizedOptions;
 	const req = {
-		payload: { config: config ?? {} },
+		payload: {
+			config: config ?? {},
+			collections: Object.fromEntries(
+				(config?.collections ?? []).map((entry) => [
+					entry.slug,
+					{ config: entry },
+				]),
+			),
+		},
 	} as unknown as PayloadRequest;
 
 	return buildScope(

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { resolveEntity } from "./document.js";
-import { entityShape } from "./shared.js";
+import { entityShape, reaches } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { translatorFor } from "../i18n.js";
 import { jsonResult } from "../result.js";
@@ -12,8 +12,6 @@ import {
 	reachableSchemaPaths,
 	SchemaError,
 } from "../schema/index.js";
-
-import type { FieldDescriptor } from "../schema/index.js";
 
 const DESCRIPTION = `Describes the fields of a collection or global, one node at a time. Use it before a query or a write.
 
@@ -36,8 +34,7 @@ export const describeSchema = defineMcpxTool({
 	name: "describeSchema",
 	description: DESCRIPTION,
 	annotations: { readOnlyHint: true, openWorldHint: false },
-	isEnabled: (scope) =>
-		scope.collections.readable.length + scope.globals.readable.length > 0,
+	isEnabled: (scope) => reaches(scope, "read"),
 	inputSchema: (scope) => ({
 		...entityShape(scope, "read", 'Instead of "collection".'),
 		paths: z
@@ -65,10 +62,15 @@ export const describeSchema = defineMcpxTool({
 			(args.paths && args.paths.length > 0 ? args.paths : [""]);
 
 		const failures: unknown[] = [];
+		const nodeTypes: string[] = [];
 
 		const nodes: unknown[] = requested.map((schemaPath) => {
 			try {
-				return describeNode(config, ref, schemaPath);
+				const node = describeNode(config, ref, schemaPath);
+
+				nodeTypes.push(...node.fields.flatMap((field) => field.nodes ?? []));
+
+				return node;
 			} catch (error) {
 				if (error instanceof SchemaError) {
 					return { error: error.message, schemaPath };
@@ -93,12 +95,6 @@ export const describeSchema = defineMcpxTool({
 		 * type must carry does not vary with where it is written. A field's own
 		 * "nodes" says which of these apply to it.
 		 */
-		const nodeTypes = nodes.flatMap((node) =>
-			((node as { fields?: FieldDescriptor[] }).fields ?? []).flatMap(
-				(field) => field.nodes ?? [],
-			),
-		);
-
 		if (nodeTypes.length > 0) {
 			nodes.push({ nodeProperties: nodePropertiesFor(nodeTypes) });
 		}

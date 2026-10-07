@@ -1,14 +1,21 @@
-import { z } from "zod";
-
 import {
+	blockerFields,
 	collectLocaleBlockers,
-	identityOf,
+	documentSummary,
 	readDraft,
 	resolveDocument,
 	staleReadResult,
+	updateTarget,
 } from "./document.js";
 import { documentLinks } from "./links.js";
-import { idShape, localeOf, localeShape, entityShape } from "./shared.js";
+import {
+	expectedUpdatedAtShape,
+	idShape,
+	localeOf,
+	localeShape,
+	reaches,
+	entityShape,
+} from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { jsonResult } from "../result.js";
 import { withPublishIntent } from "../write/publish-intent.js";
@@ -24,22 +31,15 @@ export const publishDocument = defineMcpxTool({
 	name: "publishDocument",
 	description: DESCRIPTION,
 	annotations: { destructiveHint: true, openWorldHint: false },
-	isEnabled: (scope) =>
-		scope.collections.publishable.length + scope.globals.publishable.length > 0,
+	isEnabled: (scope) => reaches(scope, "publish"),
 	inputSchema: (scope) => ({
 		...entityShape(scope, "publish"),
 		...idShape(scope, "publish"),
 		...localeShape(scope, { required: false }),
-		expectedUpdatedAt: z
-			.string()
-			.optional()
-			.describe(
-				'"updatedAt" from your last read. Refused if the document changed since.',
-			),
+		...expectedUpdatedAtShape,
 	}),
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "publish");
-		const { payload } = scope.req;
 		/*
 		 * Explicit, because `createLocalReq` assigns `req.locale` in place: a
 		 * preceding patchDocument leaves its locale on the shared request, and an
@@ -65,28 +65,12 @@ export const publishDocument = defineMcpxTool({
 			 * `_status`. Neither goes through `buildWriteData`, which strips
 			 * reserved fields and would leave nothing.
 			 */
-			const write = {
+			await updateTarget(scope, target, {
 				data: withPublishIntent({}),
-				depth: 0,
 				draft: false,
-				fallbackLocale: false as const,
-				overrideAccess: false,
-				req: scope.req,
-				...(locale === undefined ? {} : { locale }),
-				...(args.locale === undefined
-					? {}
-					: { publishSpecificLocale: args.locale }),
-			};
-
-			if (target.kind === "collection") {
-				await payload.update({
-					...write,
-					collection: target.slug,
-					id: target.id,
-				});
-			} else {
-				await payload.updateGlobal({ ...write, slug: target.slug });
-			}
+				locale,
+				publishSpecificLocale: args.locale,
+			});
 
 			const saved = await readDraft(scope, {
 				target,
@@ -105,14 +89,9 @@ export const publishDocument = defineMcpxTool({
 			);
 
 			return jsonResult({
-				...identityOf(target, saved["id"]),
-				status: saved["_status"],
-				updatedAt: saved["updatedAt"],
+				...documentSummary(target, saved),
 				...(await documentLinks(scope.req, { target, doc: saved, locale })),
-				...(others.blockers.length > 0
-					? { otherLocaleBlockers: others.blockers }
-					: {}),
-				...(others.unavailable ? { otherLocaleBlockersUnavailable: true } : {}),
+				...blockerFields(others, "otherLocaleBlockers"),
 			});
 		});
 	},

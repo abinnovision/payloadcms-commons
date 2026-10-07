@@ -1,7 +1,7 @@
 import {
 	CAPABILITIES_DESCRIPTION,
-	STORED_OPERATIONS,
 	createCapabilityMatrix,
+	rowOperations,
 } from "./capability-matrix.js";
 import { CAPABILITIES_FIELD } from "../capabilities.js";
 
@@ -44,8 +44,33 @@ const checkbox = (name: string, description: string): CheckboxField => ({
 	admin: { description },
 });
 
-// Name of the `ui` field the "Connect a client" tab renders.
-const SETUP_GUIDE_FIELD = "setupGuide";
+/**
+ * Access for fields only the server writes.
+ */
+export const SERVER_ONLY = {
+	create: () => false,
+	update: () => false,
+};
+
+// A `ui` field carries no value: its admin component renders from form state.
+const adminField = (
+	name: string,
+	exportName: string,
+	options: NormalizedOptions,
+): Field => ({
+	name,
+	type: "ui",
+	admin: {
+		disableListColumn: true,
+		components: {
+			Field: {
+				path: "@abinnovision/payloadcms-mcpx/admin",
+				exportName,
+				clientProps: { endpointPath: options.endpointPath },
+			},
+		},
+	},
+});
 
 /**
  * Fields every key carries. Key generation and the HMAC index live in the
@@ -79,10 +104,7 @@ export const createKeyFields = (): Field[] => [
 		name: "lastUsedAt",
 		type: "date",
 		// Written by the default resolver only, never by a client.
-		access: {
-			create: () => false,
-			update: () => false,
-		},
+		access: SERVER_ONLY,
 		admin: {
 			readOnly: true,
 			date: { pickerAppearance: "dayAndTime" },
@@ -96,10 +118,7 @@ export const createKeyFields = (): Field[] => [
 		 * Generated server-side only; a client-supplied value would replace a
 		 * random secret with a chosen one.
 		 */
-		access: {
-			create: () => false,
-			update: () => false,
-		},
+		access: SERVER_ONLY,
 		admin: {
 			readOnly: true,
 			description:
@@ -128,22 +147,7 @@ export const createConfirmationFields = (
 	options: NormalizedOptions,
 ): Field[] =>
 	options.confirmations
-		? [
-				{
-					name: "confirmations",
-					type: "ui",
-					admin: {
-						disableListColumn: true,
-						components: {
-							Field: {
-								path: "@abinnovision/payloadcms-mcpx/admin",
-								exportName: "McpxConfirmations",
-								clientProps: { endpointPath: options.endpointPath },
-							},
-						},
-					},
-				},
-			]
+		? [adminField("confirmations", "McpxConfirmations", options)]
 		: [];
 
 /**
@@ -172,26 +176,7 @@ export const withKeyTabs = (
 				condition: (_data, _siblingData, { operation }) =>
 					operation === "update",
 			},
-			fields: [
-				{
-					name: SETUP_GUIDE_FIELD,
-					/*
-					 * A `ui` field carries no value: the component builds every
-					 * snippet client-side from form state and the admin config.
-					 */
-					type: "ui",
-					admin: {
-						disableListColumn: true,
-						components: {
-							Field: {
-								path: "@abinnovision/payloadcms-mcpx/admin",
-								exportName: "McpxSetupGuide",
-								clientProps: { endpointPath: options.endpointPath },
-							},
-						},
-					},
-				},
-			],
+			fields: [adminField("setupGuide", "McpxSetupGuide", options)],
 		});
 	}
 
@@ -216,40 +201,23 @@ export const createCapabilityFields = (options: NormalizedOptions): Field[] => {
 			name: row.fieldName,
 			type: "group",
 			label: row.slug,
-			fields: STORED_OPERATIONS.filter((operation) => row[operation.id]).map(
-				(operation) => checkbox(operation.id, operation.description),
+			fields: rowOperations(row).map((operation) =>
+				checkbox(operation.id, operation.description),
 			),
 		}));
 
-	const collectionGroups = entityGroups(matrix.collections);
-	const globalGroups = entityGroups(matrix.globals);
-	const toolCheckboxes: CheckboxField[] = matrix.tools.map((tool) =>
-		checkbox(tool.name, tool.description),
-	);
-
-	const groups: GroupField[] = [
-		...(collectionGroups.length > 0
-			? [
-					{
-						name: "collections",
-						type: "group" as const,
-						fields: collectionGroups,
-					},
-				]
-			: []),
-		...(globalGroups.length > 0
-			? [
-					{
-						name: "globals",
-						type: "group" as const,
-						fields: globalGroups,
-					},
-				]
-			: []),
-		...(toolCheckboxes.length > 0
-			? [{ name: "tools", type: "group" as const, fields: toolCheckboxes }]
-			: []),
-	];
+	const groups = (
+		[
+			["collections", entityGroups(matrix.collections)],
+			["globals", entityGroups(matrix.globals)],
+			[
+				"tools",
+				matrix.tools.map((tool) => checkbox(tool.name, tool.description)),
+			],
+		] as const
+	)
+		.filter(([, fields]) => fields.length > 0)
+		.map(([name, fields]): GroupField => ({ name, type: "group", fields }));
 
 	if (groups.length === 0) {
 		return [];

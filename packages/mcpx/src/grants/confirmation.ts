@@ -1,10 +1,16 @@
-import { ValidationError } from "payload";
+import {
+	claimRow,
+	expOf,
+	issueRow,
+	NO_REQ,
+	ROW_ID,
+	rowHandle,
+	rowPrefixes,
+	rowsWith,
+} from "./grant.js";
 
-import { expOf, GRANT_ID, issueRow, NO_REQ, rowsWith } from "./grant.js";
-import { hashApiKey } from "../api-keys/key.js";
-import { isPlainObject } from "../guards.js";
-
-import type { KvRow } from "./grant.js";
+import type { KvRow, StoredCall } from "./grant.js";
+import type { ConfirmationDecision } from "../api-keys/confirmation-view.js";
 import type { DocumentId } from "../entity.js";
 import type { Payload } from "payload";
 
@@ -18,20 +24,12 @@ export const CONFIRMATIONS_PER_KEY = 50;
 // The hex HMAC the admin panel addresses an entry by.
 const HANDLE = /^[\da-f]{64}$/;
 
-export type ConfirmationState = "approved" | "pending" | "rejected";
+export type ConfirmationState = ConfirmationDecision | "pending";
 
 /**
  * A call of a confirmable tool, stored until its key runs it.
  */
-export interface Confirmation {
-	apiKeyId: DocumentId;
-	tool: string;
-	args: Record<string, unknown>;
-	/**
-	 * The request's locale and fallback locale at issue, `null` when unset.
-	 */
-	locale: null | string;
-	fallbackLocale: unknown;
+export interface Confirmation extends StoredCall {
 	state: ConfirmationState;
 	/**
 	 * Epoch milliseconds.
@@ -39,26 +37,11 @@ export interface Confirmation {
 	exp: number;
 }
 
-const entryPrefix = (apiKeyId: DocumentId): string =>
-	`mcpx-confirmation:${String(apiKeyId)}:`;
-
-const usedPrefix = (apiKeyId: DocumentId): string =>
-	`mcpx-confirmation-used:${String(apiKeyId)}:`;
-
 const asConfirmation = (
-	row: KvRow | undefined,
+	row: KvRow<Confirmation> | undefined,
 	now: number,
 ): Confirmation | undefined =>
-	row && isPlainObject(row.data) && expOf(row.data) > now
-		? (row.data as unknown as Confirmation)
-		: undefined;
-
-/**
- * The handle the admin panel uses for the entry of `id`: its HMAC, which is
- * also what the row key holds.
- */
-export const confirmationHandle = (payload: Payload, id: string): string =>
-	hashApiKey(payload.secret, id);
+	row && expOf(row.data) > now ? row.data : undefined;
 
 /**
  * Stores a pending call and returns its id. A key may hold at most
@@ -72,8 +55,7 @@ export const issueConfirmation = async (
 	const entry: Omit<Confirmation, "exp"> = { ...call, state: "pending" };
 
 	return await issueRow(payload, slug, {
-		prefix: entryPrefix(call.apiKeyId),
-		usedPrefix: usedPrefix(call.apiKeyId),
+		...rowPrefixes("confirmation", call.apiKeyId),
 		cap: CONFIRMATIONS_PER_KEY,
 		capMessage: `This key already has ${String(CONFIRMATIONS_PER_KEY)} calls waiting for approval. Run or abandon them first; each expires 15 minutes after it was requested.`,
 		ttlMs: CONFIRMATION_TTL_MS,
@@ -91,12 +73,12 @@ export const readConfirmation = async (
 	apiKeyId: DocumentId,
 	id: string,
 ): Promise<Confirmation | undefined> => {
-	if (!GRANT_ID.test(id)) {
+	if (!ROW_ID.test(id)) {
 		return undefined;
 	}
 
-	const key = `${entryPrefix(apiKeyId)}${confirmationHandle(payload, id)}`;
-	const rows = await rowsWith(payload, slug, [key]);
+	const key = `${rowPrefixes("confirmation", apiKeyId).prefix}${rowHandle(payload, id)}`;
+	const rows = await rowsWith<Confirmation>(payload, slug, [key]);
 
 	return asConfirmation(
 		rows.find((row) => row.key === key),
@@ -105,8 +87,8 @@ export const readConfirmation = async (
 };
 
 /**
- * Marks the call used and removes it. The marker is a unique-key insert, so
- * of two concurrent claims exactly one returns `true`.
+ * Marks the call used and removes it. Of two concurrent claims exactly one
+ * returns `true`.
  */
 export const claimConfirmation = async (
 	payload: Payload,
@@ -114,31 +96,14 @@ export const claimConfirmation = async (
 	apiKeyId: DocumentId,
 	id: string,
 	exp: number,
-): Promise<boolean> => {
-	const handle = confirmationHandle(payload, id);
-
-	try {
-		await payload.db.create({
-			collection: slug,
-			data: { key: `${usedPrefix(apiKeyId)}${handle}`, data: { exp } },
-			req: NO_REQ,
-		});
-	} catch (error) {
-		if (error instanceof ValidationError) {
-			return false;
-		}
-
-		throw error;
-	}
-
-	await payload.db.deleteOne({
-		collection: slug,
-		where: { key: { equals: `${entryPrefix(apiKeyId)}${handle}` } },
-		req: NO_REQ,
-	});
-
-	return true;
-};
+): Promise<boolean> =>
+	await claimRow(
+		payload,
+		slug,
+		rowPrefixes("confirmation", apiKeyId),
+		rowHandle(payload, id),
+		exp,
+	);
 
 /**
  * Every unexpired call of `apiKeyId` with its handle, oldest first.
@@ -148,10 +113,10 @@ export const listConfirmations = async (
 	slug: string,
 	apiKeyId: DocumentId,
 ): Promise<{ handle: string; confirmation: Confirmation }[]> => {
-	const prefix = entryPrefix(apiKeyId);
+	const { prefix } = rowPrefixes("confirmation", apiKeyId);
 	const now = Date.now();
 
-	return (await rowsWith(payload, slug, [prefix]))
+	return (await rowsWith<Confirmation>(payload, slug, [prefix]))
 		.flatMap((row) => {
 			const confirmation = asConfirmation(row, now);
 
@@ -172,9 +137,9 @@ export const decideConfirmations = async (
 	slug: string,
 	apiKeyId: DocumentId,
 	handles: string[],
-	state: Exclude<ConfirmationState, "pending">,
+	state: ConfirmationDecision,
 ): Promise<string[]> => {
-	const prefix = entryPrefix(apiKeyId);
+	const { prefix } = rowPrefixes("confirmation", apiKeyId);
 	const keys = new Set(
 		handles
 			.filter((handle) => HANDLE.test(handle))
@@ -188,7 +153,7 @@ export const decideConfirmations = async (
 	const now = Date.now();
 	const decided: string[] = [];
 
-	for (const row of await rowsWith(payload, slug, [prefix])) {
+	for (const row of await rowsWith<Confirmation>(payload, slug, [prefix])) {
 		const confirmation = asConfirmation(row, now);
 
 		if (!keys.has(row.key) || confirmation?.state !== "pending") {

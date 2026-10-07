@@ -6,9 +6,9 @@ import * as entry from "./index.js";
 import type {
 	McpxAnyTool,
 	McpxAuthResult,
-	McpxCollectionCapabilities,
 	McpxCollectionOptions,
 	McpxDocumentId,
+	McpxEntityCapabilities,
 	McpxExposedEntity,
 	McpxGlobalOptions,
 	McpxPluginOptions,
@@ -18,7 +18,6 @@ import type {
 	McpxTool,
 	McpxToolExtra,
 	McpxToolScope,
-	McpxWriteMode,
 } from "./index.js";
 
 describe('the "." entrypoint', () => {
@@ -41,8 +40,8 @@ describe('the "." entrypoint', () => {
 	it("keeps the documented type names exported", () => {
 		expectTypeOf<McpxAnyTool>().not.toBeAny();
 		expectTypeOf<McpxAuthResult>().not.toBeAny();
-		expectTypeOf<McpxCollectionCapabilities>().not.toBeAny();
 		expectTypeOf<McpxCollectionOptions>().not.toBeAny();
+		expectTypeOf<McpxEntityCapabilities>().not.toBeAny();
 		expectTypeOf<McpxDocumentId>().toEqualTypeOf<number | string>();
 		expectTypeOf<McpxExposedEntity>().not.toBeAny();
 		expectTypeOf<McpxGlobalOptions>().not.toBeAny();
@@ -53,7 +52,6 @@ describe('the "." entrypoint', () => {
 		expectTypeOf<McpxTool>().not.toBeAny();
 		expectTypeOf<McpxToolExtra>().not.toBeAny();
 		expectTypeOf<McpxToolScope>().not.toBeAny();
-		expectTypeOf<McpxWriteMode>().toEqualTypeOf<"draft" | "live" | false>();
 	});
 });
 

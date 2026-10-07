@@ -6,13 +6,13 @@ import { entity, scopeFor } from "../../test/builders/scope.js";
 /**
  * Writes without drafts, so nothing is left to publish.
  */
-const LIVE_ONLY = { write: "live", hasDrafts: false } as const;
+const LIVE_ONLY = { liveWrite: true, hasDrafts: false } as const;
 
 describe("liveWriteSentence", () => {
 	it("promises drafts when no write of the key goes live", () => {
 		const sentence = liveWriteSentence(
 			scopeFor(
-				{ collections: [entity("pages", { write: "live" })] },
+				{ collections: [entity("pages", { publish: true })] },
 				{ collections: { pages: { write: true, publish: true } } },
 			),
 			"write",

@@ -1,20 +1,23 @@
-import { combineQueries, executeAccess, Forbidden, NotFound } from "payload";
+import { combineQueries, executeAccess, Forbidden } from "payload";
 import { formatAdminURL } from "payload/shared";
 import { z } from "zod";
 
-import { resolveDocument, staleReadResult } from "./document.js";
-import { entityShape, idShape, slugsFor } from "./shared.js";
+import { readDraft, resolveCollection, staleReadResult } from "./document.js";
+import {
+	expectedUpdatedAtShape,
+	idSchema,
+	slugsFor,
+	stringEnum,
+} from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { translateStatic } from "../i18n.js";
 import { errorResult, jsonResult } from "../result.js";
 import { withTrashIntent } from "../write/publish-intent.js";
 import { withTransaction } from "../write/transaction.js";
 
-import type { DocumentRef } from "../entity.js";
+import type { CollectionRef } from "../entity.js";
 import type { McpxToolConfirm, McpxToolScope } from "../types.js";
 import type { PayloadRequest, Where } from "payload";
-
-type CollectionRef = Extract<DocumentRef, { kind: "collection" }>;
 
 const DESCRIPTION = `Asks to delete one document. This call deletes nothing: it returns a "confirmation" with an "id" and a "url". Give the url to the user, who approves or rejects in the admin panel, then pass the id to runConfirmed, which deletes. Refused when the document is unknown, already in trash, changed since "expectedUpdatedAt" or not deletable by the user.`;
 
@@ -165,14 +168,9 @@ export const deleteDocument = defineMcpxTool({
 	annotations: { destructiveHint: true, openWorldHint: false },
 	isEnabled: (scope) => scope.uploads && scope.collections.deletable.length > 0,
 	inputSchema: (scope) => ({
-		...entityShape(scope, "delete"),
-		...idShape(scope, "delete"),
-		expectedUpdatedAt: z
-			.string()
-			.optional()
-			.describe(
-				'"updatedAt" from your last read. Refused if the document changed since.',
-			),
+		collection: stringEnum(scope.collections.deletable),
+		id: idSchema,
+		...expectedUpdatedAtShape,
 		reason: z
 			.string()
 			.max(500)
@@ -181,27 +179,21 @@ export const deleteDocument = defineMcpxTool({
 	}),
 	confirm,
 	handler: async ({ args, scope, confirmation }) => {
-		const target = resolveDocument(scope, args, "delete") as CollectionRef;
+		const target: CollectionRef = {
+			...resolveCollection(scope, args.collection, "delete"),
+			id: args.id,
+		};
 		const { req } = scope;
 		const { payload } = req;
 		// Typed as required, but unset unless the collection enables it.
 		const trash = (target.config.trash as boolean | undefined) ?? false;
 
 		return await withTransaction(req, async () => {
-			const doc = (await payload.findByID({
-				collection: target.slug,
-				id: target.id,
-				depth: 0,
-				draft: true,
+			const doc = await readDraft(scope, {
+				target,
+				locale: undefined,
 				trash: true,
-				overrideAccess: false,
-				disableErrors: true,
-				req,
-			})) as null | Record<string, unknown>;
-
-			if (!doc) {
-				throw new NotFound(req.t);
-			}
+			});
 
 			if (doc["deletedAt"]) {
 				return errorResult(

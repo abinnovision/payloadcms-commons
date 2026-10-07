@@ -350,6 +350,7 @@ describe("tool responses", () => {
 					totalDocs: 1,
 					page: 1,
 					totalPages: 1,
+					limit: 10,
 					hasNextPage: false,
 				},
 			});

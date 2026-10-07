@@ -3,13 +3,14 @@ import { resolveLexicalPointer } from "./lexical-pointer.js";
 import { isIndexSegment, joinPath, splitPath } from "./path.js";
 import {
 	ARRAY_MARKER,
-	blockOf,
 	blockSlugsOf,
 	describeAddressableFields,
-	findBlocksField,
-	findRichTextField,
+	findFieldAt,
+	longestMatch,
+	requireBlock,
 	schemaOf,
 } from "./walk.js";
+import { propOf } from "../guards.js";
 
 import type { LexicalPosition } from "./lexical-pointer.js";
 import type { FieldDescriptor } from "./walk.js";
@@ -64,22 +65,6 @@ interface PointerInput {
 const partMatches = (part: string, segment: string | undefined): boolean =>
 	segment !== undefined &&
 	(part === ARRAY_MARKER ? isIndexSegment(segment) : part === segment);
-
-// Longest descriptor whose path is fully consumed by the leading segments.
-const matchPointerSegments = (
-	descriptors: FieldDescriptor[],
-	segments: readonly string[],
-): { consumed: number; descriptor: FieldDescriptor } | undefined =>
-	descriptors
-		.map((descriptor) => ({
-			consumed: splitPath(descriptor.path).length,
-			descriptor,
-			parts: splitPath(descriptor.path),
-		}))
-		.filter(({ parts }) =>
-			parts.every((part, offset) => partMatches(part, segments[offset])),
-		)
-		.sort((left, right) => right.consumed - left.consumed)[0];
 
 // Stopping part-way through a descriptor's path means a subtree, not a field.
 const isSubtreePrefix = (
@@ -139,16 +124,12 @@ const stepIntoBlock = (at: {
 		);
 	}
 
-	const field = findBlocksField(at.fields, splitPath(descriptor.path));
+	const field = findFieldAt(at.fields, splitPath(descriptor.path), "blocks");
 
-	const existing =
-		Array.isArray(rows) && index !== "-"
-			? (rows[Number(index)] as { blockType?: unknown } | undefined)
-			: undefined;
+	const existing: unknown =
+		Array.isArray(rows) && index !== "-" ? rows[Number(index)] : undefined;
 
-	const slug =
-		existing?.blockType ??
-		(addedValue as { blockType?: unknown } | undefined)?.blockType;
+	const slug = propOf(existing, "blockType") ?? propOf(addedValue, "blockType");
 
 	if (!field || slug === undefined) {
 		throw new SchemaError(
@@ -162,13 +143,7 @@ const stepIntoBlock = (at: {
 		);
 	}
 
-	const block = blockOf(config, field, slug);
-
-	if (!block) {
-		throw new SchemaError(
-			`"${slug}" is not allowed at "${descriptor.path}". Allowed: ${blockSlugsOf(field).join(", ")}`,
-		);
-	}
+	const block = requireBlock(config, field, slug, descriptor.path);
 
 	return {
 		blockType: slug,
@@ -196,7 +171,7 @@ export const resolveDataPointer = (
 
 	while (segments.length > 0) {
 		const descriptors = describeAddressableFields(fields);
-		const match = matchPointerSegments(descriptors, segments);
+		const match = longestMatch(descriptors, segments, partMatches);
 
 		if (!match) {
 			if (isSubtreePrefix(descriptors, segments)) {
@@ -220,7 +195,7 @@ export const resolveDataPointer = (
 			);
 		}
 
-		const rest = segments.slice(match.consumed);
+		const rest = segments.slice(match.parts.length);
 
 		if (rest.length === 0) {
 			return {
@@ -234,7 +209,11 @@ export const resolveDataPointer = (
 		}
 
 		if (match.descriptor.type === "richText") {
-			const field = findRichTextField(fields, splitPath(match.descriptor.path));
+			const field = findFieldAt(
+				fields,
+				splitPath(match.descriptor.path),
+				"richText",
+			);
 
 			// The descriptor came from these fields, so a miss is a fault in the walk.
 			if (!field) {
@@ -249,7 +228,7 @@ export const resolveDataPointer = (
 				descriptor: match.descriptor,
 				field,
 				segments: rest,
-				state: valueAtSegments(data, segments.slice(0, match.consumed)),
+				state: valueAtSegments(data, segments.slice(0, match.parts.length)),
 			});
 
 			if (step.kind === "position") {
@@ -288,7 +267,7 @@ export const resolveDataPointer = (
 			descriptor: match.descriptor,
 			fields,
 			rest,
-			rows: valueAtSegments(data, segments.slice(0, match.consumed)),
+			rows: valueAtSegments(data, segments.slice(0, match.parts.length)),
 			config,
 		});
 

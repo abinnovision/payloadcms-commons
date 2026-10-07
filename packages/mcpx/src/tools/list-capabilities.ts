@@ -1,5 +1,6 @@
 import { hasDraftValidationEnabled } from "payload/shared";
 
+import { globalConfig } from "./document.js";
 import { slugsFor } from "./shared.js";
 import { defineMcpxTool } from "../define-tool.js";
 import { translateStatic, translatorFor } from "../i18n.js";
@@ -83,10 +84,7 @@ export const listCapabilities = defineMcpxTool({
 
 		const globals = scope.exposure.globals.flatMap((entry) => {
 			const capability = scope.capabilities.globals[entry.slug];
-			// `payload.globals` is an array of configs, not a slug-keyed map.
-			const config = payload.globals.config.find(
-				(candidate) => candidate.slug === entry.slug,
-			);
+			const config = globalConfig(payload, entry.slug);
 
 			if (!capability || !config || !capability.read) {
 				return [];

@@ -8,6 +8,7 @@ import {
 	createUploadHandler,
 } from "./endpoint/upload.js";
 import { normalizeOptions } from "./options.js";
+import { BUILTIN_TOOLS } from "./tools/builtin.js";
 import {
 	installDraftGuards,
 	installGlobalDraftGuards,
@@ -24,7 +25,11 @@ export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 	slug: "@abinnovision/payloadcms-mcpx",
 	order: 100,
 	plugin: ({ config, plugins: _plugins, ...options }) => {
-		const normalized = normalizeOptions(config, options);
+		const normalized = normalizeOptions(
+			config,
+			options,
+			BUILTIN_TOOLS.map((tool) => tool.name),
+		);
 
 		const apiKeys = createApiKeysCollection(normalized);
 		const apiKeysCollection =

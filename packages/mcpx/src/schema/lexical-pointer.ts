@@ -1,8 +1,8 @@
 import { SchemaError } from "./errors.js";
-import { lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
+import { editorRoot, lexicalSubSchema, subSchemaNodeTypes } from "./lexical.js";
 import { isIndexSegment, joinPath } from "./path.js";
 import { blockOf, blockSlugsOf } from "./walk.js";
-import { isPlainObject } from "../guards.js";
+import { isPlainObject, propOf } from "../guards.js";
 
 import type { FieldDescriptor } from "./walk.js";
 import type { FlattenedField, RichTextField, SanitizedConfig } from "payload";
@@ -86,10 +86,9 @@ const stepIntoFields = (at: {
 		return { data, fields: sub.fields, kind: "fields", rest };
 	}
 
-	const added = (addedValue as { fields?: unknown } | undefined)?.fields;
 	const slug =
-		(isPlainObject(data) ? data["blockType"] : undefined) ??
-		(isPlainObject(added) ? added["blockType"] : undefined);
+		propOf(data, "blockType") ??
+		propOf(propOf(addedValue, "fields"), "blockType");
 
 	if (slug === undefined) {
 		throw new SchemaError(
@@ -138,7 +137,9 @@ export const resolveLexicalPointer = (at: {
 	const { addedValue, config, descriptor, field, state } = at;
 	const base = { descriptor, field };
 
-	if (!isPlainObject(state) || !isPlainObject(state["root"])) {
+	const root = editorRoot(state);
+
+	if (!root) {
 		throw new SchemaError(
 			`"${descriptor.path}" holds no editor state yet. Write the whole field once, then address positions inside it.`,
 		);
@@ -152,7 +153,7 @@ export const resolveLexicalPointer = (at: {
 		);
 	}
 
-	let node: Record<string, unknown> | undefined = state["root"];
+	let node: Record<string, unknown> | undefined = root;
 	let nodeType = "root";
 	let segments: string[] = rest;
 	// Reported back to the client, so it is built the way the client wrote it.
@@ -202,7 +203,7 @@ export const resolveLexicalPointer = (at: {
 
 			const type = isPlainObject(child)
 				? child["type"]
-				: (addedValue as { type?: unknown } | undefined)?.type;
+				: propOf(addedValue, "type");
 
 			if (typeof type !== "string") {
 				if (beyond.length === 0) {
