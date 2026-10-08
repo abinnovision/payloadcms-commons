@@ -326,8 +326,9 @@ export type McpxPluginOptions = {
 		 */
 		slug?: string;
 		/**
-		 * Add a "Connect a client" tab to saved keys, holding ready-to-paste MCP
-		 * client config. Default `true`. The snippets contain the key in full.
+		 * Add a "Connect a client" button to saved keys, opening a drawer with
+		 * ready-to-paste MCP client config. Default `true`. The snippets contain
+		 * the key in full.
 		 */
 		setupGuide?: boolean;
 		/**

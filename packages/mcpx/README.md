@@ -82,7 +82,7 @@ claude mcp add --transport http payload http://localhost:3000/api/mcpx \
 
 Claude Desktop and the MCP Inspector are covered in
 [`docs/integration.md`](./docs/integration.md#connecting-other-clients). Saved keys also have a
-"Connect a client" tab with ready-to-paste snippets.
+"Connect a client" button that opens ready-to-paste snippets.
 
 ## Options
 
@@ -96,7 +96,7 @@ Claude Desktop and the MCP Inspector are covered in
 | `globals`                    | `{}`                                      | Globals to expose, with `read`, `write` and `publish`.                                                                                            |
 | `userCollection`             | `config.admin.user`, then `users`         | Auth collection whose users the keys act as.                                                                                                      |
 | `apiKeys.slug`               | `mcpx-api-keys`                           | Slug of the key collection.                                                                                                                       |
-| `apiKeys.setupGuide`         | `true`                                    | Add the "Connect a client" tab to saved keys.                                                                                                     |
+| `apiKeys.setupGuide`         | `true`                                    | Add the "Connect a client" button to saved keys.                                                                                                  |
 | `apiKeys.overrideCollection` | none                                      | Function that receives the key collection and returns it.                                                                                         |
 | `endpoint.path`              | `/mcpx`                                   | Endpoint path below the API route.                                                                                                                |
 | `limits.maxLimit`            | `25`                                      | Highest `limit` a client may pass to a list tool.                                                                                                 |

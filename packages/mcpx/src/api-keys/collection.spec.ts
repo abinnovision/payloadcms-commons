@@ -5,9 +5,7 @@ import { keyBeforeChange } from "./collection.js";
 import { buildFixtureConfig } from "../../test/fixtures/config.js";
 
 import type {
-	Condition,
 	Field,
-	Operation,
 	SanitizedCollectionConfig,
 	SanitizedConfig,
 } from "payload";
@@ -134,77 +132,59 @@ describe("api keys collection", () => {
 		});
 	});
 
-	/*
-	 * A `ui` field holds no data, so the guide can never widen what a key
-	 * document stores or exposes over the REST API.
-	 */
-	it("carries the setup guide as a field that stores nothing", () => {
-		expect(findField(collection.fields, "setupGuide")?.type).toBe("ui");
+	const guideComponents = (c: SanitizedCollectionConfig | undefined) =>
+		c?.admin.components?.edit?.beforeDocumentControls;
+
+	it("mounts the setup guide next to the document controls", () => {
+		expect(guideComponents(collection)).toEqual([
+			{
+				path: "@abinnovision/payloadcms-mcpx/admin",
+				exportName: "McpxSetupGuide",
+				clientProps: { endpointPath: "/mcpx" },
+			},
+		]);
 	});
 
-	it("mounts both admin components from the admin entrypoint", () => {
-		for (const name of ["capabilities", "setupGuide"]) {
-			expect(findField(collection.fields, name)).toMatchObject({
-				admin: {
-					components: {
-						Field: { path: "@abinnovision/payloadcms-mcpx/admin" },
-					},
+	it("mounts the capability matrix from the admin entrypoint", () => {
+		expect(findField(collection.fields, "capabilities")).toMatchObject({
+			admin: {
+				components: {
+					Field: { path: "@abinnovision/payloadcms-mcpx/admin" },
 				},
-			});
-		}
+			},
+		});
 	});
 
 	it("passes a custom endpoint path to the component", async () => {
 		const built = await buildFixtureConfig({
 			plugin: { endpoint: { path: "/mcp" } },
 		});
-		const guide = findField(
-			built.collections.find((c) => c.slug === "mcpx-api-keys")?.fields ?? [],
-			"setupGuide",
-		);
 
-		expect(guide).toMatchObject({
-			admin: {
-				components: { Field: { clientProps: { endpointPath: "/mcp" } } },
-			},
-		});
-	});
-
-	it("hides the guide tab on create and shows it on update", () => {
-		const [tabs] = collection.fields;
-		const guideTab = tabs?.type === "tabs" ? tabs.tabs[2] : undefined;
-		const condition = guideTab?.admin?.condition;
-
-		const args = (operation: Operation): Parameters<Condition>[2] => ({
-			blockData: {},
-			operation,
-			path: [],
-			user: null,
-		});
-
-		expect(condition).toBeTypeOf("function");
-		expect(condition?.({}, {}, args("create"))).toBe(false);
-		expect(condition?.({}, {}, args("update"))).toBe(true);
+		expect(
+			guideComponents(
+				built.collections.find((c) => c.slug === "mcpx-api-keys"),
+			),
+		).toMatchObject([{ clientProps: { endpointPath: "/mcp" } }]);
 	});
 
 	it("keeps the capabilities in a tab of their own", () => {
 		const [tabs] = collection.fields;
 		const labels = tabs?.type === "tabs" ? tabs.tabs.map((t) => t.label) : [];
 
-		expect(labels).toEqual(["Key", "Capabilities", "Connect a client"]);
+		expect(labels).toEqual(["Key", "Capabilities"]);
 		expect(
 			fieldNames(tabs?.type === "tabs" ? (tabs.tabs[1]?.fields ?? []) : []),
 		).toEqual(["capabilities"]);
 	});
 
-	it("drops only the guide tab when the guide is turned off", async () => {
+	it("drops the guide button when the guide is turned off", async () => {
 		const built = await buildFixtureConfig({
 			plugin: { apiKeys: { setupGuide: false } },
 		});
 		const without = built.collections.find((c) => c.slug === "mcpx-api-keys");
 		const [tabs] = without?.fields ?? [];
 
-		expect(fieldNames(without?.fields ?? [])).not.toContain("setupGuide");
+		expect(guideComponents(without)).toBeUndefined();
 		expect(tabs?.type === "tabs" ? tabs.tabs.map((t) => t.label) : []).toEqual([
 			"Key",
 			"Capabilities",

@@ -20,9 +20,22 @@ const state: MockState = {
 
 /*
  * The real module pulls in the whole admin bundle, including SCSS. Only the
- * four hooks the component touches matter here.
+ * hooks and primitives the component touches matter here.
  */
 vi.mock("@payloadcms/ui", () => ({
+	Banner: ({ children }: { children: React.ReactNode }) => (
+		<div>{children}</div>
+	),
+	Button: ({ children }: { children: React.ReactNode }) => (
+		<button type="button">{children}</button>
+	),
+	Drawer: ({ children }: { children: React.ReactNode }) => (
+		<div>{children}</div>
+	),
+	formatDrawerSlug: ({ slug, depth }: { slug: string; depth: number }) =>
+		`${slug}-${String(depth)}`,
+	useEditDepth: () => 0,
+	useModal: () => ({ openModal: () => undefined }),
 	CopyToClipboard: ({ value }: { value: string }) => (
 		<button data-copy={value} type="button" />
 	),
