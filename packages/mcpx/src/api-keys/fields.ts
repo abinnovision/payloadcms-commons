@@ -151,33 +151,18 @@ export const createConfirmationFields = (
 		: [];
 
 /**
- * Wraps the key fields, the capabilities and the setup guide in unnamed tabs,
- * so wide tables and snippets get the full form width. Named tabs would nest
- * the data and move `capabilities` off the document root, which capability
- * resolution reads.
- *
- * The guide tab only shows on update: on create there is no key to hand out.
+ * Wraps the key fields and the capabilities in unnamed tabs, so wide tables
+ * get the full form width. Named tabs would nest the data and move
+ * `capabilities` off the document root, which capability resolution reads.
  */
 export const withKeyTabs = (
 	keyFields: Field[],
 	capabilityFields: Field[],
-	options: NormalizedOptions,
 ): Field[] => {
 	const tabs: Tab[] = [{ label: "Key", fields: keyFields }];
 
 	if (capabilityFields.length > 0) {
 		tabs.push({ label: "Capabilities", fields: capabilityFields });
-	}
-
-	if (options.setupGuide) {
-		tabs.push({
-			label: "Connect a client",
-			admin: {
-				condition: (_data, _siblingData, { operation }) =>
-					operation === "update",
-			},
-			fields: [adminField("setupGuide", "McpxSetupGuide", options)],
-		});
 	}
 
 	return [{ type: "tabs", tabs }];

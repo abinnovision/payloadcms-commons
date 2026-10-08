@@ -108,14 +108,14 @@ never touches the key's form, so the key is not marked modified.
 The list and the decisions go through `GET` and `POST` on `{routes.api}{endpoint.path}/confirmations`
 with the admin session. Only the key's own user may use them.
 
-### The "Connect a client" tab
+### Connect a client
 
-Saved keys have a "Connect a client" tab showing the endpoint URL, the `Authorization` header and
-ready-to-paste configuration for Claude Code and Claude Desktop, with the key filled in and a copy
-button on each block. The tab appears only once the key exists. The URL uses `serverURL` when the
-config sets one, and the browser's origin otherwise.
+Saved keys have a "Connect a client" button next to Save. It opens a drawer showing the endpoint
+URL, the `Authorization` header and ready-to-paste configuration for Claude Code and Claude
+Desktop, with the key filled in and a copy button on each block. The button appears only once the
+key exists. The URL uses `serverURL` when the config sets one, and the browser's origin otherwise.
 
-`apiKeys.setupGuide: false` removes the tab and the tab layout, leaving a flat form.
+`apiKeys.setupGuide: false` removes the button.
 
 ### Connecting other clients
 
@@ -152,7 +152,7 @@ payload generate:importmap
 ```
 
 Without those entries Payload logs a missing-component error and renders nothing in their place.
-Without the setup guide entry, the key form loses its "Connect a client" tab. Without the matrix
+Without the setup guide entry, the key form loses its "Connect a client" button. Without the matrix
 entry, it loses the capability editor, so no key can be granted anything from the admin panel. The
 endpoint is unaffected.
 

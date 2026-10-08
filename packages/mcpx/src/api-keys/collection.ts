@@ -66,6 +66,19 @@ export const createApiKeysCollection = (
 			useAsTitle: "label",
 			description:
 				"Keys for MCP clients. Each key acts as its user and may only do what its capabilities allow.",
+			...(options.setupGuide && {
+				components: {
+					edit: {
+						beforeDocumentControls: [
+							{
+								path: "@abinnovision/payloadcms-mcpx/admin",
+								exportName: "McpxSetupGuide",
+								clientProps: { endpointPath: options.endpointPath },
+							},
+						],
+					},
+				},
+			}),
 		},
 		access: {
 			create: isUser,
@@ -95,7 +108,6 @@ export const createApiKeysCollection = (
 					...createKeyFields(),
 				],
 				createCapabilityFields(options),
-				options,
 			),
 		],
 	};

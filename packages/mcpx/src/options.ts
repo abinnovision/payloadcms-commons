@@ -30,7 +30,7 @@ export interface NormalizedOptions {
 	apiKeysSlug: string;
 	endpointPath: string;
 	/**
-	 * Whether the key form gets the "Connect a client" tab.
+	 * Whether the key form gets the "Connect a client" button and drawer.
 	 */
 	setupGuide: boolean;
 	limits: { maxLimit: number; maxDepth: number };

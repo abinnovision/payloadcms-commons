@@ -1,10 +1,16 @@
 "use client";
 
 import {
+	Banner,
+	Button,
 	CopyToClipboard,
+	Drawer,
+	formatDrawerSlug,
 	useConfig,
 	useDocumentInfo,
+	useEditDepth,
 	useFormFields,
+	useModal,
 } from "@payloadcms/ui";
 import React, { useEffect, useState } from "react";
 
@@ -43,7 +49,6 @@ const useOrigin = (serverUrl: string): string => {
  * themes without a stylesheet that consumers would have to transpile.
  */
 const styles = {
-	lead: { marginBottom: "calc(var(--base) * 0.75)" },
 	section: { marginBottom: "calc(var(--base) * 0.75)" },
 	sectionHeader: {
 		display: "flex",
@@ -67,23 +72,11 @@ const styles = {
 	},
 } as const satisfies Record<string, React.CSSProperties>;
 
-/**
- * Per-key connection instructions on the API key edit view. Renders nothing
- * until the document is saved, because before that there is no key to hand to
- * a client.
- */
-export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
-	endpointPath,
-}) => {
-	const { id } = useDocumentInfo();
+const SetupGuideContent: React.FC<McpxSetupGuideProps> = ({ endpointPath }) => {
 	const { config } = useConfig();
 	const apiKey = useFormFields(([fields]) => fields["apiKey"]?.value);
 	const label = useFormFields(([fields]) => fields["label"]?.value);
 	const origin = useOrigin(config.serverURL);
-
-	if (id === undefined) {
-		return null;
-	}
 
 	const sections = buildSetupGuide({
 		endpointUrl: endpointUrl(origin, config.routes.api, endpointPath),
@@ -92,11 +85,10 @@ export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
 	});
 
 	return (
-		<div className="field-type">
-			{/* No heading: the tab this renders in is already labelled. */}
-			<p style={styles.lead}>
+		<>
+			<Banner type="warning">
 				Every snippet below contains this key in full. Treat it like a password.
-			</p>
+			</Banner>
 			{sections.map((section) => (
 				<section key={section.id} style={styles.section}>
 					<div style={styles.sectionHeader}>
@@ -109,6 +101,45 @@ export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
 					<pre style={styles.snippet}>{section.snippet}</pre>
 				</section>
 			))}
-		</div>
+		</>
+	);
+};
+
+/**
+ * Per-key connection instructions on the API key edit view, opened from a
+ * button next to the document controls. Renders nothing until the document is
+ * saved, because before that there is no key to hand to a client.
+ */
+export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
+	endpointPath,
+}) => {
+	const { id } = useDocumentInfo();
+	const { openModal } = useModal();
+	const drawerSlug = formatDrawerSlug({
+		slug: "mcpx-connect",
+		depth: useEditDepth(),
+	});
+
+	if (id === undefined) {
+		return null;
+	}
+
+	return (
+		<>
+			<Button
+				buttonStyle="secondary"
+				margin={false}
+				onClick={() => {
+					openModal(drawerSlug);
+				}}
+				size="medium"
+				type="button"
+			>
+				Connect a client
+			</Button>
+			<Drawer slug={drawerSlug} title="Connect a client">
+				<SetupGuideContent endpointPath={endpointPath} />
+			</Drawer>
+		</>
 	);
 };
