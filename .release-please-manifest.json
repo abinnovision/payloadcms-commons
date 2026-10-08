@@ -1,6 +1,6 @@
 {
 	"packages/email-lettermint": "1.0.3",
-	"packages/mcpx": "1.0.0",
+	"packages/mcpx": "2.0.0",
 	"packages/montage": "1.0.2",
 	"packages/viewfinder": "1.0.2",
 	"packages/wayfinder": "1.0.1",
