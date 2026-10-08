@@ -1,5 +1,48 @@
 # Changelog
 
+## [2.0.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v1.0.0...payloadcms-mcpx-v2.0.0) (2026-10-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcpx:** align helpers and simplify the plugin internals ([#118](https://github.com/abinnovision/payloadcms-commons/issues/118))
+* **mcpx:** refine the capability matrix into access levels ([#108](https://github.com/abinnovision/payloadcms-commons/issues/108))
+* **mcpx:** expose version history wherever read is granted ([#89](https://github.com/abinnovision/payloadcms-commons/issues/89))
+* **mcpx:** clean up, harden and simplify the plugin for 2.0 ([#83](https://github.com/abinnovision/payloadcms-commons/issues/83))
+
+### Features
+
+* **mcpx:** add deleteDocument with approval in the admin panel ([#107](https://github.com/abinnovision/payloadcms-commons/issues/107)) ([87ffa2b](https://github.com/abinnovision/payloadcms-commons/commit/87ffa2bae203dfd4e869f7c067f016691062f051))
+* **mcpx:** add duplicateDocument tool ([#111](https://github.com/abinnovision/payloadcms-commons/issues/111)) ([b4b4b1c](https://github.com/abinnovision/payloadcms-commons/commit/b4b4b1c27d73ed1a472a8319e3d394525d141219))
+* **mcpx:** add key expiry and per-locale validation and publishing ([#92](https://github.com/abinnovision/payloadcms-commons/issues/92)) ([c926352](https://github.com/abinnovision/payloadcms-commons/commit/c926352a10ed910f5c76a62ea20a739fd50a7504))
+* **mcpx:** clean up, harden and simplify the plugin for 2.0 ([#83](https://github.com/abinnovision/payloadcms-commons/issues/83)) ([7d29edf](https://github.com/abinnovision/payloadcms-commons/commit/7d29edf9bcacf8bba85d8525274530c8416a5cce))
+* **mcpx:** expose diagnostics for bug reports ([#94](https://github.com/abinnovision/payloadcms-commons/issues/94)) ([6d171a1](https://github.com/abinnovision/payloadcms-commons/commit/6d171a18a54cef013ea051fb8e4b798860d8fb90))
+* **mcpx:** expose version history and diffs ([#82](https://github.com/abinnovision/payloadcms-commons/issues/82)) ([44c2eb5](https://github.com/abinnovision/payloadcms-commons/commit/44c2eb5b75a2387b6797b320632052289ddeffb9))
+* **mcpx:** expose version history wherever read is granted ([#89](https://github.com/abinnovision/payloadcms-commons/issues/89)) ([281f6b0](https://github.com/abinnovision/payloadcms-commons/commit/281f6b01ce82b69c41d69bbd0b820cd2d589c656))
+* **mcpx:** link written documents to the admin panel and preview ([#109](https://github.com/abinnovision/payloadcms-commons/issues/109)) ([3b9393d](https://github.com/abinnovision/payloadcms-commons/commit/3b9393d0cbec6eb1027bb121e107899dba9bddbf))
+* **mcpx:** open the setup guide from a "Connect a client" drawer ([#126](https://github.com/abinnovision/payloadcms-commons/issues/126)) ([35da035](https://github.com/abinnovision/payloadcms-commons/commit/35da03571f8a079311bcca0d842187cb32abdd9f))
+* **mcpx:** refine the capability matrix into access levels ([#108](https://github.com/abinnovision/payloadcms-commons/issues/108)) ([2a32a7f](https://github.com/abinnovision/payloadcms-commons/commit/2a32a7fb4517cbecde2dcebaf1026f822cddc6f7))
+* **mcpx:** render API key capabilities as a permission matrix ([#67](https://github.com/abinnovision/payloadcms-commons/issues/67)) ([fce9644](https://github.com/abinnovision/payloadcms-commons/commit/fce96445007b7bee1dfa463acfd6a388df151e60))
+* **mcpx:** rework the capability matrix layout and delete control ([#112](https://github.com/abinnovision/payloadcms-commons/issues/112)) ([be23744](https://github.com/abinnovision/payloadcms-commons/commit/be23744099b5b2b307c4b8f71af64fca3dcb3e56))
+* **mcpx:** upload and download files through single-use grants ([#96](https://github.com/abinnovision/payloadcms-commons/issues/96)) ([761fa66](https://github.com/abinnovision/payloadcms-commons/commit/761fa665949501a7a48eadab3ccaa6e115bca47d))
+
+
+### Bug Fixes
+
+* **deps:** align @payloadcms/ui with payload 3.89.0 ([#70](https://github.com/abinnovision/payloadcms-commons/issues/70)) ([7f083e3](https://github.com/abinnovision/payloadcms-commons/commit/7f083e3e040ffa99cd66347965c3a492c46e7f12))
+* **deps:** bump @modelcontextprotocol/sdk from 1.31.0 to 1.32.0 in the production-dependencies group ([#124](https://github.com/abinnovision/payloadcms-commons/issues/124)) ([9f7eda2](https://github.com/abinnovision/payloadcms-commons/commit/9f7eda2234cf6a57ed11bbb3d5761c26e53ffe6d))
+* **deps:** bump the production-dependencies group across 1 directory with 2 updates ([#110](https://github.com/abinnovision/payloadcms-commons/issues/110)) ([cfa968f](https://github.com/abinnovision/payloadcms-commons/commit/cfa968fabbde1851c42851f7ffdcded3eb2cf6df))
+* **deps:** bump the production-dependencies group across 1 directory with 6 updates ([#86](https://github.com/abinnovision/payloadcms-commons/issues/86)) ([57d002c](https://github.com/abinnovision/payloadcms-commons/commit/57d002c693b74da431e24c8e789ee2eb5c7e416e))
+* **deps:** bump the production-dependencies group with 10 updates ([#68](https://github.com/abinnovision/payloadcms-commons/issues/68)) ([786b528](https://github.com/abinnovision/payloadcms-commons/commit/786b528e7929376c5e6ea570d94d58bb0b4298cc))
+* **deps:** bump the production-dependencies group with 2 updates ([#49](https://github.com/abinnovision/payloadcms-commons/issues/49)) ([8f079ec](https://github.com/abinnovision/payloadcms-commons/commit/8f079ecfc3b675318b4501a6b0073d8f3f2f36b5))
+* **deps:** keep @payloadcms/ui aligned with the rest of the Payload family ([#61](https://github.com/abinnovision/payloadcms-commons/issues/61)) ([e77c0b9](https://github.com/abinnovision/payloadcms-commons/commit/e77c0b94fcb696e2e9165d76b33945bf98d5a4ba))
+* **mcpx:** let hooks fill required fields on file uploads ([#106](https://github.com/abinnovision/payloadcms-commons/issues/106)) ([8421860](https://github.com/abinnovision/payloadcms-commons/commit/84218601bc21fca89dc287988b45c9a7365fb50d))
+
+
+### Code Refactoring
+
+* **mcpx:** align helpers and simplify the plugin internals ([#118](https://github.com/abinnovision/payloadcms-commons/issues/118)) ([cda6739](https://github.com/abinnovision/payloadcms-commons/commit/cda67391e932bfc033a2f579a5e1e6d1cca50094))
+
 ## 1.0.0 (2026-09-03)
 
 
