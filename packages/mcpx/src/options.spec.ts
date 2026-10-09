@@ -1,7 +1,11 @@
 import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { describe, expect, it } from "vitest";
 
-import { normalizeOptions, toCamelCase } from "./options.js";
+import {
+	assertFolderCollection,
+	normalizeOptions,
+	toCamelCase,
+} from "./options.js";
 import { BUILTIN_TOOLS } from "./tools/builtin.js";
 import {
 	pages,
@@ -13,7 +17,12 @@ import {
 import { banner, siteSettings } from "../test/fixtures/globals.js";
 
 import type { McpxPluginOptions } from "./types.js";
-import type { CollectionConfig, Config, GlobalConfig } from "payload";
+import type {
+	CollectionConfig,
+	Config,
+	GlobalConfig,
+	SanitizedConfig,
+} from "payload";
 
 const rawConfig = (
 	collections: CollectionConfig[] = [users, pages, posts, tags],
@@ -497,6 +506,127 @@ describe("normalizeOptions", () => {
 		expect(() =>
 			normalize({ collections: { pages: true } }, config),
 		).not.toThrow();
+	});
+
+	it("refuses Payload's internal collections and names them", () => {
+		expect(() =>
+			normalize({ collections: { "payload-preferences": true } }),
+		).toThrow(/"payload-preferences" is internal to Payload/);
+		expect(() =>
+			normalize({ collections: { "payload-folders": true } }),
+		).toThrow(/folder collection\. Use the folders option/);
+
+		// A config collection with the prefix is refused as well.
+		const config = rawConfig([users, { slug: "payload-custom", fields: [] }]);
+
+		expect(() =>
+			normalize({ collections: { "payload-custom": true } }, config),
+		).toThrow(/"payload-custom" cannot be exposed/);
+	});
+
+	describe("folders", () => {
+		const withFolders = (slug: string): CollectionConfig => ({
+			slug,
+			folders: true,
+			fields: [{ name: "title", type: "text" }],
+		});
+		const config = (folders?: Config["folders"]) => ({
+			...rawConfig([users, pages, withFolders("docs"), withFolders("secrets")]),
+			...(folders === undefined ? {} : { folders }),
+		});
+		const folderEntity = (
+			options: Partial<McpxPluginOptions>,
+			folders?: Config["folders"],
+		) =>
+			normalize(
+				{ collections: { docs: true }, ...options },
+				config(folders),
+			).collections.find((entity) => entity.fieldName === "payloadFolders");
+
+		it("exposes folders read-only where an exposed collection uses them", () => {
+			expect(folderEntity({})).toEqual({
+				slug: "payload-folders",
+				read: true,
+				write: false,
+				publish: false,
+				liveWrite: false,
+				hasDrafts: false,
+				hasVersions: false,
+				delete: false,
+				deleteUnattended: false,
+				isUpload: false,
+				fieldName: "payloadFolders",
+			});
+		});
+
+		it("leaves folders out where only unexposed collections use them", () => {
+			expect(
+				normalize({ collections: { pages: true } }, config()).collections.map(
+					(entity) => entity.slug,
+				),
+			).toEqual(["pages"]);
+		});
+
+		it("follows the folder slug of the config", () => {
+			expect(
+				normalize({ collections: { docs: true } }, config({ slug: "dirs" }))
+					.collections[1]?.slug,
+			).toBe("dirs");
+		});
+
+		it("adds live writes but never delete with write: true", () => {
+			expect(folderEntity({ folders: { write: true } })).toMatchObject({
+				read: true,
+				write: true,
+				publish: false,
+				liveWrite: true,
+				delete: false,
+			});
+		});
+
+		it("accepts false, also where folders are unavailable", () => {
+			expect(folderEntity({ folders: false })).toBeUndefined();
+			expect(folderEntity({ folders: false }, false)).toBeUndefined();
+		});
+
+		it("refuses other values and unknown options", () => {
+			expect(() => folderEntity({ folders: true as unknown as false })).toThrow(
+				/Use false or \{ write \}/,
+			);
+			expect(() =>
+				folderEntity({
+					folders: { delete: true } as unknown as { write?: boolean },
+				}),
+			).toThrow(/unknown option "delete"/);
+			expect(() =>
+				folderEntity({ folders: { write: "yes" as unknown as boolean } }),
+			).toThrow(/folders\.write has "yes"/);
+		});
+
+		it("refuses a folder collection that overrides gave versions", () => {
+			const normalized = normalize({ collections: { docs: true } }, config());
+			const sanitized = (versions: unknown) =>
+				({
+					folders: { slug: "payload-folders" },
+					collections: [{ slug: "payload-folders", versions }],
+				}) as unknown as SanitizedConfig;
+
+			expect(() => {
+				assertFolderCollection(sanitized(false), normalized);
+			}).not.toThrow();
+			expect(() => {
+				assertFolderCollection(sanitized({ drafts: false }), normalized);
+			}).toThrow(/collectionOverrides/);
+		});
+
+		it("refuses the option where folders are unavailable", () => {
+			expect(() =>
+				normalize({ collections: { pages: true }, folders: {} }, config()),
+			).toThrow(/no exposed collection uses folders/);
+			expect(() => folderEntity({ folders: { write: true } }, false)).toThrow(
+				/no exposed collection uses folders/,
+			);
+		});
 	});
 
 	it("leaves globals empty when the option is omitted", () => {
