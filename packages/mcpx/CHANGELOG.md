@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v2.0.0...payloadcms-mcpx-v2.1.0) (2026-10-09)
+
+
+### Features
+
+* **mcpx:** expose payload folders read-only by default ([#129](https://github.com/abinnovision/payloadcms-commons/issues/129)) ([1b2dd55](https://github.com/abinnovision/payloadcms-commons/commit/1b2dd55305fb84991f9a585006a3a33687bb22a7))
+* **mcpx:** rename grants to leases and share the expiry check ([#127](https://github.com/abinnovision/payloadcms-commons/issues/127)) ([7170bd5](https://github.com/abinnovision/payloadcms-commons/commit/7170bd5d592226c6bb7f356fb17ec1b19a59e608))
+
 ## [2.0.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v1.0.0...payloadcms-mcpx-v2.0.0) (2026-10-08)
 
 
