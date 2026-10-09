@@ -6,14 +6,14 @@ import {
 	DECISIONS,
 } from "../api-keys/confirmation-view.js";
 import { relationId } from "../auth/resolve.js";
+import { isPlainObject } from "../guards.js";
 import {
 	CONFIRMATIONS_PER_KEY,
 	decideConfirmations,
 	issueConfirmation,
 	listConfirmations,
-} from "../grants/confirmation.js";
-import { grantContext, grantKvSlug, rowHandle } from "../grants/grant.js";
-import { isPlainObject } from "../guards.js";
+} from "../leases/confirmation.js";
+import { leaseContext, leaseHandle, leaseKvSlug } from "../leases/lease.js";
 import { publicOrigin } from "../request.js";
 import { jsonResult } from "../result.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
@@ -56,7 +56,7 @@ export const confirmationFor = (
 	confirmed: false,
 	request: async (args) => {
 		const { req } = scope;
-		const { slug, apiKeyId } = grantContext(req);
+		const { slug, apiKeyId } = leaseContext(req);
 
 		// Before the entry, so a URL that fails to build leaves none behind.
 		const view = keyViewUrl(req, options, apiKeyId);
@@ -89,7 +89,7 @@ const authorize = async (
 	options: NormalizedOptions,
 	keyId: unknown,
 ): Promise<Response | { slug: string; apiKeyId: DocumentId }> => {
-	const slug = grantKvSlug(req.payload.config);
+	const slug = leaseKvSlug(req.payload.config);
 
 	if (slug === undefined) {
 		return respond(404, { error: "Confirmations are not available." });
@@ -169,7 +169,7 @@ const listHandler =
 		const { payload } = req;
 		const highlighted = req.searchParams.get("confirmation");
 		const highlight =
-			highlighted === null ? undefined : rowHandle(payload, highlighted);
+			highlighted === null ? undefined : leaseHandle(payload, highlighted);
 		const entries = (
 			await listConfirmations(payload, allowed.slug, allowed.apiKeyId)
 		).filter((entry) => entry.confirmation.state === "pending");

@@ -3,7 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { isValidAuthResult, resolveApiKeyAuth } from "../auth/resolve.js";
 import { resolveCapabilities, scopeSlugs } from "../capabilities.js";
 import { jsonRpcError } from "./errors.js";
-import { grantsAvailable, readCapped } from "./http.js";
+import { leasesAvailable, readCapped } from "./http.js";
 import { createMcpServer } from "./server.js";
 
 import type { NormalizedOptions } from "../options.js";
@@ -37,7 +37,7 @@ export const buildScope = (
 				}
 			: null,
 		limits: options.limits,
-		uploads: grantsAvailable(req, options) !== undefined,
+		uploads: leasesAvailable(req, options) !== undefined,
 		diagnostics: options.diagnostics ? options.serverInfo : null,
 		exposure: { collections: options.collections, globals: options.globals },
 	};

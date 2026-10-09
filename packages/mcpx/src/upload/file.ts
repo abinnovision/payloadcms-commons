@@ -6,7 +6,8 @@ import {
 } from "payload/shared";
 import { z } from "zod";
 
-import { grantContext, issueGrant } from "../grants/grant.js";
+import { issueGrant } from "../leases/grant.js";
+import { leaseContext } from "../leases/lease.js";
 import { publicOrigin } from "../request.js";
 import { errorResult, jsonResult } from "../result.js";
 import { resolveDataPointer, SchemaError } from "../schema/index.js";
@@ -17,7 +18,7 @@ import type {
 	ResolvedCollection,
 	ResolvedEntity,
 } from "../entity.js";
-import type { UploadFile } from "../grants/grant.js";
+import type { UploadFile } from "../leases/grant.js";
 import type { McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { File, PayloadRequest, SanitizedConfig } from "payload";
@@ -272,7 +273,7 @@ export const uploadHandoff = async (
 ): Promise<CallToolResult> => {
 	const { req } = scope;
 	const { payload } = req;
-	const { slug, apiKeyId } = grantContext(req);
+	const { slug, apiKeyId } = leaseContext(req);
 	// Before the grant, so a URL that fails to build leaves none behind.
 	const url = handoffUrl(req, "upload");
 	const { id, exp } = await issueGrant(payload, slug, {
@@ -331,7 +332,7 @@ export const downloadHandoff = async (
 	},
 ): Promise<Record<string, unknown>> => {
 	const { req } = scope;
-	const { slug, apiKeyId } = grantContext(req);
+	const { slug, apiKeyId } = leaseContext(req);
 	const url = handoffUrl(req, "file");
 	const { id, exp } = await issueGrant(req.payload, slug, {
 		kind: "download",

@@ -1,9 +1,9 @@
 import { authenticateAs } from "./handler.js";
-import { grantsAvailable, readCapped, respond } from "./http.js";
+import { leasesAvailable, readCapped, respond } from "./http.js";
 import { runTool } from "./server.js";
 import { resolveApiKeyById } from "../auth/resolve.js";
 import { isToolEnabled, toolInputSchema } from "../define-tool.js";
-import { claimGrant } from "../grants/grant.js";
+import { claimGrant } from "../leases/grant.js";
 import { parseResult } from "../result.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 import {
@@ -12,7 +12,7 @@ import {
 	uploadMaxBytes,
 } from "../upload/file.js";
 
-import type { Grant } from "../grants/grant.js";
+import type { Grant } from "../leases/grant.js";
 import type { NormalizedOptions } from "../options.js";
 import type { McpxToolExtra, McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -69,7 +69,7 @@ const claimAs = async <Kind extends Grant["kind"]>(
 ): Promise<
 	{ grant: Extract<Grant, { kind: Kind }>; scope: McpxToolScope } | undefined
 > => {
-	const slug = grantsAvailable(req, options);
+	const slug = leasesAvailable(req, options);
 	const grantId = req.headers.get("x-mcpx-grant");
 
 	if (slug === undefined || grantId === null) {

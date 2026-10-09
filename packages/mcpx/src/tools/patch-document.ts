@@ -34,7 +34,7 @@ import { applyPatchOperations, isElementPointer } from "../write/patch.js";
 import { withTransaction } from "../write/transaction.js";
 import { buildWriteData } from "../write/write-data.js";
 
-import type { UploadFile } from "../grants/grant.js";
+import type { UploadFile } from "../leases/grant.js";
 import type { McpxToolScope } from "../types.js";
 import type { PatchOperation } from "../write/patch.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";

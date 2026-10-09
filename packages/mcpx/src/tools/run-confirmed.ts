@@ -11,12 +11,12 @@ import {
 	CONFIRMATIONS_PER_KEY,
 	claimConfirmation,
 	readConfirmation,
-} from "../grants/confirmation.js";
-import { grantContext } from "../grants/grant.js";
+} from "../leases/confirmation.js";
+import { leaseContext } from "../leases/lease.js";
 import { jsonResult, parseResult } from "../result.js";
 
 import type { DocumentId } from "../entity.js";
-import type { Confirmation } from "../grants/confirmation.js";
+import type { Confirmation } from "../leases/confirmation.js";
 import type {
 	McpxAnyTool,
 	McpxConfirmation,
@@ -151,7 +151,7 @@ export const createRunConfirmed = (tools: () => McpxAnyTool[]): McpxAnyTool =>
 		},
 		handler: async ({ args, scope, extra }) => {
 			const { req } = scope;
-			const { slug, apiKeyId } = grantContext(req);
+			const { slug, apiKeyId } = leaseContext(req);
 
 			const outcomes: Outcome[] = [];
 
