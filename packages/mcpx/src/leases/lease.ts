@@ -11,12 +11,8 @@ import type {
 	SanitizedConfig,
 } from "payload";
 
-const GRANT_TTL_MS = 5 * 60 * 1000;
-
-const GRANTS_PER_KEY = 10;
-
 // 32 random bytes in base64url.
-export const ROW_ID = /^[\w-]{43}$/;
+export const LEASE_ID = /^[\w-]{43}$/;
 
 /*
  * The KV collection is only ever written through `payload.db`, which runs no
@@ -26,7 +22,10 @@ export const ROW_ID = /^[\w-]{43}$/;
 export const NO_REQ = {};
 
 // An unset fallback locale is stored as `null`.
-type FallbackLocale = Exclude<PayloadRequest["fallbackLocale"], undefined>;
+export type FallbackLocale = Exclude<
+	PayloadRequest["fallbackLocale"],
+	undefined
+>;
 
 /**
  * A call stored with the request's locale and fallback locale at issue,
@@ -41,62 +40,18 @@ export interface StoredCall {
 }
 
 /**
- * The file an upload call declared.
+ * A row of the KV collection that holds a lease.
  */
-export interface UploadFile {
-	filename: string;
-	mimeType: string;
-	size: number;
-}
-
-/**
- * A tool call waiting for its file, stored until the PUT that completes it.
- */
-export interface UploadGrant extends StoredCall {
-	kind: "upload";
-	file: UploadFile;
-	/**
-	 * Epoch milliseconds.
-	 */
-	exp: number;
-}
-
-/**
- * The file of a document read through `getDocument`, stored until the GET
- * that serves it.
- */
-export interface DownloadGrant {
-	kind: "download";
-	apiKeyId: DocumentId;
-	collection: string;
-	id: DocumentId;
-	/**
-	 * Whether the latest draft was read, rather than the published version.
-	 */
-	draft: boolean;
-	/**
-	 * The locale read and the request's fallback locale, `null` when unset.
-	 */
-	locale: null | string;
-	fallbackLocale: FallbackLocale;
-	/**
-	 * Epoch milliseconds.
-	 */
-	exp: number;
-}
-
-export type Grant = DownloadGrant | UploadGrant;
-
-export interface KvRow<T = unknown> {
+export interface LeaseRow<T = unknown> {
 	key: string;
 	data: T;
 }
 
 /**
- * The key prefixes of a kind of row: waiting rows and the markers of used
+ * The key prefixes of a kind of lease: waiting leases and the markers of used
  * ones.
  */
-export const rowPrefixes = (
+export const leasePrefixes = (
 	kind: "confirmation" | "grant",
 	apiKeyId: DocumentId,
 ): { prefix: string; usedPrefix: string } => ({
@@ -105,19 +60,19 @@ export const rowPrefixes = (
 });
 
 /**
- * What a row is addressed by: the HMAC of its id, which the row key ends in.
+ * What a lease is addressed by: the HMAC of its id, which the row key ends in.
  */
-export const rowHandle = (payload: Payload, id: string): string =>
+export const leaseHandle = (payload: Payload, id: string): string =>
 	hashApiKey(payload.secret, id);
 
-export const expOf = (data: unknown): number =>
+const expOf = (data: unknown): number =>
 	isPlainObject(data) && typeof data["exp"] === "number" ? data["exp"] : 0;
 
 /**
  * The KV collection slug, when Payload's database KV adapter backs it with a
  * unique `key`, which the single-use claim relies on. `undefined` otherwise.
  */
-export const grantKvSlug = (config: SanitizedConfig): string | undefined => {
+export const leaseKvSlug = (config: SanitizedConfig): string | undefined => {
 	const kv = config.kv as KVAdapterResult | undefined;
 	const key = kv?.kvCollection?.fields.find(
 		(field) => "name" in field && field.name === "key",
@@ -131,11 +86,11 @@ export const grantKvSlug = (config: SanitizedConfig): string | undefined => {
 /**
  * KV rows whose key contains one of `fragments`.
  */
-const findRows = async <T>(
+export const leasesMatching = async <T>(
 	payload: Payload,
 	slug: string,
 	fragments: string[],
-): Promise<KvRow<T>[]> => {
+): Promise<LeaseRow<T>[]> => {
 	const { docs } = await payload.db.find({
 		collection: slug,
 		where: { or: fragments.map((fragment) => ({ key: { like: fragment } })) },
@@ -144,19 +99,19 @@ const findRows = async <T>(
 		req: NO_REQ,
 	});
 
-	return docs as unknown as KvRow<T>[];
+	return docs as unknown as LeaseRow<T>[];
 };
 
 /**
  * KV rows whose key starts with one of `prefixes`. `like` matches a
  * substring, so the prefix is checked again here.
  */
-export const rowsWith = async <T = unknown>(
+export const leasesWith = async <T = unknown>(
 	payload: Payload,
 	slug: string,
 	prefixes: string[],
-): Promise<KvRow<T>[]> =>
-	(await findRows<T>(payload, slug, prefixes)).filter((row) =>
+): Promise<LeaseRow<T>[]> =>
+	(await leasesMatching<T>(payload, slug, prefixes)).filter((row) =>
 		prefixes.some((prefix) => row.key.startsWith(prefix)),
 	);
 
@@ -166,7 +121,7 @@ export const rowsWith = async <T = unknown>(
  * `usedPrefix` are purged first, and at most `cap` unexpired rows may wait
  * under `prefix`; past that, `capMessage` is thrown with 429.
  */
-export const issueRow = async (
+export const issueLease = async (
 	payload: Payload,
 	slug: string,
 	args: {
@@ -179,7 +134,7 @@ export const issueRow = async (
 	},
 ): Promise<{ id: string; exp: number }> => {
 	const now = Date.now();
-	const rows = await rowsWith(payload, slug, [args.prefix, args.usedPrefix]);
+	const rows = await leasesWith(payload, slug, [args.prefix, args.usedPrefix]);
 	const expired = rows.filter((row) => expOf(row.data) <= now);
 
 	if (expired.length > 0) {
@@ -204,7 +159,7 @@ export const issueRow = async (
 	await payload.db.create({
 		collection: slug,
 		data: {
-			key: `${args.prefix}${rowHandle(payload, id)}`,
+			key: `${args.prefix}${leaseHandle(payload, id)}`,
 			data: { ...args.data, exp },
 		},
 		req: NO_REQ,
@@ -217,7 +172,7 @@ export const issueRow = async (
  * Marks the row under `handle` used and removes it. The marker is a
  * unique-key insert, so of two concurrent claims exactly one returns `true`.
  */
-export const claimRow = async (
+export const claimLease = async (
 	payload: Payload,
 	slug: string,
 	prefixes: { prefix: string; usedPrefix: string },
@@ -248,69 +203,26 @@ export const claimRow = async (
 };
 
 /**
- * The KV slug and key id of the request, which a call that stores a grant or
- * a confirmation needs. Throws where the endpoint would not offer one.
+ * The KV slug and key id of the request, which a call that stores a lease
+ * needs. Throws where the endpoint would not offer one.
  */
-export const grantContext = (
+export const leaseContext = (
 	req: PayloadRequest,
 ): { slug: string; apiKeyId: DocumentId } => {
-	const slug = grantKvSlug(req.payload.config);
+	const slug = leaseKvSlug(req.payload.config);
 	const apiKeyId = req.context.mcpx?.apiKeyId;
 
 	if (slug === undefined || apiKeyId === undefined) {
-		throw new Error("A grant or confirmation needs a database KV and a key.");
+		throw new Error("A lease needs a database KV and a key.");
 	}
 
 	return { slug, apiKeyId };
 };
 
 /**
- * Stores a grant and returns its id. A key may hold at most
- * {@link GRANTS_PER_KEY} grants.
+ * The data of `row` when it has not expired at `now`, otherwise `undefined`.
  */
-export const issueGrant = async (
-	payload: Payload,
-	slug: string,
-	grant: Omit<DownloadGrant, "exp"> | Omit<UploadGrant, "exp">,
-): Promise<{ id: string; exp: number }> =>
-	await issueRow(payload, slug, {
-		...rowPrefixes("grant", grant.apiKeyId),
-		cap: GRANTS_PER_KEY,
-		capMessage: `This key already has ${String(GRANTS_PER_KEY)} uploads or downloads waiting. Use or abandon them first; each expires 5 minutes after it was issued.`,
-		ttlMs: GRANT_TTL_MS,
-		data: grant,
-	});
-
-/**
- * Loads the grant for `grantId` and marks it used, or returns `undefined` for
- * a malformed, unknown, expired or used one. A malformed id is refused before
- * any database read.
- */
-export const claimGrant = async (
-	payload: Payload,
-	slug: string,
-	grantId: string,
-): Promise<Grant | undefined> => {
-	if (!ROW_ID.test(grantId)) {
-		return undefined;
-	}
-
-	const handle = rowHandle(payload, grantId);
-	const row = (await findRows<Grant>(payload, slug, [handle])).find(
-		(candidate) =>
-			candidate.key.startsWith("mcpx-grant:") &&
-			candidate.key.endsWith(`:${handle}`),
-	);
-	const grant = row?.data;
-
-	if (!row || !isPlainObject(grant) || expOf(grant) <= Date.now()) {
-		return undefined;
-	}
-
-	const prefixes = rowPrefixes("grant", grant.apiKeyId);
-
-	return row.key === `${prefixes.prefix}${handle}` &&
-		(await claimRow(payload, slug, prefixes, handle, grant.exp))
-		? grant
-		: undefined;
-};
+export const unexpired = <T>(
+	row: LeaseRow<T> | undefined,
+	now: number,
+): T | undefined => (row && expOf(row.data) > now ? row.data : undefined);

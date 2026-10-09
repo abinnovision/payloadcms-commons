@@ -1,15 +1,15 @@
 import {
-	claimRow,
-	expOf,
-	issueRow,
+	claimLease,
+	issueLease,
+	LEASE_ID,
+	leaseHandle,
+	leasePrefixes,
+	leasesWith,
 	NO_REQ,
-	ROW_ID,
-	rowHandle,
-	rowPrefixes,
-	rowsWith,
-} from "./grant.js";
+	unexpired,
+} from "./lease.js";
 
-import type { KvRow, StoredCall } from "./grant.js";
+import type { StoredCall } from "./lease.js";
 import type { ConfirmationDecision } from "../api-keys/confirmation-view.js";
 import type { DocumentId } from "../entity.js";
 import type { Payload } from "payload";
@@ -37,12 +37,6 @@ export interface Confirmation extends StoredCall {
 	exp: number;
 }
 
-const asConfirmation = (
-	row: KvRow<Confirmation> | undefined,
-	now: number,
-): Confirmation | undefined =>
-	row && expOf(row.data) > now ? row.data : undefined;
-
 /**
  * Stores a pending call and returns its id. A key may hold at most
  * {@link CONFIRMATIONS_PER_KEY} calls.
@@ -54,8 +48,8 @@ export const issueConfirmation = async (
 ): Promise<{ id: string; exp: number }> => {
 	const entry: Omit<Confirmation, "exp"> = { ...call, state: "pending" };
 
-	return await issueRow(payload, slug, {
-		...rowPrefixes("confirmation", call.apiKeyId),
+	return await issueLease(payload, slug, {
+		...leasePrefixes("confirmation", call.apiKeyId),
 		cap: CONFIRMATIONS_PER_KEY,
 		capMessage: `This key already has ${String(CONFIRMATIONS_PER_KEY)} calls waiting for approval. Run or abandon them first; each expires 15 minutes after it was requested.`,
 		ttlMs: CONFIRMATION_TTL_MS,
@@ -73,14 +67,14 @@ export const readConfirmation = async (
 	apiKeyId: DocumentId,
 	id: string,
 ): Promise<Confirmation | undefined> => {
-	if (!ROW_ID.test(id)) {
+	if (!LEASE_ID.test(id)) {
 		return undefined;
 	}
 
-	const key = `${rowPrefixes("confirmation", apiKeyId).prefix}${rowHandle(payload, id)}`;
-	const rows = await rowsWith<Confirmation>(payload, slug, [key]);
+	const key = `${leasePrefixes("confirmation", apiKeyId).prefix}${leaseHandle(payload, id)}`;
+	const rows = await leasesWith<Confirmation>(payload, slug, [key]);
 
-	return asConfirmation(
+	return unexpired(
 		rows.find((row) => row.key === key),
 		Date.now(),
 	);
@@ -97,11 +91,11 @@ export const claimConfirmation = async (
 	id: string,
 	exp: number,
 ): Promise<boolean> =>
-	await claimRow(
+	await claimLease(
 		payload,
 		slug,
-		rowPrefixes("confirmation", apiKeyId),
-		rowHandle(payload, id),
+		leasePrefixes("confirmation", apiKeyId),
+		leaseHandle(payload, id),
 		exp,
 	);
 
@@ -113,12 +107,12 @@ export const listConfirmations = async (
 	slug: string,
 	apiKeyId: DocumentId,
 ): Promise<{ handle: string; confirmation: Confirmation }[]> => {
-	const { prefix } = rowPrefixes("confirmation", apiKeyId);
+	const { prefix } = leasePrefixes("confirmation", apiKeyId);
 	const now = Date.now();
 
-	return (await rowsWith<Confirmation>(payload, slug, [prefix]))
+	return (await leasesWith<Confirmation>(payload, slug, [prefix]))
 		.flatMap((row) => {
-			const confirmation = asConfirmation(row, now);
+			const confirmation = unexpired(row, now);
 
 			return confirmation
 				? [{ handle: row.key.slice(prefix.length), confirmation }]
@@ -139,7 +133,7 @@ export const decideConfirmations = async (
 	handles: string[],
 	state: ConfirmationDecision,
 ): Promise<string[]> => {
-	const { prefix } = rowPrefixes("confirmation", apiKeyId);
+	const { prefix } = leasePrefixes("confirmation", apiKeyId);
 	const keys = new Set(
 		handles
 			.filter((handle) => HANDLE.test(handle))
@@ -153,8 +147,8 @@ export const decideConfirmations = async (
 	const now = Date.now();
 	const decided: string[] = [];
 
-	for (const row of await rowsWith<Confirmation>(payload, slug, [prefix])) {
-		const confirmation = asConfirmation(row, now);
+	for (const row of await leasesWith<Confirmation>(payload, slug, [prefix])) {
+		const confirmation = unexpired(row, now);
 
 		if (!keys.has(row.key) || confirmation?.state !== "pending") {
 			continue;

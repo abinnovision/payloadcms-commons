@@ -1,4 +1,4 @@
-import { grantKvSlug } from "../grants/grant.js";
+import { leaseKvSlug } from "../leases/lease.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type { PayloadRequest } from "payload";
@@ -42,14 +42,14 @@ export const readCapped = async (
 };
 
 /**
- * The grant KV slug where uploads, downloads and confirmations are possible:
+ * The lease KV slug where uploads, downloads and confirmations are possible:
  * the KV is database-backed and no custom `auth.resolve` is set, since the
- * grant endpoints cannot replay what such a resolver authenticated by.
+ * lease endpoints cannot replay what such a resolver authenticated by.
  */
-export const grantsAvailable = (
+export const leasesAvailable = (
 	req: PayloadRequest,
 	options: NormalizedOptions,
 ): string | undefined =>
 	options.auth?.resolve === undefined
-		? grantKvSlug(req.payload.config)
+		? leaseKvSlug(req.payload.config)
 		: undefined;
