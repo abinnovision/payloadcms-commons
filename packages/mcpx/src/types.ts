@@ -317,6 +317,13 @@ export type McpxPluginOptions = {
 	 */
 	globals?: Partial<Record<GlobalSlug, McpxGlobalOptions | true>>;
 	/**
+	 * Payload's folder collection, exposed read-only by default where an exposed
+	 * collection has `folders: true`. `{ write: true }` also lets keys create and
+	 * rename folders; folders are never deleted. `false` hides them. An object
+	 * is refused where no exposed collection uses folders.
+	 */
+	folders?: false | { write?: boolean };
+	/**
 	 * Collection the keys act as. Default `config.admin.user`, then `users`.
 	 */
 	userCollection?: CollectionSlug;

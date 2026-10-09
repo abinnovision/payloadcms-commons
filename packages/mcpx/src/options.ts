@@ -9,10 +9,16 @@ import type {
 	McpxExposedEntity,
 	McpxPluginOptions,
 } from "./types.js";
-import type { CollectionConfig, Config, GlobalConfig } from "payload";
+import type {
+	CollectionConfig,
+	Config,
+	GlobalConfig,
+	SanitizedConfig,
+} from "payload";
 
 const DEFAULT_API_KEYS_SLUG = "mcpx-api-keys";
 const DEFAULT_ENDPOINT_PATH = "/mcpx";
+const DEFAULT_FOLDERS_SLUG = "payload-folders";
 const DEFAULT_MAX_LIMIT = 25;
 const DEFAULT_MAX_DEPTH = 1;
 const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9]*$/;
@@ -267,11 +273,15 @@ type ConfigBySlug = Map<string, CollectionConfig | GlobalConfig>;
 const bySlug = (configs: (CollectionConfig | GlobalConfig)[]): ConfigBySlug =>
 	new Map(configs.map((config) => [config.slug, config]));
 
+const foldersSlugOf = ({ folders }: Config): string =>
+	(folders === false ? undefined : folders?.slug) ?? DEFAULT_FOLDERS_SLUG;
+
 const normalizeEntities = (
 	kind: EntityKind,
 	configs: ConfigBySlug,
 	entries: Record<string, unknown>,
 	apiKeysSlug: string,
+	foldersSlug?: string,
 ): McpxExposedEntity[] => {
 	// A global and a collection may share a camelCase name: separate capability groups.
 	const fieldNames = new Set<string>();
@@ -283,8 +293,15 @@ const normalizeEntities = (
 
 		const config = configs.get(slug);
 
+		// Payload adds its internal collections after this plugin runs.
 		if (!config) {
-			return fail(`Exposed ${kind.toLowerCase()} "${slug}" does not exist.`);
+			return fail(
+				slug === foldersSlug
+					? `Collection "${slug}" is Payload's folder collection. Use the folders option instead.`
+					: slug.startsWith("payload-")
+						? `${kind} "${slug}" is internal to Payload and cannot be exposed.`
+						: `Exposed ${kind.toLowerCase()} "${slug}" does not exist.`,
+			);
 		}
 
 		assertExposable(kind, config, apiKeysSlug);
@@ -319,6 +336,98 @@ const normalizeEntities = (
 
 		return [normalized];
 	});
+};
+
+// Payload adds the folder collection later, so its defaults are assumed. Never deletable.
+const normalizeFolders = (
+	config: Config,
+	collections: McpxExposedEntity[],
+	raw: unknown,
+	slug: string,
+): McpxExposedEntity[] => {
+	const usesFolders = (config.collections ?? []).some(
+		(collection) =>
+			Boolean(collection.folders) &&
+			collections.some((entity) => entity.slug === collection.slug),
+	);
+
+	if (raw === false) {
+		return [];
+	}
+
+	if (config.folders === false || !usesFolders) {
+		if (raw !== undefined) {
+			fail(
+				"folders is set, but no exposed collection uses folders. Remove the option.",
+			);
+		}
+
+		return [];
+	}
+
+	if (raw !== undefined && !isPlainObject(raw)) {
+		fail(`folders has ${JSON.stringify(raw)}. Use false or { write }.`);
+	}
+
+	const settings: Record<string, unknown> = isPlainObject(raw) ? raw : {};
+	const unknownKey = Object.keys(settings).find((key) => key !== "write");
+
+	if (unknownKey !== undefined) {
+		fail(
+			`folders has the unknown option "${unknownKey}". The only option is write.`,
+		);
+	}
+
+	const fieldName = toCamelCase(slug);
+
+	if (collections.some((entity) => entity.fieldName === fieldName)) {
+		fail(
+			`folders maps to capability field "${fieldName}", which an exposed collection already uses.`,
+		);
+	}
+
+	const write = settings["write"] ?? false;
+
+	if (typeof write !== "boolean") {
+		fail(`folders.write has ${JSON.stringify(write)}. Use true or false.`);
+	}
+
+	return [
+		{
+			slug,
+			...normalizeCapabilities("Collection", { slug, fields: [] }, { write }),
+			isUpload: false,
+			fieldName,
+		},
+	];
+};
+
+/**
+ * Checks the sanitized folder collection against what {@link normalizeFolders}
+ * assumed. `folders.collectionOverrides` can change it after this plugin ran.
+ */
+export const assertFolderCollection = (
+	config: SanitizedConfig,
+	options: NormalizedOptions,
+): void => {
+	const { folders } = config;
+
+	if (
+		!folders ||
+		!options.collections.some((entity) => entity.slug === folders.slug)
+	) {
+		return;
+	}
+
+	const collection = config.collections.find(
+		(candidate) => candidate.slug === folders.slug,
+	);
+
+	if (collection?.auth || collection?.upload || collection?.versions) {
+		fail(
+			`Folder collection "${folders.slug}" has auth, upload or versions from folders.collectionOverrides, which mcpx does not support. Set folders: false.`,
+		);
+	}
 };
 
 const assertUserCollection = (
@@ -388,6 +497,7 @@ export const normalizeOptions = (
 		options.userCollection ?? config.admin?.user ?? "users";
 
 	const collectionConfigs = bySlug(config.collections ?? []);
+	const foldersSlug = foldersSlugOf(config);
 
 	if (collectionConfigs.has(apiKeysSlug)) {
 		fail(`API key collection slug "${apiKeysSlug}" is already taken.`);
@@ -399,12 +509,17 @@ export const normalizeOptions = (
 
 	assertTools(tools, reservedToolNames);
 
-	const collections = normalizeEntities(
+	const exposed = normalizeEntities(
 		"Collection",
 		collectionConfigs,
 		options.collections,
 		apiKeysSlug,
+		foldersSlug,
 	);
+	const collections = [
+		...exposed,
+		...normalizeFolders(config, exposed, options.folders, foldersSlug),
+	];
 	// Only builtin tools are confirmable, so only `delete` needs approval.
 	const confirmations = collections.some((entity) => entity.delete);
 

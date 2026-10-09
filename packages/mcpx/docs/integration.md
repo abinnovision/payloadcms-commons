@@ -27,7 +27,12 @@ for any of these:
   not an auth collection;
 - an exposed auth collection, read included, since its documents carry credentials such as the
   decrypted Payload API key of every user;
-- an exposed `payload-*` collection or global, or the key collection itself;
+- an exposed `payload-*` collection or global, or the key collection itself (folders use the
+  `folders` option);
+- a `folders` object while no exposed collection uses folders, or a `folders` value other than
+  `false` or `{ write?: boolean }`;
+- a folder collection with auth, upload or versions from `folders.collectionOverrides`, checked in
+  `onInit`;
 - a key collection slug that another collection already uses;
 - an entity value that is not `true` or an object, including `false` (remove the entry to hide the
   entity), and an object key other than `read`, `write`, `publish` and, on a collection,

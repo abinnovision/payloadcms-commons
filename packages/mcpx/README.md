@@ -30,7 +30,8 @@ leave them out. The package is ESM only, like Payload.
 
 ## Setup
 
-List the collections and globals the plugin may reach. Anything not listed is not exposed:
+List the collections and globals the plugin may reach. Anything not listed is not exposed, apart
+from Payload's folders, which are readable where an exposed collection uses them (see `folders`):
 
 ```ts
 // payload.config.ts
@@ -94,6 +95,7 @@ Claude Desktop and the MCP Inspector are covered in
 | `collections.<slug>.publish` | `true` with drafts                        | Expose `publishDocument`. Needs `versions.drafts` and `write`.                                                                                    |
 | `collections.<slug>.delete`  | `false`                                   | Expose `deleteDocument`. Needs `read`. Each delete is approved in the admin. `"unattended"` also offers trashing without approval; needs `trash`. |
 | `globals`                    | `{}`                                      | Globals to expose, with `read`, `write` and `publish`.                                                                                            |
+| `folders`                    | read-only where used                      | Payload's folders, where an exposed collection uses them. `{ write: true }` adds create and rename, never delete. `false` hides them.             |
 | `userCollection`             | `config.admin.user`, then `users`         | Auth collection whose users the keys act as.                                                                                                      |
 | `apiKeys.slug`               | `mcpx-api-keys`                           | Slug of the key collection.                                                                                                                       |
 | `apiKeys.setupGuide`         | `true`                                    | Add the "Connect a client" button to saved keys.                                                                                                  |
@@ -171,6 +173,8 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
   the REST or GraphQL API.
 - A key acts as its user, and Payload access control applies to what its tools read and write.
 - Relations are populated only into collections the key can read.
+- Readable folders expose every folder name and the `folderType` options, which are the slugs of
+  the collections that use folders. They do not expose the documents in a folder.
 - The read tools leave out fields with `admin.hidden`. `findDocuments` refuses a `where` or `sort`
   that names one, or that goes through a relation into a collection the key cannot read.
 - After a write, the tools re-read the document with full access to report publish blockers.
