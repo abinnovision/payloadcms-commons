@@ -14,7 +14,7 @@
 		"generate:types": "payload generate:types",
 		"lint:check": "eslint 'src/**/*.{ts,tsx}'",
 		"lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
-		"seed": "payload run src/seed.ts",
+		"seed": "payload run src/seed.ts --",
 		"start": "next start",
 		"typecheck": "tsc --noEmit"
 	},
@@ -28,6 +28,7 @@
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
 		"@abinnovision/payloadcms-colophon": "workspace:*",
+		"@abinnovision/payloadcms-dummy": "workspace:*",
 		"@abinnovision/payloadcms-mcpx": "workspace:*",
 		"@abinnovision/payloadcms-montage": "workspace:*",
 		"@abinnovision/payloadcms-viewfinder": "workspace:*",
