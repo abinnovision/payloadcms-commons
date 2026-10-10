@@ -4,5 +4,6 @@
 	"packages/montage": "1.0.2",
 	"packages/viewfinder": "1.0.2",
 	"packages/wayfinder": "1.0.1",
-	"packages/colophon": "1.0.2"
+	"packages/colophon": "1.0.2",
+	"packages/dummy": "0.0.0"
 }

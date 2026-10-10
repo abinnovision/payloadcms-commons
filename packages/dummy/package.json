@@ -1,0 +1,86 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@abinnovision/payloadcms-dummy",
+	"version": "0.0.0",
+	"description": "Declarative, idempotent seeding for Payload CMS: ordered seed units, natural-key upsert and reference resolution.",
+	"keywords": [
+		"payload",
+		"payloadcms",
+		"seed",
+		"seeding",
+		"fixtures"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/abinnovision/payloadcms-commons.git",
+		"directory": "packages/dummy"
+	},
+	"license": "Apache-2.0",
+	"author": {
+		"name": "abi group GmbH",
+		"email": "info@abigroup.io",
+		"url": "https://abigroup.io"
+	},
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"default": "./dist/index.mjs"
+		},
+		"./cli": {
+			"types": "./dist/cli/index.d.mts",
+			"default": "./dist/cli/index.mjs"
+		}
+	},
+	"files": [
+		"dist",
+		"LICENSE",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsdown",
+		"format:check": "prettier --check 'src/**/*.ts' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"format:fix": "prettier --write 'src/**/*.ts' 'test/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
+		"lint:check": "eslint 'src/**/*.ts' 'test/**/*.ts'",
+		"lint:fix": "eslint 'src/**/*.ts' 'test/**/*.ts' --fix",
+		"test-integration": "vitest --run --config test/integration/vitest.config.mts",
+		"test-unit": "vitest --run --coverage --config vitest.config.mts",
+		"test-unit:watch": "vitest --config vitest.config.mts",
+		"typecheck": "tsc --noEmit"
+	},
+	"lint-staged": {
+		"{src,test}/**/*.ts": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{json{,5},md,y{,a}ml}": "prettier --write"
+	},
+	"prettier": "@abinnovision/prettier-config",
+	"devDependencies": {
+		"@abinnovision/eslint-config-base": "^3.4.2",
+		"@abinnovision/prettier-config": "^2.2.0",
+		"@arethetypeswrong/core": "^0.18.5",
+		"@internal/test-utils": "workspace:*",
+		"@payloadcms/db-sqlite": "3.90.2",
+		"@payloadcms/richtext-lexical": "3.90.2",
+		"@swc/core": "^1.16.13",
+		"@types/node": "^26.6.3",
+		"@vitest/coverage-v8": "^5.0.3",
+		"eslint": "^10.11.0",
+		"payload": "3.90.2",
+		"prettier": "^3.9.9",
+		"publint": "^0.3.25",
+		"tsdown": "^0.23.0",
+		"typescript": "^6.0.3",
+		"unplugin-swc": "^2.0.0",
+		"vitest": "^5.0.3"
+	},
+	"peerDependencies": {
+		"payload": ">=3.88.0 <4"
+	},
+	"publishConfig": {
+		"ghpr": true,
+		"npm": true,
+		"npmAccess": "public"
+	}
+}
