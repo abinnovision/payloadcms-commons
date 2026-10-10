@@ -66,3 +66,30 @@ describe('the "./cli" module boundary', () => {
 		);
 	});
 });
+
+describe('the "./lexical" module boundary', () => {
+	const lexicalEntry = resolve(here, "lexical", "index.ts");
+
+	/* Builders run wherever a seed is written, so they carry no runtime. */
+	it("reaches neither payload, react nor process concerns", () => {
+		const { bareSpecifiers } = walkModuleGraph(lexicalEntry);
+
+		expect([...bareSpecifiers]).not.toContain("payload");
+		expect([...bareSpecifiers]).not.toContain("react");
+		expect([...bareSpecifiers]).not.toContain("node:process");
+	});
+
+	it("reaches the ref helpers it normalizes refs with", () => {
+		const names = [...walkModuleGraph(lexicalEntry).files].map((file) =>
+			file.split("/").pop(),
+		);
+
+		expect(names).toContain("ref.ts");
+	});
+
+	it('is not reached from "."', () => {
+		for (const file of walkModuleGraph(entry).files) {
+			expect(file.includes("/lexical/")).toBe(false);
+		}
+	});
+});

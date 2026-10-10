@@ -23,7 +23,7 @@ const richText = (reference: unknown): Record<string, unknown> => ({
 					{ type: "text", text: "see " },
 					{
 						type: "link",
-						fields: { link: { type: "reference", reference } },
+						fields: { linkType: "internal", doc: reference, newTab: false },
 						children: [{ type: "text", text: "this" }],
 					},
 				],
@@ -162,11 +162,11 @@ describe("applyRefs", () => {
 		);
 		const content = value.content as Record<string, Record<string, unknown[]>>;
 		const paragraph = content["root"]?.["children"]?.[0] as {
-			children: { fields?: { link?: { reference?: unknown } } }[];
+			children: { fields?: { doc?: unknown } }[];
 		};
 
 		expect(unresolved).toEqual([]);
-		expect(paragraph.children[1]?.fields?.link?.reference).toEqual({
+		expect(paragraph.children[1]?.fields?.doc).toEqual({
 			relationTo: "pages",
 			value: "p1",
 		});

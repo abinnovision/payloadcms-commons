@@ -17,3 +17,12 @@ export const calloutBlock: Block = {
 		{ name: "body", type: "text" },
 	],
 };
+
+/** A Lexical block carrying a relationship, so a ref can sit inside rich text. */
+export const ctaBlock: Block = {
+	slug: "cta",
+	fields: [
+		{ name: "label", type: "text" },
+		{ name: "page", type: "relationship", relationTo: "pages" },
+	],
+};
