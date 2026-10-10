@@ -6,15 +6,16 @@
 
 Building blocks for production [Payload CMS](https://payloadcms.com/) sites.
 
-Plugins built to be used together on the same site, each covering one concern and
-each installing on its own. Take the one you need or take all of them. Nothing
-here requires anything else here.
+Mostly plugins, built to be used together on the same site, each covering one
+concern and each installing on its own. Take the one you need or take all of
+them. Nothing here requires anything else here.
 
 ## Packages
 
 | Package                                                                    | Description                                                                                |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | [`@abinnovision/payloadcms-colophon`](./packages/colophon)                 | System metadata in the admin sidebar, read from the environment at request time.           |
+| [`@abinnovision/payloadcms-dummy`](./packages/dummy)                       | Declarative, idempotent seeding: ordered seed units, natural-key upsert and references.    |
 | [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.                       |
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server over the content model, with a fixed tool surface and per-API-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                                  |
@@ -46,8 +47,8 @@ wayfinder's glue is a short adapter over whatever context the app already has
 Lettermint adapter touch nothing else at all.
 
 [`apps/example`](./apps/example) mounts every package but the Lettermint adapter,
-with the seams wired and a seed that leaves a routed, localized site to click
-through.
+with the seams wired and a seed, written with dummy, that leaves a routed,
+localized site to click through.
 
 ## Compatibility
 

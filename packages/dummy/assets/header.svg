@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1152" height="320" viewBox="0 0 1152 320" role="img" aria-label="payloadcms-dummy: seed units ordered by their dependencies, each document written once by its natural key, references resolved into a bound mock-up of the site">
+  <rect width="1152" height="320" fill="#0B0C0E"/>
+  <g>
+    <text x="72" y="126" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#6B7079" letter-spacing="0.6">@abinnovision/</text>
+    <text x="72" y="170" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="30" fill="#EDEDEF" letter-spacing="-0.4">payloadcms-dummy</text>
+    <text x="72" y="202" font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#6B7079">Declarative, idempotent seeding</text>
+  </g>
+  <g fill="none" stroke="#212429">
+    <rect x="474" y="88" width="122" height="30" rx="4"/>
+    <rect x="474" y="130" width="122" height="30" rx="4"/>
+    <rect x="474" y="172" width="122" height="30" rx="4"/>
+    <rect x="474" y="214" width="122" height="30" rx="4"/>
+  </g>
+  <g>
+    <rect x="486" y="99" width="40" height="8" rx="2" fill="#4C525B"/>
+    <rect x="534" y="99" width="50" height="8" rx="2" fill="#33373E"/>
+    <rect x="486" y="141" width="52" height="8" rx="2" fill="#4C525B"/>
+    <rect x="546" y="141" width="38" height="8" rx="2" fill="#33373E"/>
+    <rect x="486" y="183" width="34" height="8" rx="2" fill="#4C525B"/>
+    <rect x="528" y="183" width="56" height="8" rx="2" fill="#33373E"/>
+    <rect x="486" y="225" width="46" height="8" rx="2" fill="#4C525B"/>
+    <rect x="540" y="225" width="44" height="8" rx="2" fill="#33373E"/>
+  </g>
+  <g fill="none" stroke="#3A3E45" stroke-width="1.25">
+    <path d="M596 103C622 103 626 145 652 145"/>
+    <path d="M596 145H652"/>
+    <path d="M596 187C622 187 626 145 652 145"/>
+    <path d="M596 229C622 229 626 187 652 187"/>
+  </g>
+  <rect x="652" y="88" width="166" height="156" rx="6" fill="none" stroke="#212429"/>
+  <g>
+    <rect x="668" y="110" width="42" height="8" rx="2" fill="#4C525B"/>
+    <rect x="734" y="110" width="68" height="8" rx="2" fill="#D98E3D" opacity="0.8"/>
+    <rect x="668" y="140" width="56" height="8" rx="2" fill="#3F444C"/>
+    <rect x="758" y="140" width="44" height="8" rx="2" fill="#D98E3D" opacity="0.8"/>
+    <rect x="668" y="170" width="36" height="8" rx="2" fill="#4C525B"/>
+    <rect x="744" y="170" width="58" height="8" rx="2" fill="#D98E3D" opacity="0.8"/>
+    <rect x="668" y="200" width="50" height="8" rx="2" fill="#3F444C"/>
+    <rect x="766" y="200" width="36" height="8" rx="2" fill="#D98E3D" opacity="0.8"/>
+  </g>
+  <g fill="none" stroke="#D98E3D" stroke-width="1.25" opacity="0.55">
+    <path d="M802 114C848 114 852 166 884 166"/>
+    <path d="M802 144C848 144 852 166 884 166"/>
+    <path d="M802 174C848 174 852 166 884 166"/>
+    <path d="M802 204C848 204 852 166 884 166"/>
+  </g>
+  <path d="M884 166H902" stroke="#D98E3D" stroke-width="2"/>
+  <rect x="902" y="52" width="170" height="208" rx="6" fill="none" stroke="#212429"/>
+  <rect x="920" y="74" width="60" height="10" rx="2" fill="#4C525B"/>
+  <g fill="#2F343B">
+    <rect x="920" y="102" width="134" height="26" rx="3"/>
+    <rect x="920" y="136" width="64" height="40" rx="3"/>
+    <rect x="992" y="136" width="62" height="40" rx="3"/>
+  </g>
+  <g fill="#2F343B">
+    <rect x="920" y="186" width="110" height="9" rx="3"/>
+    <rect x="920" y="201" width="134" height="9" rx="3"/>
+    <rect x="920" y="216" width="92" height="9" rx="3"/>
+  </g>
+  <g fill="none" stroke="#D98E3D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <path d="M922 240L927.5 245.5L938 235"/>
+  </g>
+  <rect x="948" y="236" width="56" height="9" rx="2" fill="#D98E3D" opacity="0.8"/>
+  <g font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="11" letter-spacing="1.4" text-anchor="middle">
+    <text x="535" y="286" fill="#6B7079">SEED UNITS</text>
+    <text x="735" y="286" fill="#D98E3D">NATURAL KEYS</text>
+    <text x="987" y="286" fill="#6B7079">SEEDED SITE</text>
+  </g>
+</svg>

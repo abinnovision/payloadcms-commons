@@ -8,6 +8,10 @@
 			"package-name": "@abinnovision/payloadcms-colophon",
 			"component": "payloadcms-colophon"
 		},
+		"packages/dummy": {
+			"package-name": "@abinnovision/payloadcms-dummy",
+			"component": "payloadcms-dummy"
+		},
 		"packages/email-lettermint": {
 			"package-name": "@abinnovision/payloadcms-email-lettermint",
 			"component": "payloadcms-email-lettermint"
