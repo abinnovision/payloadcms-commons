@@ -23,6 +23,7 @@ const LAYERS: Record<string, number> = {
 	"define-seed.ts": 0,
 	"resolve.ts": 1,
 	"graph.ts": 1,
+	"lexical/": 1,
 	"index-store.ts": 2,
 	"options.ts": 2,
 	"locales.ts": 3,

@@ -30,6 +30,10 @@
 		"./cli": {
 			"types": "./dist/cli/index.d.mts",
 			"default": "./dist/cli/index.mjs"
+		},
+		"./lexical": {
+			"types": "./dist/lexical/index.d.mts",
+			"default": "./dist/lexical/index.mjs"
 		}
 	},
 	"files": [

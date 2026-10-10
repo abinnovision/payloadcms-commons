@@ -128,6 +128,8 @@ single relationship, a `hasMany` entry and an upload field. `ctx.polyRef` resolv
 `{ relationTo, value }`, which is what a polymorphic relationship and a rich text link node take.
 
 A reference works at any depth: inside an array, inside a blocks row, inside a Lexical link node.
+The `./lexical` entry builds Lexical states with refs in them, see
+[`docs/recipes.md`](./docs/recipes.md#a-reference-inside-a-lexical-state).
 
 A reference that points at a document written by a **later** unit is not an error. The field is
 left out of the first write, and the whole call is replayed once every unit has finished, so two

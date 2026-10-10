@@ -70,41 +70,46 @@ restored by the replay. The rest of `layout` is written as normal.
 
 ## A reference inside a Lexical state
 
-A hand-written editor state is a plain literal, so a reference goes straight into the link node:
+The `./lexical` entry builds an editor state from small helpers, so a seed does not spell out
+`version`, `format` or `indent` on every node:
 
 ```ts
-const introContent = (ctx: DummyContext) => ({
-  root: {
-    type: "root",
-    format: "",
-    indent: 0,
-    version: 1,
-    direction: "ltr",
-    children: [
-      {
-        type: "link",
-        version: 3,
-        fields: {
-          link: {
-            type: "reference",
-            label: "Hello world",
-            reference: ctx.polyRef("articles", "hello-world"),
-          },
-        },
-        children: [{ type: "text", text: "this one", version: 1 }],
-      },
-    ],
-  },
+import * as rt from "@abinnovision/payloadcms-dummy/lexical";
+
+await ctx.doc("pages", {
+  slug: "/intro",
+  content: rt.richText(
+    rt.h("h2", "Getting started"),
+    "A string is a plain paragraph.",
+    rt.p(
+      "Read ",
+      rt.link(ctx.ref("articles", "hello-world"), "this one"),
+      " or ",
+      rt.text("skip it", "bold"),
+      ".",
+    ),
+    rt.list("bullet", "First", [
+      "Second with ",
+      rt.link("https://example.com", "a link"),
+    ]),
+    rt.upload(ctx.ref("media", "hero.png")),
+    rt.block("cta", { label: "Sign up", page: ctx.ref("pages", "/signup") }),
+  ),
 });
 ```
+
+`link` and `upload` take either `ctx.ref` or `ctx.polyRef` and store the shape each node needs: a
+link to a document becomes `fields: { linkType: "internal", doc: { relationTo, value } }`, an
+upload becomes `{ relationTo, value }`. A string passed to `link` is a custom URL. Refs inside
+`block` fields are resolved like refs in any other field.
+
+Wherever a builder takes content it also accepts a plain node object, so a quote, a horizontal
+rule or any custom node goes in as written. The result of `richText` is assignable to the
+generated rich text field type without a cast.
 
 A rich text state is treated as one value: if any reference inside it is unresolved, the whole
 field waits for the replay rather than being written with a link node missing. A paragraph never
 loses its visible text.
-
-The generated type for a rich text field describes the node union Lexical produces, which is
-wider than a hand-written literal satisfies, so the field usually needs a cast. The reference is
-still typed, because `polyRef` returns one.
 
 ## Uploads from a directory
 
