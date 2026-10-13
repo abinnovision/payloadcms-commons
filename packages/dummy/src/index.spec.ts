@@ -7,8 +7,10 @@ describe('the "." entrypoint', () => {
 		expect(Object.keys(entry).sort()).toEqual([
 			"createDummyConsoleReporter",
 			"defineDummySeed",
+			"dummyLocalized",
 			"dummyPolyRef",
 			"dummyRef",
+			"isDummyWrite",
 			"runDummySeeds",
 		]);
 	});

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { bootPayload } from "./helpers/payload.js";
 import { defineDummySeed } from "../../src/define-seed.js";
+import { dummyLocalized } from "../../src/localized.js";
 import { runDummySeeds } from "../../src/run.js";
 
 import type { Payload } from "payload";
@@ -278,5 +279,75 @@ describe("localized writes", () => {
 		});
 
 		expect(post.docs[0]?.["tags"]).toEqual([tag.docs[0]?.id]);
+	});
+
+	it("writes every locale from one dummyLocalized builder", async () => {
+		await runDummySeeds({
+			payload,
+			seeds: [
+				defineDummySeed({
+					id: "localized",
+					run: async (ctx) => {
+						await ctx.doc(
+							"pages",
+							dummyLocalized((t) => ({
+								slug: "/built",
+								title: t({ en: "Built", de: "Gebaut" }),
+							})),
+						);
+						await ctx.global(
+							"routes",
+							ctx.localized((t) => ({
+								entries: [
+									{ collectionName: "pages", path: "/*slug" },
+									{
+										collectionName: "sections",
+										path: t({ en: "/topic/:slug", de: "/thema/:slug" }),
+									},
+								],
+							})),
+						);
+					},
+				}),
+			],
+		});
+
+		const read = async (locale: "de" | "en"): Promise<unknown[]> => {
+			const found = (await payload.findGlobal({
+				slug: "routes",
+				locale,
+				depth: 0,
+				overrideAccess: true,
+			})) as { entries?: { path?: string }[] };
+
+			return (found.entries ?? []).map((row) => row.path);
+		};
+
+		expect(await titleIn("/built", "en")).toBe("Built");
+		expect(await titleIn("/built", "de")).toBe("Gebaut");
+		expect(await read("en")).toEqual(["/*slug", "/topic/:slug"]);
+		expect(await read("de")).toEqual(["/*slug", "/thema/:slug"]);
+	});
+
+	it("refuses dummyLocalized data alongside the locales option", async () => {
+		await expect(
+			runDummySeeds({
+				payload,
+				seeds: [
+					defineDummySeed({
+						id: "pages",
+						run: async (ctx) => {
+							await ctx.doc(
+								"pages",
+								ctx.localized(() => ({ slug: "/both", title: "Both" })),
+								{ locales: { de: { title: "Beide" } } },
+							);
+						},
+					}),
+				],
+			}),
+		).rejects.toThrow(/either dummyLocalized data or the locales option/);
+
+		expect(await titleIn("/both", "en")).toBeUndefined();
 	});
 });

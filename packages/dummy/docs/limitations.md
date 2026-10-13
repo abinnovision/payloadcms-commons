@@ -37,14 +37,16 @@ database is the bottleneck, and a deterministic order is worth more than the dif
 
 **A required field cannot hold a forward reference.** Payload validates on the first write, and
 nothing short of writing raw rows can satisfy a required relationship to a document that does not
-exist. The error names the reference and the `dependsOn` that fixes it. Add the edge, or make the
-field optional.
+exist. The error names the reference and the `dependsOn` that fixes it. Add the edge, make the
+field optional, or write a placeholder with `keepIfExists` first (see
+[recipes](./recipes.md#circular-required-references)).
 
 **A locale override's arrays must line up with the default locale's.** Where rows are shared
 across locales, row ids are grafted by position, because the author supplies none. An override
 with a different number of rows is refused rather than partly grafted. A genuinely different row
 count per locale needs per-row natural keys, which Payload rows do not have; use `ctx.payload`
-directly for that case.
+directly for that case. `dummyLocalized` builds every locale from one structure, so its arrays
+line up by construction.
 
 **Rows that exist only in a non-default locale get no id.** They are written as new rows, which
 is correct for an array that is itself `localized` and wrong for a shared one. The length rule
@@ -57,7 +59,8 @@ then only unique per locale as far as the database is concerned. Prefer a non-lo
 **Uploads with rewritten filenames need a named key.** Payload rewrites `filename` on a collision,
 and a collection that renames files in a hook rewrites it always. Dedup then fails and every run
 creates another document. The run warns once per collection when it sees this; the fix is an
-indexed text field holding the original name, named in `naturalKeys`.
+indexed text field holding the original name, named in `naturalKeys`, such as
+`naturalKeys: { media: "name" }`.
 
 **An upload's bytes are written outside any rollback.** Nothing undoes a file that landed before a
 later failure. A re-run overwrites it.

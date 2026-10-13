@@ -1,3 +1,4 @@
+import { dummyContext } from "./context.js";
 import { DummyNamedError } from "./errors.js";
 import { DummyRowMismatchError, graftRowIds } from "./walk.js";
 
@@ -80,6 +81,7 @@ export const writeDocLocales = async (
 				data: data as never,
 				draft: false,
 				overrideAccess: true,
+				context: dummyContext(),
 			});
 		},
 	});
@@ -107,6 +109,7 @@ export const writeGlobalLocales = async (
 				data: data as never,
 				draft: false,
 				overrideAccess: true,
+				context: dummyContext(),
 			});
 		},
 	});

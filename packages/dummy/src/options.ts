@@ -3,6 +3,7 @@ import { hasDraftsEnabled } from "payload/shared";
 import { fail } from "./errors.js";
 import { selectSeeds, sortSeeds } from "./graph.js";
 
+import type { DummyLocalization } from "./localized.js";
 import type { DummyReporter } from "./reporter.js";
 import type { DummyNaturalKeys, DummyRunOptions, DummySeed } from "./types.js";
 import type {
@@ -25,6 +26,8 @@ export interface NormalizedOptions {
 	globalHasDrafts: (slug: GlobalSlug) => boolean;
 	/** Whether a collection stores uploads, so `filePath` is accepted. */
 	isUpload: (collection: CollectionSlug) => boolean;
+	/** The configured locales, undefined when localization is off. */
+	localization: DummyLocalization | undefined;
 	resetCollections: readonly CollectionSlug[];
 	fresh: boolean;
 	reporter: DummyReporter;
@@ -94,6 +97,7 @@ export const normalizeOptions = (
 	const { payload } = options;
 	const overrides: DummyNaturalKeys = options.naturalKeys ?? {};
 	const keys = new Map<string, string>();
+	const { localization } = payload.config;
 
 	const collectionConfig = (
 		collection: CollectionSlug,
@@ -148,6 +152,12 @@ export const normalizeOptions = (
 			return found ? hasDraftsEnabled(found) : false;
 		},
 		isUpload: (collection) => Boolean(collectionConfig(collection).upload),
+		localization: localization
+			? {
+					defaultLocale: localization.defaultLocale,
+					localeCodes: localization.localeCodes,
+				}
+			: undefined,
 		resetCollections: options.resetCollections ?? [],
 		fresh: options.fresh ?? false,
 		reporter: options.reporter ?? {},

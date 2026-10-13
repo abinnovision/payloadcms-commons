@@ -98,7 +98,9 @@ The context writes four ways:
 | `ctx.global(slug, data, options?)`    | Overwrites a global, unless `keepIfSet` says an editor owns it. |
 | `ctx.lookup(collection, key)`         | The id of a document already written, or `undefined`.           |
 
-`ctx.payload` is there for anything these do not cover.
+`ctx.payload` is there for anything these do not cover. `ctx.doc` and `ctx.global` take
+`keepIfSet: "field"` to leave a record alone once an editor has filled that field in, and `ctx.doc`
+takes `keepIfExists: true` to create a document once and leave it alone on later runs.
 
 ## Natural keys
 
@@ -156,7 +158,19 @@ reference caused it and which `dependsOn` would fix it.
 
 ## Localization
 
-Extra locales are written in the same call:
+`dummyLocalized` builds the data once per configured locale, picking each localized value with
+`t`:
+
+```ts
+await ctx.doc(
+  "posts",
+  dummyLocalized((t) => ({
+    title: t({ en: "The first post", de: "Der erste Beitrag" }),
+  })),
+);
+```
+
+Or name the extra locales in the same call:
 
 ```ts
 await ctx.doc(
@@ -174,6 +188,13 @@ the override is just data.
 That makes one rule a requirement: an array in an override must have the same length and order
 as the default locale's. A mismatch is refused with the path rather than silently losing a locale.
 An array that is itself `localized` has its own rows per locale and is left alone.
+`dummyLocalized` meets the rule by construction.
+
+## Hooks
+
+Every seed write passes `context: { dummy: true }`. `isDummyWrite(req)` answers whether a hook
+runs for one, so it can skip revalidation or emails. See
+[`docs/integration.md`](./docs/integration.md#hooks-with-side-effects).
 
 ## Order
 
@@ -213,7 +234,8 @@ seed stops a CI step without truncating its own output.
 
 ## Entrypoints
 
-    @abinnovision/payloadcms-dummy        defineDummySeed, runDummySeeds, the refs, the reporter
+    @abinnovision/payloadcms-dummy        defineDummySeed, runDummySeeds, the refs, dummyLocalized,
+                                          isDummyWrite, the reporter
     @abinnovision/payloadcms-dummy/cli    runDummyCli, which reads argv and writes stdout
 
 The split is the point: the library can be called from app code and from a test without

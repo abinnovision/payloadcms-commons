@@ -50,6 +50,16 @@ export type DummyData<T> = T extends DummyRef
 					? { [K in keyof T]: DummyData<T[K]> } | DummyRef
 					: DummyRef | T;
 
+/** A collection document's data as a seed writes it. */
+export type DummyDocData<TSlug extends CollectionSlug> = DummyData<
+	RequiredDataFromCollectionSlug<TSlug>
+>;
+
+/** A global's data as a seed writes it. */
+export type DummyGlobalData<TSlug extends GlobalSlug> = DummyData<
+	Omit<DataFromGlobalSlug<TSlug>, "id">
+>;
+
 /**
  * A locale a seed can write.
  *
@@ -58,6 +68,20 @@ export type DummyData<T> = T extends DummyRef
  * types this still narrows to that app's locales.
  */
 export type DummyLocale = Extract<TypedLocale, string>;
+
+/**
+ * Picks the value for the locale being built, falling back to the default
+ * locale's where it is missing or null. Handed to {@link dummyLocalized}.
+ */
+export type DummyTranslate = <V>(values: Partial<Record<DummyLocale, V>>) => V;
+
+/**
+ * Data built once per configured locale. Built by {@link dummyLocalized} and
+ * expanded by the writer into the default locale's data and the overrides.
+ */
+export interface DummyLocalizedData<T> {
+	readonly __dummyLocalized: (t: DummyTranslate) => T;
+}
 
 /**
  * The field that identifies a seeded document across runs, per collection.
@@ -70,6 +94,18 @@ export type DummyNaturalKeys = {
 };
 
 export interface DummyDocOptions<TSlug extends CollectionSlug> {
+	/**
+	 * Leaves an existing document alone and only creates a missing one, such as
+	 * a placeholder. A created document with forward refs is still completed by
+	 * the replay.
+	 */
+	keepIfExists?: boolean | undefined;
+	/**
+	 * Names a field that, once it carries a value, means an editor has authored
+	 * this document and the seed leaves it alone.
+	 */
+	keepIfSet?:
+		(keyof RequiredDataFromCollectionSlug<TSlug> & string) | undefined;
 	/**
 	 * Written after the default locale, as a partial over it. Each pass carries
 	 * the stored row ids, so a localized array keeps the other locales' rows.
@@ -110,7 +146,7 @@ export interface DummyContext {
 	 */
 	doc: <TSlug extends CollectionSlug>(
 		collection: TSlug,
-		data: DummyData<RequiredDataFromCollectionSlug<TSlug>>,
+		data: DummyDocData<TSlug> | DummyLocalizedData<DummyDocData<TSlug>>,
 		options?: DummyDocOptions<TSlug>,
 	) => Promise<DummyDocumentId>;
 	/**
@@ -126,13 +162,15 @@ export interface DummyContext {
 	/** Overwrites a global, unless `keepIfSet` says an editor has claimed it. */
 	global: <TSlug extends GlobalSlug>(
 		slug: TSlug,
-		data: DummyData<Omit<DataFromGlobalSlug<TSlug>, "id">>,
+		data: DummyGlobalData<TSlug> | DummyLocalizedData<DummyGlobalData<TSlug>>,
 		options?: DummyGlobalOptions<TSlug>,
 	) => Promise<void>;
 	/** {@link dummyRef}, so a seed does not have to import it. */
 	ref: (collection: CollectionSlug, key: string) => DummyRef;
 	/** {@link dummyPolyRef}, for a polymorphic relationship or a link node. */
 	polyRef: (collection: CollectionSlug, key: string) => DummyRef;
+	/** {@link dummyLocalized}, for data written once per locale. */
+	localized: <T>(build: (t: DummyTranslate) => T) => DummyLocalizedData<T>;
 	/** The escape hatch for an operation the writer does not cover. */
 	payload: Payload;
 }

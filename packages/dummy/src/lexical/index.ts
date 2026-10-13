@@ -37,6 +37,10 @@ export type LexicalTextFormat =
 	| "superscript"
 	| "underline";
 
+/** An element's alignment, stored in its `format`. */
+export type LexicalAlignment =
+	"center" | "end" | "justify" | "left" | "right" | "start";
+
 /** Inline content. A string becomes a plain text node. */
 export type LexicalInline = LexicalNode | string;
 
@@ -84,6 +88,23 @@ export const text = (
 	style: "",
 });
 
+/** A line break inside a paragraph or heading. */
+export const br = (): LexicalNode => ({ type: "linebreak", version: 1 });
+
+/**
+ * A tab character. `detail: 2` is Lexical's unmergeable flag, which keeps the
+ * tab from merging into a neighbouring text node.
+ */
+export const tab = (): LexicalNode => ({
+	type: "tab",
+	version: 1,
+	text: "\t",
+	format: 0,
+	detail: 2,
+	mode: "normal",
+	style: "",
+});
+
 /**
  * A paragraph.
  *
@@ -112,26 +133,45 @@ export const h = (
 ): LexicalNode => ({ ...element("heading", inlines(content)), tag });
 
 /**
+ * Aligns a paragraph, heading or any other element node.
+ *
+ * @param format The alignment.
+ * @param node The element to align.
+ */
+export const align = (
+	format: LexicalAlignment,
+	node: LexicalNode,
+): LexicalNode => ({ ...node, format });
+
+/**
+ * Creates a link builder for a link feature with its own fields, such as an
+ * extra `appearance`.
+ *
+ * @param toFields Answers the link node's `fields` for a target.
+ */
+export const createLink =
+	(toFields: (to: DummyRef | string) => Record<string, unknown>) =>
+	(to: DummyRef | string, ...content: LexicalInline[]): LexicalNode => ({
+		...element("link", inlines(content)),
+		version: 3,
+		fields: toFields(to),
+	});
+
+/**
  * A link. A ref links internally to that document, a string is a custom URL.
  *
  * @param to The target document or URL.
  * @param content Inline nodes, or strings as plain text.
  */
-export const link = (
-	to: DummyRef | string,
-	...content: LexicalInline[]
-): LexicalNode => ({
-	...element("link", inlines(content)),
-	version: 3,
-	fields:
-		typeof to === "string"
-			? { linkType: "custom", url: to, newTab: false }
-			: {
-					linkType: "internal",
-					doc: dummyPolyRef(to.collection, to.key),
-					newTab: false,
-				},
-});
+export const link = createLink((to) =>
+	typeof to === "string"
+		? { linkType: "custom", url: to, newTab: false }
+		: {
+				linkType: "internal",
+				doc: dummyPolyRef(to.collection, to.key),
+				newTab: false,
+			},
+);
 
 /**
  * A bulleted or numbered list.

@@ -2,7 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import { dummyRef } from "../ref.js";
 import { collectRefs } from "../resolve.js";
-import { block, h, link, list, p, richText, text, upload } from "./index.js";
+import {
+	align,
+	block,
+	br,
+	createLink,
+	h,
+	link,
+	list,
+	p,
+	richText,
+	tab,
+	text,
+	upload,
+} from "./index.js";
 
 import type { DummyData } from "../types.js";
 
@@ -79,6 +92,44 @@ describe("p and h", () => {
 			type: "heading",
 			tag: "h2",
 			children: [text("Title")],
+		});
+	});
+});
+
+describe("br and tab", () => {
+	it("match the serialized LineBreakNode and TabNode", () => {
+		expect(br()).toEqual({ type: "linebreak", version: 1 });
+		expect(tab()).toEqual({
+			type: "tab",
+			version: 1,
+			text: "\t",
+			format: 0,
+			detail: 2,
+			mode: "normal",
+			style: "",
+		});
+	});
+});
+
+describe("align", () => {
+	it("sets the element format and keeps the rest", () => {
+		expect(align("center", h("h1", "Title"))).toEqual({
+			...h("h1", "Title"),
+			format: "center",
+		});
+	});
+});
+
+describe("createLink", () => {
+	it("builds link nodes with the fields it is given", () => {
+		const appLink = createLink((to) => ({
+			linkType: typeof to === "string" ? "custom" : "internal",
+			appearance: "button",
+		}));
+
+		expect(appLink("https://example.com", "x")).toEqual({
+			...link("https://example.com", "x"),
+			fields: { linkType: "custom", appearance: "button" },
 		});
 	});
 });

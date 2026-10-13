@@ -1,5 +1,6 @@
 import { fail } from "./errors.js";
 import { createIndexStore, describeUnresolved } from "./index-store.js";
+import { dummyLocalized } from "./localized.js";
 import { normalizeOptions } from "./options.js";
 import { dummyPolyRef, dummyRef } from "./ref.js";
 import { createWriter } from "./writer.js";
@@ -50,6 +51,8 @@ export const runDummySeeds = async (
 		doc: (collection, data, docOptions) =>
 			writer.doc(collection, data, {
 				locales: docOptions?.locales as Record<string, unknown> | undefined,
+				keepIfExists: docOptions?.keepIfExists,
+				keepIfSet: docOptions?.keepIfSet,
 			}),
 		upload: (collection, filePath, data) =>
 			writer.upload(collection, filePath, data),
@@ -60,6 +63,7 @@ export const runDummySeeds = async (
 			}),
 		ref: dummyRef,
 		polyRef: dummyPolyRef,
+		localized: dummyLocalized,
 		payload,
 	};
 

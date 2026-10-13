@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { dummyContext } from "./context.js";
 import {
 	DummyNamedError,
 	decorate,
@@ -8,6 +9,7 @@ import {
 	fail,
 } from "./errors.js";
 import { writeDocLocales, writeGlobalLocales } from "./locales.js";
+import { expandLocalized } from "./localized.js";
 import { isDummyRef, describeRef } from "./ref.js";
 import { applyRefs, collectRefs } from "./resolve.js";
 
@@ -30,7 +32,11 @@ export interface DummyWriter {
 	doc: (
 		collection: CollectionSlug,
 		data: unknown,
-		options?: { locales?: Record<string, unknown> | undefined },
+		options?: {
+			locales?: Record<string, unknown> | undefined;
+			keepIfExists?: boolean | undefined;
+			keepIfSet?: string | undefined;
+		},
 	) => Promise<DummyDocumentId>;
 	upload: (
 		collection: CollectionSlug,
@@ -58,6 +64,20 @@ export interface WriterDeps {
 	/** True while the runner is replaying, so a write is not queued twice. */
 	replaying: () => boolean;
 }
+
+/** A stored document at depth 0, as the existence check reads it. */
+interface StoredDoc {
+	id: DummyDocumentId;
+	[field: string]: unknown;
+}
+
+/** Whether a `doc` call's keep options leave an existing document alone. */
+const isKept = (
+	stored: StoredDoc,
+	options: Parameters<DummyWriter["doc"]>[2],
+): boolean =>
+	options?.keepIfExists === true ||
+	(options?.keepIfSet !== undefined && Boolean(stored[options.keepIfSet]));
 
 const emptyTally = (): DummyWriteTally => ({
 	created: 0,
@@ -94,7 +114,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 		collection: CollectionSlug,
 		key: string,
 		value: unknown,
-	): Promise<DummyDocumentId | undefined> => {
+	): Promise<StoredDoc | undefined> => {
 		const found = await payload.find({
 			collection,
 			where: { [key]: { equals: value } },
@@ -104,10 +124,17 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 			overrideAccess: true,
 		});
 
-		return found.docs.at(0)?.id;
+		return found.docs.at(0);
 	};
 
-	const doc: DummyWriter["doc"] = async (collection, data, docOptions) => {
+	const doc: DummyWriter["doc"] = async (collection, input, docOptions) => {
+		/* Expanded first, so the queued replay holds plain per-locale data. */
+		const { data, locales } = expandLocalized(
+			collection,
+			input,
+			docOptions?.locales,
+			options.localization,
+		);
 		const key = options.keyFor(collection);
 		const record = data as Record<string, unknown>;
 		const keyValue = record[key];
@@ -133,23 +160,6 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 		await store.warm(refs);
 
 		const applied = applyRefs(data, (ref) => store.get(ref));
-		const locales = docOptions?.locales;
-
-		/*
-		 * Queued before the write, so a document whose required field was pruned
-		 * still reports the ref that caused the failure.
-		 */
-		if (applied.unresolved.length > 0 && !deps.replaying()) {
-			pending.push({
-				collection,
-				data,
-				locales,
-				seedId: deps.seedId(),
-				identifier,
-				refs: applied.unresolved,
-			});
-		}
-
 		const published = options.collectionHasDrafts(collection)
 			? { ...(applied.value as object), _status: "published" }
 			: applied.value;
@@ -157,7 +167,38 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 		let action: "created" | "updated";
 
 		try {
-			const existing = await findExisting(collection, key, keyValue);
+			const stored = await findExisting(collection, key, keyValue);
+			const existing = stored?.id;
+
+			/* Never queued: the replay would overwrite the document this keeps. */
+			if (stored !== undefined && isKept(stored, docOptions)) {
+				count(collection, "skipped");
+				store.record(collection, identifier, stored.id);
+				reporter.wrote?.({
+					kind: "collection",
+					slug: collection,
+					key: identifier,
+					action: "skipped",
+				});
+
+				return stored.id;
+			}
+
+			/*
+			 * Queued before the write, so a document whose required field was
+			 * pruned still reports the ref that caused the failure. The replay
+			 * passes no keep option, so it completes a document created here.
+			 */
+			if (applied.unresolved.length > 0 && !deps.replaying()) {
+				pending.push({
+					collection,
+					data,
+					locales,
+					seedId: deps.seedId(),
+					identifier,
+					refs: applied.unresolved,
+				});
+			}
 
 			if (existing !== undefined) {
 				await payload.update({
@@ -166,6 +207,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 					data: published as never,
 					draft: false,
 					overrideAccess: true,
+					context: dummyContext(),
 				});
 				count(collection, "updated");
 				id = existing;
@@ -176,6 +218,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 					data: published as never,
 					draft: false,
 					overrideAccess: true,
+					context: dummyContext(),
 				});
 
 				count(collection, "created");
@@ -257,7 +300,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 		const key = options.optionalKeyFor(collection) ?? "filename";
 
 		try {
-			const existing = await findExisting(collection, key, filename);
+			const existing = (await findExisting(collection, key, filename))?.id;
 
 			if (existing !== undefined) {
 				await payload.update({
@@ -265,6 +308,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 					id: existing,
 					data: data as never,
 					overrideAccess: true,
+					context: dummyContext(),
 				});
 				count(collection, "updated");
 				store.record(collection, filename, existing);
@@ -283,6 +327,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 				data: { ...(data as object), [key]: filename },
 				filePath,
 				overrideAccess: true,
+				context: dummyContext(),
 			});
 			const id = created.id;
 
@@ -319,9 +364,15 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 		}
 	};
 
-	const global: DummyWriter["global"] = async (slug, data, globalOptions) => {
+	const global: DummyWriter["global"] = async (slug, input, globalOptions) => {
 		const subject = `global "${slug}"`;
 		const keepIfSet = globalOptions?.keepIfSet;
+		const { data, locales } = expandLocalized(
+			subject,
+			input,
+			globalOptions?.locales,
+			options.localization,
+		);
 
 		try {
 			if (keepIfSet !== undefined) {
@@ -358,6 +409,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 				data: published as never,
 				draft: false,
 				overrideAccess: true,
+				context: dummyContext(),
 			});
 			count(slug, "updated");
 			reporter.wrote?.({
@@ -366,8 +418,6 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 				key: slug,
 				action: "updated",
 			});
-
-			const locales = globalOptions?.locales;
 
 			if (locales && Object.keys(locales).length > 0) {
 				await store.warm(collectRefs(locales));
@@ -396,6 +446,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 				collection,
 				where: { id: { exists: true } },
 				overrideAccess: true,
+				context: dummyContext(),
 				/*
 				 * Without this the operation skips trashed documents, and a fresh
 				 * run would leave whatever an editor trashed behind. A no-op on
