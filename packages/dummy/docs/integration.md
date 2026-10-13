@@ -93,6 +93,25 @@ await runDummySeeds({
 `wrote` fires per document, which is why the console reporter aggregates it into a tally rather
 than printing a line each.
 
+## Hooks with side effects
+
+Every write a seed makes passes `context: { dummy: true }` to the Local API. `isDummyWrite`
+reads it, so a hook can skip what a seed should not trigger, such as revalidation or emails:
+
+```ts
+import { isDummyWrite } from "@abinnovision/payloadcms-dummy";
+
+const revalidate: CollectionAfterChangeHook = ({ doc, req }) => {
+  if (isDummyWrite(req)) return doc;
+
+  revalidateTag(`page:${doc.slug}`);
+
+  return doc;
+};
+```
+
+It takes `req` or the hook's own arguments, since both carry `context`.
+
 ## Which flags to expose
 
 `--fresh` is the one worth knowing. It replaces the seeded content instead of updating it, which
@@ -110,8 +129,8 @@ upsert over any document whose natural key matches, which is rarely what anyone 
 
 Two things make that less dangerous where a seed does have to touch a shared environment:
 
-- `keepIfSet` on a global names a field that, once an editor has filled it in, means the seed
-  leaves the global alone.
+- `keepIfSet` on a document or global names a field that, once an editor has filled it in, means
+  the seed leaves that record alone.
 - `--fresh` is opt-in and only ever touches the collections named in `resetCollections`.
 
 There is no dry run and no diff. If a seed must not overwrite something, do not declare it.

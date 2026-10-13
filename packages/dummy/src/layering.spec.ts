@@ -16,12 +16,14 @@ const here = dirname(fileURLToPath(import.meta.url));
  */
 const LAYERS: Record<string, number> = {
 	"types.ts": 0,
+	"context.ts": 0,
 	"errors.ts": 0,
 	"ref.ts": 0,
 	"walk.ts": 0,
 	"reporter.ts": 0,
 	"define-seed.ts": 0,
 	"resolve.ts": 1,
+	"localized.ts": 1,
 	"graph.ts": 1,
 	"lexical/": 1,
 	"index-store.ts": 2,

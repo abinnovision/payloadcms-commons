@@ -36,6 +36,51 @@ immediately, and the replay completes the author. Both documents end up linked.
 Keep the `dependsOn` edge in one direction anyway. It is what decides which of the two gets
 replayed, and without it the order is just declaration order.
 
+## Circular required references
+
+A header links to pages and every page requires the header. A required field cannot wait for the
+replay, so write a placeholder first and the full document once its targets exist:
+
+```ts
+defineDummySeed({
+  id: "header-placeholder",
+  run: async (ctx) => {
+    await ctx.doc(
+      "headers",
+      { name: "main", links: [] },
+      { keepIfExists: true },
+    );
+  },
+});
+
+defineDummySeed({
+  id: "pages",
+  dependsOn: ["header-placeholder"],
+  run: async (ctx) => {
+    await ctx.doc("pages", {
+      slug: "/",
+      title: "Home",
+      header: ctx.ref("headers", "main"),
+    });
+  },
+});
+
+defineDummySeed({
+  id: "header",
+  dependsOn: ["pages"],
+  run: async (ctx) => {
+    await ctx.doc("headers", {
+      name: "main",
+      links: [{ page: ctx.ref("pages", "/") }],
+    });
+  },
+});
+```
+
+`keepIfExists` creates the placeholder on the first run and skips it on every later one, so a
+re-run never empties the header the last unit wrote. A skipped document counts as `skipped` and
+is not replayed. One that is created with refs pointing forward is still completed by the replay.
+
 ## A reference inside a blocks field
 
 The walk is structural, so nothing special is needed:
@@ -103,6 +148,21 @@ link to a document becomes `fields: { linkType: "internal", doc: { relationTo, v
 upload becomes `{ relationTo, value }`. A string passed to `link` is a custom URL. Refs inside
 `block` fields are resolved like refs in any other field.
 
+`br()` and `tab()` are the line break and tab nodes. `align("center", rt.h("h1", "Title"))` sets
+the alignment on any element node.
+
+A link feature with its own fields gets its own builder, with the same signature as `link`:
+
+```ts
+const buttonLink = rt.createLink((to) => ({
+  ...(typeof to === "string"
+    ? { linkType: "custom", url: to }
+    : { linkType: "internal", doc: ctx.polyRef(to.collection, to.key) }),
+  newTab: false,
+  appearance: "button",
+}));
+```
+
 Wherever a builder takes content it also accepts a plain node object, so a quote, a horizontal
 rule or any custom node goes in as written. The result of `richText` is assignable to the
 generated rich text field type without a cast.
@@ -133,10 +193,13 @@ The basename is the natural key, so a later unit addresses the upload with
 `ctx.ref("media", "hero.png")` and the second run updates the metadata without re-uploading the
 bytes.
 
+If the collection rewrites filenames in a hook, the basename no longer matches what is stored.
+Add an indexed text field holding the original name and set `naturalKeys: { media: "name" }`.
+
 Resolve the directory from `import.meta.dirname`, not from `process.cwd()`, so the assets travel
 with the seed and `yarn seed` works from anywhere.
 
-## A global an editor is allowed to own
+## A document or global an editor is allowed to own
 
 ```ts
 await ctx.global(
@@ -149,7 +212,37 @@ await ctx.global(
 Once `tagline` carries a value the seed stops writing the global at all, so prose somebody
 actually wrote survives every later run. The run reports it as skipped.
 
+`ctx.doc` takes the same option. A document that does not exist yet is always written.
+
 ## A localized site
+
+Build the data once and pick each localized value with `t`:
+
+```ts
+import { dummyLocalized } from "@abinnovision/payloadcms-dummy";
+
+await ctx.doc(
+  "pages",
+  dummyLocalized((t) => ({
+    slug: "/",
+    title: t({ en: "Home", de: "Startseite" }),
+    layout: [
+      { blockType: "callout", body: t({ en: "Welcome", de: "Willkommen" }) },
+    ],
+  })),
+);
+```
+
+The builder runs once per locale in `localization.localeCodes`. The default locale's result is
+written first, every other locale's result is written over it. `t` answers the value for the
+locale being built and falls back to the default locale's, so a value only one locale overrides
+needs only that entry. `ctx.localized` is the same function, and `ctx.global` accepts the result
+too.
+
+Because every locale comes from the same structure, arrays line up by construction. It fails if
+the Payload config has localization disabled, or if `locales` is passed as well.
+
+The lower-level form names the overrides directly:
 
 ```ts
 await ctx.doc(

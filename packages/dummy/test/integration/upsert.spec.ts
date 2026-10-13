@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { bootPayload, storedState } from "./helpers/payload.js";
+import { bootPayload, recorder, storedState } from "./helpers/payload.js";
 import { defineDummySeed } from "../../src/define-seed.js";
 import { runDummySeeds } from "../../src/run.js";
 
@@ -124,5 +124,126 @@ describe("runDummySeeds", () => {
 				],
 			}),
 		).rejects.toThrow(/natural key "slug" carries a ref/);
+	});
+
+	it("leaves an existing document alone with keepIfExists", async () => {
+		const seed = (title: string) =>
+			defineDummySeed({
+				id: "pages",
+				run: async (ctx) => {
+					await ctx.doc(
+						"pages",
+						{ slug: "/kept", title },
+						{ keepIfExists: true },
+					);
+				},
+			});
+		const { reporter, events } = recorder();
+
+		await runDummySeeds({ payload, seeds: [seed("First")] });
+
+		const result = await runDummySeeds({
+			payload,
+			seeds: [seed("Second")],
+			reporter,
+		});
+		const found = await payload.find({
+			collection: "pages",
+			where: { slug: { equals: "/kept" } },
+			overrideAccess: true,
+		});
+
+		expect(found.docs[0]?.["title"]).toBe("First");
+		expect(result.writes.get("pages")).toMatchObject({
+			created: 0,
+			updated: 0,
+			skipped: 1,
+		});
+		expect(events).toContainEqual(
+			expect.objectContaining({ key: "/kept", action: "skipped" }),
+		);
+	});
+
+	it("leaves a document alone once the keepIfSet field carries a value", async () => {
+		const seed = defineDummySeed({
+			id: "authors",
+			run: async (ctx) => {
+				await ctx.doc(
+					"authors",
+					{ name: "Claimed" },
+					{ keepIfSet: "featuredBook" },
+				);
+			},
+		});
+
+		const first = await runDummySeeds({ payload, seeds: [seed] });
+		const second = await runDummySeeds({ payload, seeds: [seed] });
+
+		expect(first.writes.get("authors")).toMatchObject({ created: 1 });
+		expect(second.writes.get("authors")).toMatchObject({ updated: 1 });
+
+		const book = await payload.create({
+			collection: "books",
+			data: { title: "Claimed by an editor" },
+			overrideAccess: true,
+		});
+
+		await payload.update({
+			collection: "authors",
+			where: { name: { equals: "Claimed" } },
+			data: { featuredBook: book.id },
+			overrideAccess: true,
+		});
+
+		const third = await runDummySeeds({ payload, seeds: [seed] });
+
+		expect(third.writes.get("authors")).toMatchObject({
+			updated: 0,
+			skipped: 1,
+		});
+	});
+
+	it("completes a document created with keepIfExists on the replay", async () => {
+		const seeds = [
+			defineDummySeed({
+				id: "authors",
+				run: async (ctx) => {
+					await ctx.doc(
+						"authors",
+						{ name: "Placeholder", featuredBook: ctx.ref("books", "Draft") },
+						{ keepIfExists: true },
+					);
+				},
+			}),
+			defineDummySeed({
+				id: "books",
+				dependsOn: ["authors"],
+				run: async (ctx) => {
+					await ctx.doc("books", { title: "Draft" });
+				},
+			}),
+		];
+
+		const result = await runDummySeeds({ payload, seeds });
+		const authors = await payload.find({
+			collection: "authors",
+			where: { name: { equals: "Placeholder" } },
+			depth: 0,
+			overrideAccess: true,
+		});
+		const books = await payload.find({
+			collection: "books",
+			where: { title: { equals: "Draft" } },
+			depth: 0,
+			overrideAccess: true,
+		});
+
+		expect(result.replayed).toBe(1);
+		expect(authors.docs[0]?.["featuredBook"]).toBe(books.docs[0]?.id);
+
+		const rerun = await runDummySeeds({ payload, seeds });
+
+		expect(rerun.replayed).toBe(0);
+		expect(rerun.writes.get("authors")).toMatchObject({ skipped: 1 });
 	});
 });
