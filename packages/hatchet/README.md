@@ -1,5 +1,7 @@
 # @abinnovision/payloadcms-hatchet
 
+![Jobs queued in Payload are triggered by Hatchet and executed by Payload's own runner on a worker](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/hatchet/assets/header.png)
+
 Runs [Payload CMS](https://payloadcms.com/) jobs on [Hatchet](https://hatchet.run).
 
 Payload executes, Hatchet triggers. The `payload-jobs` collection stays the
