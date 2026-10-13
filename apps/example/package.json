@@ -7,7 +7,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "next build",
-		"dev": "next dev",
+		"dev": "NEXT_EXIT_TIMEOUT_MS=35000 NEXT_MANUAL_SIG_HANDLE=true next dev",
 		"format:check": "prettier --check 'src/**/*.{ts,tsx,scss}' '*.{json{,5},md,y{,a}ml,mjs}'",
 		"format:fix": "prettier --write 'src/**/*.{ts,tsx,scss}' '*.{json{,5},md,y{,a}ml,mjs}'",
 		"generate:importmap": "payload generate:importmap",
@@ -15,8 +15,9 @@
 		"lint:check": "eslint 'src/**/*.{ts,tsx}'",
 		"lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
 		"seed": "payload run src/seed.ts --",
-		"start": "next start",
-		"typecheck": "tsc --noEmit"
+		"start": "NEXT_MANUAL_SIG_HANDLE=true next start",
+		"typecheck": "tsc --noEmit",
+		"worker": "payload run src/worker.ts"
 	},
 	"lint-staged": {
 		"src/**/*.{ts,tsx}": [
@@ -29,6 +30,7 @@
 	"dependencies": {
 		"@abinnovision/payloadcms-colophon": "workspace:*",
 		"@abinnovision/payloadcms-dummy": "workspace:*",
+		"@abinnovision/payloadcms-hatchet": "workspace:*",
 		"@abinnovision/payloadcms-mcpx": "workspace:*",
 		"@abinnovision/payloadcms-montage": "workspace:*",
 		"@abinnovision/payloadcms-viewfinder": "workspace:*",

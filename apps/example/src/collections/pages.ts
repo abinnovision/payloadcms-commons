@@ -30,7 +30,7 @@ export const pages: CollectionConfig = {
 				`/preview?collection=pages&id=${String(data["id"] ?? "")}&locale=${locale.code}`,
 		},
 	},
-	versions: { drafts: true },
+	versions: { drafts: { schedulePublish: true } },
 	// Linkable, so a reference resolves without the query having to reach it.
 	defaultPopulate: { slug: true, title: true },
 	fields: [
