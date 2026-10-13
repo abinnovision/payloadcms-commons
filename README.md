@@ -17,6 +17,7 @@ them. Nothing here requires anything else here.
 | [`@abinnovision/payloadcms-colophon`](./packages/colophon)                 | System metadata in the admin sidebar, read from the environment at request time.           |
 | [`@abinnovision/payloadcms-dummy`](./packages/dummy)                       | Declarative, idempotent seeding: ordered seed units, natural-key upsert and references.    |
 | [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.                       |
+| [`@abinnovision/payloadcms-hatchet`](./packages/hatchet)                   | Runs Payload jobs on Hatchet: Hatchet triggers, Payload executes.                          |
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server over the content model, with a fixed tool surface and per-API-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                                  |
 | [`@abinnovision/payloadcms-viewfinder`](./packages/viewfinder)             | Two-way block addressing between a rendered frontend and the Payload admin form.           |

@@ -13,6 +13,7 @@ when a site takes several of them: where they touch, and what stays separate.
 | [`wayfinder`](../../packages/wayfinder)   | every URL on the site, plus the links inside blocks and rich text                                   |
 | [`mcpx`](../../packages/mcpx)             | `POST /api/mcpx`, and the **MCP** group in the admin panel                                          |
 | [`colophon`](../../packages/colophon)     | `colophonPlugin()` in `src/payload.config.ts`, the build group under the admin navigation           |
+| [`hatchet`](../../packages/hatchet)       | `src/jobs/*` and `src/worker.ts`, opt-in through `HATCHET_CLIENT_TOKEN`                             |
 
 ## Setup
 
@@ -36,11 +37,13 @@ Changing the content model means `yarn generate:types` too, and then `yarn fix`:
 Payload writes `src/payload-types.ts` with its own formatting, which is not this
 repo's.
 
-| Variable         | Required | Purpose                                                                           |
-| ---------------- | -------- | --------------------------------------------------------------------------------- |
-| `PAYLOAD_SECRET` | yes      | Signs JWTs, and the mcpx API key index derives from it. Rotating it orphans keys. |
-| `DATABASE_URI`   | no       | SQLite file. Defaults to `file:./.data/example.db`.                               |
-| `PAYLOAD_URL`    | no       | Base URL of this app. Defaults to `http://localhost:3000`.                        |
+| Variable                    | Required | Purpose                                                                             |
+| --------------------------- | -------- | ----------------------------------------------------------------------------------- |
+| `PAYLOAD_SECRET`            | yes      | Signs JWTs, and the mcpx API key index derives from it. Rotating it orphans keys.   |
+| `DATABASE_URI`              | no       | SQLite file. Defaults to `file:./.data/example.db`.                                 |
+| `PAYLOAD_URL`               | no       | Base URL of this app. Defaults to `http://localhost:3000`.                          |
+| `HATCHET_CLIENT_TOKEN`      | no       | Runs jobs through Hatchet. See [Running jobs on Hatchet](#running-jobs-on-hatchet). |
+| `HATCHET_IN_PROCESS_WORKER` | no       | `true` runs the Hatchet worker inside the Next.js server.                           |
 
 `PAYLOAD_URL` does double duty: its origin is the `adminOrigin` the viewfinder
 bridge trusts, and it is what the mcpx setup guide prints as an absolute
@@ -102,6 +105,56 @@ leaves a draft, which 404s on the site, and `publishDocument` makes it routable
 at whatever URL the mapping says it lives at. Every collection allows
 `deleteDocument` into the trash: tick delete and the key's edit view lists each
 call for approval, or tick "Delete without approval" to skip it.
+
+## Running jobs on Hatchet
+
+Opt-in. The app defines two jobs: Payload's own `schedulePublish` on `pages` and
+`articles`, and the `article-published` workflow in `src/jobs/`, which an
+`afterChange` hook on `articles` queues whenever a document gets published.
+The hatchet plugin is always mounted, so the schema does not change, but without
+`HATCHET_CLIENT_TOKEN` it is disabled and Payload's `autoRun` executes both
+every minute.
+
+To run them through Hatchet instead, start Hatchet Lite and create a token for
+its default tenant:
+
+```bash
+docker compose up -d
+docker compose exec -T hatchet-lite /hatchet-admin token create \
+  --config /config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52
+```
+
+Put the token into `.env` with the other two Hatchet variables from
+`.env.example`, then run the worker next to `dev`:
+
+```bash
+yarn workspace @internal/example worker
+```
+
+Or set `HATCHET_IN_PROCESS_WORKER=true` as well, and `src/instrumentation.ts`
+starts the same worker inside the Next.js server, under both `dev` and `start`.
+Use one or the other: SQLite allows a single writer, so two workers contend for
+it. On SIGTERM or SIGINT a running job finishes before the process exits, for at
+most 30 seconds. Both entrypoints are one call into the package:
+`runHatchetWorker` in `src/worker.ts` and `registerHatchetWorker` in
+`src/instrumentation.ts`. The `dev` and `start` scripts set the environment the
+in-process worker needs, and `next.config.mjs` keeps the Hatchet SDK out of the
+bundle. The package README's "Running the worker" section explains both.
+
+The dashboard is at http://localhost:8888 (`admin@example.com` /
+`Admin123!!`).
+
+**Schedule a publish.** Open an article or page, choose **Schedule Publish**
+next to the publish button and pick a time a minute out. The job becomes a
+scheduled run in Hatchet and the worker publishes the document when it fires.
+
+**Publish an article.** The worker log, or the `dev` log with the in-process
+worker, shows `article-published` run its two tasks and print the article's
+URL. The job is queued inside the publish transaction, so a publish that fails
+never reaches Hatchet.
+
+Finished jobs stay visible under **System → Payload Jobs** in the admin, with
+their Hatchet run id when the plugin is enabled.
 
 ## The two seams
 

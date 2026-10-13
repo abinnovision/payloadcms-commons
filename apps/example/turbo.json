@@ -11,7 +11,8 @@
 				"PAYLOAD_URL",
 				"APP_VERSION",
 				"APP_COMMIT",
-				"APP_ENVIRONMENT"
+				"APP_ENVIRONMENT",
+				"HATCHET_CLIENT_TOKEN"
 			]
 		}
 	}

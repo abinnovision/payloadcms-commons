@@ -1,6 +1,27 @@
 import { sectionWrapperBlock } from "../blocks/section-wrapper";
 
-import type { CollectionConfig } from "payload";
+import type { Article } from "../payload-types";
+import type { CollectionAfterChangeHook, CollectionConfig } from "payload";
+
+/*
+ * Queued with `req`, so the job is written in the same transaction as the
+ * publish and disappears with it if that rolls back.
+ */
+const queueOnPublish: CollectionAfterChangeHook<Article> = async ({
+	doc,
+	previousDoc,
+	req,
+}) => {
+	if (doc._status === "published" && previousDoc._status !== "published") {
+		await req.payload.jobs.queue({
+			workflow: "article-published",
+			input: { articleId: doc.id },
+			req,
+		});
+	}
+
+	return doc;
+};
 
 /**
  * Articles sit under their section, so their pattern takes two parameters. The
@@ -20,8 +41,9 @@ export const articles: CollectionConfig = {
 				`/preview?collection=articles&id=${String(data["id"] ?? "")}&locale=${locale.code}`,
 		},
 	},
-	versions: { drafts: true },
+	versions: { drafts: { schedulePublish: true } },
 	defaultPopulate: { slug: true, title: true, section: true },
+	hooks: { afterChange: [queueOnPublish] },
 	fields: [
 		{ name: "title", type: "text", required: true, localized: true },
 		{ name: "slug", type: "text", required: true },

@@ -1,4 +1,5 @@
 import { colophonPlugin } from "@abinnovision/payloadcms-colophon/config";
+import { hatchetPlugin } from "@abinnovision/payloadcms-hatchet";
 import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
 import { montagePlugin } from "@abinnovision/payloadcms-montage/config";
 import { viewfinderPlugin } from "@abinnovision/payloadcms-viewfinder/config";
@@ -23,6 +24,11 @@ import { sections } from "./collections/sections";
 import { tags } from "./collections/tags";
 import { users } from "./collections/users";
 import { siteSettings } from "./globals/site-settings";
+import {
+	announceArticleTask,
+	articlePublishedWorkflow,
+	resolveArticleURLTask,
+} from "./jobs/article-published";
 import { linkTargets } from "./links";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -48,12 +54,42 @@ export default buildConfig({
 	serverURL: process.env.PAYLOAD_URL ?? "http://localhost:3000",
 	db: sqliteAdapter({
 		client: { url: databaseURI },
+		/*
+		 * Real transactions, which SQLite leaves off by default. A job queued
+		 * by a write that rolls back is then never handed to Hatchet.
+		 */
+		transactionOptions: {},
 	}),
 	editor: lexicalEditor(),
 	admin: { user: users.slug },
 	localization: { locales: ["en", "de"], defaultLocale: "en" },
 	collections: [users, pages, articles, sections, posts, tags, media],
 	globals: [siteSettings],
+	jobs: {
+		tasks: [resolveArticleURLTask, announceArticleTask],
+		workflows: [articlePublishedWorkflow],
+		/*
+		 * Payload's own runner, used when Hatchet is not configured. The
+		 * enabled hatchet plugin removes it, since Hatchet is then the only
+		 * trigger.
+		 */
+		autoRun: [{ cron: "* * * * *", queue: "default" }],
+		/*
+		 * Finished jobs are kept, and the jobs collection, hidden and unreadable
+		 * by default, is shown to signed-in users, so each run can be inspected
+		 * in the admin. Demo only, not for production: users have no roles here,
+		 * so every user can read every job's input and output.
+		 */
+		deleteJobOnComplete: false,
+		jobsCollectionOverrides: ({ defaultJobsCollection }) => ({
+			...defaultJobsCollection,
+			admin: { ...defaultJobsCollection.admin, hidden: false },
+			access: {
+				...defaultJobsCollection.access,
+				read: ({ req }) => Boolean(req.user),
+			},
+		}),
+	},
 	/*
 	 * This file never imports React. Every plugin here comes from an
 	 * entrypoint that is free of it, which is what lets the config be loaded
@@ -128,6 +164,14 @@ export default buildConfig({
 		 */
 
 		colophonPlugin(),
+		/*
+		 * Always mounted, so the schema is the same with and without Hatchet.
+		 * With a token it is enabled: the jobs are triggered through Hatchet
+		 * and executed by `yarn worker`, or by `src/instrumentation.ts` with
+		 * `HATCHET_IN_PROCESS_WORKER=true`. Without one, `autoRun` above
+		 * executes them.
+		 */
+		hatchetPlugin({ enabled: Boolean(process.env.HATCHET_CLIENT_TOKEN) }),
 	],
 	graphQL: { disable: true },
 	typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },

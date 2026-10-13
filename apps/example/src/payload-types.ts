@@ -82,6 +82,7 @@ export interface Config {
 		media: Media;
 		"mcpx-api-keys": McpxApiKey;
 		"payload-kv": PayloadKv;
+		"payload-jobs": PayloadJob;
 		"payload-locked-documents": PayloadLockedDocument;
 		"payload-preferences": PayloadPreference;
 		"payload-migrations": PayloadMigration;
@@ -97,6 +98,7 @@ export interface Config {
 		media: MediaSelect<false> | MediaSelect<true>;
 		"mcpx-api-keys": McpxApiKeysSelect<false> | McpxApiKeysSelect<true>;
 		"payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
+		"payload-jobs": PayloadJobsSelect<false> | PayloadJobsSelect<true>;
 		"payload-locked-documents":
 			PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
 		"payload-preferences":
@@ -128,8 +130,18 @@ export interface Config {
 	};
 	user: User;
 	jobs: {
-		tasks: unknown;
-		workflows: unknown;
+		tasks: {
+			"resolve-article-url": TaskResolveArticleUrl;
+			"announce-article": TaskAnnounceArticle;
+			schedulePublish: TaskSchedulePublish;
+			inline: {
+				input: unknown;
+				output: unknown;
+			};
+		};
+		workflows: {
+			"article-published": WorkflowArticlePublished;
+		};
 	};
 }
 export interface UserAuthOperations {
@@ -603,6 +615,114 @@ export interface PayloadKv {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs".
+ */
+export interface PayloadJob {
+	id: number;
+	/**
+	 * Input data provided to the job
+	 */
+	input?:
+		| {
+				[k: string]: unknown;
+		  }
+		| unknown[]
+		| string
+		| number
+		| boolean
+		| null;
+	taskStatus?:
+		| {
+				[k: string]: unknown;
+		  }
+		| unknown[]
+		| string
+		| number
+		| boolean
+		| null;
+	completedAt?: string | null;
+	totalTried?: number | null;
+	/**
+	 * If hasError is true this job will not be retried
+	 */
+	hasError?: boolean | null;
+	/**
+	 * If hasError is true, this is the error that caused it
+	 */
+	error?:
+		| {
+				[k: string]: unknown;
+		  }
+		| unknown[]
+		| string
+		| number
+		| boolean
+		| null;
+	/**
+	 * Task execution log
+	 */
+	log?:
+		| {
+				executedAt: string;
+				completedAt: string;
+				taskSlug:
+					| "inline"
+					| "resolve-article-url"
+					| "announce-article"
+					| "schedulePublish";
+				taskID: string;
+				input?:
+					| {
+							[k: string]: unknown;
+					  }
+					| unknown[]
+					| string
+					| number
+					| boolean
+					| null;
+				output?:
+					| {
+							[k: string]: unknown;
+					  }
+					| unknown[]
+					| string
+					| number
+					| boolean
+					| null;
+				state: "failed" | "succeeded";
+				error?:
+					| {
+							[k: string]: unknown;
+					  }
+					| unknown[]
+					| string
+					| number
+					| boolean
+					| null;
+				id?: string | null;
+		  }[]
+		| null;
+	workflowSlug?: "article-published" | null;
+	taskSlug?:
+		| (
+				| "inline"
+				| "resolve-article-url"
+				| "announce-article"
+				| "schedulePublish"
+		  )
+		| null;
+	queue?: string | null;
+	waitUntil?: string | null;
+	processing?: boolean | null;
+	hatchetRunId?: string | null;
+	hatchetScheduledId?: string | null;
+	hatchetDispatchedAt?: string | null;
+	hatchetHeartbeatAt?: string | null;
+	updatedAt: string;
+	createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -909,6 +1029,42 @@ export interface PayloadKvSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs_select".
+ */
+export interface PayloadJobsSelect<T extends boolean = true> {
+	input?: T;
+	taskStatus?: T;
+	completedAt?: T;
+	totalTried?: T;
+	hasError?: T;
+	error?: T;
+	log?:
+		| T
+		| {
+				executedAt?: T;
+				completedAt?: T;
+				taskSlug?: T;
+				taskID?: T;
+				input?: T;
+				output?: T;
+				state?: T;
+				error?: T;
+				id?: T;
+		  };
+	workflowSlug?: T;
+	taskSlug?: T;
+	queue?: T;
+	waitUntil?: T;
+	processing?: T;
+	hatchetRunId?: T;
+	hatchetScheduledId?: T;
+	hatchetDispatchedAt?: T;
+	hatchetHeartbeatAt?: T;
+	updatedAt?: T;
+	createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
@@ -1012,6 +1168,62 @@ export interface CollectionsWidget {
 		[k: string]: unknown;
 	};
 	width: "full";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskResolve-article-url".
+ */
+export interface TaskResolveArticleUrl {
+	input: {
+		articleId: number;
+	};
+	output: {
+		url: string;
+	};
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskAnnounce-article".
+ */
+export interface TaskAnnounceArticle {
+	input: {
+		url: string;
+	};
+	output?: unknown;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSchedulePublish".
+ */
+export interface TaskSchedulePublish {
+	input: {
+		type?: ("publish" | "unpublish") | null;
+		locale?: string | null;
+		doc?:
+			| ({
+					relationTo: "pages";
+					value: number | Page;
+			  } | null)
+			| ({
+					relationTo: "articles";
+					value: number | Article;
+			  } | null);
+		global?: string | null;
+		user?: {
+			relationTo: "users";
+			value: number | User;
+		} | null;
+	};
+	output?: unknown;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "WorkflowArticle-published".
+ */
+export interface WorkflowArticlePublished {
+	input: {
+		articleId: number;
+	};
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
