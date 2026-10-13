@@ -412,6 +412,9 @@ export interface McpxResolvedCapabilities {
  * Stamped on `req.context.mcpx`; see {@link isMcpxRequest}.
  */
 export interface McpxRequestContext {
-	apiKeyId: DocumentId;
+	/**
+	 * `undefined` for a client from `createMcpxClient`, which acts without a key.
+	 */
+	apiKeyId?: DocumentId;
 	capabilities: McpxResolvedCapabilities;
 }

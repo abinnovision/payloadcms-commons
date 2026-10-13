@@ -14,7 +14,28 @@ import {
 	installGlobalDraftGuards,
 } from "./write/draft-guard.js";
 
+import type { NormalizedOptions } from "./options.js";
 import type { McpxPluginOptions } from "./types.js";
+import type { Payload, SanitizedConfig } from "payload";
+
+// Filled in `onInit`: the sanitized config is a different object than the one the plugin sees.
+const initialized = new WeakMap<SanitizedConfig, NormalizedOptions>();
+
+/**
+ * The normalized options of the plugin installed on `payload`. Throws where
+ * the plugin is not installed or Payload has not run `onInit`.
+ */
+export const optionsOf = (payload: Payload): NormalizedOptions => {
+	const options = initialized.get(payload.config);
+
+	if (options === undefined) {
+		throw new Error(
+			"[payloadcms-mcpx] The plugin is not installed on this Payload instance, or Payload has not been initialized.",
+		);
+	}
+
+	return options;
+};
 
 /**
  * Mounts the MCP, upload and download endpoints, and the confirmation
@@ -45,6 +66,7 @@ export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 			globals: installGlobalDraftGuards(config.globals ?? []),
 			onInit: async (payload) => {
 				assertFolderCollection(payload.config, normalized);
+				initialized.set(payload.config, normalized);
 				await config.onInit?.(payload);
 			},
 			endpoints: [

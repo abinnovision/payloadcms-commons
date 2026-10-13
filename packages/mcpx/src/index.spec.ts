@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import * as entry from "./index.js";
+import * as local from "./local.js";
 
 import type {
 	McpxAnyTool,
@@ -19,6 +20,10 @@ import type {
 	McpxToolExtra,
 	McpxToolScope,
 } from "./index.js";
+import type {
+	McpxLocalCapabilities,
+	McpxLocalEntityCapabilities,
+} from "./local.js";
 
 describe('the "." entrypoint', () => {
 	it("exports exactly the documented runtime names", () => {
@@ -55,12 +60,23 @@ describe('the "." entrypoint', () => {
 	});
 });
 
+describe('the "./local" entrypoint', () => {
+	it("exports exactly the documented runtime names", () => {
+		expect(Object.keys(local).sort()).toEqual(["createMcpxClient"]);
+	});
+
+	it("keeps the documented type names exported", () => {
+		expectTypeOf<McpxLocalCapabilities>().not.toBeAny();
+		expectTypeOf<McpxLocalEntityCapabilities>().not.toBeAny();
+	});
+});
+
 describe("package exports", () => {
-	it("lists only the root and admin entrypoints", () => {
+	it("lists only the root, admin and local entrypoints", () => {
 		const { exports } = JSON.parse(
 			readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 		) as { exports: Record<string, unknown> };
 
-		expect(Object.keys(exports)).toEqual([".", "./admin"]);
+		expect(Object.keys(exports)).toEqual([".", "./admin", "./local"]);
 	});
 });

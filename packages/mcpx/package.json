@@ -30,6 +30,10 @@
 		"./admin": {
 			"types": "./dist/admin/index.d.mts",
 			"default": "./dist/admin/index.mjs"
+		},
+		"./local": {
+			"types": "./dist/local.d.mts",
+			"default": "./dist/local.mjs"
 		}
 	},
 	"files": [

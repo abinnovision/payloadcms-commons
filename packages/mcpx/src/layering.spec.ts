@@ -32,6 +32,7 @@ const LAYERS: Record<string, number> = {
 	"endpoint/": 4,
 	"plugin.ts": 5,
 	"index.ts": 5,
+	"local.ts": 5,
 };
 
 /**
