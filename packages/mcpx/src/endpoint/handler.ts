@@ -7,7 +7,11 @@ import { leasesAvailable, readCapped } from "./http.js";
 import { createMcpServer } from "./server.js";
 
 import type { NormalizedOptions } from "../options.js";
-import type { McpxAuthResult, McpxToolScope } from "../types.js";
+import type {
+	McpxAuthResult,
+	McpxRequestContext,
+	McpxToolScope,
+} from "../types.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
 const BODY_BYTES_LIMIT = 4 * 1024 * 1024;
@@ -44,25 +48,34 @@ export const buildScope = (
 };
 
 /**
- * Makes `req` act as the key: sets `req.user`, replacing any user Payload
+ * Makes `req` act as `user`: sets `req.user`, replacing any user Payload
  * resolved from cookies, and the `req.context.mcpx` stamp the draft guard
  * reads. Returns the scope the tools see.
+ */
+export const actAs = (
+	req: PayloadRequest,
+	options: NormalizedOptions,
+	user: McpxAuthResult["user"],
+	mcpx: McpxRequestContext,
+): McpxToolScope => {
+	req.user = user;
+	req.context = { ...req.context, mcpx };
+
+	return buildScope(req, options, mcpx.capabilities);
+};
+
+/**
+ * Makes `req` act as the key, with the capabilities its checkboxes resolve to.
  */
 export const authenticateAs = (
 	req: PayloadRequest,
 	options: NormalizedOptions,
 	auth: McpxAuthResult,
-): McpxToolScope => {
-	const capabilities = resolveCapabilities(options, auth.capabilities);
-
-	req.user = auth.user;
-	req.context = {
-		...req.context,
-		mcpx: { apiKeyId: auth.apiKeyId, capabilities },
-	};
-
-	return buildScope(req, options, capabilities);
-};
+): McpxToolScope =>
+	actAs(req, options, auth.user, {
+		apiKeyId: auth.apiKeyId,
+		capabilities: resolveCapabilities(options, auth.capabilities),
+	});
 
 /**
  * Answers GET and DELETE on the endpoint path. The server is stateless and

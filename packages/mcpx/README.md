@@ -201,7 +201,7 @@ Upgrading from 1.x: [Upgrading to 2.0](./docs/integration.md#upgrading-to-20).
 - [`docs/concepts.md`](./docs/concepts.md): tool arguments, schema paths and pointers, patching,
   rich text, globals, uploads, drafts and publishing, versions and diffs.
 - [`docs/integration.md`](./docs/integration.md): the endpoint, startup validation, API keys in the
-  admin panel, and custom key resolution.
+  admin panel, custom key resolution, and the in-process client.
 - [`docs/custom-tools.md`](./docs/custom-tools.md): defining your own tools.
 - [`docs/security.md`](./docs/security.md): authentication, access, limits and known limitations.
 - [`docs/limitations.md`](./docs/limitations.md): what the plugin does not do.

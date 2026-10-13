@@ -194,6 +194,40 @@ not from the user collection, or that has no `apiKeyId`, is answered with 401. D
 The handler stamps `req.context.mcpx` with the key id and the resolved capabilities.
 `isMcpxRequest(req)` reads that stamp, so your own hooks can tell an MCP write from any other.
 
+## In-process client
+
+Code running inside the Payload app, such as an agent of your own, can use the same tools without
+HTTP or an API key. `createMcpxClient` from `@abinnovision/payloadcms-mcpx/local` returns an MCP
+`Client` connected in memory to the server the endpoint would build:
+
+```ts
+import { createMcpxClient } from "@abinnovision/payloadcms-mcpx/local";
+
+const client = await createMcpxClient(payload, {
+  user: { ...user, collection: "users" },
+  capabilities: {
+    collections: { pages: { read: true, write: true } },
+    globals: { header: { read: true } },
+    tools: { myCustomTool: true },
+  },
+});
+
+const { tools } = await client.listTools();
+const result = await client.callTool({ name: "getDocument", arguments: { ... } });
+
+await client.close();
+```
+
+`capabilities` is keyed by collection slug, global slug and tool name, and takes `read`, `write`
+and `publish` per entity. The config caps it as it caps a key, so anything the config does not
+expose is ignored. Writes are drafts where the key's would be, and `req.context.mcpx` is stamped
+without a key id.
+
+The caller vouches for `user`: nothing authenticates it, and Payload's access control runs as that
+user. `user` must be from the user collection, carry its `collection` and have an `id`. Without a
+key there is nothing to approve or upload against, so `deleteDocument`, `runConfirmed` and file
+uploads are unavailable. Call `getPayload` first, as the client needs the plugin initialized.
+
 ## Upgrading to 2.0
 
 ### The `./admin` entrypoint
