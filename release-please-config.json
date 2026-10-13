@@ -18,7 +18,9 @@
 		},
 		"packages/hatchet": {
 			"package-name": "@abinnovision/payloadcms-hatchet",
-			"component": "payloadcms-hatchet"
+			"component": "payloadcms-hatchet",
+			"initial-version": "0.1.0",
+			"bump-minor-pre-major": true
 		},
 		"packages/mcpx": {
 			"package-name": "@abinnovision/payloadcms-mcpx",

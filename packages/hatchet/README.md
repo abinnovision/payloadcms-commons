@@ -8,6 +8,11 @@ backoff and task logs. Hatchet only decides when a job runs and on which worker,
 which replaces polling with push, adds durable scheduling and gives each job a
 run in the Hatchet dashboard.
 
+> [!NOTE]
+> Beta. Releases stay on `0.x` until the API settles, and a minor version may
+> include breaking changes. Builds from unreleased changes are published under
+> the `beta` npm tag.
+
 ## Install
 
 ```bash
