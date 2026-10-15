@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://cdn.jsdelivr.net/npm/@tallyrelease/cli@0/dist/tallyrelease.schema.json
+plugins:
+  node: {}
+
+defaults:
+  # Matches the existing tags
+  tagFormat: "payloadcms-{id}-v{version}"
+
+# Mirrors app-stack's prerelease-channel.
+branches:
+  - name: main
+    line: default
+    channel: beta
+
+units:
+  packages/colophon: { release: true }
+  packages/dummy: { release: true }
+  packages/email-lettermint: { release: true }
+  packages/hatchet: { release: true, initialVersion: 0.1.0 }
+  packages/mcpx: { release: true }
+  packages/montage: { release: true }
+  packages/viewfinder: { release: true }
+  packages/wayfinder: { release: true }
+
+# Changes here rebuild every unit (added to the node plugin defaults).
+globalInputs:
+  - .tool-versions
+
+ignore:
+  - "*.md"
+  - .github/**
+  - .husky/**
+  - .idea/**
+  - .editorconfig
+  - .gitattributes

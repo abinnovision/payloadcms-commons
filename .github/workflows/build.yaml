@@ -22,6 +22,8 @@ jobs:
       actions: write
       id-token: write
     with:
+      build-selection: "affected"
+      tallyrelease: "shadow"
       prerelease-channel: "beta"
       test-types: "unit,integration"
 
