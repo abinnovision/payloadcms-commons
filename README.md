@@ -94,10 +94,34 @@ private example app in [`apps/example`](./apps/example) is where a new package
 gets exercised against the others.
 
 Each package is versioned and released independently through
-[release-please](https://github.com/googleapis/release-please), so a new one has
-to be registered in
-[`release-please-config.json`](./release-please-config.json) before it can be
-released.
+[tallyrelease](https://github.com/abinnovision/tallyrelease), so a new one has
+to be added as a unit with `release: true` in
+[`tallyrelease.yaml`](./tallyrelease.yaml), plus a maintenance rule
+`release/<package>/{major}.x` like the existing packages.
+
+### Releasing
+
+Merges to `main` publish a `beta` prerelease of every changed package. For
+stable releases, tallyrelease keeps one release PR per package
+(`tallyrelease/release/main/<package>`); merging it tags
+`payloadcms-<package>-v<version>`, creates the GitHub release and publishes to
+npm under `latest`.
+
+### Maintenance lines
+
+When a package gets a new major and the previous one still needs fixes, cut a
+maintenance branch from the last release of the old major. The release PR of
+the new major shows the exact command, for example:
+
+```bash
+git push origin payloadcms-mcpx-v2.1.0:refs/heads/release/mcpx/2.x
+```
+
+Fixes go in as pull requests against that branch (or cherry-picks from `main`).
+tallyrelease opens a release PR on the branch, limited to minor and patch
+releases of that major, and publishes them under the `backport` dist-tag, so
+`latest` stays on the newest major. Delete the branch once the major is no
+longer supported. Without such a branch everything releases from `main`.
 
 ## License
 
