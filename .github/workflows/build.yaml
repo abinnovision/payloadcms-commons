@@ -23,8 +23,7 @@ jobs:
       id-token: write
     with:
       build-selection: "affected"
-      tallyrelease: "shadow"
-      prerelease-channel: "beta"
+      tallyrelease: "release"
       test-types: "unit,integration"
 
   publish-npm:
