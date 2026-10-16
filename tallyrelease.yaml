@@ -13,6 +13,31 @@ branches:
   - name: main
     line: default
     channel: beta
+  # Maintenance lines per package, cut from a tag: release/<package>/<major>.x.
+  - name: "release/colophon/{major}.x"
+    line: maintenance
+    unit: colophon
+  - name: "release/dummy/{major}.x"
+    line: maintenance
+    unit: dummy
+  - name: "release/email-lettermint/{major}.x"
+    line: maintenance
+    unit: email-lettermint
+  - name: "release/hatchet/{major}.x"
+    line: maintenance
+    unit: hatchet
+  - name: "release/mcpx/{major}.x"
+    line: maintenance
+    unit: mcpx
+  - name: "release/montage/{major}.x"
+    line: maintenance
+    unit: montage
+  - name: "release/viewfinder/{major}.x"
+    line: maintenance
+    unit: viewfinder
+  - name: "release/wayfinder/{major}.x"
+    line: maintenance
+    unit: wayfinder
 
 units:
   packages/colophon: { release: true }
