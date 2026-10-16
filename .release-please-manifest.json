@@ -6,5 +6,5 @@
 	"packages/wayfinder": "1.0.1",
 	"packages/colophon": "1.0.2",
 	"packages/dummy": "1.0.0",
-	"packages/hatchet": "0.0.0"
+	"packages/hatchet": "0.1.0"
 }
