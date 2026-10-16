@@ -5,6 +5,8 @@ plugins:
 defaults:
   # Matches the existing tags
   tagFormat: "payloadcms-{id}-v{version}"
+  # One release PR per package, like release-please separate-pull-requests.
+  releasePr: separate
 
 # Mirrors app-stack's prerelease-channel.
 branches:
