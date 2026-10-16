@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json.schemastore.org/package.json",
 	"name": "@abinnovision/payloadcms-hatchet",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"description": "Payload CMS plugin that triggers Payload jobs through Hatchet while Payload keeps running them.",
 	"keywords": [
 		"payload",
