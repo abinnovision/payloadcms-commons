@@ -20,7 +20,7 @@ version without being rebuilt, and nothing has to be inlined through your bundle
 yarn add @abinnovision/payloadcms-colophon
 ```
 
-Peers: `payload >=3.88.0 <4` and `react ^19`. `@payloadcms/ui` is an optional peer, needed
+Peers: `payload >=3.88.0 <4 || >=4.0.0-beta.2 <5` and `react ^19`. `@payloadcms/ui` is an optional peer, needed
 only by the `./admin` entrypoint.
 
 ## Setup
