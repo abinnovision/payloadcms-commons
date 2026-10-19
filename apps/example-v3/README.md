@@ -1,4 +1,4 @@
-# example
+# example-v3
 
 One Payload CMS app mounting every package in this repo except the Lettermint
 adapter, which has no seam with the others and no frontend surface.
@@ -20,9 +20,9 @@ when a site takes several of them: where they touch, and what stays separate.
 ```bash
 cp .env.example .env
 yarn install
-yarn workspace @internal/example generate:importmap
-yarn workspace @internal/example seed
-yarn workspace @internal/example dev
+yarn workspace @internal/example-v3 generate:importmap
+yarn workspace @internal/example-v3 seed
+yarn workspace @internal/example-v3 dev
 ```
 
 `generate:importmap` is required: three packages contribute admin components
@@ -128,7 +128,7 @@ Put the token into `.env` with the other two Hatchet variables from
 `.env.example`, then run the worker next to `dev`:
 
 ```bash
-yarn workspace @internal/example worker
+yarn workspace @internal/example-v3 worker
 ```
 
 Or set `HATCHET_IN_PROCESS_WORKER=true` as well, and `src/instrumentation.ts`

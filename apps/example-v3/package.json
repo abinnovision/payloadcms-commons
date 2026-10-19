@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json.schemastore.org/package.json",
-	"name": "@internal/example",
+	"name": "@internal/example-v3",
 	"version": "0.0.0",
 	"private": true,
 	"description": "Example Payload CMS app mounting the payloadcms-commons packages.",
