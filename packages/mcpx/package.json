@@ -61,9 +61,9 @@
 	},
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.32.0",
+		"@modelcontextprotocol/sdk": "^1.32.1",
 		"rfc6902": "^5.3.0",
-		"zod": "^4.6.5"
+		"zod": "^4.6.7"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
