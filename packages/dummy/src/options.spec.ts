@@ -102,6 +102,33 @@ describe("normalizeOptions", () => {
 		expect(options.isUpload("pages")).toBe(false);
 	});
 
+	it("matches an upload on every filename Payload may store it under", () => {
+		const options = (fields: { name: string; type: string }[]) => {
+			const config: unknown = {
+				collections: [{ slug: "media", upload: true, fields }],
+			};
+
+			return normalizeOptions({
+				payload: stub(config as SanitizedConfig),
+				seeds: [],
+			});
+		};
+
+		expect(options([]).uploadFilenames("media", "hero.png")).toEqual([
+			"hero.png",
+		]);
+		expect(
+			options([{ name: "original", type: "group" }]).keyWhere(
+				"media",
+				"filename",
+				"hero.png",
+			),
+		).toEqual({ filename: { in: ["hero.png", "hero-original.png"] } });
+		expect(options([]).keyWhere("media", "alt", "Hero")).toEqual({
+			alt: { equals: "Hero" },
+		});
+	});
+
 	it("defaults fresh, the reset list and the reporter", async () => {
 		const options = await normalize();
 

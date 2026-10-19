@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createIndexStore, describeUnresolved } from "./index-store.js";
 import { dummyRef } from "./ref.js";
 
-import type { Payload } from "payload";
+import type { Payload, Where } from "payload";
 
 /*
  * Only `find` is reached, and only to answer "is this key in the database".
@@ -31,12 +31,14 @@ const stub = (
 	};
 };
 
-const keyFor = (): string => "slug";
+const keyWhere = (_collection: string, key: string): Where => ({
+	slug: { equals: key },
+});
 
 describe("createIndexStore", () => {
 	it("answers what this run wrote, without a query", async () => {
 		const { payload, calls } = stub();
-		const store = createIndexStore(payload, keyFor);
+		const store = createIndexStore(payload, keyWhere);
 
 		store.record("pages", "/", "p1");
 		await store.warm([dummyRef("pages", "/")]);
@@ -46,7 +48,7 @@ describe("createIndexStore", () => {
 	});
 
 	it("falls back to the database, so a skipped step still resolves", async () => {
-		const store = createIndexStore(stub({ "pages:/": "p9" }).payload, keyFor);
+		const store = createIndexStore(stub({ "pages:/": "p9" }).payload, keyWhere);
 
 		await store.warm([dummyRef("pages", "/")]);
 
@@ -54,7 +56,7 @@ describe("createIndexStore", () => {
 	});
 
 	it("answers undefined for a key nothing has written", async () => {
-		const store = createIndexStore(stub().payload, keyFor);
+		const store = createIndexStore(stub().payload, keyWhere);
 
 		await store.warm([dummyRef("pages", "/")]);
 
@@ -63,7 +65,7 @@ describe("createIndexStore", () => {
 
 	it("caches a hit but retries a miss, because a later seed may write it", async () => {
 		const { payload, calls } = stub({ "pages:/": "p1" });
-		const store = createIndexStore(payload, keyFor);
+		const store = createIndexStore(payload, keyWhere);
 
 		await store.warm([dummyRef("pages", "/"), dummyRef("pages", "/gone")]);
 		await store.warm([dummyRef("pages", "/"), dummyRef("pages", "/gone")]);
@@ -74,7 +76,7 @@ describe("createIndexStore", () => {
 
 	it("asks once for a key that appears twice in one walk", async () => {
 		const { payload, calls } = stub();
-		const store = createIndexStore(payload, keyFor);
+		const store = createIndexStore(payload, keyWhere);
 
 		await store.warm([dummyRef("pages", "/"), dummyRef("pages", "/")]);
 
@@ -82,7 +84,7 @@ describe("createIndexStore", () => {
 	});
 
 	it("knows which collections it wrote to", () => {
-		const store = createIndexStore(stub().payload, keyFor);
+		const store = createIndexStore(stub().payload, keyWhere);
 
 		store.record("pages", "/", "p1");
 
@@ -94,7 +96,7 @@ describe("createIndexStore", () => {
 
 describe("describeUnresolved", () => {
 	it("says no seed wrote to the collection when none did", () => {
-		const store = createIndexStore(stub().payload, keyFor);
+		const store = createIndexStore(stub().payload, keyWhere);
 
 		expect(
 			describeUnresolved(dummyRef("sections", "journal"), store),
@@ -102,7 +104,7 @@ describe("describeUnresolved", () => {
 	});
 
 	it("names the ref and the keys the collection does have", () => {
-		const store = createIndexStore(stub().payload, keyFor);
+		const store = createIndexStore(stub().payload, keyWhere);
 
 		store.record("authors", "aerin", "1");
 		store.record("authors", "alan", "2");
@@ -114,7 +116,7 @@ describe("describeUnresolved", () => {
 	});
 
 	it("names three keys and counts the rest, so a large collection stays readable", () => {
-		const store = createIndexStore(stub().payload, keyFor);
+		const store = createIndexStore(stub().payload, keyWhere);
 
 		for (const key of ["a", "b", "c", "d", "e"]) {
 			store.record("authors", key, key);

@@ -1,5 +1,5 @@
 import { rmSync } from "node:fs";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { defineDummySeed } from "../../src/define-seed.js";
 import { runDummySeeds } from "../../src/run.js";
@@ -35,18 +35,24 @@ const uploadSeed = (filePath: string, alt: string) =>
 describe("uploads", () => {
 	it("stores the file, with its real size and type", async () => {
 		const file = writePixelFile("hero.png");
+		const warned = vi.fn();
 
-		await runDummySeeds({ payload, seeds: [uploadSeed(file, "Hero")] });
+		await runDummySeeds({
+			payload,
+			seeds: [uploadSeed(file, "Hero")],
+			reporter: { warned },
+		});
 
 		const found = await payload.find({
 			collection: "media",
-			where: { filename: { equals: "hero.png" } },
+			where: { filename: { contains: "hero" } },
 			overrideAccess: true,
 		});
 
 		expect(found.docs[0]?.["mimeType"]).toBe("image/png");
 		expect(found.docs[0]?.["filesize"]).toBeGreaterThan(0);
 		expect(found.docs[0]?.["alt"]).toBe("Hero");
+		expect(warned).not.toHaveBeenCalled();
 	});
 
 	it("reuses the same document on a re-run, deduped on the basename", async () => {
@@ -61,7 +67,7 @@ describe("uploads", () => {
 		});
 		const found = await payload.find({
 			collection: "media",
-			where: { filename: { equals: "dedup.png" } },
+			where: { filename: { contains: "dedup" } },
 			overrideAccess: true,
 		});
 
@@ -80,7 +86,7 @@ describe("uploads", () => {
 
 		const before = await payload.find({
 			collection: "media",
-			where: { filename: { equals: "meta.png" } },
+			where: { filename: { contains: "meta" } },
 			overrideAccess: true,
 		});
 
@@ -91,7 +97,7 @@ describe("uploads", () => {
 
 		const after = await payload.find({
 			collection: "media",
-			where: { filename: { equals: "meta.png" } },
+			where: { filename: { contains: "meta" } },
 			overrideAccess: true,
 		});
 
@@ -120,7 +126,7 @@ describe("uploads", () => {
 
 		const cover = await payload.find({
 			collection: "media",
-			where: { filename: { equals: "cover.png" } },
+			where: { filename: { contains: "cover" } },
 			overrideAccess: true,
 		});
 		const post = await payload.find({
@@ -131,6 +137,41 @@ describe("uploads", () => {
 		});
 
 		expect(post.docs[0]?.["hero"]).toBe(cover.docs[0]?.id);
+	});
+
+	it("resolves a ref to an upload an earlier run wrote", async () => {
+		await runDummySeeds({
+			payload,
+			seeds: [uploadSeed(writePixelFile("banner.png"), "Banner")],
+		});
+		await runDummySeeds({
+			payload,
+			seeds: [
+				defineDummySeed({
+					id: "posts",
+					run: async (ctx) => {
+						await ctx.doc("posts", {
+							title: "Bannered",
+							hero: ctx.ref("media", "banner.png"),
+						});
+					},
+				}),
+			],
+		});
+
+		const banner = await payload.find({
+			collection: "media",
+			where: { filename: { contains: "banner" } },
+			overrideAccess: true,
+		});
+		const post = await payload.find({
+			collection: "posts",
+			where: { title: { equals: "Bannered" } },
+			depth: 0,
+			overrideAccess: true,
+		});
+
+		expect(post.docs[0]?.["hero"]).toBe(banner.docs[0]?.id);
 	});
 
 	it("refuses a collection that takes no file", async () => {

@@ -1,7 +1,7 @@
 import { describeRef } from "./ref.js";
 
 import type { DummyDocumentId, DummyRef } from "./types.js";
-import type { CollectionSlug, Payload } from "payload";
+import type { CollectionSlug, Payload, Where } from "payload";
 
 /** Resolves a natural key to a document id, from the run or the database. */
 export interface DummyIndexStore {
@@ -32,11 +32,11 @@ const cacheKey = (collection: string, key: string): string =>
  * are cached: a key missing now may be written by a later seed.
  *
  * @param payload The initialised Payload instance.
- * @param keyFor Answers a collection's natural key field.
+ * @param keyWhere Answers the query that finds a document by its natural key.
  */
 export const createIndexStore = (
 	payload: Payload,
-	keyFor: (collection: CollectionSlug) => string,
+	keyWhere: (collection: CollectionSlug, key: string) => Where,
 ): DummyIndexStore => {
 	const ids = new Map<string, DummyDocumentId>();
 	const written = new Map<string, Set<string>>();
@@ -68,7 +68,7 @@ export const createIndexStore = (
 			// eslint-disable-next-line no-await-in-loop -- one lookup per unknown key, and the set is small
 			const found = await payload.find({
 				collection: ref.collection,
-				where: { [keyFor(ref.collection)]: { equals: ref.key } },
+				where: keyWhere(ref.collection, ref.key),
 				limit: 1,
 				depth: 0,
 				pagination: false,
