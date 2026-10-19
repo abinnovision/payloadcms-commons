@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v2.1.0...payloadcms-mcpx-v2.2.0) (2026-10-19)
+
+
+### Features
+
+* **mcpx:** add an in-process MCP client under ./local ([#140](https://github.com/abinnovision/payloadcms-commons/issues/140)) ([95856c0](https://github.com/abinnovision/payloadcms-commons/commit/95856c0102c2bc383e3c15a04f563d9b0e12446a))
+
 ## [2.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v2.0.0...payloadcms-mcpx-v2.1.0) (2026-10-09)
 
 
