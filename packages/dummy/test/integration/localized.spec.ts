@@ -55,7 +55,7 @@ describe("localized writes", () => {
 	});
 
 	/*
-	 * The case apps/example works around by hand: without the grafted row ids
+	 * The case apps/example-v3 works around by hand: without the grafted row ids
 	 * Payload treats the German write as a new row set and drops the English
 	 * paths with it.
 	 */

@@ -1,6 +1,6 @@
 # Recipes
 
-Each of these is a real case from this package's test suite or from `apps/example`.
+Each of these is a real case from this package's test suite or from `apps/example-v3`.
 
 ## Two collections that reference each other
 
