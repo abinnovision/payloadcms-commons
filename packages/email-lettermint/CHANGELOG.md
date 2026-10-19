@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-email-lettermint-v1.0.4...payloadcms-email-lettermint-v1.1.0) (2026-10-19)
+
+
+### Features
+
+* **email-lettermint:** support Payload v4 ([#154](https://github.com/abinnovision/payloadcms-commons/issues/154)) ([69d5735](https://github.com/abinnovision/payloadcms-commons/commit/69d573572ed13808fce86480f5bb1ff4c8eb39a1))
+
 ## [1.0.4](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-email-lettermint-v1.0.3...payloadcms-email-lettermint-v1.0.4) (2026-10-09)
 
 
