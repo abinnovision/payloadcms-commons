@@ -89,13 +89,13 @@ describe("lexical builders", () => {
 
 		const [page, media, article] = await Promise.all(
 			[
-				{ collection: "pages", field: "slug", value: "/target" },
-				{ collection: "media", field: "filename", value: "lexical.png" },
-				{ collection: "articles", field: "slug", value: "intro" },
+				{ collection: "pages", where: { slug: { equals: "/target" } } },
+				{ collection: "media", where: { filename: { contains: "lexical" } } },
+				{ collection: "articles", where: { slug: { equals: "intro" } } },
 			].map(async (query) => {
 				const found = await payload.find({
 					collection: query.collection as never,
-					where: { [query.field]: { equals: query.value } },
+					where: query.where,
 					depth: 0,
 					overrideAccess: true,
 				});

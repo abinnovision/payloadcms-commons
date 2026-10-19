@@ -1,3 +1,4 @@
+import path from "node:path";
 import { hasDraftsEnabled } from "payload/shared";
 
 import { fail } from "./errors.js";
@@ -11,6 +12,7 @@ import type {
 	GlobalSlug,
 	Payload,
 	SanitizedCollectionConfig,
+	Where,
 } from "payload";
 
 export interface NormalizedOptions {
@@ -26,6 +28,10 @@ export interface NormalizedOptions {
 	globalHasDrafts: (slug: GlobalSlug) => boolean;
 	/** Whether a collection stores uploads, so `filePath` is accepted. */
 	isUpload: (collection: CollectionSlug) => boolean;
+	/** The `filename` values Payload may store an upload of this basename under. */
+	uploadFilenames: (collection: CollectionSlug, basename: string) => string[];
+	/** The query that finds a document by its natural key value. */
+	keyWhere: (collection: CollectionSlug, key: string, value: unknown) => Where;
 	/** The configured locales, undefined when localization is off. */
 	localization: DummyLocalization | undefined;
 	resetCollections: readonly CollectionSlug[];
@@ -79,6 +85,29 @@ const deriveKey = (
 					"cannot identify its documents across runs. Name one in " +
 					"naturalKeys, and index it so the lookup stays cheap.",
 			);
+};
+
+/*
+ * Payload 4 keeps the uploaded file in an `original` group and, unless a
+ * transform writes a separate main file, stores it as `<stem>-original<ext>`.
+ * Payload 3 stores the basename as is.
+ */
+const storedFilenames = (
+	collection: SanitizedCollectionConfig,
+	basename: string,
+): string[] => {
+	const keepsOriginal = collection.fields.some(
+		(field) => "name" in field && field.name === "original",
+	);
+
+	if (!keepsOriginal) {
+		return [basename];
+	}
+
+	const extension = path.extname(basename);
+	const stem = basename.slice(0, basename.length - extension.length);
+
+	return [basename, `${stem}-original${extension}`];
 };
 
 /**
@@ -152,6 +181,17 @@ export const normalizeOptions = (
 			return found ? hasDraftsEnabled(found) : false;
 		},
 		isUpload: (collection) => Boolean(collectionConfig(collection).upload),
+		uploadFilenames: (collection, basename) =>
+			storedFilenames(collectionConfig(collection), basename),
+		keyWhere: (collection, key, value) => {
+			const config = collectionConfig(collection);
+
+			return key === "filename" &&
+				Boolean(config.upload) &&
+				typeof value === "string"
+				? { filename: { in: storedFilenames(config, value) } }
+				: { [key]: { equals: value } };
+		},
 		localization: localization
 			? {
 					defaultLocale: localization.defaultLocale,

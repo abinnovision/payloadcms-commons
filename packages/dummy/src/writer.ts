@@ -117,7 +117,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 	): Promise<StoredDoc | undefined> => {
 		const found = await payload.find({
 			collection,
-			where: { [key]: { equals: value } },
+			where: options.keyWhere(collection, key, value),
 			limit: 1,
 			depth: 0,
 			pagination: false,
@@ -293,9 +293,10 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 		const filename = path.basename(filePath);
 		const subject = `${collection} "${filename}"`;
 		/*
-		 * Payload rewrites `filename` only on a collision, so matching it is
-		 * correct for a stock upload collection and needs no configuration. A
-		 * collection that rewrites filenames in a hook names its own field.
+		 * Payload derives `filename` from the basename and rewrites it only on a
+		 * collision, so matching it is correct for a stock upload collection and
+		 * needs no configuration. A collection that rewrites filenames in a hook
+		 * names its own field.
 		 */
 		const key = options.optionalKeyFor(collection) ?? "filename";
 
@@ -338,7 +339,9 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 
 			if (
 				key === "filename" &&
-				stored !== filename &&
+				!options
+					.uploadFilenames(collection, filename)
+					.includes(String(stored)) &&
 				!warnedUploads.has(collection)
 			) {
 				warnedUploads.add(collection);

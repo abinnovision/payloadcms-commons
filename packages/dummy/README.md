@@ -20,9 +20,9 @@ and never has to care which unit runs first.
 yarn add --dev @abinnovision/payloadcms-dummy
 ```
 
-| Peer      | Range         | Needed for |
-| --------- | ------------- | ---------- |
-| `payload` | `>=3.88.0 <4` | everything |
+| Peer      | Range                                | Needed for |
+| --------- | ------------------------------------ | ---------- |
+| `payload` | `>=3.88.0 <4 \|\| >=4.0.0-beta.2 <5` | everything |
 
 ESM only, like Payload itself. There is no plugin to add to `payload.config.ts`: seeding is a
 script, not configuration.

@@ -34,7 +34,9 @@ export const runDummySeeds = async (
 	const { payload, reporter, seeds } = normalized;
 	const tally = new Map<string, DummyWriteTally>();
 	const pending: PendingWrite[] = [];
-	const store = createIndexStore(payload, normalized.keyFor);
+	const store = createIndexStore(payload, (collection, key) =>
+		normalized.keyWhere(collection, normalized.keyFor(collection), key),
+	);
 	let seedId = "";
 	let replaying = false;
 
