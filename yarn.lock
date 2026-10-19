@@ -2052,9 +2052,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@internal/example@workspace:apps/example":
+"@internal/example-v3@workspace:apps/example-v3":
   version: 0.0.0-use.local
-  resolution: "@internal/example@workspace:apps/example"
+  resolution: "@internal/example-v3@workspace:apps/example-v3"
   dependencies:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/payloadcms-colophon": "workspace:*"
