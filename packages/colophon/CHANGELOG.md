@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-colophon-v1.0.2...payloadcms-colophon-v1.1.0) (2026-10-19)
+
+
+### Features
+
+* **colophon:** support Payload v4 ([#155](https://github.com/abinnovision/payloadcms-commons/issues/155)) ([eced866](https://github.com/abinnovision/payloadcms-commons/commit/eced866adb36a6deda08277add309ee13188984f))
+
 ## [1.0.2](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-colophon-v1.0.1...payloadcms-colophon-v1.0.2) (2026-10-04)
 
 
