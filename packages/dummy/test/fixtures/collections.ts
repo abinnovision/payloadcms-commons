@@ -57,7 +57,7 @@ export const posts: CollectionConfig = {
 	],
 };
 
-/** No slug field and no versions, the case apps/example actually has. */
+/** No slug field and no versions, the case apps/example-v3 actually has. */
 export const tags: CollectionConfig = {
 	slug: "tags",
 	fields: [

@@ -47,9 +47,11 @@ wayfinder's glue is a short adapter over whatever context the app already has
 ([both paths](./packages/wayfinder/docs/recipes.md)). colophon, mcpx and the
 Lettermint adapter touch nothing else at all.
 
-[`apps/example`](./apps/example) mounts every package but the Lettermint adapter,
+[`apps/example-v3`](./apps/example-v3) mounts every package but the Lettermint adapter,
 with the seams wired and a seed, written with dummy, that leaves a routed,
-localized site to click through.
+localized site to click through. It stays on Payload 3.
+[`apps/example-v4`](./apps/example-v4) runs Payload 4 and mounts the packages
+that support it so far: colophon, with a seed written with dummy.
 
 ## Compatibility
 
@@ -90,7 +92,7 @@ yarn dev              # Start the example apps in apps/
 A new package follows the layout of an existing one: source under `src/`, tsdown
 for the build, unit tests beside the source and integration tests under `test/`.
 [`packages/mcpx`](./packages/mcpx) is the fullest reference to copy from. The
-private example app in [`apps/example`](./apps/example) is where a new package
+private example app in [`apps/example-v3`](./apps/example-v3) is where a new package
 gets exercised against the others.
 
 Each package is versioned and released independently through
