@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-dummy-v1.0.0...payloadcms-dummy-v1.1.0) (2026-10-19)
+
+
+### Features
+
+* **dummy:** support Payload v4 ([#156](https://github.com/abinnovision/payloadcms-commons/issues/156)) ([fed42db](https://github.com/abinnovision/payloadcms-commons/commit/fed42db91c91e9a66dd5daeb83a87c8922a62cfd))
+
 ## 1.0.0 (2026-10-13)
 
 
