@@ -17,7 +17,7 @@ Sending goes through Lettermint's official `lettermint` SDK (`>=2.4.1`).
 yarn add @abinnovision/payloadcms-email-lettermint
 ```
 
-- Peer dependency: `payload >=3.88.0 <4`.
+- Peer dependency: `payload >=3.88.0 <4 || >=4.0.0-beta.2 <5`.
 - The package is published as ESM only, matching Payload itself.
 
 ## Usage

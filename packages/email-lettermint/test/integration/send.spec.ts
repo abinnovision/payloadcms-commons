@@ -83,6 +83,7 @@ describe("lettermint adapter inside Payload", () => {
 		await payload.create({
 			collection: "users",
 			data: { email: "reset@example.com", password: "test-password-1" },
+			overrideAccess: true,
 		});
 
 		stubLettermint(202, accepted);
