@@ -44,7 +44,7 @@ __metadata:
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.10"
     publint: "npm:^0.3.25"
@@ -77,7 +77,7 @@ __metadata:
     "@swc/core": "npm:^1.16.18"
     "@types/node": "npm:^26.6.3"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.10"
     publint: "npm:^0.3.25"
@@ -102,7 +102,7 @@ __metadata:
     "@types/node": "npm:^26.6.3"
     "@types/nodemailer": "npm:^8.0.2"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     lettermint: "npm:^2.8.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.10"
@@ -128,7 +128,7 @@ __metadata:
     "@swc/core": "npm:^1.16.18"
     "@types/node": "npm:^26.6.3"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.11.0"
+    eslint: "npm:^10.13.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.10"
     publint: "npm:^0.3.25"
@@ -157,7 +157,7 @@ __metadata:
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.10"
     publint: "npm:^0.3.25"
@@ -195,7 +195,7 @@ __metadata:
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.10"
     publint: "npm:^0.3.25"
@@ -228,7 +228,7 @@ __metadata:
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.10"
     publint: "npm:^0.3.25"
@@ -266,7 +266,7 @@ __metadata:
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     lexical: "npm:0.50.0"
     path-to-regexp: "npm:^8.4.2"
     payload: "npm:3.90.2"
@@ -2096,7 +2096,7 @@ __metadata:
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
     "@types/react-dom": "npm:^19.3.0"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     graphql: "npm:^17.0.2"
     next: "npm:^16.3.8"
     payload: "npm:3.90.2"
@@ -2123,7 +2123,7 @@ __metadata:
     "@types/node": "npm:^26.6.3"
     "@types/react": "npm:^19.3.0"
     "@types/react-dom": "npm:^19.3.0"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     graphql: "npm:^16.8.1"
     next: "npm:^16.4.2"
     payload: "npm:4.0.0-beta.2"
@@ -2143,13 +2143,13 @@ __metadata:
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@commitlint/cli": "npm:^21.2.3"
     "@vitest/coverage-v8": "npm:^5.0.5"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     husky: "npm:^9.1.7"
     lint-staged: "npm:^17.6.0"
     prettier: "npm:^3.9.10"
     rimraf: "npm:^6.1.3"
     sort-package-json: "npm:^4.1.0"
-    turbo: "npm:^2.11.8"
+    turbo: "npm:^2.11.9"
     typescript: "npm:^6.0.3"
     vite: "npm:^8.3.4"
     vitest: "npm:^5.0.5"
@@ -2163,7 +2163,7 @@ __metadata:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@types/node": "npm:^26.6.3"
-    eslint: "npm:^10.12.0"
+    eslint: "npm:^10.13.0"
     prettier: "npm:^3.9.10"
     typescript: "npm:^6.0.3"
     vitest: "npm:^5.0.5"
@@ -4180,44 +4180,44 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@turbo/darwin-64@npm:2.11.8":
-  version: 2.11.8
-  resolution: "@turbo/darwin-64@npm:2.11.8"
+"@turbo/darwin-64@npm:2.11.9":
+  version: 2.11.9
+  resolution: "@turbo/darwin-64@npm:2.11.9"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/darwin-arm64@npm:2.11.8":
-  version: 2.11.8
-  resolution: "@turbo/darwin-arm64@npm:2.11.8"
+"@turbo/darwin-arm64@npm:2.11.9":
+  version: 2.11.9
+  resolution: "@turbo/darwin-arm64@npm:2.11.9"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/linux-64@npm:2.11.8":
-  version: 2.11.8
-  resolution: "@turbo/linux-64@npm:2.11.8"
+"@turbo/linux-64@npm:2.11.9":
+  version: 2.11.9
+  resolution: "@turbo/linux-64@npm:2.11.9"
   conditions: (os=android | os=linux) & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/linux-arm64@npm:2.11.8":
-  version: 2.11.8
-  resolution: "@turbo/linux-arm64@npm:2.11.8"
+"@turbo/linux-arm64@npm:2.11.9":
+  version: 2.11.9
+  resolution: "@turbo/linux-arm64@npm:2.11.9"
   conditions: (os=android | os=linux) & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/windows-64@npm:2.11.8":
-  version: 2.11.8
-  resolution: "@turbo/windows-64@npm:2.11.8"
+"@turbo/windows-64@npm:2.11.9":
+  version: 2.11.9
+  resolution: "@turbo/windows-64@npm:2.11.9"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/windows-arm64@npm:2.11.8":
-  version: 2.11.8
-  resolution: "@turbo/windows-arm64@npm:2.11.8"
+"@turbo/windows-arm64@npm:2.11.9":
+  version: 2.11.9
+  resolution: "@turbo/windows-arm64@npm:2.11.9"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
@@ -6466,9 +6466,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint@npm:^10.11.0, eslint@npm:^10.12.0":
-  version: 10.12.0
-  resolution: "eslint@npm:10.12.0"
+"eslint@npm:^10.13.0":
+  version: 10.13.0
+  resolution: "eslint@npm:10.13.0"
   dependencies:
     "@eslint-community/eslint-utils": "npm:^4.8.0"
     "@eslint-community/regexpp": "npm:^4.12.2"
@@ -6507,7 +6507,7 @@ __metadata:
       optional: true
   bin:
     eslint: bin/eslint.js
-  checksum: 10/1cff87e4db79d4c9b6bd0af4c2aa483d88936a16f70e73af192a2aeee5ec597ad1de5d42ba1242336c27b25be6f0e503e4ea41ca036ab134eb5f4b4c24af15b9
+  checksum: 10/04b7140a6fb4614d3cd5feb35041cd3b2b92f80d7fd015d8d320c76e015577863dc530c1bcf228eb3b58b06151e45b6452dd349a6863d21eeefa02ceaee1377f
   languageName: node
   linkType: hard
 
@@ -10432,16 +10432,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"turbo@npm:^2.11.8":
-  version: 2.11.8
-  resolution: "turbo@npm:2.11.8"
+"turbo@npm:^2.11.9":
+  version: 2.11.9
+  resolution: "turbo@npm:2.11.9"
   dependencies:
-    "@turbo/darwin-64": "npm:2.11.8"
-    "@turbo/darwin-arm64": "npm:2.11.8"
-    "@turbo/linux-64": "npm:2.11.8"
-    "@turbo/linux-arm64": "npm:2.11.8"
-    "@turbo/windows-64": "npm:2.11.8"
-    "@turbo/windows-arm64": "npm:2.11.8"
+    "@turbo/darwin-64": "npm:2.11.9"
+    "@turbo/darwin-arm64": "npm:2.11.9"
+    "@turbo/linux-64": "npm:2.11.9"
+    "@turbo/linux-arm64": "npm:2.11.9"
+    "@turbo/windows-64": "npm:2.11.9"
+    "@turbo/windows-arm64": "npm:2.11.9"
   dependenciesMeta:
     "@turbo/darwin-64":
       optional: true
@@ -10457,7 +10457,7 @@ __metadata:
       optional: true
   bin:
     turbo: bin/turbo
-  checksum: 10/672cdd97227b82dcb269accce58cdc01da7c8172c54c49375e5d01fb48d2f460ce66a12650cc198ea0df96ca69d4c02503ace005ae8eb0a7fc219b2eeb6be45f
+  checksum: 10/ea8c4916d9f240dadf67cae8a0eecc332839e2cfc53a06d7d1d2af2ee00c1ad17a0eaab2aa14810c16b2b11933b95a11a3ad8721d8738c76a594d74291f3122a
   languageName: node
   linkType: hard
 
