@@ -61,7 +61,7 @@
 	},
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
-		"@hatchet-dev/typescript-sdk": "^1.34.0"
+		"@hatchet-dev/typescript-sdk": "^1.38.0"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
