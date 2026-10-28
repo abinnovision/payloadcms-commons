@@ -33,11 +33,11 @@
 		"@payloadcms/next": "4.0.0-beta.2",
 		"@payloadcms/richtext-lexical": "4.0.0-beta.2",
 		"@payloadcms/ui": "4.0.0-beta.2",
-		"graphql": "^16.8.1",
+		"graphql": "^17.0.2",
 		"next": "^16.4.2",
 		"payload": "4.0.0-beta.2",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0"
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
