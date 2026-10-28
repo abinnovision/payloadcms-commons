@@ -65,7 +65,7 @@
 		"@arethetypeswrong/core": "^0.18.5",
 		"@internal/test-utils": "workspace:*",
 		"@payloadcms/ui": "3.90.2",
-		"@swc/core": "^1.16.18",
+		"@swc/core": "^1.16.20",
 		"@types/node": "^26.6.3",
 		"@types/react": "^19.3.0",
 		"@vitest/coverage-v8": "^5.0.5",

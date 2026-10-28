@@ -67,7 +67,7 @@
 		"@internal/test-utils": "workspace:*",
 		"@payloadcms/db-sqlite": "3.90.2",
 		"@payloadcms/richtext-lexical": "3.90.2",
-		"@swc/core": "^1.16.18",
+		"@swc/core": "^1.16.20",
 		"@types/node": "^26.6.3",
 		"@vitest/coverage-v8": "^5.0.5",
 		"eslint": "^10.13.0",
