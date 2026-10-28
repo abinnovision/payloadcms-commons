@@ -60,7 +60,7 @@
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@arethetypeswrong/core": "^0.18.5",
 		"@payloadcms/db-sqlite": "3.90.2",
-		"@swc/core": "^1.16.18",
+		"@swc/core": "^1.16.20",
 		"@types/node": "^26.6.3",
 		"@types/nodemailer": "^8.0.2",
 		"@vitest/coverage-v8": "^5.0.5",
