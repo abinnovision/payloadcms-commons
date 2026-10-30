@@ -74,7 +74,7 @@
 	},
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
-		"path-to-regexp": "^8.4.2"
+		"path-to-regexp": "^9.0.0"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
@@ -95,7 +95,7 @@
 		"payload": "3.90.2",
 		"prettier": "^3.9.10",
 		"publint": "^0.3.25",
-		"react": "^19.3.0",
+		"react": "^19.3.1",
 		"tsdown": "^0.23.2",
 		"typescript": "^6.0.3",
 		"unplugin-swc": "^2.0.0",
