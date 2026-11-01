@@ -1,7 +1,8 @@
+import { articlesSeed } from "./articles";
 import { pagesSeed } from "./pages";
 import { postsSeed } from "./posts";
-import { siteSettingsSeed } from "./settings";
-import { tagsSeed, usersSeed } from "./taxonomy";
+import { mappingSeed, siteSettingsSeed } from "./settings";
+import { sectionsSeed, tagsSeed, usersSeed } from "./taxonomy";
 
 import type { DummySeed } from "@abinnovision/payloadcms-dummy";
 
@@ -9,7 +10,10 @@ import type { DummySeed } from "@abinnovision/payloadcms-dummy";
 export const seeds: readonly DummySeed[] = [
 	usersSeed,
 	tagsSeed,
+	sectionsSeed,
 	postsSeed,
+	articlesSeed,
 	pagesSeed,
 	siteSettingsSeed,
+	mappingSeed,
 ];

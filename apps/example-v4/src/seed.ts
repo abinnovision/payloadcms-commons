@@ -18,5 +18,5 @@ await runDummyCli({
 	 * one still points at. `users` is absent: a re-run has no business locking
 	 * anyone out of /admin.
 	 */
-	resetCollections: ["pages", "posts", "tags"],
+	resetCollections: ["pages", "articles", "posts", "sections", "tags"],
 });

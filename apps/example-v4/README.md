@@ -3,13 +3,17 @@
 The Payload CMS v4 counterpart of [`example-v3`](../example-v3). It mounts only
 the packages that already support Payload v4, and grows as more of them migrate.
 
-| Package                               | Where it shows up                                                                         |
-| ------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [`colophon`](../../packages/colophon) | `colophonPlugin()` in `src/payload.config.ts`, the build group under the admin navigation |
-| [`dummy`](../../packages/dummy)       | `src/seed.ts` and `src/seeds/*`, run through `yarn seed`                                  |
+| Package                                 | Where it shows up                                                                         |
+| --------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [`montage`](../../packages/montage)     | `src/blocks/*`, the block tree rendered by the one route                                  |
+| [`wayfinder`](../../packages/wayfinder) | every URL on the site, plus the links inside blocks and rich text                         |
+| [`colophon`](../../packages/colophon)   | `colophonPlugin()` in `src/payload.config.ts`, the build group under the admin navigation |
+| [`dummy`](../../packages/dummy)         | `src/seed.ts` and `src/seeds/*`, run through `yarn seed`                                  |
 
-There is no frontend: montage, viewfinder and wayfinder are what the v3 site is
-built from, and none of them supports v4 yet.
+The frontend is the montage and wayfinder half of the v3 site: one catch-all
+route serves `pages`, `sections` and `articles` from the URL patterns authored
+in the admin, in English and under a `/de` prefix. Viewfinder is left out until
+it supports v4, and with it the live preview addressing and refresh-on-save.
 
 ## Setup
 
@@ -20,9 +24,19 @@ yarn workspace @internal/example-v4 seed
 yarn workspace @internal/example-v4 dev
 ```
 
-The admin panel is on http://localhost:3001/admin, so it runs next to
-`example-v3` on port 3000. `seed` fills a fresh database and creates the sign-in
-`editor@example.com` / `password`.
+The site is on http://localhost:3001 and the admin panel on
+http://localhost:3001/admin, so it runs next to `example-v3` on port 3000.
+`seed` fills a fresh database and creates the sign-in `editor@example.com` /
+`password`.
+
+| URL                        | Serves                                                |
+| -------------------------- | ----------------------------------------------------- |
+| `/`                        | the `pages` document whose slug is `/`                |
+| `/about/team`              | a page two levels deep, via the wildcard pattern      |
+| `/topic/journal`           | a `sections` document                                 |
+| `/journal/hello-world`     | an `articles` document, addressed through its section |
+| `/de`, `/de/thema/journal` | the same documents in German                          |
+| `/sitemap.xml`             | every published URL in both locales                   |
 
 Changing the content model means
 `yarn workspace @internal/example-v4 generate:types` too, and then `yarn fix`:
@@ -46,12 +60,18 @@ Payload instances, or check this app against the wrong types.
 
 Each tool that resolves modules is pointed back at this app instead:
 
-- **Next.js**: `turbopack.resolveAlias` in `next.config.mjs` resolves `payload`
-  and `@payloadcms/ui`, subpaths included, from this app.
+- **Next.js**: `turbopack.resolveAlias` in `next.config.mjs` resolves
+  `payload`, `@payloadcms/ui` and `@payloadcms/richtext-lexical`, subpaths
+  included, from this app.
 - **The `payload` CLI**: the `seed` and `generate:*` scripts run Node with
   `--preserve-symlinks`, so a package resolves its imports from
   `node_modules/@abinnovision/<name>` here rather than from its real path.
 - **TypeScript**: `preserveSymlinks` in `tsconfig.json` does the same for types.
 
-A package that moves to v4 and imports another Payload package, such as
-`@payloadcms/richtext-lexical`, needs that name added to the aliases.
+A package that moves to v4 and imports another Payload package needs that name
+added to the aliases.
+
+`--preserve-symlinks` also changes which copy of any other dependency a package
+gets. Payload 4 installs `path-to-regexp` 6 into this app's `node_modules`,
+which would shadow the version 8 wayfinder needs, so this app depends on
+`path-to-regexp` 8 itself and Payload's copy moves into its own folder.

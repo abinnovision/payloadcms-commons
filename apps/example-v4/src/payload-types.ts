@@ -62,19 +62,24 @@ export type SupportedTimezones =
 	| "Pacific/Fiji";
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_16263856".
+ * via the `definition` "LexicalNodes_49AED1F1".
  */
-export type LexicalNodes_16263856 =
+export type LexicalNodes_49AED1F1 =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_16263856>
+	| SerializedParagraphNode<LexicalNodes_49AED1F1>
+	| SerializedAutoLinkNode<LexicalNodes_49AED1F1, LexicalLinkFields_E469DC16>
+	| SerializedLinkNode<LexicalNodes_49AED1F1, LexicalLinkFields_E469DC16>
+	| SerializedBlockNode<CalloutBlock>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
-	| SerializedQuoteNode<LexicalNodes_16263856>
+	| SerializedQuoteNode<LexicalNodes_49AED1F1>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
+			| "articles"
+			| "sections"
 			| "posts"
 			| "tags"
 			| "payload-kv"
@@ -82,11 +87,38 @@ export type LexicalNodes_16263856 =
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedAutoLinkNode<LexicalNodes_16263856, LexicalLinkFields>
-	| SerializedLinkNode<LexicalNodes_16263856, LexicalLinkFields>
-	| SerializedListNode<LexicalNodes_16263856>
-	| SerializedListItemNode<LexicalNodes_16263856>
-	| SerializedHeadingNode<LexicalNodes_16263856>;
+	| SerializedListNode<LexicalNodes_49AED1F1>
+	| SerializedListItemNode<LexicalNodes_49AED1F1>
+	| SerializedHeadingNode<LexicalNodes_49AED1F1>;
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "LexicalNodes_699D0EB9".
+ */
+export type LexicalNodes_699D0EB9 =
+	| SerializedTextNode
+	| SerializedTabNode
+	| SerializedLineBreakNode
+	| SerializedParagraphNode<LexicalNodes_699D0EB9>
+	| SerializedHorizontalRuleNode
+	| SerializedUploadNode<"media">
+	| SerializedQuoteNode<LexicalNodes_699D0EB9>
+	| SerializedRelationshipNode<
+			| "users"
+			| "pages"
+			| "articles"
+			| "sections"
+			| "posts"
+			| "tags"
+			| "payload-kv"
+			| "payload-locked-documents"
+			| "payload-preferences"
+			| "payload-migrations"
+	  >
+	| SerializedAutoLinkNode<LexicalNodes_699D0EB9, LexicalLinkFields>
+	| SerializedLinkNode<LexicalNodes_699D0EB9, LexicalLinkFields>
+	| SerializedListNode<LexicalNodes_699D0EB9>
+	| SerializedListItemNode<LexicalNodes_699D0EB9>
+	| SerializedHeadingNode<LexicalNodes_699D0EB9>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
@@ -104,10 +136,18 @@ export interface Config {
 	auth: {
 		users: UserAuthOperations;
 	};
-	blocks: {};
+	blocks: {
+		"hero-module": HeroModuleBlock;
+		"rich-text-module": RichTextModuleBlock;
+		"recent-posts-module": RecentPostsModuleBlock;
+		"call-to-action-module": CallToActionModuleBlock;
+		callout: CalloutBlock_96303CC0;
+	};
 	collections: {
 		users: User;
 		pages: Page;
+		articles: Article;
+		sections: Section;
 		posts: Post;
 		tags: Tag;
 		media: Media;
@@ -121,6 +161,8 @@ export interface Config {
 	collectionsSelect: {
 		users: UsersSelect<false> | UsersSelect<true>;
 		pages: PagesSelect<false> | PagesSelect<true>;
+		articles: ArticlesSelect<false> | ArticlesSelect<true>;
+		sections: SectionsSelect<false> | SectionsSelect<true>;
 		posts: PostsSelect<false> | PostsSelect<true>;
 		tags: TagsSelect<false> | TagsSelect<true>;
 		media: MediaSelect<false> | MediaSelect<true>;
@@ -145,9 +187,12 @@ export interface Config {
 		| ("en" | "de")[];
 	globals: {
 		"site-settings": SiteSetting;
+		"collections-mapping": CollectionsMapping;
 	};
 	globalsSelect: {
 		"site-settings": SiteSettingsSelect<false> | SiteSettingsSelect<true>;
+		"collections-mapping":
+			CollectionsMappingSelect<false> | CollectionsMappingSelect<true>;
 	};
 	locale: "en" | "de";
 	widgets: {
@@ -180,6 +225,116 @@ export interface UserAuthOperations {
 		email: string;
 		password: string;
 	};
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "HeroModuleBlock".
+ */
+export interface HeroModuleBlock {
+	title: string;
+	subtitle?: string | null;
+	imageSize?: ("small" | "large") | null;
+	id?: string | null;
+	blockName?: string | null;
+	blockType: "hero-module";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "RichTextModuleBlock".
+ */
+export interface RichTextModuleBlock {
+	content?: LexicalRichText<LexicalNodes_49AED1F1> | null;
+	id?: string | null;
+	blockName?: string | null;
+	blockType: "rich-text-module";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "RecentPostsModuleBlock".
+ */
+export interface RecentPostsModuleBlock {
+	limit: number;
+	id?: string | null;
+	blockName?: string | null;
+	blockType: "recent-posts-module";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "CallToActionModuleBlock".
+ */
+export interface CallToActionModuleBlock {
+	heading: string;
+	link?: {
+		label?: string | null;
+		type?: ("none" | "reference" | "custom" | "same-page" | "download") | null;
+		newTab?: boolean | null;
+		reference?:
+			| ({
+					relationTo: "pages";
+					value: number | Page;
+			  } | null)
+			| ({
+					relationTo: "articles";
+					value: number | Article;
+			  } | null)
+			| ({
+					relationTo: "sections";
+					value: number | Section;
+			  } | null);
+		url?: string | null;
+		samePageIdentifier?: string | null;
+		fileName?: string | null;
+		inline?: boolean | null;
+	};
+	id?: string | null;
+	blockName?: string | null;
+	blockType: "call-to-action-module";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages".
+ */
+export interface Page {
+	id: number;
+	title: string;
+	/**
+	 * Full path with a leading slash, e.g. "/about/team". Use "/" for the home page.
+	 */
+	slug: string;
+	layout: (SectionWrapper | RichTextModuleBlock)[];
+	meta?: {
+		title?: string | null;
+	};
+	createdBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedAt: string;
+	createdAt: string;
+	deletedAt?: string | null;
+	_status?: ("draft" | "published") | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SectionWrapper".
+ */
+export interface SectionWrapper {
+	identifier?: string | null;
+	modules?:
+		| (
+				| HeroModuleBlock
+				| RichTextModuleBlock
+				| RecentPostsModuleBlock
+				| CallToActionModuleBlock
+		  )[]
+		| null;
+	id?: string | null;
+	blockName?: string | null;
+	blockType: "section-wrapper";
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -217,13 +372,14 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "pages".
+ * via the `definition` "articles".
  */
-export interface Page {
+export interface Article {
 	id: number;
 	title: string;
 	slug: string;
-	content?: LexicalRichText<LexicalNodes_16263856> | null;
+	section: number | Section;
+	layout: (SectionWrapper | RichTextModuleBlock)[];
 	createdBy?: {
 		relationTo: "users";
 		value: number | User;
@@ -239,13 +395,46 @@ export interface Page {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sections".
+ */
+export interface Section {
+	id: number;
+	title: string;
+	slug: string;
+	createdBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedAt: string;
+	createdAt: string;
+	deletedAt?: string | null;
+}
+/**
+ * Multiple blocks resolve to the `CalloutBlock` interface with different fields, so a content hash is appended to keep the generated types stable and unambiguous. Set a unique `interfaceName` on the block to choose the name yourself. See https://payloadcms.com/docs/typescript/generating-types#block-interface-name-collisions
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "CalloutBlock_96303CC0".
+ */
+export interface CalloutBlock_96303CC0 {
+	tone?: ("info" | "warning") | null;
+	body: string;
+	id?: string | null;
+	blockName?: string | null;
+	blockType: "callout";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "posts".
  */
 export interface Post {
 	id: number;
 	title: string;
 	excerpt?: string | null;
-	content?: LexicalRichText<LexicalNodes_16263856> | null;
+	content?: LexicalRichText<LexicalNodes_699D0EB9> | null;
 	image?: (number | null) | Media;
 	tags?: (number | Tag)[] | null;
 	createdBy?: {
@@ -349,6 +538,14 @@ export interface PayloadLockedDocument {
 		| ({
 				relationTo: "pages";
 				value: number | Page;
+		  } | null)
+		| ({
+				relationTo: "articles";
+				value: number | Article;
+		  } | null)
+		| ({
+				relationTo: "sections";
+				value: number | Section;
 		  } | null)
 		| ({
 				relationTo: "posts";
@@ -458,13 +655,69 @@ export interface UsersSelect<T extends boolean = true> {
 export interface PagesSelect<T extends boolean = true> {
 	title?: T;
 	slug?: T;
-	content?: T;
+	layout?:
+		| T
+		| {
+				"section-wrapper"?:
+					| T
+					| {
+							identifier?: T;
+							modules?: T | {};
+							id?: T;
+							blockName?: T;
+					  };
+		  };
+	meta?:
+		| T
+		| {
+				title?: T;
+		  };
 	createdBy?: T;
 	updatedBy?: T;
 	updatedAt?: T;
 	createdAt?: T;
 	deletedAt?: T;
 	_status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "articles_select".
+ */
+export interface ArticlesSelect<T extends boolean = true> {
+	title?: T;
+	slug?: T;
+	section?: T;
+	layout?:
+		| T
+		| {
+				"section-wrapper"?:
+					| T
+					| {
+							identifier?: T;
+							modules?: T | {};
+							id?: T;
+							blockName?: T;
+					  };
+		  };
+	createdBy?: T;
+	updatedBy?: T;
+	updatedAt?: T;
+	createdAt?: T;
+	deletedAt?: T;
+	_status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sections_select".
+ */
+export interface SectionsSelect<T extends boolean = true> {
+	title?: T;
+	slug?: T;
+	createdBy?: T;
+	updatedBy?: T;
+	updatedAt?: T;
+	createdAt?: T;
+	deletedAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -609,6 +862,33 @@ export interface SiteSetting {
 	createdAt?: string | null;
 }
 /**
+ * Maps each collection onto the URL pattern its documents are served at. The last parameter identifies the document; earlier parameters narrow the lookup.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "collections-mapping".
+ */
+export interface CollectionsMapping {
+	id: number;
+	collections: {
+		collectionName: string;
+		/**
+		 * Path pattern, e.g. "/:section/:slug". Use "/*slug" for a collection whose identifier is a full path.
+		 */
+		path: string;
+		id?: string | null;
+	}[];
+	createdBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedAt?: string | null;
+	createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "site-settings_select".
  */
@@ -617,6 +897,24 @@ export interface SiteSettingsSelect<T extends boolean = true> {
 	createdBy?: T;
 	updatedBy?: T;
 	_status?: T;
+	updatedAt?: T;
+	createdAt?: T;
+	globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "collections-mapping_select".
+ */
+export interface CollectionsMappingSelect<T extends boolean = true> {
+	collections?:
+		| T
+		| {
+				collectionName?: T;
+				path?: T;
+				id?: T;
+		  };
+	createdBy?: T;
+	updatedBy?: T;
 	updatedAt?: T;
 	createdAt?: T;
 	globalType?: T;
@@ -648,7 +946,8 @@ export interface CollectionsWidget {
 export interface CollectionQueryWidget {
 	data?: {
 		title?: string | null;
-		relatedCollection: "users" | "pages" | "posts" | "tags" | "media";
+		relatedCollection:
+			"users" | "pages" | "articles" | "sections" | "posts" | "tags" | "media";
 		where?:
 			| {
 					[k: string]: unknown;
@@ -671,7 +970,16 @@ export interface CollectionQueryWidget {
 export interface ActivityWidget {
 	data?: {
 		excludedCollections?:
-			("users" | "pages" | "posts" | "tags" | "media")[] | null;
+			| (
+					| "users"
+					| "pages"
+					| "articles"
+					| "sections"
+					| "posts"
+					| "tags"
+					| "media"
+			  )[]
+			| null;
 	};
 	width: "small" | "medium" | "large" | "x-large" | "full";
 }
@@ -684,6 +992,58 @@ export interface UploadDropzoneWidget {
 		excludedCollections?: "media"[] | null;
 	};
 	width: "x-small" | "small" | "medium" | "large" | "x-large" | "full";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "LexicalLinkFields_E469DC16".
+ */
+export interface LexicalLinkFields_E469DC16 {
+	link: {
+		label: string;
+		type?: ("reference" | "custom" | "same-page" | "download") | null;
+		newTab?: boolean | null;
+		reference?:
+			| ({
+					relationTo: "pages";
+					value: number | Page;
+			  } | null)
+			| ({
+					relationTo: "articles";
+					value: number | Article;
+			  } | null)
+			| ({
+					relationTo: "sections";
+					value: number | Section;
+			  } | null);
+		url?: string | null;
+		samePageIdentifier?: string | null;
+		fileName?: string | null;
+		inline?: boolean | null;
+	};
+	doc?: {
+		relationTo: string;
+		value:
+			| string
+			| number
+			| {
+					id: string | number;
+					[k: string]: unknown;
+			  };
+	} | null;
+	linkType: "custom" | "internal";
+	newTab: boolean;
+	url?: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "CalloutBlock".
+ */
+export interface CalloutBlock {
+	id: string;
+	blockType: "callout";
+	tone?: ("info" | "warning") | null;
+	body: string;
+	blockName?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -747,6 +1107,57 @@ export interface SerializedParagraphNode<
 	textStyle: string;
 }
 
+export interface LexicalLinkFields {
+	[k: string]: unknown;
+	doc?: {
+		relationTo: string;
+		value:
+			| Config["db"]["defaultIDType"]
+			| { [k: string]: unknown; id: Config["db"]["defaultIDType"] };
+	} | null;
+	linkType: "custom" | "internal";
+	newTab: boolean;
+	url?: string;
+}
+export interface SerializedLinkNode<
+	TChildren,
+	TFields = LexicalLinkFields,
+> extends SerializedLexicalElementBase<TChildren> {
+	type: "link";
+	fields: TFields;
+	id?: string;
+}
+export interface SerializedAutoLinkNode<
+	TChildren,
+	TFields = LexicalLinkFields,
+> extends SerializedLexicalElementBase<TChildren> {
+	type: "autolink";
+	fields: TFields;
+}
+
+export type SerializedBlockNode<TFields extends { blockType: string }> =
+	TFields extends unknown
+		? {
+				type: "block";
+				format: LexicalElementFormat;
+				/** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
+				version: number;
+				fields: { id: string; blockName?: string | null } & Omit<
+					TFields,
+					"id" | "blockName"
+				>;
+			}
+		: never;
+export type SerializedInlineBlockNode<TFields extends { blockType: string }> =
+	TFields extends unknown
+		? {
+				type: "inlineBlock";
+				/** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
+				version: number;
+				fields: { id: string } & Omit<TFields, "id">;
+			}
+		: never;
+
 export interface SerializedHorizontalRuleNode {
 	type: "horizontalrule";
 	/** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
@@ -789,34 +1200,6 @@ export type SerializedRelationshipNode<
 		value: Config["collections"][TSlug]["id"] | Config["collections"][TSlug];
 	};
 }[TSlugs];
-
-export interface LexicalLinkFields {
-	[k: string]: unknown;
-	doc?: {
-		relationTo: string;
-		value:
-			| Config["db"]["defaultIDType"]
-			| { [k: string]: unknown; id: Config["db"]["defaultIDType"] };
-	} | null;
-	linkType: "custom" | "internal";
-	newTab: boolean;
-	url?: string;
-}
-export interface SerializedLinkNode<
-	TChildren,
-	TFields = LexicalLinkFields,
-> extends SerializedLexicalElementBase<TChildren> {
-	type: "link";
-	fields: TFields;
-	id?: string;
-}
-export interface SerializedAutoLinkNode<
-	TChildren,
-	TFields = LexicalLinkFields,
-> extends SerializedLexicalElementBase<TChildren> {
-	type: "autolink";
-	fields: TFields;
-}
 
 export interface SerializedListNode<
 	TChildren,
