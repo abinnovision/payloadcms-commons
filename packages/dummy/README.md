@@ -98,7 +98,9 @@ The context writes four ways:
 | `ctx.global(slug, data, options?)`    | Overwrites a global, unless `keepIfSet` says an editor owns it. |
 | `ctx.lookup(collection, key)`         | The id of a document already written, or `undefined`.           |
 
-`ctx.payload` is there for anything these do not cover. `ctx.doc` and `ctx.global` take
+`ctx.payload` is there for anything these do not cover. It is the raw instance with Payload's own
+defaults, and Payload 4's Local API enforces access unless told otherwise, so pass
+`overrideAccess: true` where a call should run as the system. `ctx.doc` and `ctx.global` take
 `keepIfSet: "field"` to leave a record alone once an editor has filled that field in, and `ctx.doc`
 takes `keepIfExists: true` to create a document once and leave it alone on later runs.
 
@@ -180,10 +182,13 @@ await ctx.doc(
 );
 ```
 
-The default locale is written first, then one update per extra locale. Where an array's rows
-carry a localized field, the rows are shared across locales, and a write without the stored row
-ids would drop the other locales' values. The writer reads the ids back and grafts them on, so
-the override is just data.
+The default locale is written first, then one update per extra locale, and each write publishes
+its own locale where the target has drafts. On Payload 4 a locale the seed never writes stays
+unpublished (see [`docs/limitations.md`](./docs/limitations.md)).
+
+Where an array's rows carry a localized field, the rows are shared across locales, and a write
+without the stored row ids would drop the other locales' values. The writer reads the ids back and
+grafts them on, so the override is just data.
 
 That makes one rule a requirement: an array in an override must have the same length and order
 as the default locale's. A mismatch is refused with the path rather than silently losing a locale.

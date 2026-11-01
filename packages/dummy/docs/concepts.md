@@ -34,9 +34,9 @@ seed is the copy nobody checks. So:
 - whether a collection takes a file, and therefore whether it can be handed a path
 - which field identifies a document, where the collection declares a unique one
 
-are all read off the sanitized config. A draft-enabled collection is published without the call
-site asking, and a collection with versions but no drafts is written live with no `draft` flag at
-all.
+are all read off the sanitized config. A draft-enabled collection, uploads included, is published
+in every locale the seed writes without the call site asking, and a collection with versions but no
+drafts is written live with no `draft` flag at all.
 
 The reset order is the exception. It cannot be derived from the unit graph, because units are not
 collections, and deriving it from relationship fields is more machinery than naming six slugs.

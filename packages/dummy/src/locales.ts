@@ -57,10 +57,29 @@ const writeLocales = async (
 	}
 };
 
+/**
+ * Marks a write as published where the target has drafts.
+ *
+ * Every write carries `_status`, not only the first. Where it is stored per
+ * locale, which Payload 4 does for every draft-enabled entity with localized
+ * fields, a write only publishes the locale whose `_status` it sets, and
+ * `draft: false` alone leaves that locale a draft.
+ *
+ * @param data The data about to be written.
+ * @param drafts Whether the collection or global has drafts.
+ */
+export const published = (data: unknown, drafts: boolean): unknown =>
+	drafts ? { ...(data as object), _status: "published" } : data;
+
 /** Writes the extra locales of a collection document. */
 export const writeDocLocales = async (
 	payload: Payload,
-	target: { collection: string; id: DummyDocumentId; subject: string },
+	target: {
+		collection: string;
+		id: DummyDocumentId;
+		subject: string;
+		drafts: boolean;
+	},
 	locales: Record<string, unknown>,
 ): Promise<void> => {
 	await writeLocales(locales, target.subject, {
@@ -78,7 +97,7 @@ export const writeDocLocales = async (
 				collection: target.collection,
 				id: target.id,
 				locale,
-				data: data as never,
+				data: published(data, target.drafts) as never,
 				draft: false,
 				overrideAccess: true,
 				context: dummyContext(),
@@ -90,7 +109,7 @@ export const writeDocLocales = async (
 /** Writes the extra locales of a global. */
 export const writeGlobalLocales = async (
 	payload: Payload,
-	target: { slug: string; subject: string },
+	target: { slug: string; subject: string; drafts: boolean },
 	locales: Record<string, unknown>,
 ): Promise<void> => {
 	await writeLocales(locales, target.subject, {
@@ -106,7 +125,7 @@ export const writeGlobalLocales = async (
 			await payload.updateGlobal({
 				slug: target.slug,
 				locale,
-				data: data as never,
+				data: published(data, target.drafts) as never,
 				draft: false,
 				overrideAccess: true,
 				context: dummyContext(),

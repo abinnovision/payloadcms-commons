@@ -8,7 +8,7 @@ import {
 	errorPaths,
 	fail,
 } from "./errors.js";
-import { writeDocLocales, writeGlobalLocales } from "./locales.js";
+import { published, writeDocLocales, writeGlobalLocales } from "./locales.js";
 import { expandLocalized } from "./localized.js";
 import { isDummyRef, describeRef } from "./ref.js";
 import { applyRefs, collectRefs } from "./resolve.js";
@@ -160,9 +160,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 		await store.warm(refs);
 
 		const applied = applyRefs(data, (ref) => store.get(ref));
-		const published = options.collectionHasDrafts(collection)
-			? { ...(applied.value as object), _status: "published" }
-			: applied.value;
+		const drafts = options.collectionHasDrafts(collection);
 		let id: DummyDocumentId;
 		let action: "created" | "updated";
 
@@ -204,7 +202,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 				await payload.update({
 					collection,
 					id: existing,
-					data: published as never,
+					data: published(applied.value, drafts) as never,
 					draft: false,
 					overrideAccess: true,
 					context: dummyContext(),
@@ -215,7 +213,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 			} else {
 				const created = await payload.create({
 					collection,
-					data: published as never,
+					data: published(applied.value, drafts) as never,
 					draft: false,
 					overrideAccess: true,
 					context: dummyContext(),
@@ -263,7 +261,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 			try {
 				await writeDocLocales(
 					payload,
-					{ collection, id, subject },
+					{ collection, id, subject, drafts },
 					appliedLocales.value,
 				);
 			} catch (error) {
@@ -299,6 +297,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 		 * names its own field.
 		 */
 		const key = options.optionalKeyFor(collection) ?? "filename";
+		const drafts = options.collectionHasDrafts(collection);
 
 		try {
 			const existing = (await findExisting(collection, key, filename))?.id;
@@ -307,7 +306,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 				await payload.update({
 					collection,
 					id: existing,
-					data: data as never,
+					data: published(data, drafts) as never,
 					overrideAccess: true,
 					context: dummyContext(),
 				});
@@ -325,7 +324,10 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 
 			const created = await payload.create({
 				collection,
-				data: { ...(data as object), [key]: filename },
+				data: published(
+					{ ...(data as object), [key]: filename },
+					drafts,
+				) as never,
 				filePath,
 				overrideAccess: true,
 				context: dummyContext(),
@@ -403,13 +405,11 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 			await store.warm(refs);
 
 			const applied = applyRefs(data, (ref) => store.get(ref));
-			const published = options.globalHasDrafts(slug)
-				? { ...(applied.value as object), _status: "published" }
-				: applied.value;
+			const drafts = options.globalHasDrafts(slug);
 
 			await payload.updateGlobal({
 				slug: slug as never,
-				data: published as never,
+				data: published(applied.value, drafts) as never,
 				draft: false,
 				overrideAccess: true,
 				context: dummyContext(),
@@ -429,7 +429,7 @@ export const createWriter = (deps: WriterDeps): DummyWriter => {
 
 				await writeGlobalLocales(
 					payload,
-					{ slug, subject },
+					{ slug, subject, drafts },
 					appliedLocales.value,
 				);
 			}

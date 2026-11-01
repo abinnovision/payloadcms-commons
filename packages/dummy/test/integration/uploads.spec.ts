@@ -10,12 +10,20 @@ import {
 	writePixelFile,
 } from "./helpers/payload.js";
 
-import type { Payload } from "payload";
+import type { CollectionConfig, Payload } from "payload";
+
+/** An upload collection with drafts, which a seed publishes like any other. */
+const drafted: CollectionConfig = {
+	slug: "drafted-media",
+	versions: { drafts: true },
+	upload: { staticDir: MEDIA_DIR, mimeTypes: ["image/*"] },
+	fields: [{ name: "alt", type: "text" }],
+};
 
 let payload: Payload;
 
 beforeAll(async () => {
-	({ payload } = await bootPayload({ key: "uploads" }));
+	({ payload } = await bootPayload({ key: "uploads", collections: [drafted] }));
 });
 
 afterAll(async () => {
@@ -104,6 +112,35 @@ describe("uploads", () => {
 		expect(after.docs[0]?.["alt"]).toBe("Second");
 		expect(after.docs[0]?.["filename"]).toBe(before.docs[0]?.["filename"]);
 		expect(after.docs[0]?.["filesize"]).toBe(before.docs[0]?.["filesize"]);
+	});
+
+	it("publishes an upload in a draft-enabled collection", async () => {
+		const seeds = [
+			defineDummySeed({
+				id: "drafted",
+				run: async (ctx) => {
+					await ctx.upload("drafted-media", writePixelFile("drafted.png"), {
+						alt: "Drafted",
+					});
+				},
+			}),
+		];
+		const status = async (): Promise<unknown> => {
+			const found = await payload.find({
+				collection: "drafted-media",
+				overrideAccess: true,
+			});
+
+			return found.docs[0]?.["_status"];
+		};
+
+		await runDummySeeds({ payload, seeds });
+
+		expect(await status()).toBe("published");
+
+		await runDummySeeds({ payload, seeds });
+
+		expect(await status()).toBe("published");
 	});
 
 	it("is addressable by its basename, so a ref resolves to it", async () => {

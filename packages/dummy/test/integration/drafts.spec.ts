@@ -85,6 +85,45 @@ describe("drafts", () => {
 		expect(found.docs[0]?.["title"]).toBe("Renamed");
 	});
 
+	/*
+	 * Payload 4 stores `_status` per locale on a draft-enabled collection with
+	 * localized fields, so every locale needs publishing by its own write.
+	 */
+	it("publishes every locale it writes, and keeps them published on a re-run", async () => {
+		const seeds = [
+			defineDummySeed({
+				id: "pages",
+				run: async (ctx) => {
+					await ctx.doc(
+						"pages",
+						{ slug: "/localized", title: "Home" },
+						{ locales: { de: { title: "Startseite" } } },
+					);
+				},
+			}),
+		];
+		const statusIn = async (locale: "de" | "en"): Promise<unknown> => {
+			const found = await payload.find({
+				collection: "pages",
+				where: { slug: { equals: "/localized" } },
+				locale,
+				overrideAccess: true,
+			});
+
+			return found.docs[0]?.["_status"];
+		};
+
+		await runDummySeeds({ payload, seeds });
+
+		expect(await statusIn("en")).toBe("published");
+		expect(await statusIn("de")).toBe("published");
+
+		await runDummySeeds({ payload, seeds });
+
+		expect(await statusIn("en")).toBe("published");
+		expect(await statusIn("de")).toBe("published");
+	});
+
 	it("writes a versioned collection without drafts live, and leaves a version", async () => {
 		await runDummySeeds({
 			payload,
