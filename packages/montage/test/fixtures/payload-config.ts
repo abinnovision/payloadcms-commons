@@ -8,8 +8,8 @@ import type { SanitizedConfig } from "payload";
 
 /**
  * Minimal Payload config exercising `montagePlugin`: it registers
- * `config.blocks`, and the `pages` collection's `layout` field references
- * those slugs via `blockReferences`, the way a real consumer would.
+ * `config.blocks`. The `pages` collection's `layout` field declares the same
+ * blocks inline, the one form Payload 3 and 4 both type the same way.
  */
 export const buildFixtureConfig = (): Promise<SanitizedConfig> =>
 	buildConfig({
@@ -23,8 +23,7 @@ export const buildFixtureConfig = (): Promise<SanitizedConfig> =>
 					{
 						name: "layout",
 						type: "blocks",
-						blockReferences: ["hero-module", "related-page-module"],
-						blocks: [],
+						blocks: [heroModuleBlock, relatedPageModuleBlock],
 					},
 				],
 			},

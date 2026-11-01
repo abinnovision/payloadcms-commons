@@ -20,7 +20,7 @@ blocks stay yours to model with Payload's own primitives, and montage renders wh
 yarn add @abinnovision/payloadcms-montage
 ```
 
-Peers: `payload >=3.88.0 <4`, `react ^19`. `@payloadcms/richtext-lexical` is an optional peer,
+Peers: `payload >=3.88.0 <4 || >=4.0.0-beta.2 <5`, `react ^19`. `@payloadcms/richtext-lexical` is an optional peer,
 needed only if you use the `./lexical` entrypoint.
 
 Run `payload generate:types` before typechecking your project. Montage's slug checking depends
