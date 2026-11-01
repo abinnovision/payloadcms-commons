@@ -42,6 +42,7 @@ describe("montage against a real Payload instance (sqlite)", () => {
 
 		const created = await payload.create({
 			collection: "pages",
+			overrideAccess: true,
 			data: {
 				title: "Home",
 				layout: [{ blockType: "hero-module", title: "Hello" }],
@@ -50,6 +51,7 @@ describe("montage against a real Payload instance (sqlite)", () => {
 
 		const fetched = await payload.findByID({
 			collection: "pages",
+			overrideAccess: true,
 			id: created.id,
 			depth: 0,
 		});
@@ -68,10 +70,12 @@ describe("montage against a real Payload instance (sqlite)", () => {
 		const payload = await bootPayload();
 		const target = await payload.create({
 			collection: "pages",
+			overrideAccess: true,
 			data: { title: "Target" },
 		});
 		const referencing = await payload.create({
 			collection: "pages",
+			overrideAccess: true,
 			data: {
 				title: "Referencing",
 				layout: [{ blockType: "related-page-module", page: target.id }],
@@ -80,6 +84,7 @@ describe("montage against a real Payload instance (sqlite)", () => {
 
 		const fetched = await payload.findByID({
 			collection: "pages",
+			overrideAccess: true,
 			id: referencing.id,
 			depth: 2,
 		});
