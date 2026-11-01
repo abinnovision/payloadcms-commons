@@ -35,23 +35,27 @@ describe("wayfinder against a Payload instance with no localization", () => {
 
 		const section = await payload.create({
 			collection: "sections",
+			overrideAccess: true,
 			data: { title: "Field Notes", slug: "field-notes", handle: "fn" },
 		});
 
 		const article = await payload.create({
 			collection: "articles",
+			overrideAccess: true,
 			data: { title: "Second Look", slug: "second-look", section: section.id },
 		});
 		articleId = article.id;
 
 		const page = await payload.create({
 			collection: "pages",
+			overrideAccess: true,
 			data: { title: "Imprint", slug: "/legal/imprint", _status: "published" },
 		});
 		pageId = page.id;
 
 		await payload.updateGlobal({
 			slug: DEFAULT_MAPPING_GLOBAL_SLUG,
+			overrideAccess: true,
 			data: {
 				collections: [
 					{ collectionName: "pages", path: "/*slug" },
@@ -98,9 +102,14 @@ describe("wayfinder against a Payload instance with no localization", () => {
 	});
 
 	it("round-trips both collections back to the paths they were found at", async () => {
-		const page = await payload.findByID({ collection: "pages", id: pageId });
+		const page = await payload.findByID({
+			collection: "pages",
+			id: pageId,
+			overrideAccess: true,
+		});
 		const article = await payload.findByID({
 			collection: "articles",
+			overrideAccess: true,
 			id: articleId,
 			depth: 1,
 		});

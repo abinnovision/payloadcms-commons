@@ -258,7 +258,6 @@ __metadata:
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@arethetypeswrong/core": "npm:^0.18.5"
     "@internal/test-utils": "workspace:*"
-    "@lexical/react": "npm:0.50.0"
     "@payloadcms/db-sqlite": "npm:3.90.2"
     "@payloadcms/richtext-lexical": "npm:3.90.2"
     "@payloadcms/ui": "npm:3.90.2"
@@ -267,7 +266,6 @@ __metadata:
     "@types/react": "npm:^19.3.0"
     "@vitest/coverage-v8": "npm:^5.0.5"
     eslint: "npm:^10.13.0"
-    lexical: "npm:0.50.0"
     path-to-regexp: "npm:^8.4.2"
     payload: "npm:3.90.2"
     prettier: "npm:^3.9.10"
@@ -279,22 +277,16 @@ __metadata:
     vitest: "npm:^5.0.5"
   peerDependencies:
     "@abinnovision/payloadcms-montage": ">=1.0.0-beta.1"
-    "@lexical/react": ">=0.35 <1"
-    "@payloadcms/richtext-lexical": ">=3.88.0 <4"
-    "@payloadcms/ui": ">=3.88.0 <4"
-    lexical: ">=0.35 <1"
-    payload: ">=3.88.0 <4"
+    "@payloadcms/richtext-lexical": ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
+    "@payloadcms/ui": ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
+    payload: ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
     react: ^19
   peerDependenciesMeta:
     "@abinnovision/payloadcms-montage":
       optional: true
-    "@lexical/react":
-      optional: true
     "@payloadcms/richtext-lexical":
       optional: true
     "@payloadcms/ui":
-      optional: true
-    lexical:
       optional: true
     react:
       optional: true

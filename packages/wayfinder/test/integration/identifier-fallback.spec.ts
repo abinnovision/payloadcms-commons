@@ -27,6 +27,7 @@ describe("the identifier fallback crosses from the plugin to the read", () => {
 
 		await payload.updateGlobal({
 			slug: "collections-mapping",
+			overrideAccess: true,
 			data: { collections: [{ collectionName: "pages", path: "/:slug" }] },
 		});
 	});

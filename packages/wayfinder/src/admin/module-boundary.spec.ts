@@ -11,9 +11,9 @@ describe("./admin module boundary", () => {
 		const { bareSpecifiers } = walkModuleGraph(entry);
 
 		expect([...bareSpecifiers].sort()).toEqual([
-			"@lexical/react/LexicalComposerContext",
 			"@payloadcms/richtext-lexical/client",
-			"lexical",
+			"@payloadcms/richtext-lexical/lexical",
+			"@payloadcms/richtext-lexical/lexical/react/LexicalComposerContext",
 			"react",
 		]);
 	});
