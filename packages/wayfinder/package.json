@@ -82,7 +82,6 @@
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@arethetypeswrong/core": "^0.18.5",
 		"@internal/test-utils": "workspace:*",
-		"@lexical/react": "0.50.0",
 		"@payloadcms/db-sqlite": "3.90.2",
 		"@payloadcms/richtext-lexical": "3.90.2",
 		"@payloadcms/ui": "3.90.2",
@@ -91,7 +90,6 @@
 		"@types/react": "^19.3.0",
 		"@vitest/coverage-v8": "^5.0.5",
 		"eslint": "^10.13.0",
-		"lexical": "0.50.0",
 		"payload": "3.90.2",
 		"prettier": "^3.9.10",
 		"publint": "^0.3.25",
@@ -103,27 +101,19 @@
 	},
 	"peerDependencies": {
 		"@abinnovision/payloadcms-montage": ">=1.0.0-beta.1",
-		"@lexical/react": ">=0.35 <1",
-		"@payloadcms/richtext-lexical": ">=3.88.0 <4",
-		"@payloadcms/ui": ">=3.88.0 <4",
-		"lexical": ">=0.35 <1",
-		"payload": ">=3.88.0 <4",
+		"@payloadcms/richtext-lexical": ">=3.88.0 <4 || >=4.0.0-beta.2 <5",
+		"@payloadcms/ui": ">=3.88.0 <4 || >=4.0.0-beta.2 <5",
+		"payload": ">=3.88.0 <4 || >=4.0.0-beta.2 <5",
 		"react": "^19"
 	},
 	"peerDependenciesMeta": {
 		"@abinnovision/payloadcms-montage": {
 			"optional": true
 		},
-		"@lexical/react": {
-			"optional": true
-		},
 		"@payloadcms/richtext-lexical": {
 			"optional": true
 		},
 		"@payloadcms/ui": {
-			"optional": true
-		},
-		"lexical": {
 			"optional": true
 		},
 		"react": {

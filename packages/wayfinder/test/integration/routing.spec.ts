@@ -43,18 +43,21 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 
 		const section = await payload.create({
 			collection: "sections",
+			overrideAccess: true,
 			data: { title: "Insights", slug: "insights", handle: "insights-hub" },
 		});
 		sectionId = section.id;
 
 		const article = await payload.create({
 			collection: "articles",
+			overrideAccess: true,
 			data: { title: "First Look", slug: "first-look", section: section.id },
 		});
 		articleId = article.id;
 
 		const nestedPage = await payload.create({
 			collection: "pages",
+			overrideAccess: true,
 			data: { title: "Team", slug: "/about/team", _status: "published" },
 		});
 		nestedPageId = nestedPage.id;
@@ -65,6 +68,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 		 */
 		const collidingPage = await payload.create({
 			collection: "pages",
+			overrideAccess: true,
 			data: {
 				title: "Not An Article",
 				slug: "/insights/not-an-article",
@@ -75,6 +79,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 
 		const draftPage = await payload.create({
 			collection: "pages",
+			overrideAccess: true,
 			draft: true,
 			data: { title: "Hidden", slug: "/drafts/hidden", _status: "draft" },
 		});
@@ -82,6 +87,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 
 		await payload.create({
 			collection: "notes",
+			overrideAccess: true,
 			data: { title: "Release Notes", slug: "release-1" },
 		});
 
@@ -92,6 +98,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 		 */
 		await payload.updateGlobal({
 			slug: DEFAULT_MAPPING_GLOBAL_SLUG,
+			overrideAccess: true,
 			locale: PRIMARY_LOCALE,
 			data: {
 				collections: [
@@ -204,6 +211,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 		it("reproduces the path a page was found at", async () => {
 			const page = await payload.findByID({
 				collection: "pages",
+				overrideAccess: true,
 				id: nestedPageId,
 				locale: PRIMARY_LOCALE,
 			});
@@ -221,6 +229,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 		it("reproduces the path an article was found at, reading its populated section", async () => {
 			const article = await payload.findByID({
 				collection: "articles",
+				overrideAccess: true,
 				id: articleId,
 				locale: PRIMARY_LOCALE,
 				depth: 1,
@@ -289,6 +298,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 		it("round-trips a prefixed preview href back to the same document", async () => {
 			const page = await payload.findByID({
 				collection: "pages",
+				overrideAccess: true,
 				id: nestedPageId,
 				locale: PRIMARY_LOCALE,
 			});
@@ -347,6 +357,7 @@ describe("wayfinder against a real, localized Payload instance (sqlite)", () => 
 		it("routes a populated reference through its collection mapping", async () => {
 			const article = await payload.findByID({
 				collection: "articles",
+				overrideAccess: true,
 				id: articleId,
 				depth: 1,
 				locale: PRIMARY_LOCALE,

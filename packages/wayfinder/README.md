@@ -28,13 +28,13 @@ yarn add @abinnovision/payloadcms-wayfinder
 Only `payload` is required. Every other peer is optional and pulled in solely by the surface that
 uses it, so a project that only needs the URL layer installs nothing else:
 
-| Peer                                 | Range              | Needed for                |
-| ------------------------------------ | ------------------ | ------------------------- |
-| `payload`                            | `>=3.88.0 <4`      | everything (required)     |
-| `@payloadcms/richtext-lexical`       | `>=3.88.0 <4`      | `./lexical` and `./admin` |
-| `react`, `lexical`, `@lexical/react` | `^19`, `>=0.35 <1` | `./admin`                 |
-| `@payloadcms/ui`                     | `>=3.88.0 <4`      | `./admin`                 |
-| `@abinnovision/payloadcms-montage`   | `>=1.0.0-beta.1`   | `./montage`               |
+| Peer                               | Range                                | Needed for                |
+| ---------------------------------- | ------------------------------------ | ------------------------- |
+| `payload`                          | `>=3.88.0 <4 \|\| >=4.0.0-beta.2 <5` | everything (required)     |
+| `@payloadcms/richtext-lexical`     | `>=3.88.0 <4 \|\| >=4.0.0-beta.2 <5` | `./lexical` and `./admin` |
+| `react`                            | `^19`                                | `./admin`                 |
+| `@payloadcms/ui`                   | `>=3.88.0 <4 \|\| >=4.0.0-beta.2 <5` | `./admin`                 |
+| `@abinnovision/payloadcms-montage` | `>=1.0.0-beta.1`                     | `./montage`               |
 
 ## Setup
 

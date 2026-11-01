@@ -1,11 +1,11 @@
 "use client";
 
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
 	createClientFeature,
 	TOGGLE_LINK_COMMAND,
 } from "@payloadcms/richtext-lexical/client";
-import { COMMAND_PRIORITY_HIGH } from "lexical";
+import { COMMAND_PRIORITY_HIGH } from "@payloadcms/richtext-lexical/lexical";
+import { useLexicalComposerContext } from "@payloadcms/richtext-lexical/lexical/react/LexicalComposerContext";
 import { useEffect } from "react";
 
 import { deriveLinkLabel } from "../pattern/derive-link-label.js";
