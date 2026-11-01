@@ -42,6 +42,50 @@ describe("globals", () => {
 		expect(found["_status"]).toBe("published");
 	});
 
+	/*
+	 * Payload 4 stores `_status` per locale here, and only fills every locale
+	 * when it creates the global. A draft left on an existing global is the case
+	 * where each locale has to be published by its own write.
+	 */
+	it("publishes every locale of a global, over an existing draft", async () => {
+		await payload.updateGlobal({
+			slug: "site-settings",
+			locale: "de",
+			data: { title: "Entwurf" },
+			draft: true,
+			overrideAccess: true,
+		});
+
+		await runDummySeeds({
+			payload,
+			seeds: [
+				defineDummySeed({
+					id: "settings",
+					run: async (ctx) => {
+						await ctx.global(
+							"site-settings",
+							{ title: "Example" },
+							{ locales: { de: { title: "Beispiel" } } },
+						);
+					},
+				}),
+			],
+		});
+
+		const statusIn = async (locale: "de" | "en"): Promise<unknown> => {
+			const found = (await payload.findGlobal({
+				slug: "site-settings",
+				locale,
+				overrideAccess: true,
+			})) as Record<string, unknown>;
+
+			return found["_status"];
+		};
+
+		expect(await statusIn("en")).toBe("published");
+		expect(await statusIn("de")).toBe("published");
+	});
+
 	it("writes a global without versions live, and adds no status", async () => {
 		await runDummySeeds({
 			payload,

@@ -52,6 +52,12 @@ line up by construction.
 is correct for an array that is itself `localized` and wrong for a shared one. The length rule
 makes the wrong case an error rather than a silent loss.
 
+**A locale a seed never writes stays unpublished on Payload 4.** Payload 4 keeps `_status` per
+locale on a draft-enabled collection or global with localized fields, and a write publishes only
+its own locale, so a frontend that falls back to the default locale's content still finds that
+locale unpublished. Publishing it without content of its own fails validation wherever a
+localized field is required. Write every locale, with `dummyLocalized` or the `locales` option.
+
 **A localized natural key resolves in the default locale.** Keying a collection on a localized
 field works, because the default locale is written first and the lookup runs there, but the key is
 then only unique per locale as far as the database is concerned. Prefer a non-localized field.
@@ -67,6 +73,8 @@ later failure. A re-run overwrites it.
 
 **Each run adds versions.** Writes go through Payload's hooks and validation on purpose, so a
 collection with versions enabled accumulates one set per run, as an editor saving twice would.
+On Payload 4, which enables versions on every collection and global by default, that covers every
+collection without `versions: false`.
 
 **No derived upload sizes are exercised.** The test fixture's upload collection declares no
 `imageSizes`, so `sharp` is not a dependency of this package. Seeding a collection that does
