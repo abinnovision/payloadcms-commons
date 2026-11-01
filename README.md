@@ -51,7 +51,9 @@ Lettermint adapter touch nothing else at all.
 with the seams wired and a seed, written with dummy, that leaves a routed,
 localized site to click through. It stays on Payload 3.
 [`apps/example-v4`](./apps/example-v4) runs Payload 4 and mounts the packages
-that support it so far: colophon, with a seed written with dummy.
+that support it so far: montage and wayfinder behind the same routed, localized
+site, colophon, and a seed written with dummy. Viewfinder is not among them yet,
+so its blocks are not addressable from live preview.
 
 ## Compatibility
 
