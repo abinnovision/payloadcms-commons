@@ -23,7 +23,7 @@
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
-		"@types/node": "^26.6.3",
+		"@types/node": "^26.6.6",
 		"eslint": "^10.13.0",
 		"prettier": "^3.9.10",
 		"vitest": "^5.0.5"
