@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-dummy-v1.0.0...payloadcms-dummy-v1.1.0) (2026-11-07)
+
+
+### Features
+
+* **dummy:** support Payload v4 ([#156](https://github.com/abinnovision/payloadcms-commons/issues/156)) ([fed42db](https://github.com/abinnovision/payloadcms-commons/commit/fed42db91c91e9a66dd5daeb83a87c8922a62cfd))
+
+
+### Bug Fixes
+
+* **dummy:** publish every locale a seed writes on Payload 4 ([#188](https://github.com/abinnovision/payloadcms-commons/issues/188)) ([2304ef2](https://github.com/abinnovision/payloadcms-commons/commit/2304ef2f965ba6d168b27e8299e34f2b3c6528e6))
+
 ## 1.0.0 (2026-10-13)
 
 
