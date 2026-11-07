@@ -3,6 +3,8 @@
 import { Button } from "@payloadcms/ui";
 import React from "react";
 
+import { T } from "./tokens.js";
+
 import type {
 	ConfirmationDecision,
 	ConfirmationView,
@@ -23,7 +25,7 @@ export interface ConfirmationsPanelProps {
 export const confirmationRowId = (handle: string): string =>
 	`mcpx-confirmation-${handle}`;
 
-const CELL_PADDING = "calc(var(--base) * 0.4) calc(var(--base) * 0.6)";
+const CELL_PADDING = `calc(${T.base} * 0.4) calc(${T.base} * 0.6)`;
 
 /*
  * Payload's theme variables, so the panel follows the admin's light and dark
@@ -31,45 +33,45 @@ const CELL_PADDING = "calc(var(--base) * 0.4) calc(var(--base) * 0.6)";
  */
 const styles = {
 	panel: {
-		marginBottom: "var(--base)",
-		padding: "calc(var(--base) * 0.75)",
-		border: "1px solid var(--theme-elevation-150)",
+		marginBottom: T.base,
+		padding: `calc(${T.base} * 0.75)`,
+		border: `1px solid ${T.borderControl}`,
 		borderRadius: "3px",
-		background: "var(--theme-elevation-50)",
+		background: T.bgSubtle,
 	},
 	heading: { margin: 0 },
 	lead: {
-		margin: "calc(var(--base) * 0.25) 0 calc(var(--base) * 0.75)",
-		color: "var(--theme-elevation-500)",
+		margin: `calc(${T.base} * 0.25) 0 calc(${T.base} * 0.75)`,
+		color: T.textSecondary,
 	},
-	group: { marginBottom: "calc(var(--base) * 0.75)" },
-	groupHeading: { margin: "0 0 calc(var(--base) * 0.25)" },
+	group: { marginBottom: `calc(${T.base} * 0.75)` },
+	groupHeading: { margin: `0 0 calc(${T.base} * 0.25)` },
 	table: { width: "100%", borderCollapse: "collapse", textAlign: "left" },
 	head: {
 		padding: CELL_PADDING,
-		color: "var(--theme-elevation-400)",
+		color: T.textTertiary,
 		fontWeight: "normal",
-		borderBottom: "1px solid var(--theme-border-color)",
+		borderBottom: `1px solid ${T.border}`,
 	},
 	cell: {
 		padding: CELL_PADDING,
 		verticalAlign: "middle",
-		borderBottom: "1px solid var(--theme-elevation-100)",
+		borderBottom: `1px solid ${T.bgHover}`,
 	},
-	highlighted: { background: "var(--theme-elevation-100)" },
-	muted: { color: "var(--theme-elevation-500)" },
+	highlighted: { background: T.bgHover },
+	muted: { color: T.textSecondary },
 	status: {
 		display: "block",
-		color: "var(--theme-elevation-500)",
+		color: T.textSecondary,
 		fontSize: "0.85em",
 	},
-	permanent: { color: "var(--theme-error-500)", fontWeight: 600 },
+	permanent: { color: T.danger, fontWeight: 600 },
 	actions: {
 		display: "flex",
-		gap: "calc(var(--base) * 0.25)",
+		gap: `calc(${T.base} * 0.25)`,
 		justifyContent: "flex-end",
 	},
-	footer: { display: "flex", gap: "calc(var(--base) * 0.5)" },
+	footer: { display: "flex", gap: `calc(${T.base} * 0.5)` },
 } as const satisfies Record<string, React.CSSProperties>;
 
 const HEADS = ["Collection", "Document", "Effect", "Reason"];
