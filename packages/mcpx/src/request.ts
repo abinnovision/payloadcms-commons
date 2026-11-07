@@ -19,7 +19,7 @@ export const publicOrigin = (req: PayloadRequest): string =>
 
 // Loosely typed: the two majors export different signatures under these names.
 const exported = payloadModule as unknown as {
-	createLocalReq?: (
+	createLocalReq: (
 		options: { user: McpxUser; context?: RequestContext },
 		payload: Payload,
 	) => Promise<PayloadRequest>;
@@ -41,7 +41,7 @@ export const createLocalRequest = async (
 ): Promise<PayloadRequest> => {
 	const extra = context && { context };
 
-	if ("createLocalReq" in payloadModule && exported.createLocalReq) {
+	if ("createLocalReq" in payloadModule) {
 		return await exported.createLocalReq({ user, ...extra }, payload);
 	}
 

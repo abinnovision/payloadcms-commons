@@ -124,10 +124,10 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 };
 
 /**
- * The global counterpart of {@link forceDraftWrite}. `updateGlobal` reads
- * `draft` and the publish arguments before this hook runs, so only changes to
- * `data` take effect. A write to a global with drafts that did not ask for a
- * draft save is therefore refused here, and `_status` is restored for a publish.
+ * The global counterpart of {@link forceDraftWrite}. Payload 3 applies
+ * `publishSpecificLocale` before this hook runs; the guard still refuses a
+ * global write that did not ask for a draft save, and `_status` is restored for
+ * a publish.
  */
 export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 	const { global, operation, req } = hookArgs;

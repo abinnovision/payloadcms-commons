@@ -37,14 +37,15 @@ export const payloadV4Resolver = (exampleDir = defaultExampleDir): Plugin => {
 		name: "payload-v4-resolver",
 		enforce: "pre",
 		async resolveId(id, _importer, options) {
-			const match = PAYLOAD_SPECIFIER.exec(id) ?? OPTIONAL_SPECIFIER.exec(id);
+			const payloadMatch = PAYLOAD_SPECIFIER.exec(id);
+			const match = payloadMatch ?? OPTIONAL_SPECIFIER.exec(id);
 			if (!match) {
 				return null;
 			}
 
 			// Peers are redirected only when the example app installs its own copy.
 			if (
-				!PAYLOAD_SPECIFIER.test(id) &&
+				!payloadMatch &&
 				!existsSync(path.join(exampleDir, "node_modules", match[1] ?? id))
 			) {
 				return null;

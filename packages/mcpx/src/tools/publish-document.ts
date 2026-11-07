@@ -86,7 +86,7 @@ export const publishDocument = defineMcpxTool({
 	handler: async ({ args, scope }) => {
 		const target = resolveDocument(scope, args, "publish");
 		/*
-		 * Explicit, because `createLocalReq` assigns `req.locale` in place: a
+		 * Explicit, because Payload's local API assigns `req.locale` in place: a
 		 * preceding patchDocument leaves its locale on the shared request, and an
 		 * argument-free publish would otherwise inherit it.
 		 */
