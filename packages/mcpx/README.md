@@ -19,11 +19,11 @@ and each write reports what still blocks publishing.
 yarn add @abinnovision/payloadcms-mcpx
 ```
 
-| Peer             | Range         | Needed for                                                     |
-| ---------------- | ------------- | -------------------------------------------------------------- |
-| `payload`        | `>=3.88.0 <4` | everything (required)                                          |
-| `@payloadcms/ui` | `>=3.88.0 <4` | the admin components: capability matrix and "Connect a client" |
-| `react`          | `^19`         | the admin components                                           |
+| Peer             | Range                                | Needed for                                                     |
+| ---------------- | ------------------------------------ | -------------------------------------------------------------- |
+| `payload`        | `>=3.88.0 <4 \|\| >=4.0.0-beta.7 <5` | everything (required)                                          |
+| `@payloadcms/ui` | `>=3.88.0 <4 \|\| >=4.0.0-beta.7 <5` | the admin components: capability matrix and "Connect a client" |
+| `react`          | `^19`                                | the admin components                                           |
 
 `@payloadcms/ui` and `react` are optional. A deployment that does not serve the admin panel can
 leave them out. The package is ESM only, like Payload.
