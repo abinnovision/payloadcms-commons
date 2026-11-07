@@ -38,18 +38,19 @@ export const optionsOf = (payload: Payload): NormalizedOptions => {
 };
 
 // Payload 4 passes `{ options }`, Payload 3 spreads the options into the arguments.
-const pluginOptions = (args: object): McpxPluginOptions =>
-	"options" in args
-		? (args.options as McpxPluginOptions)
-		: (() => {
-				const {
-					config: _config,
-					plugins: _plugins,
-					...rest
-				} = args as Record<string, unknown>;
+const pluginOptions = (args: object): McpxPluginOptions => {
+	if ("options" in args) {
+		return args.options as McpxPluginOptions;
+	}
 
-				return rest as McpxPluginOptions;
-			})();
+	const {
+		config: _config,
+		plugins: _plugins,
+		...rest
+	} = args as Record<string, unknown>;
+
+	return rest as McpxPluginOptions;
+};
 
 /**
  * Mounts the MCP, upload and download endpoints, and the confirmation
