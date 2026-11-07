@@ -182,7 +182,8 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
   operations and `describeSchema` to 400 paths.
 - A file is sent in a second step, a `PUT`, and downloaded with a `GET`, each with a short-lived,
   single-use grant. Only collections with `upload.mimeTypes` take files. Downloads go through the
-  collection's own file access. See [uploads](./docs/security.md#uploads).
+  collection's own file access. Payload 4 may store a file under another name, and the plugin
+  reports the stored `filename`. See [uploads](./docs/security.md#uploads).
 - A delete waits for the key's user to approve it in the admin panel and is then run by the same
   key. Collections with `trash` move the document to trash. See
   [confirmations](./docs/security.md#confirmations).

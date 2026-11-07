@@ -292,7 +292,10 @@ refused while any locale has publish blockers, and the refusal lists them with t
 published and reported the blockers of the other locales afterwards. A publish with `locale` on a
 document that was published before is unchanged. The result gains `publishedLocales`.
 
-<!-- Later 3.0 changes: upload naming. -->
+### Uploads
+
+Payload 4 can store an upload under another name than the one sent. The plugin reports the name
+Payload stores, so read `filename` from the document instead of assuming the name you sent.
 
 ## Upgrading to 2.0
 

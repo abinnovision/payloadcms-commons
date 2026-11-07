@@ -1,3 +1,4 @@
+import { payloadMajor } from "@internal/test-utils/payload-major";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createMcpClient, responseText } from "./helpers/mcp.js";
@@ -8,6 +9,13 @@ import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
 
 const CACHE_KEY = "mcpx-integration-version-access";
+
+/**
+ * Payload 3 lets any logged-in user read versions by default. Payload 4
+ * inherits the collection's `read` access, so the filtered read hides the old
+ * version from the listing, the read and the diff.
+ */
+const DEFAULT_SHOWS_OLD_VERSION = payloadMajor() === 3;
 
 const EMBARGOED = "embargoed bulletin text";
 const PUBLIC = "public bulletin text";
@@ -93,36 +101,43 @@ describe("old versions under a filtered read access", () => {
 	});
 
 	describe("with the default readVersions", () => {
-		it("lists the old version once the document passes its read filter", async () => {
+		it("lists the old version only where the default allows it", async () => {
 			const result = await mcp.call("findVersions", {
 				collection: "bulletins",
 				id: open.id,
 			});
 
 			expect(result.isError).toBe(false);
-			expect(listedIds(result.data)).toContain(open.oldVersionId);
+
+			expect(listedIds(result.data).includes(open.oldVersionId)).toBe(
+				DEFAULT_SHOWS_OLD_VERSION,
+			);
 		});
 
-		it("reads the old version", async () => {
+		it("reads the old version only where the default allows it", async () => {
 			const result = await mcp.call("getDocument", {
 				collection: "bulletins",
 				id: open.id,
 				versionId: open.oldVersionId,
 			});
 
-			expect(result.isError).toBe(false);
-			expect(result.data["body"]).toBe(EMBARGOED);
+			expect(result.isError).toBe(!DEFAULT_SHOWS_OLD_VERSION);
+			expect(responseText(result).includes(EMBARGOED)).toBe(
+				DEFAULT_SHOWS_OLD_VERSION,
+			);
 		});
 
-		it("diffs from the old version", async () => {
+		it("diffs from the old version only where the default allows it", async () => {
 			const result = await mcp.call("getDocument", {
 				collection: "bulletins",
 				id: open.id,
 				diffFrom: open.oldVersionId,
 			});
 
-			expect(result.isError).toBe(false);
-			expect(result.data).toHaveProperty("patch");
+			expect(result.isError).toBe(!DEFAULT_SHOWS_OLD_VERSION);
+			expect(Object.hasOwn(result.data, "patch")).toBe(
+				DEFAULT_SHOWS_OLD_VERSION,
+			);
 		});
 	});
 

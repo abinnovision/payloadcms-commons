@@ -100,10 +100,12 @@ Version history has no checkbox of its own. It follows the key's read wherever t
 Payload `versions`. For any other slug the slug is missing from `findVersions` (the tool is not
 registered at all when the key reaches no entity with history) and `getDocument` refuses
 `versionId` and `diffFrom`. The tools read the document with the key's access first. Old versions
-are then governed by the collection's `access.readVersions`, which Payload defaults to any
-logged-in user. A `read` rule that depends on document content does not apply to old versions, so
-a document that passes it exposes older states it would have excluded. This is Payload behaviour:
-the same user reaches those versions through the REST and GraphQL APIs and the admin.
+are then governed by the collection's `access.readVersions`. Payload 3 defaults it to any
+logged-in user, so a `read` rule that depends on document content does not apply to old versions
+and a document that passes it exposes older states it would have excluded. Payload 4 defaults it
+to the collection's `read` access, so under a filtered `read` those older states stay hidden. This
+is Payload behaviour: the same user reaches those versions through the REST and GraphQL APIs and
+the admin.
 
 Where `read` filters on content, give `readVersions` a filter on the version fields that matches
 the `read` filter:
@@ -330,7 +332,8 @@ whose user has no `id` or whose `collection` is not the configured user collecti
   `admin.hidden` fields. Set `hidden` or field-level `read` access on values that must not reach
   clients.
 - Where an entity keeps Payload `versions`, old versions are governed by the collection's `access.readVersions`, not
-  by its `read` rule. Payload lets any logged-in user through by default. See
+  by its `read` rule. Payload 3 lets any logged-in user through by default. Payload 4 inherits the
+  collection's `read` access. See
   [Version history](#version-history) for a `readVersions` filter.
 - `admin.hidden` set on a row, collapsible, unnamed group or tab is not applied to the fields
   inside it, in the schema or in reads; set it on the fields themselves.
