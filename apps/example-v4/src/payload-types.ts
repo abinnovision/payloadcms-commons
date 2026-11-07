@@ -62,19 +62,19 @@ export type SupportedTimezones =
 	| "Pacific/Fiji";
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_49AED1F1".
+ * via the `definition` "LexicalNodes_84D21871".
  */
-export type LexicalNodes_49AED1F1 =
+export type LexicalNodes_84D21871 =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_49AED1F1>
-	| SerializedAutoLinkNode<LexicalNodes_49AED1F1, LexicalLinkFields_E469DC16>
-	| SerializedLinkNode<LexicalNodes_49AED1F1, LexicalLinkFields_E469DC16>
+	| SerializedParagraphNode<LexicalNodes_84D21871>
+	| SerializedAutoLinkNode<LexicalNodes_84D21871, LexicalLinkFields_E469DC16>
+	| SerializedLinkNode<LexicalNodes_84D21871, LexicalLinkFields_E469DC16>
 	| SerializedBlockNode<CalloutBlock>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
-	| SerializedQuoteNode<LexicalNodes_49AED1F1>
+	| SerializedQuoteNode<LexicalNodes_84D21871>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -82,26 +82,27 @@ export type LexicalNodes_49AED1F1 =
 			| "sections"
 			| "posts"
 			| "tags"
+			| "mcpx-api-keys"
 			| "payload-kv"
 			| "payload-locked-documents"
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedListNode<LexicalNodes_49AED1F1>
-	| SerializedListItemNode<LexicalNodes_49AED1F1>
-	| SerializedHeadingNode<LexicalNodes_49AED1F1>;
+	| SerializedListNode<LexicalNodes_84D21871>
+	| SerializedListItemNode<LexicalNodes_84D21871>
+	| SerializedHeadingNode<LexicalNodes_84D21871>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_699D0EB9".
+ * via the `definition` "LexicalNodes_3C6F0263".
  */
-export type LexicalNodes_699D0EB9 =
+export type LexicalNodes_3C6F0263 =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_699D0EB9>
+	| SerializedParagraphNode<LexicalNodes_3C6F0263>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
-	| SerializedQuoteNode<LexicalNodes_699D0EB9>
+	| SerializedQuoteNode<LexicalNodes_3C6F0263>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -109,16 +110,17 @@ export type LexicalNodes_699D0EB9 =
 			| "sections"
 			| "posts"
 			| "tags"
+			| "mcpx-api-keys"
 			| "payload-kv"
 			| "payload-locked-documents"
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedAutoLinkNode<LexicalNodes_699D0EB9, LexicalLinkFields>
-	| SerializedLinkNode<LexicalNodes_699D0EB9, LexicalLinkFields>
-	| SerializedListNode<LexicalNodes_699D0EB9>
-	| SerializedListItemNode<LexicalNodes_699D0EB9>
-	| SerializedHeadingNode<LexicalNodes_699D0EB9>;
+	| SerializedAutoLinkNode<LexicalNodes_3C6F0263, LexicalLinkFields>
+	| SerializedLinkNode<LexicalNodes_3C6F0263, LexicalLinkFields>
+	| SerializedListNode<LexicalNodes_3C6F0263>
+	| SerializedListItemNode<LexicalNodes_3C6F0263>
+	| SerializedHeadingNode<LexicalNodes_3C6F0263>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
@@ -151,6 +153,7 @@ export interface Config {
 		posts: Post;
 		tags: Tag;
 		media: Media;
+		"mcpx-api-keys": McpxApiKey;
 		"payload-kv": PayloadKv;
 		"payload-locked-documents": PayloadLockedDocument;
 		"payload-preferences": PayloadPreference;
@@ -166,6 +169,7 @@ export interface Config {
 		posts: PostsSelect<false> | PostsSelect<true>;
 		tags: TagsSelect<false> | TagsSelect<true>;
 		media: MediaSelect<false> | MediaSelect<true>;
+		"mcpx-api-keys": McpxApiKeysSelect<false> | McpxApiKeysSelect<true>;
 		"payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
 		"payload-locked-documents":
 			PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -243,7 +247,7 @@ export interface HeroModuleBlock {
  * via the `definition` "RichTextModuleBlock".
  */
 export interface RichTextModuleBlock {
-	content?: LexicalRichText<LexicalNodes_49AED1F1> | null;
+	content?: LexicalRichText<LexicalNodes_84D21871> | null;
 	id?: string | null;
 	blockName?: string | null;
 	blockType: "rich-text-module";
@@ -436,7 +440,7 @@ export interface Post {
 	id: number;
 	title: string;
 	excerpt?: string | null;
-	content?: LexicalRichText<LexicalNodes_699D0EB9> | null;
+	content?: LexicalRichText<LexicalNodes_3C6F0263> | null;
 	image?: (number | null) | Media;
 	tags?: (number | Tag)[] | null;
 	createdBy?: {
@@ -510,6 +514,185 @@ export interface Tag {
 	deletedAt?: string | null;
 }
 /**
+ * Keys for MCP clients. Each key acts as its user and may only do what its capabilities allow.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mcpx-api-keys".
+ */
+export interface McpxApiKey {
+	id: number;
+	/**
+	 * The user this key acts as.
+	 */
+	user: number | User;
+	/**
+	 * What this key is used for.
+	 */
+	label: string;
+	/**
+	 * Disabled keys are refused without revoking them.
+	 */
+	enabled?: boolean | null;
+	/**
+	 * Refused from this time on. Leave empty for no expiry.
+	 */
+	expiresAt?: string | null;
+	/**
+	 * Updated at most once an hour.
+	 */
+	lastUsedAt?: string | null;
+	/**
+	 * Generated when the key is created. Send it as `Authorization: Bearer <key>`.
+	 */
+	apiKey?: string | null;
+	apiKeyIndex?: string | null;
+	/**
+	 * What this key may do. Each level includes the ones before it, and a missing segment means the plugin config does not expose it. A shield means this key's user approves each call.
+	 */
+	capabilities?: {
+		collections?: {
+			pages?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Promote the current draft to what the public sees.
+				 */
+				publish?: boolean | null;
+				/**
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
+			};
+			articles?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Promote the current draft to what the public sees.
+				 */
+				publish?: boolean | null;
+				/**
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
+			};
+			posts?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Promote the current draft to what the public sees.
+				 */
+				publish?: boolean | null;
+				/**
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
+			};
+			sections?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
+			};
+			tags?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
+			};
+			media?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
+			};
+		};
+		globals?: {
+			siteSettings?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Promote the current draft to what the public sees.
+				 */
+				publish?: boolean | null;
+			};
+		};
+	};
+	updatedAt: string;
+	createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -560,6 +743,10 @@ export interface PayloadLockedDocument {
 		| ({
 				relationTo: "media";
 				value: number | Media;
+		  } | null)
+		| ({
+				relationTo: "mcpx-api-keys";
+				value: number | McpxApiKey;
 		  } | null);
 	globalSlug?: string | null;
 	user: {
@@ -787,6 +974,91 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mcpx-api-keys_select".
+ */
+export interface McpxApiKeysSelect<T extends boolean = true> {
+	user?: T;
+	label?: T;
+	enabled?: T;
+	expiresAt?: T;
+	lastUsedAt?: T;
+	apiKey?: T;
+	apiKeyIndex?: T;
+	capabilities?:
+		| T
+		| {
+				collections?:
+					| T
+					| {
+							pages?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+										publish?: T;
+										delete?: T;
+										deleteUnattended?: T;
+								  };
+							articles?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+										publish?: T;
+										delete?: T;
+										deleteUnattended?: T;
+								  };
+							posts?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+										publish?: T;
+										delete?: T;
+										deleteUnattended?: T;
+								  };
+							sections?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+										delete?: T;
+										deleteUnattended?: T;
+								  };
+							tags?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+										delete?: T;
+										deleteUnattended?: T;
+								  };
+							media?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+										delete?: T;
+										deleteUnattended?: T;
+								  };
+					  };
+				globals?:
+					| T
+					| {
+							siteSettings?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+										publish?: T;
+								  };
+					  };
+		  };
+	updatedAt?: T;
+	createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -951,7 +1223,14 @@ export interface CollectionQueryWidget {
 	data?: {
 		title?: string | null;
 		relatedCollection:
-			"users" | "pages" | "articles" | "sections" | "posts" | "tags" | "media";
+			| "users"
+			| "pages"
+			| "articles"
+			| "sections"
+			| "posts"
+			| "tags"
+			| "media"
+			| "mcpx-api-keys";
 		where?:
 			| {
 					[k: string]: unknown;
@@ -982,6 +1261,7 @@ export interface ActivityWidget {
 					| "posts"
 					| "tags"
 					| "media"
+					| "mcpx-api-keys"
 			  )[]
 			| null;
 	};

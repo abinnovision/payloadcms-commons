@@ -22,6 +22,9 @@ import { StrikethroughFeatureClient as StrikethroughFeatureClient_e70f5e05f09f93
 import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { McpxConfirmations as McpxConfirmations_cec8d7aa143ac5cb18cc30b30fd1b1f1 } from '@abinnovision/payloadcms-mcpx/admin'
+import { McpxCapabilityMatrix as McpxCapabilityMatrix_cec8d7aa143ac5cb18cc30b30fd1b1f1 } from '@abinnovision/payloadcms-mcpx/admin'
+import { McpxSetupGuide as McpxSetupGuide_cec8d7aa143ac5cb18cc30b30fd1b1f1 } from '@abinnovision/payloadcms-mcpx/admin'
 import { LLMInstructionsDescription as LLMInstructionsDescription_3817bf644402e67bfe6577f60ef982de } from '@payloadcms/ui'
 import { FixedToolbarFeatureClient as FixedToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { LLMInstructionsCell as LLMInstructionsCell_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
@@ -64,6 +67,9 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UnderlineFeatureClient": UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "@abinnovision/payloadcms-mcpx/admin#McpxConfirmations": McpxConfirmations_cec8d7aa143ac5cb18cc30b30fd1b1f1,
+  "@abinnovision/payloadcms-mcpx/admin#McpxCapabilityMatrix": McpxCapabilityMatrix_cec8d7aa143ac5cb18cc30b30fd1b1f1,
+  "@abinnovision/payloadcms-mcpx/admin#McpxSetupGuide": McpxSetupGuide_cec8d7aa143ac5cb18cc30b30fd1b1f1,
   "@payloadcms/ui#LLMInstructionsDescription": LLMInstructionsDescription_3817bf644402e67bfe6577f60ef982de,
   "@payloadcms/richtext-lexical/client#FixedToolbarFeatureClient": FixedToolbarFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/ui/rsc#LLMInstructionsCell": LLMInstructionsCell_ab83ff7e88da8d3530831f296ec4756a,
