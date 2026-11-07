@@ -290,6 +290,7 @@ export const updateTarget = async (
 			...definedProps({ file }),
 			collection: target.slug,
 			id: target.id,
+			overrideLock: false,
 		});
 	} else {
 		await payload.updateGlobal({ ...shared, slug: target.slug });
