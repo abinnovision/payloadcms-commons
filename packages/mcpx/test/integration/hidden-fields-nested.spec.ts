@@ -27,6 +27,8 @@ describe("admin.hidden fields below the top level", () => {
 	let firstVersionId: number | string;
 
 	beforeAll(async () => {
+		// Other specs leave files here, and Payload renames on a collision.
+		await rm(MEDIA_DIR, { recursive: true, force: true });
 		booted = await bootPayload({
 			key: CACHE_KEY,
 			collections: [casefiles, dossiers],
