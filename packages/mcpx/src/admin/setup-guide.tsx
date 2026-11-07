@@ -5,6 +5,7 @@ import {
 	Button,
 	CopyToClipboard,
 	Drawer,
+	DrawerContentContainer,
 	formatDrawerSlug,
 	useConfig,
 	useDocumentInfo,
@@ -73,6 +74,12 @@ const styles = {
 	},
 } as const satisfies Record<string, React.CSSProperties>;
 
+/*
+ * Payload 3 pads the drawer itself, Payload 4 does not; the container pads both.
+ * Only Payload 3's Drawer has a `gutter` prop, so it is passed untyped.
+ */
+const drawerProps: object = { gutter: false };
+
 const SetupGuideContent: React.FC<McpxSetupGuideProps> = ({ endpointPath }) => {
 	const { config } = useConfig();
 	const apiKey = useFormFields(([fields]) => fields["apiKey"]?.value);
@@ -138,8 +145,10 @@ export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
 			>
 				Connect a client
 			</Button>
-			<Drawer slug={drawerSlug} title="Connect a client">
-				<SetupGuideContent endpointPath={endpointPath} />
+			<Drawer slug={drawerSlug} title="Connect a client" {...drawerProps}>
+				<DrawerContentContainer>
+					<SetupGuideContent endpointPath={endpointPath} />
+				</DrawerContentContainer>
 			</Drawer>
 		</>
 	);
