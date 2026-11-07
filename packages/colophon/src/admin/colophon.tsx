@@ -17,11 +17,14 @@ import type { CSSProperties, ReactNode } from "react";
  * A bare value reads as a riddle the moment there is more than one of them:
  * `1.2.3` over `8f079ec` over `staging` gives an editor no way to say which is
  * which when reporting a problem.
+ *
+ * Each variable is a Payload 4 token falling back to its Payload 3
+ * counterpart. Neither version defines the other's, so one style serves both.
  */
 const ROW: CSSProperties = {
 	display: "flex",
 	alignItems: "baseline",
-	gap: "calc(var(--base) * 0.4)",
+	gap: "var(--spacer-2, calc(var(--base) * 0.4))",
 	cursor: "default",
 };
 
@@ -31,7 +34,7 @@ const ROW: CSSProperties = {
  * a Payload upgrade would leave behind.
  */
 const LABEL: CSSProperties = {
-	color: "var(--theme-elevation-500)",
+	color: "var(--color-text-secondary, var(--theme-elevation-500))",
 	flexShrink: 0,
 };
 
