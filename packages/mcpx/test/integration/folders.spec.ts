@@ -37,6 +37,7 @@ describe("folders by default", () => {
 		const folder = await payload.create({
 			collection: FOLDERS as never,
 			data: { name: "Blog" },
+			overrideAccess: true,
 		});
 
 		key = keys.key;
@@ -81,6 +82,7 @@ describe("folders by default", () => {
 			collection: "docs" as never,
 			id: created.data["id"] as number | string,
 			depth: 0,
+			overrideAccess: true,
 		})) as unknown as { folder: unknown };
 
 		expect(doc.folder).toBe(folderId);

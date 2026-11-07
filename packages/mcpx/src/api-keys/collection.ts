@@ -58,8 +58,12 @@ export const createApiKeysCollection = (
 	const ownKeysOnly: Access = ({ req }) =>
 		isUser({ req }) && req.user ? { user: { equals: req.user.id } } : false;
 
+	// Payload 4 defaults both on; the v3 config type has no `authorship` key.
+	const lifecycle: object = { versions: false, authorship: false };
+
 	return {
 		slug: options.apiKeysSlug,
+		...lifecycle,
 		labels: { singular: "API Key", plural: "API Keys" },
 		admin: {
 			group: "MCP",

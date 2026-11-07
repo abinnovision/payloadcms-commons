@@ -148,6 +148,7 @@ describe("confirmed deletes", () => {
 		await booted.payload.create({
 			collection: "tags",
 			data: { name },
+			overrideAccess: true,
 		});
 
 	const createBin = async (title: string): Promise<Doc> =>
@@ -214,7 +215,11 @@ describe("confirmed deletes", () => {
 			})
 		).docs[0]!.id;
 
-		await booted.payload.create({ collection: "users", data: OTHER });
+		await booted.payload.create({
+			collection: "users",
+			data: OTHER,
+			overrideAccess: true,
+		});
 
 		const login = async (data: typeof USER) =>
 			`payload-token=${String((await booted.payload.login({ collection: "users", data })).token)}`;
@@ -319,6 +324,7 @@ describe("confirmed deletes", () => {
 					await booted.payload.find({
 						collection: "users",
 						where: { email: { equals: USER.email } },
+						overrideAccess: true,
 					})
 				).docs[0]!.id,
 				label: "unattended",
@@ -539,6 +545,7 @@ describe("confirmed deletes", () => {
 					await booted.payload.find({
 						collection: "users",
 						where: { email: { equals: USER.email } },
+						overrideAccess: true,
 					})
 				).docs[0]!.id,
 				label: "second",
@@ -563,6 +570,7 @@ describe("confirmed deletes", () => {
 					await booted.payload.find({
 						collection: "users",
 						where: { email: { equals: USER.email } },
+						overrideAccess: true,
 					})
 				).docs[0]!.id,
 				label: "unticked",

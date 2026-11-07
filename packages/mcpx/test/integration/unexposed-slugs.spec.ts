@@ -79,6 +79,7 @@ describe("collections the config does not expose", () => {
 		const user = await payload.create({
 			collection: "users",
 			data: { email: USER_EMAIL, password: "unexposed-secret" },
+			overrideAccess: true,
 		});
 
 		plainKey = await createKey(payload, {
@@ -107,6 +108,7 @@ describe("collections the config does not expose", () => {
 			collection: "notes",
 			data: { title: NOTE_TITLE },
 			draft: true,
+			overrideAccess: true,
 		});
 
 		targets = {

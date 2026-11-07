@@ -46,26 +46,31 @@ describe("relationships into the user collection", () => {
 				enableAPIKey: true,
 				apiKey: AUTHOR.apiKey,
 			},
+			overrideAccess: true,
 		});
 		const otherAuthor = await payload.create({
 			collection: "users",
 			data: { email: OTHER_AUTHOR_EMAIL, password: "author-secret" },
+			overrideAccess: true,
 		});
 
 		const article = await payload.create({
 			collection: "articles" as never,
 			data: { title: "Draft one", author: author.id },
+			overrideAccess: true,
 		});
 
 		await payload.update({
 			collection: "articles" as never,
 			id: article.id,
 			data: { title: "Final one" },
+			overrideAccess: true,
 		});
 
 		const other = await payload.create({
 			collection: "articles" as never,
 			data: { title: "Other", author: otherAuthor.id },
+			overrideAccess: true,
 		});
 
 		authorId = author.id;
@@ -76,6 +81,7 @@ describe("relationships into the user collection", () => {
 			collection: "articles" as never,
 			where: { parent: { equals: article.id } },
 			sort: "createdAt",
+			overrideAccess: true,
 		});
 
 		versionId = versions.docs[0]?.id as number | string;

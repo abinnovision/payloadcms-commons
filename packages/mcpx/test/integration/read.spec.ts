@@ -31,6 +31,7 @@ describe("read tools", () => {
 						sections: [section("intro", [hero(`Hero ${String(index)}`)])],
 					},
 				},
+				overrideAccess: true,
 			});
 		}
 
@@ -43,6 +44,7 @@ describe("read tools", () => {
 				layout: { sections: [section("intro", [hero("Hello")])] },
 				_status: "published",
 			},
+			overrideAccess: true,
 		});
 
 		pageId = page.id;
@@ -53,6 +55,7 @@ describe("read tools", () => {
 			locale: "de",
 			draft: true,
 			data: { title: "Veröffentlicht" },
+			overrideAccess: true,
 		});
 		await payload.update({
 			collection: "pages",
@@ -60,6 +63,7 @@ describe("read tools", () => {
 			locale: "en",
 			draft: true,
 			data: { title: "Pending draft" },
+			overrideAccess: true,
 		});
 	});
 
@@ -119,6 +123,7 @@ describe("read tools", () => {
 			locale: "en",
 			draft: true,
 			data: { title: "Only English", slug: "only-english" },
+			overrideAccess: true,
 		});
 		const found = await mcp.call("findDocuments", {
 			collection: "pages",
@@ -206,6 +211,7 @@ describe("read tools", () => {
 						title: "Outlined",
 						summary: state([node("heading", { tag: "h4" }, [text("Heading")])]),
 					},
+					overrideAccess: true,
 				})
 			).id;
 

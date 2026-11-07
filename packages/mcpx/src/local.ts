@@ -1,6 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createLocalReq } from "payload";
 
 import { relationId } from "./auth/resolve.js";
 import { resolveCapabilities } from "./capabilities.js";
@@ -8,10 +7,11 @@ import { actAs } from "./endpoint/handler.js";
 import { createMcpServer } from "./endpoint/server.js";
 import { ownValue } from "./guards.js";
 import { optionsOf } from "./plugin.js";
+import { createLocalRequest } from "./request.js";
 import { MCPX_VERSION } from "./version.js";
 
-import type { McpxExposedEntity } from "./types.js";
-import type { Payload, TypedUser } from "payload";
+import type { McpxExposedEntity, McpxUser } from "./types.js";
+import type { Payload } from "payload";
 
 /**
  * What one entity grants, keyed by operation. Deleting is not offered here.
@@ -62,7 +62,7 @@ const storedGroup = (
  */
 export const createMcpxClient = async (
 	payload: Payload,
-	args: { user: TypedUser; capabilities: McpxLocalCapabilities },
+	args: { user: McpxUser; capabilities: McpxLocalCapabilities },
 ): Promise<Client> => {
 	const options = optionsOf(payload);
 	const { user, capabilities } = args;
@@ -76,7 +76,7 @@ export const createMcpxClient = async (
 		);
 	}
 
-	const req = await createLocalReq({ user }, payload);
+	const req = await createLocalRequest(payload, user);
 	const scope = actAs(req, options, user, {
 		capabilities: resolveCapabilities(options, {
 			collections: storedGroup(options.collections, capabilities.collections),

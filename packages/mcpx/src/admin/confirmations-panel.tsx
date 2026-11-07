@@ -94,8 +94,7 @@ const DecisionButtons: React.FC<{
 	busy: boolean;
 	onDecide: (decision: ConfirmationDecision) => void;
 	reject: React.ReactNode;
-	small?: boolean;
-}> = ({ approve, busy, onDecide, reject, small = false }) => (
+}> = ({ approve, busy, onDecide, reject }) => (
 	<>
 		<Button
 			buttonStyle="primary"
@@ -104,7 +103,7 @@ const DecisionButtons: React.FC<{
 			onClick={() => {
 				onDecide("approved");
 			}}
-			size={small ? "small" : "medium"}
+			size="medium"
 			type="button"
 		>
 			{approve}
@@ -116,7 +115,7 @@ const DecisionButtons: React.FC<{
 			onClick={() => {
 				onDecide("rejected");
 			}}
-			size={small ? "small" : "medium"}
+			size="medium"
 			type="button"
 		>
 			{reject}
@@ -193,7 +192,6 @@ const Row: React.FC<{
 							onDecide([handle], decision);
 						}}
 						reject="Reject"
-						small
 					/>
 				</div>
 			</td>

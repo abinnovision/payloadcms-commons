@@ -80,6 +80,7 @@ describe("live writes", () => {
 		const doc = await booted.payload.findByID({
 			collection: "tags",
 			id: result.data["id"] as number | string,
+			overrideAccess: true,
 		});
 
 		expect(doc).toMatchObject({ name: "Live" });

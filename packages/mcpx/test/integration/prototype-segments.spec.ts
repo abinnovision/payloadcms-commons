@@ -60,6 +60,7 @@ describe("prototype segments in writes", () => {
 					{ heading: "Row", actions: [{ blockType: "cta", label: "Go" }] },
 				],
 			},
+			overrideAccess: true,
 		});
 
 		postId = post.id;

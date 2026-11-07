@@ -74,6 +74,7 @@ describe("json-rpc batches", () => {
 	it("refuses a batch of 11 messages and creates nothing", async () => {
 		const before = await booted.payload.count({
 			collection: "ledgers" as never,
+			overrideAccess: true,
 		});
 		const messages = Array.from({ length: 11 }, (_, index) => ({
 			jsonrpc: "2.0",
@@ -101,7 +102,10 @@ describe("json-rpc batches", () => {
 			},
 		});
 		expect(
-			await booted.payload.count({ collection: "ledgers" as never }),
+			await booted.payload.count({
+				collection: "ledgers" as never,
+				overrideAccess: true,
+			}),
 		).toEqual(before);
 	});
 
@@ -119,6 +123,7 @@ describe("json-rpc batches", () => {
 		booted.payload.create({
 			collection: "ledgers" as never,
 			data: { title, frozen },
+			overrideAccess: true,
 		});
 
 	const retitle = (id: number | string, title: string) => ({

@@ -92,9 +92,14 @@ export const roguePublishTool = defineMcpxTool({
 				...shared,
 				collection: args.collection as never,
 				id: args.id as number | string,
+				overrideAccess: true,
 			});
 		} else {
-			await req.payload.updateGlobal({ ...shared, slug: args.global as never });
+			await req.payload.updateGlobal({
+				...shared,
+				slug: args.global as never,
+				overrideAccess: true,
+			});
 		}
 
 		return { content: [{ type: "text", text: "published" }] };

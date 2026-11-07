@@ -268,6 +268,7 @@ describe("version history", () => {
 		const snippet = await booted.payload.create({
 			collection: "snippets",
 			data: { body: "Plain" },
+			overrideAccess: true,
 		});
 
 		const result = await editor.call("findVersions", {
@@ -332,10 +333,12 @@ describe("version history", () => {
 		const hidden = await booted.payload.create({
 			collection: "snippets",
 			data: { body: "Hidden" },
+			overrideAccess: true,
 		});
 		const stored = await booted.payload.findVersions({
 			collection: "snippets",
 			where: { parent: { equals: hidden.id } },
+			overrideAccess: true,
 		});
 
 		const listed = await editor.call("findVersions", {

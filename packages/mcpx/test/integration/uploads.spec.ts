@@ -880,6 +880,7 @@ describe("uploads through MCP", () => {
 			const other = await payload.create({
 				collection: "users",
 				data: { email: "other@example.com", password: "other-secret" },
+				overrideAccess: true,
 			});
 			const { token } = await payload.login({
 				collection: "users",

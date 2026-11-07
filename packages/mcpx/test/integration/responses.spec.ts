@@ -120,13 +120,18 @@ describe("tool responses", () => {
 		storedState(booted.payload, { collections: [collection] });
 
 	const seedTag = (name: string) =>
-		booted.payload.create({ collection: "tags", data: { name } });
+		booted.payload.create({
+			collection: "tags",
+			data: { name },
+			overrideAccess: true,
+		});
 
 	const seedNote = (title: string) =>
 		booted.payload.create({
 			collection: "notes",
 			data: { title },
 			draft: true,
+			overrideAccess: true,
 		});
 
 	describe("listCapabilities", () => {
@@ -468,6 +473,7 @@ describe("tool responses", () => {
 				data: { slug: "validate-me" },
 				draft: true,
 				locale: "en",
+				overrideAccess: true,
 			});
 
 			expect(
@@ -578,6 +584,7 @@ describe("tool responses", () => {
 				data: { slug: "publish-refused" },
 				draft: true,
 				locale: "en",
+				overrideAccess: true,
 			});
 			const before = await stored("pages");
 

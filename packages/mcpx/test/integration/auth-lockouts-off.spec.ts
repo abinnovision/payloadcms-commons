@@ -24,6 +24,7 @@ describe("default key resolution without lockouts", () => {
 		const user = await booted.payload.create({
 			collection: "users",
 			data: { email: "no-lockout@example.com", password: "state-secret" },
+			overrideAccess: true,
 		});
 		const key = await createKey(booted.payload, {
 			userId: user.id,

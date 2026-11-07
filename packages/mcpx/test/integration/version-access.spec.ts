@@ -33,18 +33,21 @@ describe("old versions under a filtered read access", () => {
 		const bulletin = await payload.create({
 			collection: slug as never,
 			data: { body: EMBARGOED, visibility: "private" },
+			overrideAccess: true,
 		});
 
 		await payload.update({
 			collection: slug as never,
 			id: bulletin.id,
 			data: { body: PUBLIC, visibility: "public" },
+			overrideAccess: true,
 		});
 
 		const versions = await payload.findVersions({
 			collection: slug as never,
 			where: { parent: { equals: bulletin.id } },
 			sort: "createdAt",
+			overrideAccess: true,
 		});
 
 		return {

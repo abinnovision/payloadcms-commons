@@ -42,6 +42,7 @@ describe("notApplied on a field closed to the key's user", () => {
 		const keeperUser = await booted.payload.create({
 			collection: "users",
 			data: { email: KEEPER_EMAIL, password: "keeper-secret" },
+			overrideAccess: true,
 		});
 
 		mcp = createMcpClient(booted, keys.ledger);
@@ -58,6 +59,7 @@ describe("notApplied on a field closed to the key's user", () => {
 		const ledger = await booted.payload.create({
 			collection: "ledgers" as never,
 			data: { title: "Ledger", secret: SECRET },
+			overrideAccess: true,
 		});
 
 		ledgerId = ledger.id;
@@ -86,6 +88,7 @@ describe("notApplied on a field closed to the key's user", () => {
 			await booted.payload.create({
 				collection: "vaults" as never,
 				data: { title: "Vault", code: CODE },
+				overrideAccess: true,
 			})
 		).id;
 

@@ -103,7 +103,11 @@ export const seedKeysFor = async <Label extends string>(
 	payload: Payload,
 	capabilities: Record<Label, KeyCapabilities>,
 ): Promise<{ userId: number | string; keys: Record<Label, string> }> => {
-	const user = await payload.create({ collection: "users", data: USER });
+	const user = await payload.create({
+		collection: "users",
+		data: USER,
+		overrideAccess: true,
+	});
 	const keys: Partial<Record<Label, string>> = {};
 
 	for (const [label, granted] of Object.entries(capabilities) as [
@@ -177,6 +181,7 @@ export const createDraft = <Doc>(
 		locale: "en",
 		draft: true,
 		data,
+		overrideAccess: true,
 	}) as Promise<Doc>;
 
 /**
@@ -195,6 +200,7 @@ export const readDraft = <Doc>(
 		draft: true,
 		locale,
 		fallbackLocale: false,
+		overrideAccess: true,
 	}) as Promise<Doc>;
 
 /**
@@ -214,10 +220,17 @@ export const storedState = async (
 			collection,
 			draft: true,
 			pagination: false,
+			overrideAccess: true,
 		});
 		const versions = payload.collections[collection]?.config.versions
-			? (await payload.findVersions({ ...read, collection, pagination: false }))
-					.docs
+			? (
+					await payload.findVersions({
+						...read,
+						collection,
+						pagination: false,
+						overrideAccess: true,
+					})
+				).docs
 			: undefined;
 
 		return [slug, { docs, versions }] as const;
@@ -229,6 +242,7 @@ export const storedState = async (
 			...read,
 			slug: global,
 			draft: true,
+			overrideAccess: true,
 		});
 		const versions = payload.globals.config.find((entry) => entry.slug === slug)
 			?.versions
@@ -237,6 +251,7 @@ export const storedState = async (
 						...read,
 						slug: global,
 						pagination: false,
+						overrideAccess: true,
 					})
 				).docs
 			: undefined;

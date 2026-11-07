@@ -38,6 +38,7 @@ describe("folders: false", () => {
 		await payload.create({
 			collection: FOLDERS as never,
 			data: { name: "Blog" },
+			overrideAccess: true,
 		});
 
 		key = keys.key;

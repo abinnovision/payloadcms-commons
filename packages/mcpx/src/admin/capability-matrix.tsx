@@ -272,7 +272,7 @@ const Segments = <T extends string>({
 								? "primary"
 								: included.includes(option.id)
 									? "pill"
-									: "transparent"
+									: "secondary"
 						}
 						disabled={readOnly}
 						extraButtonProps={{
@@ -286,7 +286,7 @@ const Segments = <T extends string>({
 						onClick={() => {
 							onSelect(option.id);
 						}}
-						size="small"
+						size="medium"
 					>
 						{option.label}
 					</Button>

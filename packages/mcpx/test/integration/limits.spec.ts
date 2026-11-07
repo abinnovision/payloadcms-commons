@@ -48,6 +48,7 @@ describe("endpoint limits", () => {
 			locale: "en",
 			draft: true,
 			data: { title: "Limits" },
+			overrideAccess: true,
 		});
 
 		postId = post.id;
@@ -58,7 +59,8 @@ describe("endpoint limits", () => {
 	});
 
 	const postCount = async (): Promise<number> =>
-		(await booted.payload.count({ collection: "posts" })).totalDocs;
+		(await booted.payload.count({ collection: "posts", overrideAccess: true }))
+			.totalDocs;
 
 	const stored = async (): Promise<unknown> =>
 		await booted.payload.findByID({

@@ -21,6 +21,7 @@ describe("schema errors", () => {
 			collection: "posts",
 			draft: true,
 			data: { title: "Schema errors" },
+			overrideAccess: true,
 		});
 
 		postId = post.id;

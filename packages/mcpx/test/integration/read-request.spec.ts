@@ -58,10 +58,12 @@ describe("mcpxReadRequest in a custom tool", () => {
 		const dossier = await payload.create({
 			collection: "dossiers" as never,
 			data: { title: "Linked dossier" },
+			overrideAccess: true,
 		});
 		const casefile = await payload.create({
 			collection: "casefiles" as never,
 			data: { _status: "published", title: "Casefile", dossier: dossier.id },
+			overrideAccess: true,
 		});
 
 		dossierId = dossier.id;
