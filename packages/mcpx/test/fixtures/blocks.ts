@@ -1,10 +1,24 @@
+import { payloadMajor } from "@internal/test-utils/payload-major";
 import {
 	BlocksFeature,
 	lexicalEditor,
 	ParagraphFeature,
 } from "@payloadcms/richtext-lexical";
 
-import type { Block } from "payload";
+import type { Block, BlocksField } from "payload";
+
+/**
+ * Blocks declaration in the shape of the installed Payload major: Payload 3
+ * keeps references in `blockReferences`, Payload 4 in `blocks`.
+ */
+export const blocksField = (
+	blocks: (Block | string)[],
+): Pick<BlocksField, "blocks"> => {
+	const shape: unknown =
+		payloadMajor() === 3 ? { blocks: [], blockReferences: blocks } : { blocks };
+
+	return shape as Pick<BlocksField, "blocks">;
+};
 
 /**
  * Inline block whose title editor only knows paragraphs, so the Lexical node
@@ -48,8 +62,7 @@ export const sectionWrapperBlock: Block = {
 		{
 			name: "modules",
 			type: "blocks",
-			blocks: [],
-			blockReferences: [heroBlock, "richText"],
+			...blocksField([heroBlock, "richText"]),
 		},
 	],
 };

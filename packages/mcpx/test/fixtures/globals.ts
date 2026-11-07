@@ -1,4 +1,4 @@
-import { richTextBlock, sectionWrapperBlock } from "./blocks.js";
+import { blocksField, richTextBlock, sectionWrapperBlock } from "./blocks.js";
 
 import type { GlobalConfig } from "payload";
 
@@ -29,8 +29,7 @@ export const siteSettings: GlobalConfig = {
 		{
 			name: "sections",
 			type: "blocks",
-			blocks: [],
-			blockReferences: [sectionWrapperBlock, richTextBlock],
+			...blocksField([sectionWrapperBlock, richTextBlock]),
 		},
 	],
 };

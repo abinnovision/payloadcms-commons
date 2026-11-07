@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import {
 	badgeBlock,
+	blocksField,
 	ctaBlock,
 	richTextBlock,
 	sectionWrapperBlock,
@@ -81,8 +82,7 @@ export const pages: CollectionConfig = {
 							name: "sections",
 							type: "blocks",
 							required: true,
-							blocks: [],
-							blockReferences: [sectionWrapperBlock, richTextBlock],
+							...blocksField([sectionWrapperBlock, richTextBlock]),
 						},
 					],
 				},
