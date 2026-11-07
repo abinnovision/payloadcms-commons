@@ -1,5 +1,7 @@
 # @abinnovision/payloadcms-oidc
 
+![The admin login forwards to one OpenID Connect provider, whose claims become the Payload user and its roles](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/oidc/assets/header.png)
+
 Single sign-on for [Payload CMS](https://payloadcms.com/) through one OpenID Connect provider.
 
 The plugin hands all authentication of one auth collection to your identity provider. Password
