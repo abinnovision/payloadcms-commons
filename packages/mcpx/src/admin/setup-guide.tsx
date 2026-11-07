@@ -5,7 +5,6 @@ import {
 	Button,
 	CopyToClipboard,
 	Drawer,
-	DrawerContentContainer,
 	formatDrawerSlug,
 	useConfig,
 	useDocumentInfo,
@@ -51,6 +50,8 @@ const useOrigin = (serverUrl: string): string => {
  * themes without a stylesheet that consumers would have to transpile.
  */
 const styles = {
+	// Payload 4's drawer no longer pads its children; `--spacer-2-5` exists only there and is what its own content container uses. (Payload 3 wraps children in a gutter and does not define that token, so the fallback 0 applies.)
+	content: { padding: "var(--spacer-2-5, 0)" },
 	section: { marginBottom: `calc(${T.base} * 0.75)` },
 	sectionHeader: {
 		display: "flex",
@@ -73,12 +74,6 @@ const styles = {
 		wordBreak: "break-all",
 	},
 } as const satisfies Record<string, React.CSSProperties>;
-
-/*
- * Payload 3 pads the drawer itself, Payload 4 does not; the container pads both.
- * Only Payload 3's Drawer has a `gutter` prop, so it is passed untyped.
- */
-const drawerProps: object = { gutter: false };
 
 const SetupGuideContent: React.FC<McpxSetupGuideProps> = ({ endpointPath }) => {
 	const { config } = useConfig();
@@ -145,10 +140,10 @@ export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
 			>
 				Connect a client
 			</Button>
-			<Drawer slug={drawerSlug} title="Connect a client" {...drawerProps}>
-				<DrawerContentContainer>
+			<Drawer slug={drawerSlug} title="Connect a client">
+				<div style={styles.content}>
 					<SetupGuideContent endpointPath={endpointPath} />
-				</DrawerContentContainer>
+				</div>
 			</Drawer>
 		</>
 	);

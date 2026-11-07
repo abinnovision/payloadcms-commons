@@ -32,9 +32,6 @@ vi.mock("@payloadcms/ui", () => ({
 	Drawer: ({ children }: { children: React.ReactNode }) => (
 		<div>{children}</div>
 	),
-	DrawerContentContainer: ({ children }: { children: React.ReactNode }) => (
-		<div>{children}</div>
-	),
 	formatDrawerSlug: ({ slug, depth }: { slug: string; depth: number }) =>
 		`${slug}-${String(depth)}`,
 	useEditDepth: () => 0,
