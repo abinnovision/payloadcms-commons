@@ -27,6 +27,8 @@ describe("admin.hidden fields below the top level", () => {
 	let firstVersionId: number | string;
 
 	beforeAll(async () => {
+		// Other specs leave files here, and Payload renames on a collision.
+		await rm(MEDIA_DIR, { recursive: true, force: true });
 		booted = await bootPayload({
 			key: CACHE_KEY,
 			collections: [casefiles, dossiers],
@@ -43,6 +45,7 @@ describe("admin.hidden fields below the top level", () => {
 		const dossier = await payload.create({
 			collection: "dossiers" as never,
 			data: { title: "Linked dossier", adminHidden: HIDDEN.dossier },
+			overrideAccess: true,
 		});
 
 		mediaId = (await createMedia(payload, "Cover")).id;
@@ -58,6 +61,7 @@ describe("admin.hidden fields below the top level", () => {
 				dossier: dossier.id,
 				cover: mediaId,
 			},
+			overrideAccess: true,
 		});
 
 		casefileId = casefile.id;
@@ -66,18 +70,21 @@ describe("admin.hidden fields below the top level", () => {
 			collection: "casefiles" as never,
 			id: casefileId,
 			data: { _status: "published", title: "Second title" },
+			overrideAccess: true,
 		});
 		await payload.update({
 			collection: "casefiles" as never,
 			id: casefileId,
 			draft: true,
 			data: { title: "Draft title", note: HIDDEN.next },
+			overrideAccess: true,
 		});
 
 		const versions = await payload.findVersions({
 			collection: "casefiles" as never,
 			where: { parent: { equals: casefileId } },
 			sort: "createdAt",
+			overrideAccess: true,
 		});
 
 		firstVersionId = versions.docs[0]?.id as number | string;

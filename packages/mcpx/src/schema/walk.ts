@@ -73,12 +73,21 @@ export const ROW_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * On a flattened field, whichever of `blockReferences` and `blocks` was
- * declared.
+ * The blocks declared on a flattened field. Payload 3 keeps references in
+ * `blockReferences`, Payload 4 declares everything in `blocks`.
  */
+const declaredBlocks = (
+	field: FlattenedBlocksField,
+): (FlattenedBlock | string)[] => {
+	const raw: unknown = field;
+	const legacy = raw as { blockReferences?: (FlattenedBlock | string)[] };
+
+	return legacy.blockReferences ?? field.blocks;
+};
+
 export const blockSlugsOf = (field: FlattenedBlocksField): string[] => [
 	...new Set(
-		(field.blockReferences ?? field.blocks).map((block) =>
+		declaredBlocks(field).map((block) =>
 			typeof block === "string" ? block : block.slug,
 		),
 	),
@@ -94,7 +103,7 @@ export const blockOf = (
 	field: FlattenedBlocksField,
 	slug: string,
 ): FlattenedBlock | undefined => {
-	const declared = field.blockReferences ?? field.blocks;
+	const declared = declaredBlocks(field);
 
 	const inline = declared.find(
 		(block): block is FlattenedBlock =>

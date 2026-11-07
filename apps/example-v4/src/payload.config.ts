@@ -1,4 +1,5 @@
 import { colophonPlugin } from "@abinnovision/payloadcms-colophon/config";
+import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
 import { montagePlugin } from "@abinnovision/payloadcms-montage/config";
 import { wayfinderPlugin } from "@abinnovision/payloadcms-wayfinder/config";
 import { sqliteAdapter } from "@payloadcms/db-sqlite";
@@ -40,7 +41,9 @@ if (databaseURI.startsWith("file:")) {
 }
 
 export default buildConfig({
+	// Required. Both JWT signing and the mcpx API key index derive from it.
 	secret: process.env.PAYLOAD_SECRET ?? "",
+	// What the mcpx setup guide prints as an absolute endpoint URL.
 	serverURL: process.env.PAYLOAD_URL ?? "http://localhost:3001",
 	db: sqliteAdapter({ client: { url: databaseURI } }),
 	editor: lexicalEditor(),
@@ -73,6 +76,24 @@ export default buildConfig({
 		 * `defaultPopulate` that makes its links resolve.
 		 */
 		wayfinderPlugin({ checkDefaultPopulateOn: linkTargets.relationTo }),
+		/*
+		 * Everything is allowed, so every capability can be tried from a key,
+		 * including `deleteDocument`: it moves to the trash once approved on
+		 * the key's edit view, or at once where the key ticks "Delete without
+		 * approval".
+		 */
+		mcpxPlugin({
+			collections: {
+				pages: { delete: "unattended" },
+				articles: { delete: "unattended" },
+				posts: { delete: "unattended" },
+				sections: { delete: "unattended" },
+				tags: { delete: "unattended" },
+				media: { delete: "unattended" },
+			},
+			globals: { "site-settings": true },
+			limits: { maxLimit: 25, maxDepth: 1 },
+		}),
 		/*
 		 * Default rows, so the group only appears once `APP_VERSION` and
 		 * friends are exported. Starting `yarn dev` without them is the

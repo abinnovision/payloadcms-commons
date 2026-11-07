@@ -45,6 +45,7 @@ describe("default key resolution against the user's state", () => {
 				_verified: verified,
 			},
 			disableVerificationEmail: true,
+			overrideAccess: true,
 		});
 
 		return user.id;
@@ -94,6 +95,7 @@ describe("default key resolution against the user's state", () => {
 				collection: "users",
 				id: userId,
 				disableErrors: true,
+				overrideAccess: true,
 			}),
 		).toBeNull();
 
@@ -143,6 +145,7 @@ describe("default key resolution against the user's state", () => {
 			collection: "users",
 			id: userId,
 			showHiddenFields: true,
+			overrideAccess: true,
 		});
 
 		expect(Date.parse(String(stored["lockUntil"]))).toBeGreaterThan(Date.now());

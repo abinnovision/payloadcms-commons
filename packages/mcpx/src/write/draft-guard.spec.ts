@@ -177,6 +177,18 @@ describe("forceDraftWrite on a marked publish", () => {
 		expect(args).toMatchObject({ publishSpecificLocale: "de" });
 	});
 
+	it("keeps publishAllLocales and strips unpublishAllLocales", () => {
+		const args = operationArgumentsFor({
+			data: withPublishIntent({}),
+			id: "1",
+			publishAllLocales: true,
+			unpublishAllLocales: true,
+		});
+
+		expect(args).toMatchObject({ draft: false, publishAllLocales: true });
+		expect(args).not.toHaveProperty("unpublishAllLocales");
+	});
+
 	it("carries the marker on, because the alarm still needs it", () => {
 		const args = operationArgumentsFor({
 			data: withPublishIntent({}),
@@ -239,6 +251,7 @@ describe("forceDraftWrite on a marked trash move", () => {
 				title: "Probe",
 			}),
 			id: "1",
+			publishAllLocales: true,
 			publishSpecificLocale: "de",
 			overrideLock: true,
 			trash: true,
@@ -252,6 +265,7 @@ describe("forceDraftWrite on a marked trash move", () => {
 		});
 		expect(args["data"]).not.toHaveProperty("_status");
 		expect(args["data"]).not.toHaveProperty("title");
+		expect(args).not.toHaveProperty("publishAllLocales");
 		expect(args).not.toHaveProperty("publishSpecificLocale");
 		expect(hasTrashIntent(args["data"])).toBe(true);
 	});
@@ -408,6 +422,22 @@ describe("forceDraftWriteGlobal", () => {
 
 		expect(next).not.toHaveProperty("publishAllLocales");
 		expect(next).not.toHaveProperty("publishSpecificLocale");
+		expect(next).not.toHaveProperty("unpublishAllLocales");
+	});
+
+	it("keeps publishAllLocales on a marked publish only", () => {
+		const next = globalOperationArgumentsFor({
+			data: withPublishIntent({}),
+			draft: false,
+			publishAllLocales: true,
+			slug: "site-settings",
+			unpublishAllLocales: true,
+		});
+
+		expect(next).toMatchObject({
+			data: { _status: "published" },
+			publishAllLocales: true,
+		});
 		expect(next).not.toHaveProperty("unpublishAllLocales");
 	});
 

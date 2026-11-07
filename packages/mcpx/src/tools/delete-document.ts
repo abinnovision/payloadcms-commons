@@ -66,11 +66,16 @@ const mayDelete = async (
 	let where: Where = { id: { equals: target.id } };
 
 	for (const rule of rules) {
+		// v4's `executeAccess` requires `slug`; v3 ignores the extra key.
+		const accessArgs = {
+			id: target.id,
+			data,
+			disableErrors: true,
+			req,
+			slug: config.slug,
+		};
 		// eslint-disable-next-line no-await-in-loop
-		const result = await executeAccess(
-			{ id: target.id, data, disableErrors: true, req },
-			rule,
-		);
+		const result = await executeAccess(accessArgs, rule);
 
 		if (result === false) {
 			return false;

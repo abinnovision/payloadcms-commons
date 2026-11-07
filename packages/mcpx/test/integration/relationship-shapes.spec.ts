@@ -43,6 +43,7 @@ describe("relationships across field shapes", () => {
 			collection: "dispatches" as never,
 			where: { parent: { equals: id } },
 			sort: "createdAt",
+			overrideAccess: true,
 		});
 
 		return versions.docs[0]?.id as number | string;
@@ -71,11 +72,13 @@ describe("relationships across field shapes", () => {
 				enableAPIKey: true,
 				apiKey: AUTHOR.apiKey,
 			},
+			overrideAccess: true,
 		});
 		const media = await createMedia(payload, "Pixel");
 		const article = await payload.create({
 			collection: "articles" as never,
 			data: { title: "Readable", author: author.id },
+			overrideAccess: true,
 		});
 
 		authorId = author.id;
@@ -144,10 +147,12 @@ describe("relationships across field shapes", () => {
 					},
 				]),
 			},
+			overrideAccess: true,
 		});
 		const remark = await payload.create({
 			collection: "remarks" as never,
 			data: { text: "Seen", dispatch: closed.id },
+			overrideAccess: true,
 		});
 		const open = await payload.create({
 			collection: "dispatches" as never,
@@ -159,6 +164,7 @@ describe("relationships across field shapes", () => {
 					{ relationTo: "users", value: author.id },
 				],
 			},
+			overrideAccess: true,
 		});
 
 		remarkId = remark.id;

@@ -5,7 +5,9 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		"./module-graph": "./src/module-graph.ts"
+		"./module-graph": "./src/module-graph.ts",
+		"./payload-major": "./src/payload-major.ts",
+		"./payload-v4": "./src/payload-v4.ts"
 	},
 	"scripts": {
 		"format:check": "prettier --check 'src/**/*.ts' '*.{json{,5},md,y{,a}ml}'",
@@ -26,6 +28,7 @@
 		"@types/node": "^26.6.6",
 		"eslint": "^10.14.0",
 		"prettier": "^3.9.10",
+		"vite": "^8.3.5",
 		"vitest": "^5.0.5"
 	}
 }

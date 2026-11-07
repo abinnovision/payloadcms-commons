@@ -41,7 +41,10 @@ describe("createDocument and validateDocument", () => {
 	});
 
 	it("refuses a list node missing what the editor hydrates it from", async () => {
-		const before = await booted.payload.count({ collection: "posts" });
+		const before = await booted.payload.count({
+			collection: "posts",
+			overrideAccess: true,
+		});
 
 		const result = await mcp.call("createDocument", {
 			collection: "posts",
@@ -57,7 +60,10 @@ describe("createDocument and validateDocument", () => {
 			'/content/root/children/0/children/0: a "listitem" node is missing "indent". Write nodes as Lexical serializes them.',
 		]);
 
-		const after = await booted.payload.count({ collection: "posts" });
+		const after = await booted.payload.count({
+			collection: "posts",
+			overrideAccess: true,
+		});
 
 		expect(after.totalDocs).toBe(before.totalDocs);
 

@@ -267,6 +267,7 @@ export const updateTarget = async (
 		data: Record<string, unknown>;
 		draft: boolean;
 		locale: string | undefined;
+		publishAllLocales?: boolean;
 		publishSpecificLocale?: string | undefined;
 		file?: File | undefined;
 	},
@@ -289,6 +290,7 @@ export const updateTarget = async (
 			...definedProps({ file }),
 			collection: target.slug,
 			id: target.id,
+			overrideLock: false,
 		});
 	} else {
 		await payload.updateGlobal({ ...shared, slug: target.slug });

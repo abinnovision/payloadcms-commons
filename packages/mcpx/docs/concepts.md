@@ -247,17 +247,22 @@ A draft guard enforces this on the Payload operation rather than in the tools, s
 that pass the MCP `req` are covered too. [security.md](./security.md#the-draft-guard) describes it
 and lists what it does not cover.
 
-`publishDocument` is the one way to publish. It publishes every locale, as the admin Publish
-button does, and is refused when the document fails validation. Payload validates only the locale
-the publish runs in, so a required field left empty in another locale goes live empty; see
-[limitations.md](./limitations.md#known-gaps). After the publish, the result lists those fields as
-`otherLocaleBlockers`, for information only. Publishing an unchanged document is accepted and
+`publishDocument` is the one way to publish. Without `locale`, it publishes every locale in one
+write. It checks every locale first and is refused while any locale has publish blockers or the
+check fails. Nothing is published then, and the result lists the blockers as `publishBlockers`,
+each with its `locale`. A successful publish lists the published locales as `publishedLocales`;
+without localization that field is left out. Publishing an unchanged document is accepted and
 writes another version. There is no unpublish tool; reverting a published document to a draft is
 done in the admin panel.
 
-With `locale`, only that locale is published. The other locales of localized fields stay at their
-last published state, while non-localized fields go live from the draft. A document that was never
-published goes live in every locale regardless.
+With `locale`, only that locale is published, and Payload validates only that locale. The other
+locales of localized fields stay at their last published state, while non-localized fields go live
+from the draft. After the publish, the result lists what the other locales still lack as
+`otherLocaleBlockers`, for information only.
+
+The first publish of a document covers every locale, even with `locale`, and is checked the same
+way. A document with an incomplete locale cannot go live through MCP until every locale is
+complete; see [limitations.md](./limitations.md#known-gaps).
 
 While someone has a collection document open in the admin panel, every MCP write to it is
 refused, publishing included. Globals are not checked; see

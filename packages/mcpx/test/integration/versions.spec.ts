@@ -72,11 +72,15 @@ describe("version history", () => {
 
 		pageId = created.data["id"] as number | string;
 
-		for (const title of ["Second", "Third"]) {
+		// The German title lets every locale publish.
+		for (const [locale, title] of [
+			["en", "Second"],
+			["de", "Zweite"],
+		]) {
 			await editor.call("patchDocument", {
 				collection: "pages",
 				id: pageId,
-				locale: "en",
+				locale,
 				patches: [{ op: "replace", path: "/title", value: title }],
 			});
 		}
@@ -268,6 +272,7 @@ describe("version history", () => {
 		const snippet = await booted.payload.create({
 			collection: "snippets",
 			data: { body: "Plain" },
+			overrideAccess: true,
 		});
 
 		const result = await editor.call("findVersions", {
@@ -332,10 +337,12 @@ describe("version history", () => {
 		const hidden = await booted.payload.create({
 			collection: "snippets",
 			data: { body: "Hidden" },
+			overrideAccess: true,
 		});
 		const stored = await booted.payload.findVersions({
 			collection: "snippets",
 			where: { parent: { equals: hidden.id } },
+			overrideAccess: true,
 		});
 
 		const listed = await editor.call("findVersions", {

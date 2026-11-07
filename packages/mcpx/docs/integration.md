@@ -27,12 +27,15 @@ for any of these:
   not an auth collection;
 - an exposed auth collection, read included, since its documents carry credentials such as the
   decrypted Payload API key of every user;
-- an exposed `payload-*` collection or global, or the key collection itself (folders use the
-  `folders` option);
-- a `folders` object while no exposed collection uses folders, or a `folders` value other than
-  `false` or `{ write?: boolean }`;
-- a folder collection with auth, upload or versions from `folders.collectionOverrides`, checked in
-  `onInit`;
+- an exposed `payload-*` collection or global other than Payload 3's folder collection, or the key
+  collection itself;
+- the removed `folders` option, see [Upgrading to 3.0](#upgrading-to-30);
+- an exposed Payload 3 folder collection that Payload does not add, because no collection has
+  `folders: true`, or that has auth, trash, upload or versions from `folders.collectionOverrides`,
+  checked in `onInit`;
+- `delete` on a folder collection, since deleting a folder also deletes its subfolders with full
+  access; on Payload 4 this covers every collection with `folders`, `tags` or `hierarchy`, checked
+  in `onInit`;
 - a key collection slug that another collection already uses;
 - an entity value that is not `true` or an object, including `false` (remove the entry to hide the
   entity), and an object key other than `read`, `write`, `publish` and, on a collection,
@@ -45,7 +48,8 @@ for any of these:
 - `write: true`, `publish: true` or `delete` on an entity with `read: false`, since each needs read;
 - `publish: false` on an entity without `versions.drafts`, since every write there goes live;
 - `write` on a collection with `timestamps: false`, since the concurrency check needs `updatedAt`;
-- a live `write` on an entity with `versions.drafts.localizeStatus`, which is not supported yet;
+- a live `write` on an entity with `versions.drafts.localizeStatus` while Payload 3's
+  `experimental.localizeStatus` is on, which is not supported yet;
 - two exposed collections, or two exposed globals, whose slugs map to the same camelCase
   capability name;
 - a custom tool name that does not start with a letter, holds anything other than letters and
@@ -227,6 +231,71 @@ The caller vouches for `user`: nothing authenticates it, and Payload's access co
 user. `user` must be from the user collection, carry its `collection` and have an `id`. Without a
 key there is nothing to approve or upload against, so `deleteDocument`, `runConfirmed` and file
 uploads are unavailable. Call `getPayload` first, as the client needs the plugin initialized.
+
+## Upgrading to 3.0
+
+### Folder collections
+
+The `folders` option is gone and is refused at startup. A folder collection is exposed under
+`collections` like any other collection.
+
+On Payload 3, expose Payload's folder collection by its slug: `payload-folders`, or `folders.slug`
+where the config sets one. Payload adds that collection only where a collection has
+`folders: true`, so the plugin checks it in `onInit` and refuses the config where it is missing.
+
+```ts
+mcpxPlugin({
+  collections: {
+    docs: true, // has folders: true
+    "payload-folders": true,
+  },
+});
+```
+
+On Payload 4, the collection with `folders: true` is the folder collection. Expose it by its own
+slug.
+
+```ts
+mcpxPlugin({
+  collections: {
+    docs: true, // has createFolderField({ relationTo: "folders" })
+    folders: true, // has folders: true
+  },
+});
+```
+
+2.x exposed folders read only wherever an exposed collection used them. Now a folder collection is
+exposed only where it is listed, and it gets the same defaults as any collection, so `write`
+follows `read`. Deleting a folder also deletes its subfolders with full access, so `delete` is
+refused on a folder collection. On Payload 4 that covers every collection with `folders`, `tags`
+or `hierarchy`.
+
+| before                     | after                                          |
+| -------------------------- | ---------------------------------------------- |
+| folders read only          | `"payload-folders": { write: false }`          |
+| `folders: { write: true }` | `"payload-folders": true`                      |
+| `folders: false`           | remove it, and leave the folder collection out |
+
+Where folders were read only, the key collection gains a write checkbox for them, so SQL database
+adapters need a migration for the new column.
+
+### Versions on Payload 4
+
+Payload 4 keeps versions for every collection and global that does not set `versions: false`.
+`listCapabilities` reports `versions: true` for them, and `findVersions` reaches them. Set
+`versions: false` on an entity to keep its history out.
+
+### Publishing
+
+A publish without `locale`, and the first publish of a document, now cover every locale. Both are
+refused while any locale has publish blockers, and the refusal lists them with their locale. 2.x
+published and reported the blockers of the other locales afterwards. A publish with `locale` on a
+document that was published before is unchanged. The result gains `publishedLocales`.
+
+### Uploads
+
+Payload 4 can store an upload under another name than the one sent. The plugin reports the name
+Payload stores, so read `filename` from the document instead of assuming the name you sent.
 
 ## Upgrading to 2.0
 

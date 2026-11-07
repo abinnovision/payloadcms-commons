@@ -1,3 +1,4 @@
+import { payloadMajor } from "@internal/test-utils/payload-major";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readdir, rm } from "node:fs/promises";
@@ -29,9 +30,15 @@ import type { CollectionConfig, Payload } from "payload";
 
 const CACHE_KEY = "mcpx-uploads";
 
-const FILES_DIR = join(tmpdir(), "mcpx-fixture-files");
+const FILES_DIR = join(
+	tmpdir(),
+	`mcpx-fixture-files-v${String(payloadMajor())}`,
+);
 
-const ATTACHMENTS_DIR = join(tmpdir(), "mcpx-fixture-attachments");
+const ATTACHMENTS_DIR = join(
+	tmpdir(),
+	`mcpx-fixture-attachments-v${String(payloadMajor())}`,
+);
 
 /*
  * An upload collection without drafts: every write is live. Its users read
@@ -480,6 +487,7 @@ describe("uploads through MCP", () => {
 			const published = await mcp.call("publishDocument", {
 				collection: "media",
 				id: doc.id,
+				locale: "en",
 			});
 
 			expect(published.isError).toBe(false);
@@ -873,6 +881,7 @@ describe("uploads through MCP", () => {
 			const other = await payload.create({
 				collection: "users",
 				data: { email: "other@example.com", password: "other-secret" },
+				overrideAccess: true,
 			});
 			const { token } = await payload.login({
 				collection: "users",

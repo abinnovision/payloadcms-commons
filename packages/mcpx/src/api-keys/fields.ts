@@ -61,7 +61,6 @@ const adminField = (
 	name,
 	type: "ui",
 	admin: {
-		disableListColumn: true,
 		components: {
 			Field: {
 				path: "@abinnovision/payloadcms-mcpx/admin",

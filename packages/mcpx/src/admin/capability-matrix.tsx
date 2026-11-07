@@ -25,6 +25,7 @@ import {
 	deleteModeOf,
 	toolsState,
 } from "./capability-toggles.js";
+import { T } from "./tokens.js";
 
 import type {
 	AccessLevel,
@@ -74,11 +75,11 @@ const cx = (...names: (false | string | undefined)[]): string =>
  * radii reliable.
  */
 const SHEET = `
-.${BASE_CLASS} tbody tr:hover { background: var(--theme-elevation-50); }
+.${BASE_CLASS} tbody tr:hover { background: ${T.bgSubtle}; }
 .${BASE_CLASS}__sections {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--base) calc(var(--base) * 2);
+	gap: ${T.base} calc(${T.base} * 2);
 	align-items: flex-start;
 }
 .${BASE_CLASS}__table {
@@ -88,71 +89,71 @@ const SHEET = `
 	border-spacing: 0;
 	text-align: left;
 }
-.${BASE_CLASS}__table thead { background: var(--theme-elevation-50); }
+.${BASE_CLASS}__table thead { background: ${T.bgSubtle}; }
 .${BASE_CLASS}__table th,
 .${BASE_CLASS}__table td {
-	padding: calc(var(--base) * 0.6);
+	padding: calc(${T.base} * 0.6);
 	vertical-align: middle;
 	font-weight: normal;
 	text-align: center;
 }
-.${BASE_CLASS}__table thead th { color: var(--theme-elevation-400); }
+.${BASE_CLASS}__table thead th { color: ${T.textTertiary}; }
 .${BASE_CLASS}__table .${BASE_CLASS}__head { white-space: nowrap; }
 .${BASE_CLASS}__table .${BASE_CLASS}__start { text-align: start; }
 .${BASE_CLASS}__table .${BASE_CLASS}__row,
 .${BASE_CLASS}__table .${BASE_CLASS}__title {
-	padding-inline-start: calc(var(--base) * 0.8);
+	padding-inline-start: calc(${T.base} * 0.8);
 	text-align: inherit;
 }
 .${BASE_CLASS}__table .${BASE_CLASS}__row { word-break: break-word; }
-.${BASE_CLASS}__table thead .${BASE_CLASS}__row { color: var(--theme-elevation-500); }
+.${BASE_CLASS}__table thead .${BASE_CLASS}__row { color: ${T.textSecondary}; }
 .${BASE_CLASS}__table .${BASE_CLASS}__title {
 	font-size: 0.8em;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
 }
-.${BASE_CLASS}__table td:last-child { padding-inline-end: calc(var(--base) * 0.8); }
-.${BASE_CLASS}__table thead tr:first-child th:first-child { border-start-start-radius: var(--style-radius-s); }
-.${BASE_CLASS}__table thead tr:first-child th:last-child { border-start-end-radius: var(--style-radius-s); }
-.${BASE_CLASS}__table thead tr:last-child > * { border-bottom: 1px solid var(--theme-border-color); }
-.${BASE_CLASS}__hint { display: block; color: var(--theme-elevation-400); }
+.${BASE_CLASS}__table td:last-child { padding-inline-end: calc(${T.base} * 0.8); }
+.${BASE_CLASS}__table thead tr:first-child th:first-child { border-start-start-radius: ${T.radius}; }
+.${BASE_CLASS}__table thead tr:first-child th:last-child { border-start-end-radius: ${T.radius}; }
+.${BASE_CLASS}__table thead tr:last-child > * { border-bottom: 1px solid ${T.border}; }
+.${BASE_CLASS}__hint { display: block; color: ${T.textTertiary}; }
 .${BASE_CLASS}__badge {
 	display: inline-flex;
-	margin-inline-start: calc(var(--base) * 0.4);
+	margin-inline-start: calc(${T.base} * 0.4);
 	vertical-align: middle;
 	cursor: help;
 }
 .${BASE_CLASS}__delete {
 	display: inline-flex;
 	align-items: center;
-	gap: calc(var(--base) * 0.4);
+	gap: calc(${T.base} * 0.4);
 }
 .${BASE_CLASS}__segments {
 	display: inline-flex;
-	border: 1px solid var(--theme-elevation-150);
-	border-radius: var(--style-radius-s);
-	background: var(--theme-input-bg);
+	border: 1px solid ${T.borderControl};
+	border-radius: ${T.radius};
+	background: ${T.inputBg};
 }
 .${BASE_CLASS}__segments .btn { border: 0; border-radius: 0; white-space: nowrap; }
-.${BASE_CLASS}__segments .btn + .btn { border-inline-start: 1px solid var(--theme-elevation-150); }
+.${BASE_CLASS}__segments .btn + .btn { border-inline-start: 1px solid ${T.borderControl}; }
 .${BASE_CLASS}__segments .btn:first-child { border-start-start-radius: inherit; border-end-start-radius: inherit; }
 .${BASE_CLASS}__segments .btn:last-child { border-start-end-radius: inherit; border-end-end-radius: inherit; }
-.${BASE_CLASS}__segments .btn--style-transparent { --hover-bg: var(--theme-elevation-100); }
+.${BASE_CLASS}__segments .btn--style-secondary { --hover-bg: ${T.bgHover}; }
 .${BASE_CLASS}__shield {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	padding: calc(var(--base) * 0.2);
+	padding: calc(${T.base} * 0.2);
 	border: 0;
-	border-radius: var(--style-radius-s);
+	border-radius: ${T.radius};
 	background: transparent;
-	color: var(--theme-elevation-800);
+	color: ${T.text};
 	line-height: 0;
 	cursor: pointer;
 }
-.${BASE_CLASS}__shield:hover:not(:disabled) { background: var(--theme-elevation-100); }
+.${BASE_CLASS}__shield:hover:not(:disabled) { background: ${T.bgHover}; }
 .${BASE_CLASS}__shield:disabled { cursor: not-allowed; opacity: 0.6; }
-.${BASE_CLASS}__shield.${BASE_CLASS}__danger { color: var(--theme-error-500); }
+.${BASE_CLASS}__shield.${BASE_CLASS}__danger { color: ${T.danger}; }
 `;
 
 /*
@@ -272,7 +273,7 @@ const Segments = <T extends string>({
 								? "primary"
 								: included.includes(option.id)
 									? "pill"
-									: "transparent"
+									: "secondary"
 						}
 						disabled={readOnly}
 						extraButtonProps={{
@@ -286,7 +287,7 @@ const Segments = <T extends string>({
 						onClick={() => {
 							onSelect(option.id);
 						}}
-						size="small"
+						size="medium"
 					>
 						{option.label}
 					</Button>
@@ -315,10 +316,10 @@ const accessOptions = (rows: CapabilityRow[]): SegmentOption<AccessLevel>[] =>
 	);
 
 // In `--base` multiples, so the columns keep Payload's rhythm.
-const LABEL_WIDTH = "calc(var(--base) * 11)";
-const OPERATION_WIDTH = "calc(var(--base) * 3.5)";
-const ACCESS_WIDTH = "calc(var(--base) * 13)";
-const DELETE_WIDTH = "calc(var(--base) * 4)";
+const LABEL_WIDTH = `calc(${T.base} * 11)`;
+const OPERATION_WIDTH = `calc(${T.base} * 3.5)`;
+const ACCESS_WIDTH = `calc(${T.base} * 13)`;
+const DELETE_WIDTH = `calc(${T.base} * 4)`;
 
 const LiveBadge: React.FC = () => (
 	<span className={`${BASE_CLASS}__badge`} title={LIVE_WRITE}>

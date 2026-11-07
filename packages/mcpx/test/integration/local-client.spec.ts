@@ -4,15 +4,15 @@ import { bootPayload, USER } from "./helpers/payload.js";
 import { createMcpxClient } from "../../src/local.js";
 
 import type { Booted } from "./helpers/payload.js";
+import type { McpxUser } from "../../src/types.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { TypedUser } from "payload";
 
 const CACHE_KEY = "mcpx-integration-local-client";
 
 describe("createMcpxClient", () => {
 	let booted: Booted;
-	let user: TypedUser;
+	let user: McpxUser;
 	let client: Client;
 
 	const call = async (
@@ -36,6 +36,7 @@ describe("createMcpxClient", () => {
 		const created = await booted.payload.create({
 			collection: "users",
 			data: USER,
+			overrideAccess: true,
 		});
 
 		user = { ...created, collection: "users" };
@@ -99,6 +100,7 @@ describe("createMcpxClient", () => {
 			collection: "posts",
 			locale: "en",
 			data: { title: "Readable" },
+			overrideAccess: true,
 		});
 		const result = await call("getDocument", {
 			collection: "posts",
@@ -115,6 +117,7 @@ describe("createMcpxClient", () => {
 			collection: "posts",
 			locale: "en",
 			data: { title: "Published", _status: "published" },
+			overrideAccess: true,
 		});
 		const result = await call("patchDocument", {
 			collection: "posts",
@@ -131,6 +134,7 @@ describe("createMcpxClient", () => {
 				id: post.id,
 				locale: "en",
 				draft,
+				overrideAccess: true,
 			});
 
 		expect((await read(true))["title"]).toBe("Drafted");

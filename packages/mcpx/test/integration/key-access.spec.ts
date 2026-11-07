@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { API_KEYS_SLUG, bootPayload, createKey } from "./helpers/payload.js";
 
-import type { Payload, TypedUser } from "payload";
+import type { McpxUser } from "../../src/types.js";
+import type { Payload } from "payload";
 
 const CACHE_KEY = "mcpx-integration-key-access";
 
@@ -22,18 +23,19 @@ const ownerOf = (doc: KeyDoc): number | string =>
  */
 describe("api key collection isolation", () => {
 	let payload: Payload;
-	let alice: TypedUser;
-	let bob: TypedUser;
+	let alice: McpxUser;
+	let bob: McpxUser;
 	let seq = 0;
 
 	beforeAll(async () => {
 		({ payload } = await bootPayload({ key: CACHE_KEY }));
 
-		const make = async (email: string): Promise<TypedUser> => ({
+		const make = async (email: string): Promise<McpxUser> => ({
 			...((await payload.create({
 				collection: "users",
 				data: { email, password: "isolation-secret" },
-			})) as unknown as TypedUser),
+				overrideAccess: true,
+			})) as unknown as McpxUser),
 			collection: "users",
 		});
 

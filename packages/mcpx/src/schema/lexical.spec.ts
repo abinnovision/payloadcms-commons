@@ -1,3 +1,4 @@
+import { payloadMajor } from "@internal/test-utils/payload-major";
 import { getEnabledNodes } from "@payloadcms/richtext-lexical";
 import { getRegisteredNode } from "@payloadcms/richtext-lexical/lexical";
 import { createHeadlessEditor } from "@payloadcms/richtext-lexical/lexical/headless";
@@ -53,23 +54,54 @@ beforeAll(async () => {
 interface DeclaredRoot {
 	additionalProperties: boolean;
 	properties: {
-		children: { items: { required: string[] } };
+		children: { items: { $ref?: string; required?: string[] } };
 	} & Record<string, unknown>;
 	required: string[];
 }
 
-const declaredSchema = (): { properties: { root: DeclaredRoot } } =>
-	(
-		describable.editor as unknown as {
-			outputSchema: (args: unknown) => never;
-		}
-	).outputSchema({
+interface Declared {
+	definitions: Map<string, { oneOf: { required: string[] }[] }>;
+	schema: { properties: { root: DeclaredRoot } };
+}
+
+const declaredSchema = (): Declared => {
+	const editor = describable.editor as unknown as {
+		jsonSchema?: (args: unknown) => never;
+		outputSchema?: (args: unknown) => never;
+	};
+	const generate = (editor.jsonSchema ?? editor.outputSchema) as (
+		args: unknown,
+	) => never;
+	const definitions = new Map();
+
+	const schema = generate.call(editor, {
 		collectionIDFieldTypes: {},
 		config,
 		field: describable,
-		interfaceNameDefinitions: new Map(),
+		interfaceNameDefinitions: definitions,
 		isRequired: false,
+		typeStringDefinitions: new Set(),
 	});
+
+	return { definitions, schema };
+};
+
+/**
+ * What Payload requires of each node type it declares. Payload 3 states one
+ * shape for every node; Payload 4 types each node by its own schema.
+ */
+const declaredNodeRequirements = (): string[][] => {
+	const { definitions, schema } = declaredSchema();
+	const items = schema.properties.root.properties.children.items;
+
+	if (items.$ref === undefined) {
+		return [items.required ?? []];
+	}
+
+	const union = definitions.get(items.$ref.split("/").pop() ?? "");
+
+	return (union?.oneOf ?? []).map((member) => member.required);
+};
 
 interface LexicalEditorField {
 	editor: {
@@ -238,6 +270,58 @@ const KEPT_FOR_OLDER_LEXICAL: Readonly<Record<string, readonly string[]>> = {
 	tab: ["text"],
 };
 
+/**
+ * Lexical 0.53, which Payload 4 ships, fills these on import and ignores what
+ * the state carries for them. The table keeps them so a patch is checked as
+ * strictly on both majors.
+ */
+const FILLED_BY_LEXICAL_053_WITHOUT: Readonly<
+	Record<string, readonly string[]>
+> = {
+	autolink: ["indent"],
+	heading: ["indent"],
+	link: ["indent"],
+	list: ["indent", "start"],
+	listitem: ["indent"],
+	paragraph: ["indent"],
+	quote: ["indent"],
+	tab: ["detail", "format", "mode", "style"],
+	text: ["detail", "format", "mode", "style"],
+};
+
+const FILLED_BY_LEXICAL_053_WRONG: Readonly<Record<string, readonly string[]>> =
+	{
+		...FILLED_BY_LEXICAL_053_WITHOUT,
+		list: ["indent"],
+	};
+
+/**
+ * Decorator nodes export `format` as the state wrote it on Payload 4, and
+ * always as an empty string on Payload 3.
+ */
+const FORMAT_AS_WRITTEN_ON_4: readonly string[] = [
+	"block",
+	"relationship",
+	"upload",
+];
+
+const isFilled = (
+	filled: Readonly<Record<string, readonly string[]>>,
+	type: string,
+	property: string,
+): boolean =>
+	payloadMajor() === 4 && (filled[type]?.includes(property) ?? false);
+
+const withoutFormat = (exported: string): string => {
+	const parsed = JSON.parse(exported) as {
+		root: { children: Record<string, unknown>[] };
+	};
+
+	delete parsed.root.children[0]?.["format"];
+
+	return JSON.stringify(parsed);
+};
+
 describe("the required node properties table", () => {
 	it("covers every node type it claims with a sample", () => {
 		expect(Object.keys(SAMPLES).sort()).toEqual(
@@ -276,10 +360,13 @@ describe("the required node properties table", () => {
 			it.each(measured)('is not the same node without "%s"', (property) => {
 				const complete = baseline();
 				const result = without(property);
+				const same =
+					result.error === undefined && stable(result.exported) === complete;
 
-				expect(
-					result.error === undefined && stable(result.exported) === complete,
-				).toBe(false);
+				expect(required).toHaveProperty([property]);
+				expect(same).toBe(
+					isFilled(FILLED_BY_LEXICAL_053_WITHOUT, type, property),
+				);
 			});
 
 			it.each(measured)(
@@ -292,10 +379,12 @@ describe("the required node properties table", () => {
 							[property]: rejected(required[property]),
 						}),
 					);
+					const same =
+						result.error === undefined && stable(result.exported) === complete;
 
-					expect(
-						result.error === undefined && stable(result.exported) === complete,
-					).toBe(false);
+					expect(same).toBe(
+						isFilled(FILLED_BY_LEXICAL_053_WRONG, type, property),
+					);
 				},
 			);
 
@@ -311,9 +400,15 @@ describe("the required node properties table", () => {
 			it.each(optional)('reads back unchanged without "%s"', (property) => {
 				const complete = baseline();
 				const result = without(property);
+				const asWritten =
+					payloadMajor() === 4 &&
+					property === "format" &&
+					FORMAT_AS_WRITTEN_ON_4.includes(type);
 
 				expect(result.error).toBeUndefined();
-				expect(stable(result.exported)).toBe(complete);
+				expect(stable(result.exported)).toBe(
+					asWritten ? withoutFormat(complete) : complete,
+				);
 			});
 		},
 	);
@@ -326,11 +421,14 @@ describe("the required node properties table", () => {
  */
 describe("what Payload declares", () => {
 	it("agrees with ROOT_PROPERTIES, down to refusing an unknown one", () => {
-		const root = declaredSchema().properties.root;
+		const root = declaredSchema().schema.properties.root;
 
-		expect(Object.keys(ROOT_PROPERTIES).sort()).toEqual(
-			[...root.required].sort(),
-		);
+		/* Payload 4 declares "version" as deprecated, so it is no longer required. */
+		expect(
+			Object.keys(ROOT_PROPERTIES)
+				.filter((key) => payloadMajor() === 3 || key !== "version")
+				.sort(),
+		).toEqual([...root.required].sort());
 		expect(Object.keys(ROOT_PROPERTIES).sort()).toEqual(
 			Object.keys(root.properties).sort(),
 		);
@@ -338,10 +436,14 @@ describe("what Payload declares", () => {
 	});
 
 	it("requires of every node what the plugin requires of every node", () => {
-		const children =
-			declaredSchema().properties.root.properties.children.items.required;
+		const required = declaredNodeRequirements();
 
-		expect([...children].sort()).toEqual(["type", "version"]);
+		expect(required.length).toBeGreaterThan(0);
+		expect(required.every((keys) => keys.includes("type"))).toBe(true);
+		/* Payload 4 declares "version" as deprecated and leaves it out. */
+		expect(required.every((keys) => keys.includes("version"))).toBe(
+			payloadMajor() === 3,
+		);
 
 		/*
 		 * "type" is refused earlier, by the node type check, so only "version"

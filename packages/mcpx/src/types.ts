@@ -11,7 +11,6 @@ import type {
 	CollectionSlug,
 	GlobalSlug,
 	PayloadRequest,
-	TypedUser,
 } from "payload";
 import type { z } from "zod";
 
@@ -24,6 +23,11 @@ declare module "payload" {
 		"@abinnovision/payloadcms-mcpx": McpxPluginOptions;
 	}
 }
+
+/**
+ * The authenticated user, as Payload types it on both majors.
+ */
+export type McpxUser = NonNullable<PayloadRequest["user"]>;
 
 /**
  * What an entity exposes. The config names the entities that are reachable and
@@ -292,7 +296,7 @@ export interface McpxAuthResult {
 	/**
 	 * Must carry `collection`.
 	 */
-	user: TypedUser;
+	user: McpxUser;
 	apiKeyId: DocumentId;
 	/**
 	 * The `capabilities` group as stored on the key document.
@@ -316,13 +320,6 @@ export type McpxPluginOptions = {
 	 * Allow-list of globals. `true` is shorthand for `{}`.
 	 */
 	globals?: Partial<Record<GlobalSlug, McpxGlobalOptions | true>>;
-	/**
-	 * Payload's folder collection, exposed read-only by default where an exposed
-	 * collection has `folders: true`. `{ write: true }` also lets keys create and
-	 * rename folders; folders are never deleted. `false` hides them. An object
-	 * is refused where no exposed collection uses folders.
-	 */
-	folders?: false | { write?: boolean };
 	/**
 	 * Collection the keys act as. Default `config.admin.user`, then `users`.
 	 */

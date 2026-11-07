@@ -32,6 +32,7 @@ describe("hidden fields on an exposed collection", () => {
 				adminHidden: ADMIN_HIDDEN,
 				apiHidden: API_HIDDEN,
 			},
+			overrideAccess: true,
 		});
 
 		dossierId = dossier.id;

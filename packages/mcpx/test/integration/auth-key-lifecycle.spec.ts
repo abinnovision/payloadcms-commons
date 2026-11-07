@@ -19,6 +19,7 @@ describe("api key expiry and last use", () => {
 			await booted.payload.create({
 				collection: "users",
 				data: { email: "lifecycle@example.com", password: "lifecycle-secret" },
+				overrideAccess: true,
 			})
 		).id;
 	});

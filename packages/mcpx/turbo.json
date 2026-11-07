@@ -1,0 +1,14 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"typecheck": {
+			"inputs": [
+				"src/**/*",
+				"test/**/*",
+				"tsconfig*.json",
+				"$TURBO_ROOT$/apps/example-v4/package.json"
+			]
+		}
+	}
+}

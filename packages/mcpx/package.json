@@ -48,9 +48,11 @@
 		"lint:check": "eslint 'src/**/*.{ts,tsx}' 'test/**/*.ts'",
 		"lint:fix": "eslint 'src/**/*.{ts,tsx}' 'test/**/*.ts' --fix",
 		"test-integration": "vitest --run --config test/integration/vitest.config.mts",
+		"test-integration:v4": "vitest --run --config test/integration/vitest.v4.config.mts",
 		"test-unit": "vitest --run --coverage --config vitest.config.mts",
+		"test-unit:v4": "vitest --run --config vitest.v4.config.mts",
 		"test-unit:watch": "vitest --config vitest.config.mts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.v4.json"
 	},
 	"lint-staged": {
 		"{src,test}/**/*.{ts,tsx}": [
@@ -89,8 +91,8 @@
 		"vitest": "^5.0.5"
 	},
 	"peerDependencies": {
-		"@payloadcms/ui": ">=3.88.0 <4",
-		"payload": ">=3.88.0 <4",
+		"@payloadcms/ui": ">=3.88.0 <4 || >=4.0.0-beta.7 <5",
+		"payload": ">=3.88.0 <4 || >=4.0.0-beta.7 <5",
 		"react": "^19"
 	},
 	"peerDependenciesMeta": {

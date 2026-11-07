@@ -15,6 +15,7 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { endpointUrl } from "./endpoint-url.js";
+import { T } from "./tokens.js";
 import { buildSetupGuide } from "../api-keys/setup-guide.js";
 
 interface McpxSetupGuideProps {
@@ -49,23 +50,25 @@ const useOrigin = (serverUrl: string): string => {
  * themes without a stylesheet that consumers would have to transpile.
  */
 const styles = {
-	section: { marginBottom: "calc(var(--base) * 0.75)" },
+	// Payload 4's drawer no longer pads its children; `--spacer-2-5` exists only there and is what its own content container uses. (Payload 3 wraps children in a gutter and does not define that token, so the fallback 0 applies.)
+	content: { padding: "var(--spacer-2-5, 0)" },
+	section: { marginBottom: `calc(${T.base} * 0.75)` },
 	sectionHeader: {
 		display: "flex",
 		alignItems: "center",
-		gap: "calc(var(--base) * 0.25)",
+		gap: `calc(${T.base} * 0.25)`,
 	},
 	description: {
-		margin: "calc(var(--base) * 0.15) 0",
-		color: "var(--theme-elevation-500)",
+		margin: `calc(${T.base} * 0.15) 0`,
+		color: T.textSecondary,
 	},
 	snippet: {
 		margin: 0,
-		padding: "calc(var(--base) * 0.4)",
-		background: "var(--theme-elevation-50)",
-		border: "1px solid var(--theme-elevation-150)",
+		padding: `calc(${T.base} * 0.4)`,
+		background: T.bgSubtle,
+		border: `1px solid ${T.borderControl}`,
 		borderRadius: "3px",
-		fontFamily: "var(--font-mono)",
+		fontFamily: T.mono,
 		overflowX: "auto",
 		whiteSpace: "pre-wrap",
 		wordBreak: "break-all",
@@ -138,7 +141,9 @@ export const McpxSetupGuide: React.FC<McpxSetupGuideProps> = ({
 				Connect a client
 			</Button>
 			<Drawer slug={drawerSlug} title="Connect a client">
-				<SetupGuideContent endpointPath={endpointPath} />
+				<div style={styles.content}>
+					<SetupGuideContent endpointPath={endpointPath} />
+				</div>
 			</Drawer>
 		</>
 	);

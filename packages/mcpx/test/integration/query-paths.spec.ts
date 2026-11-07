@@ -47,10 +47,12 @@ describe("findDocuments where and sort through relations", () => {
 		const author = await payload.create({
 			collection: "users",
 			data: { email: AUTHOR_EMAIL, password: "author-secret" },
+			overrideAccess: true,
 		});
 		const article = await payload.create({
 			collection: "articles" as never,
 			data: { title: "Readable", author: author.id },
+			overrideAccess: true,
 		});
 		const dispatch = await payload.create({
 			collection: "dispatches" as never,
@@ -63,6 +65,7 @@ describe("findDocuments where and sort through relations", () => {
 				entries: [{ person: author.id }],
 				sections: [{ blockType: "mention", person: author.id }],
 			},
+			overrideAccess: true,
 		});
 
 		authorId = author.id;
@@ -72,6 +75,7 @@ describe("findDocuments where and sort through relations", () => {
 		const remark = await payload.create({
 			collection: "remarks" as never,
 			data: { text: "Remark", dispatch: dispatch.id },
+			overrideAccess: true,
 		});
 
 		remarkId = remark.id;

@@ -124,7 +124,7 @@ describe("documentLinks", () => {
 						`/root/${String(data["id"])}`,
 					collections: ["pages"],
 				} as unknown as SanitizedConfig["admin"]["livePreview"],
-			},
+			} as unknown as SanitizedConfig["admin"],
 		});
 		const args = { doc: { id: 3 }, locale: undefined };
 

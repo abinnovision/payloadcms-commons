@@ -7,7 +7,7 @@ import {
 	createDownloadHandler,
 	createUploadHandler,
 } from "./endpoint/upload.js";
-import { assertFolderCollection, normalizeOptions } from "./options.js";
+import { normalizeOptions, reconcileOptions } from "./options.js";
 import { BUILTIN_TOOLS } from "./tools/builtin.js";
 import {
 	installDraftGuards,
@@ -37,16 +37,33 @@ export const optionsOf = (payload: Payload): NormalizedOptions => {
 	return options;
 };
 
+// Payload 4 passes `{ options }`, Payload 3 spreads the options into the arguments.
+const pluginOptions = (args: object): McpxPluginOptions => {
+	if ("options" in args) {
+		return args.options as McpxPluginOptions;
+	}
+
+	const {
+		config: _config,
+		plugins: _plugins,
+		...rest
+	} = args as Record<string, unknown>;
+
+	return rest as McpxPluginOptions;
+};
+
 /**
  * Mounts the MCP, upload and download endpoints, and the confirmation
  * endpoints where a collection exposes `delete`. Adds the API key collection
  * and installs the draft guard on every collection and global. Checks the
- * folder collection once Payload has built it.
+ * options against the sanitized config once Payload has built it.
  */
 export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 	slug: "@abinnovision/payloadcms-mcpx",
 	order: 100,
-	plugin: ({ config, plugins: _plugins, ...options }) => {
+	plugin: (args) => {
+		const { config } = args;
+		const options = pluginOptions(args);
 		const normalized = normalizeOptions(
 			config,
 			options,
@@ -65,7 +82,7 @@ export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 			]),
 			globals: installGlobalDraftGuards(config.globals ?? []),
 			onInit: async (payload) => {
-				assertFolderCollection(payload.config, normalized);
+				reconcileOptions(config, payload.config, normalized);
 				initialized.set(payload.config, normalized);
 				await config.onInit?.(payload);
 			},

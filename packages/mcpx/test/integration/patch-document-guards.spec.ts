@@ -1,4 +1,3 @@
-import { createLocalReq } from "payload";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createMcpClient } from "./helpers/mcp.js";
@@ -8,11 +7,12 @@ import {
 	readDraft,
 	seedKeys,
 } from "./helpers/payload.js";
+import { createLocalRequest } from "../../src/request.js";
 import { hero, section } from "../builders/blocks.js";
 
 import type { McpClient } from "./helpers/mcp.js";
 import type { Booted, Seeded } from "./helpers/payload.js";
-import type { TypedUser } from "payload";
+import type { McpxUser } from "../../src/types.js";
 
 interface PageDoc {
 	id: number | string;
@@ -48,6 +48,7 @@ describe("patchDocument against concurrent and out-of-band writes", () => {
 			id,
 			depth: 0,
 			draft: false,
+			overrideAccess: true,
 		}) as Promise<PageDoc>;
 
 	it("refuses a pointer to a field Payload maintains", async () => {
@@ -76,18 +77,17 @@ describe("patchDocument against concurrent and out-of-band writes", () => {
 		const user = (await payload.findByID({
 			collection: "users",
 			id: seeded.userId,
-		})) as TypedUser;
-		const req = await createLocalReq(
+			overrideAccess: true,
+		})) as McpxUser;
+		const req = await createLocalRequest(
+			payload,
+			{ ...user, collection: "users" },
 			{
-				user: { ...user, collection: "users" },
-				context: {
-					mcpx: {
-						apiKeyId: "test",
-						capabilities: { collections: {}, globals: {}, tools: {} },
-					},
+				mcpx: {
+					apiKeyId: "test",
+					capabilities: { collections: {}, globals: {}, tools: {} },
 				},
 			},
-			payload,
 		);
 
 		await payload.update({
@@ -139,6 +139,7 @@ describe("patchDocument against concurrent and out-of-band writes", () => {
 				layout: { sections: [section("intro", [hero("Hello")])] },
 				_status: "published",
 			},
+			overrideAccess: true,
 		})) as PageDoc;
 
 		const result = await mcp.call("patchDocument", {

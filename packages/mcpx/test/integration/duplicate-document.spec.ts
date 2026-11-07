@@ -70,6 +70,7 @@ describe("duplicateDocument", () => {
 			locale: "en",
 			draft: true,
 			data: { title: "Guide", code },
+			overrideAccess: true,
 		});
 
 		await payload.update({
@@ -78,6 +79,7 @@ describe("duplicateDocument", () => {
 			locale: "de",
 			draft: true,
 			data: { title: "Leitfaden" },
+			overrideAccess: true,
 		});
 
 		return doc.id;
@@ -137,8 +139,12 @@ describe("duplicateDocument", () => {
 		const tag = await booted.payload.create({
 			collection: "tags",
 			data: { name: "News" },
+			overrideAccess: true,
 		});
-		const before = await booted.payload.count({ collection: "tags" });
+		const before = await booted.payload.count({
+			collection: "tags",
+			overrideAccess: true,
+		});
 
 		const result = await mcp.call("duplicateDocument", {
 			collection: "tags",
@@ -146,7 +152,9 @@ describe("duplicateDocument", () => {
 		});
 
 		expect(result.isError).toBe(true);
-		expect(await booted.payload.count({ collection: "tags" })).toEqual(before);
+		expect(
+			await booted.payload.count({ collection: "tags", overrideAccess: true }),
+		).toEqual(before);
 	});
 
 	it("leaves upload and disableDuplicate collections out of its enum", async () => {

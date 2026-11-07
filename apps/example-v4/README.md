@@ -8,6 +8,7 @@ the packages that already support Payload v4, and grows as more of them migrate.
 | [`montage`](../../packages/montage)     | `src/blocks/*`, the block tree rendered by the one route                                       |
 | [`wayfinder`](../../packages/wayfinder) | every URL on the site, plus the links inside blocks and rich text                              |
 | [`colophon`](../../packages/colophon)   | `colophonPlugin()` in `src/payload.config.ts`, the build group under the admin navigation      |
+| [`mcpx`](../../packages/mcpx)           | `mcpxPlugin()` in `src/payload.config.ts`, the MCP endpoint and key management                 |
 | [`dummy`](../../packages/dummy)         | `src/seed.ts` and `src/seeds/*`, run through `yarn seed`                                       |
 | [`oidc`](../../packages/oidc)           | `src/auth/oidc.ts`, single sign-on when `OIDC_ISSUER` is set; `src/idp.ts` is a local provider |
 

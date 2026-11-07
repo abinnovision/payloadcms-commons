@@ -23,18 +23,23 @@ import type {
 } from "payload";
 
 /*
- * Cleared on every MCP write so a caller cannot supply them, except
- * `publishSpecificLocale`, which a marked publish keeps, and `duplicateFromID`,
- * which a marked duplicate keeps.
+ * Cleared on every MCP write so a caller cannot supply them. A marked
+ * duplicate keeps `duplicateFromID`.
  */
 const STRIPPED_ARGS = new Set([
 	"where",
-	"publishAllLocales",
 	"unpublishAllLocales",
 	"duplicateFromID",
 	"selectedLocales",
 	"overwriteExistingFiles",
 ]);
+
+/*
+ * Cleared like {@link STRIPPED_ARGS} except on a marked publish. Payload 4 reads
+ * `publishAllLocales` after `beforeOperation`, so an all-locales publish needs
+ * it kept.
+ */
+const PUBLISH_ARGS = new Set(["publishAllLocales", "publishSpecificLocale"]);
 
 /*
  * `draft` alone does not force a draft save: Payload's update path saves one
@@ -57,8 +62,7 @@ const scrubWriteArgs = (
 	const next = Object.fromEntries(
 		Object.entries(args).filter(
 			([key]) =>
-				!STRIPPED_ARGS.has(key) &&
-				(publishing || key !== "publishSpecificLocale"),
+				!STRIPPED_ARGS.has(key) && (publishing || !PUBLISH_ARGS.has(key)),
 		),
 	);
 
@@ -120,10 +124,10 @@ export const forceDraftWrite: CollectionBeforeOperationHook = (hookArgs) => {
 };
 
 /**
- * The global counterpart of {@link forceDraftWrite}. `updateGlobal` reads
- * `draft` and the publish arguments before this hook runs, so only changes to
- * `data` take effect. A write to a global with drafts that did not ask for a
- * draft save is therefore refused here, and `_status` is restored for a publish.
+ * The global counterpart of {@link forceDraftWrite}. Payload 3 applies
+ * `publishSpecificLocale` before this hook runs; the guard still refuses a
+ * global write that did not ask for a draft save, and `_status` is restored for
+ * a publish.
  */
 export const forceDraftWriteGlobal: GlobalBeforeOperationHook = (hookArgs) => {
 	const { global, operation, req } = hookArgs;

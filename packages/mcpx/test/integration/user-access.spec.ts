@@ -38,23 +38,27 @@ describe("keys of users with different read access", () => {
 			const user = await payload.create({
 				collection: "users",
 				data: { email: `${name}@example.com`, password: "diary-secret" },
+				overrideAccess: true,
 			});
 			const title = `${name}'s private diary`;
 			const diary = await payload.create({
 				collection: "diaries" as never,
 				data: { title: `${title} (first)`, owner: user.id },
+				overrideAccess: true,
 			});
 
 			await payload.update({
 				collection: "diaries" as never,
 				id: diary.id,
 				data: { title },
+				overrideAccess: true,
 			});
 
 			const versions = await payload.findVersions({
 				collection: "diaries" as never,
 				where: { parent: { equals: diary.id } },
 				sort: "createdAt",
+				overrideAccess: true,
 			});
 
 			return {

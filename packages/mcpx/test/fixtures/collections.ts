@@ -1,3 +1,4 @@
+import { payloadMajor } from "@internal/test-utils/payload-major";
 import {
 	BlocksFeature,
 	HeadingFeature,
@@ -10,6 +11,7 @@ import { join } from "node:path";
 
 import {
 	badgeBlock,
+	blocksField,
 	ctaBlock,
 	richTextBlock,
 	sectionWrapperBlock,
@@ -80,8 +82,7 @@ export const pages: CollectionConfig = {
 							name: "sections",
 							type: "blocks",
 							required: true,
-							blocks: [],
-							blockReferences: [sectionWrapperBlock, richTextBlock],
+							...blocksField([sectionWrapperBlock, richTextBlock]),
 						},
 					],
 				},
@@ -197,6 +198,7 @@ export const snippets: CollectionConfig = {
 
 export const tags: CollectionConfig = {
 	slug: "tags",
+	versions: false,
 	fields: [{ name: "name", type: "text", required: true }],
 };
 
@@ -204,7 +206,10 @@ export const tags: CollectionConfig = {
  * Where `media` stores its files: a temp dir, so an integration test that
  * stores a file leaves nothing behind in the repo.
  */
-export const MEDIA_DIR = join(tmpdir(), "mcpx-fixture-media");
+export const MEDIA_DIR = join(
+	tmpdir(),
+	`mcpx-fixture-media-v${String(payloadMajor())}`,
+);
 
 /**
  * Upload collection. Its base fields (filename, url, mimeType, focal point) are
