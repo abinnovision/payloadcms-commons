@@ -19,15 +19,15 @@
 
 ## Known gaps
 
-`publishDocument` publishes every locale, but Payload validates only the locale the publish runs
-in. A required field left empty in another locale goes live empty. The admin Publish button
-behaves the same way. The publish does not refuse for this. `validateDocument` without `locale`
-shows the blockers of every locale beforehand, and the publish result lists them as
-`otherLocaleBlockers`.
+A `publishDocument` call that covers every locale is refused while any locale has publish
+blockers. The first publish of a document always covers every locale, so a document with one
+incomplete locale cannot go live in its other locales first through MCP. Complete that locale, or
+publish from the admin panel. `validateDocument` without `locale` shows the blockers of every
+locale beforehand.
 
 The publish-blocker check after a write validates only the locale that was written. It also runs
 the fields' `beforeValidate` and `beforeChange` hooks a second time, so a hook with side effects
-fires twice per write. It also fires once per other locale on each `publishDocument`, and once
+fires twice per write. It also fires once per checked locale on each `publishDocument`, and once
 per locale on each `validateDocument` call without `locale`. Keep side effects out of those hooks.
 
 `expectedUpdatedAt` is checked before the write, inside a transaction, but the read does not lock

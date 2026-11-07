@@ -285,7 +285,14 @@ Payload 4 keeps versions for every collection and global that does not set `vers
 `listCapabilities` reports `versions: true` for them, and `findVersions` reaches them. Set
 `versions: false` on an entity to keep its history out.
 
-<!-- Later 3.0 changes: publish behaviour, upload naming. -->
+### Publishing
+
+A publish without `locale`, and the first publish of a document, now cover every locale. Both are
+refused while any locale has publish blockers, and the refusal lists them with their locale. 2.x
+published and reported the blockers of the other locales afterwards. A publish with `locale` on a
+document that was published before is unchanged. The result gains `publishedLocales`.
+
+<!-- Later 3.0 changes: upload naming. -->
 
 ## Upgrading to 2.0
 

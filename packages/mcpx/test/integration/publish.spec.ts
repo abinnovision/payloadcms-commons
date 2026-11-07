@@ -1,3 +1,4 @@
+import { payloadMajor } from "@internal/test-utils/payload-major";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { collectionEnumOf, createMcpClient } from "./helpers/mcp.js";
@@ -6,30 +7,40 @@ import { roguePublishTool } from "../fixtures/config.js";
 
 import type { McpClient } from "./helpers/mcp.js";
 import type { Booted } from "./helpers/payload.js";
+import type { CollectionConfig } from "payload";
 
 const CACHE_KEY = "mcpx-integration-publish";
 
 /**
- * A page that satisfies every required field, so publishing it succeeds.
+ * Drafts and a localized required field without blocks, so these cases run
+ * the same on both majors.
  */
-const completePage = (title: string): Record<string, unknown> => ({
-	title,
-	slug: title.toLowerCase(),
-	layout: {
-		sections: [{ blockType: "sectionWrapper", identifier: title }],
-	},
-});
+const articles: CollectionConfig = {
+	slug: "articles",
+	versions: { drafts: true },
+	fields: [
+		{ name: "title", type: "text", required: true, localized: true },
+		{ name: "slug", type: "text", required: true },
+	],
+};
+
+/**
+ * `_status` read with `locale: "all"` once every locale is live: one value on
+ * Payload 3, one per locale on Payload 4.
+ */
+const PUBLISHED_EVERYWHERE =
+	payloadMajor() === 3 ? "published" : { en: "published", de: "published" };
 
 describe("publishDocument", () => {
 	let booted: Booted;
 	let publisher: McpClient;
 	let writer: McpClient;
 
-	const createPage = async (
+	const createArticle = async (
 		data: Record<string, unknown>,
 	): Promise<number | string> => {
 		const result = await publisher.call("createDocument", {
-			collection: "pages",
+			collection: "articles",
 			locale: "en",
 			data,
 		});
@@ -39,24 +50,64 @@ describe("publishDocument", () => {
 		return result.data["id"] as number | string;
 	};
 
-	const readPage = (id: number | string, draft: boolean) =>
+	const patchArticle = async (
+		id: number | string,
+		locale: string,
+		patches: Record<string, unknown>[],
+	): Promise<void> => {
+		const result = await publisher.call("patchDocument", {
+			collection: "articles",
+			id,
+			locale,
+			patches,
+		});
+
+		expect(result.isError).toBe(false);
+	};
+
+	/**
+	 * An article that satisfies every required field in every locale, so
+	 * publishing it succeeds.
+	 */
+	const completeArticle = async (title: string): Promise<number | string> => {
+		const id = await createArticle({ title, slug: title.toLowerCase() });
+
+		await patchArticle(id, "de", [
+			{ op: "replace", path: "/title", value: `${title} DE` },
+		]);
+
+		return id;
+	};
+
+	const readArticle = (id: number | string, draft: boolean) =>
 		booted.payload.findByID({
-			collection: "pages",
+			collection: "articles",
 			id,
 			draft,
 			locale: "en",
 			overrideAccess: true,
 		});
 
-	const storedPages = () =>
-		storedState(booted.payload, { collections: ["pages"] });
+	const liveArticle = (id: number | string, locale: string) =>
+		booted.payload.findByID({
+			collection: "articles",
+			id,
+			draft: false,
+			locale,
+			fallbackLocale: false,
+			overrideAccess: true,
+		});
+
+	const storedArticles = () =>
+		storedState(booted.payload, { collections: ["articles"] });
 
 	beforeAll(async () => {
 		booted = await bootPayload({
 			key: CACHE_KEY,
+			collections: [articles],
 			plugin: {
 				collections: {
-					pages: true,
+					articles: true,
 					posts: { publish: false },
 					tags: true,
 					notes: true,
@@ -72,7 +123,7 @@ describe("publishDocument", () => {
 		const { keys } = await seedKeysFor(booted.payload, {
 			publisher: {
 				collections: {
-					pages: { read: true, write: true, publish: true },
+					articles: { read: true, write: true, publish: true },
 					posts: { read: true, write: true },
 					tags: { read: true, write: true },
 					notes: { read: true, write: true, publish: true },
@@ -84,7 +135,7 @@ describe("publishDocument", () => {
 				tools: { roguePublish: true },
 			},
 			writer: {
-				collections: { pages: { read: true, write: true } },
+				collections: { articles: { read: true, write: true } },
 				globals: { siteSettings: { read: true, write: true } },
 				tools: { roguePublish: true },
 			},
@@ -108,7 +159,7 @@ describe("publishDocument", () => {
 		const publish = tools.find((tool) => tool.name === "publishDocument");
 
 		// posts is draft-only, and tags is live but has no versions.
-		expect(collectionEnumOf(publish)).toEqual(["pages", "notes"]);
+		expect(collectionEnumOf(publish)).toEqual(["articles", "notes"]);
 	});
 
 	/*
@@ -146,54 +197,86 @@ describe("publishDocument", () => {
 	 * out from it. If that ever changes, this publishes stale content silently.
 	 */
 	it("promotes the current draft rather than republishing old content", async () => {
-		const id = await createPage(completePage("Draft"));
+		const id = await completeArticle("Draft");
 
-		const patched = await publisher.call("patchDocument", {
-			collection: "pages",
-			id,
-			locale: "en",
-			patches: [{ op: "replace", path: "/title", value: "Patched" }],
-		});
-
-		expect(patched.isError).toBe(false);
-		expect((await readPage(id, false))["_status"]).toBe("draft");
+		await patchArticle(id, "en", [
+			{ op: "replace", path: "/title", value: "Patched" },
+		]);
+		expect((await readArticle(id, false))["_status"]).toBe("draft");
 
 		const published = await publisher.call("publishDocument", {
-			collection: "pages",
+			collection: "articles",
 			id,
 		});
 
 		expect(published.isError).toBe(false);
 		expect(published.data).toMatchObject({ status: "published" });
-		expect(await readPage(id, false)).toMatchObject({
+		expect(await readArticle(id, false)).toMatchObject({
 			title: "Patched",
 			_status: "published",
 		});
 	});
 
-	it("publishes a global the same way", async () => {
-		await publisher.call("patchDocument", {
-			global: "site-settings",
-			locale: "en",
-			patches: [
-				{ op: "replace", path: "/title", value: "Live" },
-				{ op: "replace", path: "/tagline", value: "Tagline" },
-			],
+	it("publishes every locale of a document and lists them", async () => {
+		const id = await completeArticle("Every");
+
+		const published = await publisher.call("publishDocument", {
+			collection: "articles",
+			id,
 		});
+
+		expect(published.isError).toBe(false);
+		expect(published.data).toMatchObject({
+			status: "published",
+			publishedLocales: ["en", "de"],
+		});
+		expect(published.data).not.toHaveProperty("otherLocaleBlockers");
+		expect(
+			await booted.payload.findByID({
+				collection: "articles",
+				id,
+				draft: false,
+				locale: "all",
+				overrideAccess: true,
+			}),
+		).toMatchObject({
+			title: { en: "Every", de: "Every DE" },
+			_status: PUBLISHED_EVERYWHERE,
+		});
+	});
+
+	it("publishes a global the same way", async () => {
+		for (const [locale, title] of [
+			["en", "Live"],
+			["de", "Live DE"],
+		]) {
+			await publisher.call("patchDocument", {
+				global: "site-settings",
+				locale,
+				patches: [
+					{ op: "replace", path: "/title", value: title },
+					{ op: "replace", path: "/tagline", value: "Tagline" },
+				],
+			});
+		}
 
 		const published = await publisher.call("publishDocument", {
 			global: "site-settings",
 		});
 
 		expect(published.isError).toBe(false);
+		expect(published.data).toMatchObject({ publishedLocales: ["en", "de"] });
 		expect(
 			await booted.payload.findGlobal({
 				slug: "site-settings",
 				draft: false,
-				locale: "en",
+				locale: "all",
 				overrideAccess: true,
 			}),
-		).toMatchObject({ title: "Live", _status: "published" });
+		).toMatchObject({
+			title: { en: "Live", de: "Live DE" },
+			_status: PUBLISHED_EVERYWHERE,
+		});
 	});
 
 	/*
@@ -230,25 +313,95 @@ describe("publishDocument", () => {
 		expect(german).toMatchObject({ title: "Deutsch" });
 	});
 
-	it("lists the blockers of the other locales and still publishes", async () => {
-		const id = await createPage(completePage("Alpha"));
+	it("lists the blockers of the other locales and still publishes one locale", async () => {
+		const id = await completeArticle("Alpha");
+
+		await publisher.call("publishDocument", { collection: "articles", id });
+		await patchArticle(id, "de", [
+			{ op: "replace", path: "/title", value: "" },
+		]);
+
 		const published = await publisher.call("publishDocument", {
-			collection: "pages",
+			collection: "articles",
 			id,
+			locale: "en",
 		});
 
 		expect(published.isError).toBe(false);
 		expect(published.data).toMatchObject({
-			status: "published",
+			publishedLocales: ["en"],
 			otherLocaleBlockers: [{ locale: "de", path: "/title" }],
 		});
-		expect(await readPage(id, false)).toMatchObject({ _status: "published" });
+		expect(await readArticle(id, false)).toMatchObject({
+			_status: "published",
+		});
+	});
+
+	it("refuses to publish every locale while one has blockers", async () => {
+		const id = await completeArticle("Gamma");
+
+		await publisher.call("publishDocument", { collection: "articles", id });
+		await patchArticle(id, "de", [
+			{ op: "replace", path: "/title", value: "" },
+		]);
+
+		const before = await storedArticles();
+		const result = await publisher.call("publishDocument", {
+			collection: "articles",
+			id,
+		});
+
+		expect(result.isError).toBe(true);
+		expect(result.data["error"]).toContain('pass "locale"');
+		expect(result.data["publishBlockers"]).toEqual([
+			expect.objectContaining({ locale: "de", path: "/title" }),
+		]);
+		expect(await storedArticles()).toEqual(before);
+	});
+
+	/*
+	 * A first publish covers every locale on both majors, whatever "locale"
+	 * says, so a scoped first publish cannot leave a locale behind.
+	 */
+	it("takes a first publish with a locale through every locale", async () => {
+		const id = await completeArticle("First");
+
+		const published = await publisher.call("publishDocument", {
+			collection: "articles",
+			id,
+			locale: "de",
+		});
+
+		expect(published.isError).toBe(false);
+		expect(published.data).toMatchObject({ publishedLocales: ["en", "de"] });
+		expect(await liveArticle(id, "en")).toMatchObject({ title: "First" });
+		expect(await liveArticle(id, "de")).toMatchObject({ title: "First DE" });
+	});
+
+	it("refuses a first publish while a locale has blockers, and names them", async () => {
+		const id = await createArticle({ title: "Lonely", slug: "lonely" });
+		const before = await storedArticles();
+
+		const result = await publisher.call("publishDocument", {
+			collection: "articles",
+			id,
+			locale: "en",
+		});
+
+		expect(result.isError).toBe(true);
+		expect(result.data["error"]).toContain("admin panel");
+		expect(result.data["error"]).not.toContain('"locale"');
+		expect(result.data["publishBlockers"]).toEqual([
+			expect.objectContaining({ locale: "de", path: "/title" }),
+		]);
+		expect((await readArticle(id, true))["_status"]).toBe("draft");
+		expect(await storedArticles()).toEqual(before);
 	});
 
 	it("publishes one locale and keeps the other locales as published", async () => {
-		const id = await createPage(completePage("Beta"));
+		const id = await completeArticle("Beta");
 
-		await publisher.call("publishDocument", { collection: "pages", id });
+		await publisher.call("publishDocument", { collection: "articles", id });
 
 		for (const [locale, patches] of [
 			[
@@ -260,35 +413,24 @@ describe("publishDocument", () => {
 			],
 			["de", [{ op: "replace", path: "/title", value: "Beta DE" }]],
 		] as const) {
-			await publisher.call("patchDocument", {
-				collection: "pages",
-				id,
-				locale,
-				patches,
-			});
+			await patchArticle(id, locale, [...patches]);
 		}
 
 		const published = await publisher.call("publishDocument", {
-			collection: "pages",
+			collection: "articles",
 			id,
 			locale: "de",
 		});
 
 		expect(published.isError).toBe(false);
-
-		const live = (locale: string) =>
-			booted.payload.findByID({
-				collection: "pages",
-				id,
-				draft: false,
-				locale,
-				fallbackLocale: false,
-				overrideAccess: true,
-			});
+		expect(published.data).toMatchObject({ publishedLocales: ["de"] });
 
 		// Non-localized fields go live from the draft, whichever locale is scoped.
-		expect(await live("de")).toMatchObject({ title: "Beta DE" });
-		expect(await live("en")).toMatchObject({ title: "Beta", slug: "changed" });
+		expect(await liveArticle(id, "de")).toMatchObject({ title: "Beta DE" });
+		expect(await liveArticle(id, "en")).toMatchObject({
+			title: "Beta",
+			slug: "changed",
+		});
 	});
 
 	it("publishes one locale of a global and keeps the other locales as published", async () => {
@@ -333,13 +475,17 @@ describe("publishDocument", () => {
 		});
 	});
 
-	it("refuses a document that would not validate, and leaves it a draft", async () => {
-		const id = await createPage({ title: "Incomplete" });
-		const before = await storedPages();
+	it("refuses a locale that would not validate, and leaves it a draft", async () => {
+		const id = await completeArticle("Incomplete");
 
+		await publisher.call("publishDocument", { collection: "articles", id });
+		await patchArticle(id, "en", [{ op: "replace", path: "/slug", value: "" }]);
+
+		const before = await storedArticles();
 		const result = await publisher.call("publishDocument", {
-			collection: "pages",
+			collection: "articles",
 			id,
+			locale: "en",
 		});
 
 		expect(result.isError).toBe(true);
@@ -347,28 +493,28 @@ describe("publishDocument", () => {
 			(result.data["validationErrors"] as { path: string }[]).map(
 				(error) => error.path,
 			),
-		).toEqual(["/slug", "/layout/sections"]);
-		expect((await readPage(id, true))["_status"]).toBe("draft");
-		expect(await storedPages()).toEqual(before);
+		).toEqual(["/slug"]);
+		expect((await readArticle(id, true))["_status"]).toBe("draft");
+		expect(await storedArticles()).toEqual(before);
 	});
 
 	it("refuses a stale expectedUpdatedAt", async () => {
-		const id = await createPage(completePage("Concurrent"));
-		const before = await storedPages();
+		const id = await completeArticle("Concurrent");
+		const before = await storedArticles();
 
 		const result = await publisher.call("publishDocument", {
-			collection: "pages",
+			collection: "articles",
 			id,
 			expectedUpdatedAt: "2020-01-01T00:00:00.000Z",
 		});
 
 		expect(result.isError).toBe(true);
-		expect((await readPage(id, true))["_status"]).toBe("draft");
-		expect(await storedPages()).toEqual(before);
+		expect((await readArticle(id, true))["_status"]).toBe("draft");
+		expect(await storedArticles()).toEqual(before);
 	});
 
 	it("keeps a publish that did not come through the tool from landing", async () => {
-		const id = await createPage(completePage("Rogue"));
+		const id = await completeArticle("Rogue");
 
 		/*
 		 * On a collection the guard corrects rather than refuses: the operation
@@ -376,12 +522,12 @@ describe("publishDocument", () => {
 		 * published.
 		 */
 		const collection = await publisher.call("roguePublish", {
-			collection: "pages",
+			collection: "articles",
 			id,
 		});
 
 		expect(collection.isError).toBe(false);
-		expect((await readPage(id, false))["_status"]).toBe("draft");
+		expect((await readArticle(id, false))["_status"]).toBe("draft");
 
 		/*
 		 * A global cannot be corrected, because updateGlobal reads `draft` before
@@ -406,14 +552,14 @@ describe("publishDocument", () => {
 	 * the patch that follows, which would then go live.
 	 */
 	it("does not leak the publish intent to a sibling call in the same batch", async () => {
-		const id = await createPage(completePage("Batched"));
+		const id = await completeArticle("Batched");
 
 		const results = await publisher.batch([
-			{ name: "publishDocument", args: { collection: "pages", id } },
+			{ name: "publishDocument", args: { collection: "articles", id } },
 			{
 				name: "patchDocument",
 				args: {
-					collection: "pages",
+					collection: "articles",
 					id,
 					locale: "en",
 					patches: [{ op: "replace", path: "/title", value: "Still a draft" }],
@@ -422,7 +568,7 @@ describe("publishDocument", () => {
 		]);
 
 		expect(results.map((result) => result.isError)).toEqual([false, false]);
-		expect(await readPage(id, false)).toMatchObject({
+		expect(await readArticle(id, false)).toMatchObject({
 			title: "Batched",
 			_status: "published",
 		});

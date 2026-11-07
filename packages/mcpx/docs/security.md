@@ -182,10 +182,11 @@ the publish, unpublish and selected locale arguments, `duplicateFromID`,
 with drafts, a `beforeChange` hook refuses a write that would still not save a draft, which also
 catches `restoreVersion`. `publishDocument` is the only write that may publish.
 
-A marked publish keeps `publishSpecificLocale`, which `publishDocument` sets for a single-locale
-publish. Payload's global update reads its arguments before `beforeOperation` runs, so on a global
-only the change to the data takes effect. The `beforeOperation` hook refuses a write that did not
-ask for a draft save, and the `beforeChange` refusal keeps the status a draft.
+A marked publish keeps `publishAllLocales` and `publishSpecificLocale`, which `publishDocument`
+sets for an all-locales and a single-locale publish. Payload's global update reads its arguments
+before `beforeOperation` runs, so on a global only the change to the data takes effect. The
+`beforeOperation` hook refuses a write that did not ask for a draft save, and the `beforeChange`
+refusal keeps the status a draft.
 
 A marked trash move from `deleteDocument` keeps `deletedAt` and is not saved as a draft, since a
 draft save would leave the document itself, which carries `deletedAt`, unchanged. As the admin's

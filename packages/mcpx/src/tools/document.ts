@@ -267,6 +267,7 @@ export const updateTarget = async (
 		data: Record<string, unknown>;
 		draft: boolean;
 		locale: string | undefined;
+		publishAllLocales?: boolean;
 		publishSpecificLocale?: string | undefined;
 		file?: File | undefined;
 	},

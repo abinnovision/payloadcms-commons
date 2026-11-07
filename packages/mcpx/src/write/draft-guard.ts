@@ -23,18 +23,23 @@ import type {
 } from "payload";
 
 /*
- * Cleared on every MCP write so a caller cannot supply them, except
- * `publishSpecificLocale`, which a marked publish keeps, and `duplicateFromID`,
- * which a marked duplicate keeps.
+ * Cleared on every MCP write so a caller cannot supply them. A marked
+ * duplicate keeps `duplicateFromID`.
  */
 const STRIPPED_ARGS = new Set([
 	"where",
-	"publishAllLocales",
 	"unpublishAllLocales",
 	"duplicateFromID",
 	"selectedLocales",
 	"overwriteExistingFiles",
 ]);
+
+/*
+ * Cleared like {@link STRIPPED_ARGS} except on a marked publish. Payload 4 reads
+ * `publishAllLocales` after `beforeOperation`, so an all-locales publish needs
+ * it kept.
+ */
+const PUBLISH_ARGS = new Set(["publishAllLocales", "publishSpecificLocale"]);
 
 /*
  * `draft` alone does not force a draft save: Payload's update path saves one
@@ -57,8 +62,7 @@ const scrubWriteArgs = (
 	const next = Object.fromEntries(
 		Object.entries(args).filter(
 			([key]) =>
-				!STRIPPED_ARGS.has(key) &&
-				(publishing || key !== "publishSpecificLocale"),
+				!STRIPPED_ARGS.has(key) && (publishing || !PUBLISH_ARGS.has(key)),
 		),
 	);
 

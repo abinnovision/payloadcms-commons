@@ -574,6 +574,7 @@ describe("tool responses", () => {
 					updatedAt: "<timestamp>",
 					adminUrl: "<origin>/admin/collections/notes/<id>?locale=en",
 					previewUrl: "<origin>/preview/notes/<id>",
+					publishedLocales: ["en", "de"],
 				},
 			});
 		});
@@ -595,20 +596,21 @@ describe("tool responses", () => {
 				isError: true,
 				payload: {
 					error:
-						"The following fields are invalid: General > Title, Layout > Sections",
-					status: 400,
-					validationErrors: [
+						"Nothing was published. A first publish covers every locale, and some locales have publish blockers or could not be checked. Complete those locales, or publish from the admin panel.",
+					publishBlockers: ["en", "de"].flatMap((locale) => [
 						{
-							label: "General > Title",
+							field: "General > Title",
+							locale,
 							message: "This field is required.",
 							path: "/title",
 						},
 						{
-							label: "Layout > Sections",
+							field: "Layout > Sections",
+							locale,
 							message: "This field requires at least 1 Row.",
 							path: "/layout/sections",
 						},
-					],
+					]),
 				},
 			});
 			expect(await stored("pages")).toEqual(before);

@@ -72,11 +72,15 @@ describe("version history", () => {
 
 		pageId = created.data["id"] as number | string;
 
-		for (const title of ["Second", "Third"]) {
+		// The German title lets every locale publish.
+		for (const [locale, title] of [
+			["en", "Second"],
+			["de", "Zweite"],
+		]) {
 			await editor.call("patchDocument", {
 				collection: "pages",
 				id: pageId,
-				locale: "en",
+				locale,
 				patches: [{ op: "replace", path: "/title", value: title }],
 			});
 		}

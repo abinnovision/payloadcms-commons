@@ -487,6 +487,7 @@ describe("uploads through MCP", () => {
 			const published = await mcp.call("publishDocument", {
 				collection: "media",
 				id: doc.id,
+				locale: "en",
 			});
 
 			expect(published.isError).toBe(false);
