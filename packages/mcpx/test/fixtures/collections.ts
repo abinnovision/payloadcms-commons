@@ -198,6 +198,7 @@ export const snippets: CollectionConfig = {
 
 export const tags: CollectionConfig = {
 	slug: "tags",
+	versions: false,
 	fields: [{ name: "name", type: "text", required: true }],
 };
 

@@ -41,5 +41,6 @@ export const siteSettings: GlobalConfig = {
  */
 export const banner: GlobalConfig = {
 	slug: "banner",
+	versions: false,
 	fields: [{ name: "message", type: "text" }],
 };

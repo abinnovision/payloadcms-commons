@@ -75,11 +75,12 @@ const assertExposable = (
 	kind: EntityKind,
 	config: CollectionConfig | GlobalConfig,
 	apiKeysSlug: string,
+	foldersSlug?: string,
 ): void => {
 	const { slug } = config;
 
 	if (
-		slug.startsWith("payload-") ||
+		(slug.startsWith("payload-") && slug !== foldersSlug) ||
 		(kind === "Collection" && slug === apiKeysSlug)
 	) {
 		fail(`${kind} "${slug}" cannot be exposed.`);
@@ -124,18 +125,29 @@ const readFlag = (
 };
 
 /*
- * `localizeStatus` makes `_status` a localized field: Payload's
+ * `experimental.localizeStatus` makes `_status` a localized field: Payload's
  * `publishAllLocales` default flips to false and `_status` becomes a
  * locale-keyed object. A publish would cover one locale while reporting
  * success, and the tool responses model `_status` as a string. The combination
- * is refused.
+ * is refused. Without the experimental flag, `versions.drafts.localizeStatus`
+ * has no effect.
  */
 const assertWritable = (
 	kind: EntityKind,
+	root: Config,
 	config: CollectionConfig | GlobalConfig,
 	publish: boolean,
 ): void => {
-	if (publish && hasLocalizeStatusEnabled(config)) {
+	// Payload 4 has no `experimental` option.
+	const { experimental } = root as {
+		experimental?: { localizeStatus?: boolean };
+	};
+
+	if (
+		publish &&
+		experimental?.localizeStatus === true &&
+		hasLocalizeStatusEnabled(config)
+	) {
 		fail(
 			`${kind} "${config.slug}" has versions.drafts.localizeStatus enabled, which live writes do not support yet. Set publish: false or write: false.`,
 		);
@@ -273,11 +285,18 @@ type ConfigBySlug = Map<string, CollectionConfig | GlobalConfig>;
 const bySlug = (configs: (CollectionConfig | GlobalConfig)[]): ConfigBySlug =>
 	new Map(configs.map((config) => [config.slug, config]));
 
-const foldersSlugOf = ({ folders }: Config): string =>
-	(folders === false ? undefined : folders?.slug) ?? DEFAULT_FOLDERS_SLUG;
+// Payload 4 has no root `folders` option.
+const foldersSlugOf = (config: Config): string | undefined => {
+	const { folders } = config as { folders?: false | { slug?: string } };
+
+	return folders === false
+		? undefined
+		: (folders?.slug ?? DEFAULT_FOLDERS_SLUG);
+};
 
 const normalizeEntities = (
 	kind: EntityKind,
+	root: Config,
 	configs: ConfigBySlug,
 	entries: Record<string, unknown>,
 	apiKeysSlug: string,
@@ -291,20 +310,23 @@ const normalizeEntities = (
 			return [];
 		}
 
-		const config = configs.get(slug);
+		/*
+		 * Payload adds its internal collections after this plugin runs. The folder
+		 * collection is assumed bare and checked in `reconcileOptions`.
+		 */
+		const config =
+			configs.get(slug) ??
+			(slug === foldersSlug ? { slug, fields: [] } : undefined);
 
-		// Payload adds its internal collections after this plugin runs.
 		if (!config) {
 			return fail(
-				slug === foldersSlug
-					? `Collection "${slug}" is Payload's folder collection. Use the folders option instead.`
-					: slug.startsWith("payload-")
-						? `${kind} "${slug}" is internal to Payload and cannot be exposed.`
-						: `Exposed ${kind.toLowerCase()} "${slug}" does not exist.`,
+				slug.startsWith("payload-")
+					? `${kind} "${slug}" is internal to Payload and cannot be exposed.`
+					: `Exposed ${kind.toLowerCase()} "${slug}" does not exist.`,
 			);
 		}
 
-		assertExposable(kind, config, apiKeysSlug);
+		assertExposable(kind, config, apiKeysSlug, foldersSlug);
 
 		const normalized: McpxExposedEntity = {
 			slug,
@@ -312,6 +334,12 @@ const normalizeEntities = (
 			isUpload: "upload" in config && Boolean(config.upload),
 			fieldName: toCamelCase(slug),
 		};
+
+		if (slug === foldersSlug && normalized.delete) {
+			fail(
+				`Collection "${slug}" holds folders, whose deletes also delete their subfolders with full access. Remove delete.`,
+			);
+		}
 
 		// Globals have no `timestamps` option and always get `updatedAt`.
 		if (normalized.write) {
@@ -323,7 +351,7 @@ const normalizeEntities = (
 				);
 			}
 
-			assertWritable(kind, config, normalized.publish);
+			assertWritable(kind, root, config, normalized.publish);
 		}
 
 		if (fieldNames.has(normalized.fieldName)) {
@@ -338,95 +366,66 @@ const normalizeEntities = (
 	});
 };
 
-// Payload adds the folder collection later, so its defaults are assumed. Never deletable.
-const normalizeFolders = (
-	config: Config,
-	collections: McpxExposedEntity[],
-	raw: unknown,
-	slug: string,
-): McpxExposedEntity[] => {
-	const usesFolders = (config.collections ?? []).some(
-		(collection) =>
-			Boolean(collection.folders) &&
-			collections.some((entity) => entity.slug === collection.slug),
-	);
-
-	if (raw === false) {
-		return [];
-	}
-
-	if (config.folders === false || !usesFolders) {
-		if (raw !== undefined) {
-			fail(
-				"folders is set, but no exposed collection uses folders. Remove the option.",
-			);
-		}
-
-		return [];
-	}
-
-	if (raw !== undefined && !isPlainObject(raw)) {
-		fail(`folders has ${JSON.stringify(raw)}. Use false or { write }.`);
-	}
-
-	const settings: Record<string, unknown> = isPlainObject(raw) ? raw : {};
-	const unknownKey = Object.keys(settings).find((key) => key !== "write");
-
-	if (unknownKey !== undefined) {
-		fail(
-			`folders has the unknown option "${unknownKey}". The only option is write.`,
-		);
-	}
-
-	const fieldName = toCamelCase(slug);
-
-	if (collections.some((entity) => entity.fieldName === fieldName)) {
-		fail(
-			`folders maps to capability field "${fieldName}", which an exposed collection already uses.`,
-		);
-	}
-
-	const write = settings["write"] ?? false;
-
-	if (typeof write !== "boolean") {
-		fail(`folders.write has ${JSON.stringify(write)}. Use true or false.`);
-	}
-
-	return [
-		{
-			slug,
-			...normalizeCapabilities("Collection", { slug, fields: [] }, { write }),
-			isUpload: false,
-			fieldName,
-		},
-	];
-};
-
 /**
- * Checks the sanitized folder collection against what {@link normalizeFolders}
- * assumed. `folders.collectionOverrides` can change it after this plugin ran.
+ * Checks the sanitized config against what {@link normalizeOptions} read from
+ * the raw one. Updates the entities in place, since the endpoint handlers hold
+ * them.
  */
-export const assertFolderCollection = (
+export const reconcileOptions = (
+	raw: Config,
 	config: SanitizedConfig,
 	options: NormalizedOptions,
 ): void => {
-	const { folders } = config;
+	const rawSlugs = new Set((raw.collections ?? []).map(({ slug }) => slug));
 
-	if (
-		!folders ||
-		!options.collections.some((entity) => entity.slug === folders.slug)
-	) {
-		return;
+	for (const entity of options.collections) {
+		const { slug } = entity;
+		const collection = config.collections.find(
+			(candidate) => candidate.slug === slug,
+		);
+
+		// Only the folder collection is absent from the raw config.
+		if (!rawSlugs.has(slug)) {
+			if (!collection) {
+				fail(
+					`Folder collection "${slug}" does not exist. Payload 3 adds it only where a collection has folders: true; on Payload 4, expose the collection with folders: true instead.`,
+				);
+			} else if (
+				[
+					collection.auth,
+					collection.trash,
+					collection.upload,
+					collection.versions,
+				].some(Boolean)
+			) {
+				fail(
+					`Folder collection "${slug}" has auth, trash, upload or versions, which mcpx does not support. Remove it from collections.`,
+				);
+			}
+		}
+
+		// Deleting a hierarchy document also deletes its children with full access.
+		if (
+			entity.delete &&
+			collection &&
+			"hierarchy" in collection &&
+			collection.hierarchy
+		) {
+			fail(
+				`Collection "${slug}" is a folder or tag collection, whose deletes also delete their children with full access. Remove delete.`,
+			);
+		}
+
+		// Payload 4 enables versions by default.
+		entity.hasVersions = entity.read && Boolean(collection?.versions);
 	}
 
-	const collection = config.collections.find(
-		(candidate) => candidate.slug === folders.slug,
-	);
-
-	if (collection?.auth || collection?.upload || collection?.versions) {
-		fail(
-			`Folder collection "${folders.slug}" has auth, upload or versions from folders.collectionOverrides, which mcpx does not support. Set folders: false.`,
+	for (const entity of options.globals) {
+		const global = config.globals.find(
+			(candidate) => candidate.slug === entity.slug,
 		);
+
+		entity.hasVersions = entity.read && Boolean(global?.versions);
 	}
 };
 
@@ -497,7 +496,12 @@ export const normalizeOptions = (
 		options.userCollection ?? config.admin?.user ?? "users";
 
 	const collectionConfigs = bySlug(config.collections ?? []);
-	const foldersSlug = foldersSlugOf(config);
+
+	if ("folders" in options) {
+		fail(
+			"The folders option was removed in 3.0; expose the folder collection under collections. See docs/integration.md#upgrading-to-30",
+		);
+	}
 
 	if (collectionConfigs.has(apiKeysSlug)) {
 		fail(`API key collection slug "${apiKeysSlug}" is already taken.`);
@@ -509,17 +513,14 @@ export const normalizeOptions = (
 
 	assertTools(tools, reservedToolNames);
 
-	const exposed = normalizeEntities(
+	const collections = normalizeEntities(
 		"Collection",
+		config,
 		collectionConfigs,
 		options.collections,
 		apiKeysSlug,
-		foldersSlug,
+		foldersSlugOf(config),
 	);
-	const collections = [
-		...exposed,
-		...normalizeFolders(config, exposed, options.folders, foldersSlug),
-	];
 	// Only builtin tools are confirmable, so only `delete` needs approval.
 	const confirmations = collections.some((entity) => entity.delete);
 
@@ -537,6 +538,7 @@ export const normalizeOptions = (
 		collections,
 		globals: normalizeEntities(
 			"Global",
+			config,
 			bySlug(config.globals ?? []),
 			options.globals ?? {},
 			apiKeysSlug,

@@ -7,7 +7,7 @@ import {
 	createDownloadHandler,
 	createUploadHandler,
 } from "./endpoint/upload.js";
-import { assertFolderCollection, normalizeOptions } from "./options.js";
+import { normalizeOptions, reconcileOptions } from "./options.js";
 import { BUILTIN_TOOLS } from "./tools/builtin.js";
 import {
 	installDraftGuards,
@@ -55,7 +55,7 @@ const pluginOptions = (args: object): McpxPluginOptions =>
  * Mounts the MCP, upload and download endpoints, and the confirmation
  * endpoints where a collection exposes `delete`. Adds the API key collection
  * and installs the draft guard on every collection and global. Checks the
- * folder collection once Payload has built it.
+ * options against the sanitized config once Payload has built it.
  */
 export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 	slug: "@abinnovision/payloadcms-mcpx",
@@ -81,7 +81,7 @@ export const mcpxPlugin = definePlugin<McpxPluginOptions>({
 			]),
 			globals: installGlobalDraftGuards(config.globals ?? []),
 			onInit: async (payload) => {
-				assertFolderCollection(payload.config, normalized);
+				reconcileOptions(config, payload.config, normalized);
 				initialized.set(payload.config, normalized);
 				await config.onInit?.(payload);
 			},
