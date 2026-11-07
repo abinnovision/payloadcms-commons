@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildConfig } from "payload";
 
+import { oidc } from "./auth/oidc";
 import { callToActionBlock } from "./blocks/call-to-action";
 import { calloutBlock } from "./blocks/callout";
 import { heroBlock } from "./blocks/hero";
@@ -78,6 +79,7 @@ export default buildConfig({
 		 * "nothing configured, nothing rendered" case.
 		 */
 		colophonPlugin(),
+		...oidc(),
 	],
 	graphQL: { disable: true },
 	typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },
