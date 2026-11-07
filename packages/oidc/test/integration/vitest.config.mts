@@ -16,6 +16,13 @@ export default defineProject({
 		// Every spec boots fresh in-memory databases. Payload skips the schema
 		// push when the schema matches the previous boot in the same process,
 		// which would leave a new database without tables.
-		env: { PAYLOAD_FORCE_DRIZZLE_PUSH: "true" },
+		//
+		// The package tests against Payload 4 while the repository root holds
+		// Payload 3, so Payload's version check would flag the root's
+		// `@payloadcms/*` packages from its background task.
+		env: {
+			PAYLOAD_FORCE_DRIZZLE_PUSH: "true",
+			PAYLOAD_DISABLE_DEPENDENCY_CHECKER: "true",
+		},
 	},
 });
