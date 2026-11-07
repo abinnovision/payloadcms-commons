@@ -20,6 +20,7 @@ them. Nothing here requires anything else here.
 | [`@abinnovision/payloadcms-hatchet`](./packages/hatchet)                   | Runs Payload jobs on Hatchet: Hatchet triggers, Payload executes.                          |
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server over the content model, with a fixed tool surface and per-API-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                                  |
+| [`@abinnovision/payloadcms-oidc`](./packages/oidc)                         | Single sign-on through one OpenID Connect provider, with claim-mapped roles. Payload 4.    |
 | [`@abinnovision/payloadcms-viewfinder`](./packages/viewfinder)             | Two-way block addressing between a rendered frontend and the Payload admin form.           |
 | [`@abinnovision/payloadcms-wayfinder`](./packages/wayfinder)               | Editor-authored URL routing: collection-to-path patterns, hrefs and a link field.          |
 
@@ -27,7 +28,7 @@ them. Nothing here requires anything else here.
 
 Packages publish as `@abinnovision/payloadcms-<name>`. A package that wraps
 something already named keeps that name: `mcpx` for the MCP protocol,
-`email-lettermint` for the Lettermint API. The others take a word from film and
+`email-lettermint` for the Lettermint API, `oidc` for OpenID Connect. The others take a word from film and
 printing for the job they do, and each README opens by saying what the word
 means.
 
@@ -44,8 +45,8 @@ Those are the only seams, and each is optional from either side. Neither package
 knows the other exists: a block marks itself the same way without montage
 ([wiring](./packages/viewfinder/docs/integration.md)), and without montage
 wayfinder's glue is a short adapter over whatever context the app already has
-([both paths](./packages/wayfinder/docs/recipes.md)). colophon, mcpx and the
-Lettermint adapter touch nothing else at all.
+([both paths](./packages/wayfinder/docs/recipes.md)). colophon, mcpx, oidc and
+the Lettermint adapter touch nothing else at all.
 
 [`apps/example-v3`](./apps/example-v3) mounts every package but the Lettermint adapter,
 with the seams wired and a seed, written with dummy, that leaves a routed,
