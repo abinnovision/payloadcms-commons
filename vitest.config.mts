@@ -5,7 +5,9 @@ export default defineConfig({
 		projects: [
 			"apps/*/vitest.config.{m,}ts",
 			"packages/*/vitest.config.{m,}ts",
+			"packages/*/vitest.v4.config.{m,}ts",
 			"packages/*/test/{integration,e2e}/vitest.config.{m,}ts",
+			"packages/*/test/{integration,e2e}/vitest.v4.config.{m,}ts",
 		],
 		coverage: {
 			provider: "v8",

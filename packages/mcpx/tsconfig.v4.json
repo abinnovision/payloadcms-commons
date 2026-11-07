@@ -1,0 +1,27 @@
+{
+	"extends": "./tsconfig.json",
+	"include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts"],
+	"compilerOptions": {
+		"paths": {
+			"payload": ["../../apps/example-v4/node_modules/payload/dist/index.d.ts"],
+			"payload/shared": [
+				"../../apps/example-v4/node_modules/payload/dist/exports/shared.d.ts"
+			],
+			"@payloadcms/ui": [
+				"../../apps/example-v4/node_modules/@payloadcms/ui/dist/exports/client/index.d.ts"
+			],
+			"@payloadcms/richtext-lexical": [
+				"../../apps/example-v4/node_modules/@payloadcms/richtext-lexical/dist/index.d.ts"
+			],
+			"@payloadcms/richtext-lexical/lexical": [
+				"../../apps/example-v4/node_modules/@payloadcms/richtext-lexical/dist/lexical-proxy/lexical.d.ts"
+			],
+			"@payloadcms/richtext-lexical/lexical/headless": [
+				"../../apps/example-v4/node_modules/@payloadcms/richtext-lexical/dist/lexical-proxy/@lexical-headless.d.ts"
+			],
+			"@payloadcms/db-sqlite": [
+				"../../apps/example-v4/node_modules/@payloadcms/db-sqlite/dist/index.d.ts"
+			]
+		}
+	}
+}

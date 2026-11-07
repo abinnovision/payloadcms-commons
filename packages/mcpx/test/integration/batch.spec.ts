@@ -1,3 +1,4 @@
+import { payloadMajor } from "@internal/test-utils/payload-major";
 import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,7 +19,10 @@ const CACHE_KEY = "mcpx-integration-batch";
  * there. A file database because a libsql transaction on `:memory:` opens a
  * second, empty database.
  */
-const DB_FILE = join(tmpdir(), `mcpx-batch-${String(process.pid)}.db`);
+const DB_FILE = join(
+	tmpdir(),
+	`mcpx-batch-${String(process.pid)}-v${String(payloadMajor())}.db`,
+);
 
 const removeDbFiles = async (): Promise<void> => {
 	for (const suffix of ["", "-wal", "-shm", "-journal"]) {
