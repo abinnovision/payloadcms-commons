@@ -27,7 +27,11 @@
 			}
 		],
 		"paths": {
-			"@payload-config": ["./src/payload.config.ts"]
+			"@payload-config": ["./src/payload.config.ts"],
+			"payload": ["./node_modules/payload"],
+			"payload/*": ["./node_modules/payload/*"],
+			"@payloadcms/ui": ["./node_modules/@payloadcms/ui"],
+			"@payloadcms/ui/*": ["./node_modules/@payloadcms/ui/*"]
 		}
 	},
 	"include": [
