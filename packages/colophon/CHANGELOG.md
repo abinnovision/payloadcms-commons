@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-colophon-v1.0.2...payloadcms-colophon-v1.1.0) (2026-11-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcpx:** support Payload 4 ([#196](https://github.com/abinnovision/payloadcms-commons/issues/196)) (via test-utils)
+
+### Features
+
+* **colophon:** support Payload v4 ([#155](https://github.com/abinnovision/payloadcms-commons/issues/155)) ([eced866](https://github.com/abinnovision/payloadcms-commons/commit/eced866adb36a6deda08277add309ee13188984f))
+* **mcpx:** support Payload 4 ([#196](https://github.com/abinnovision/payloadcms-commons/issues/196)) ([de906d5](https://github.com/abinnovision/payloadcms-commons/commit/de906d53a15617beedb21758c9e2f93ffa575b2a)) (via test-utils)
+
+
+### Bug Fixes
+
+* **colophon:** style sidebar rows with Payload 4 tokens ([#198](https://github.com/abinnovision/payloadcms-commons/issues/198)) ([8a96c4d](https://github.com/abinnovision/payloadcms-commons/commit/8a96c4d1c985c4ca55edb0743ab73dac2526d56d))
+
 ## [1.0.2](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-colophon-v1.0.1...payloadcms-colophon-v1.0.2) (2026-10-04)
 
 
