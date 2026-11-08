@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-montage-v1.0.2...payloadcms-montage-v1.1.0) (2026-11-08)
+
+
+### Features
+
+* **montage:** support Payload v4 ([#181](https://github.com/abinnovision/payloadcms-commons/issues/181)) ([0606c1e](https://github.com/abinnovision/payloadcms-commons/commit/0606c1e5844f42f3317a1d9ff814175ed924088b))
+
 ## [1.0.2](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-montage-v1.0.1...payloadcms-montage-v1.0.2) (2026-10-04)
 
 
