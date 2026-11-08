@@ -30,7 +30,9 @@ import { FixedToolbarFeatureClient as FixedToolbarFeatureClient_e70f5e05f09f93e0
 import { LLMInstructionsCell as LLMInstructionsCell_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { LinkLabelFeatureClient as LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56 } from '@abinnovision/payloadcms-wayfinder/admin'
 import { BlocksFeatureClient as BlocksFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { FlueToggle as FlueToggle_1dfdac84e482bf28560895903061b0c3 } from '@abinnovision/payloadcms-flue/admin'
 import { Colophon as Colophon_373ed9accf0c93deb4bab0eb3b75ccda } from '@abinnovision/payloadcms-colophon/admin'
+import { FlueProvider as FlueProvider_1dfdac84e482bf28560895903061b0c3 } from '@abinnovision/payloadcms-flue/admin'
 import { WelcomeWidget as WelcomeWidget_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 import { CollectionQueryWidget as CollectionQueryWidget_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
@@ -75,7 +77,9 @@ export const importMap = {
   "@payloadcms/ui/rsc#LLMInstructionsCell": LLMInstructionsCell_ab83ff7e88da8d3530831f296ec4756a,
   "@abinnovision/payloadcms-wayfinder/admin#LinkLabelFeatureClient": LinkLabelFeatureClient_d9ec29974275a66dd6328ddfb4f7de56,
   "@payloadcms/richtext-lexical/client#BlocksFeatureClient": BlocksFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "@abinnovision/payloadcms-flue/admin#FlueToggle": FlueToggle_1dfdac84e482bf28560895903061b0c3,
   "@abinnovision/payloadcms-colophon/admin#Colophon": Colophon_373ed9accf0c93deb4bab0eb3b75ccda,
+  "@abinnovision/payloadcms-flue/admin#FlueProvider": FlueProvider_1dfdac84e482bf28560895903061b0c3,
   "@payloadcms/ui/rsc#WelcomeWidget": WelcomeWidget_ab83ff7e88da8d3530831f296ec4756a,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a,
   "@payloadcms/ui/rsc#CollectionQueryWidget": CollectionQueryWidget_ab83ff7e88da8d3530831f296ec4756a,

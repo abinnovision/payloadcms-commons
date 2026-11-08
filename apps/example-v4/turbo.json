@@ -2,6 +2,9 @@
 	"$schema": "https://turbo.build/schema.json",
 	"extends": ["//"],
 	"tasks": {
+		"dev": {
+			"with": ["@internal/example-v4-agents#dev"]
+		},
 		"build": {
 			"inputs": ["src/**/*", "next.config.mjs", "tsconfig.json"],
 			"outputs": [".next/**", "!.next/cache/**"],
@@ -9,6 +12,8 @@
 				"PAYLOAD_SECRET",
 				"DATABASE_URI",
 				"PAYLOAD_URL",
+				"FLUE_SIDECAR_URL",
+				"FLUE_SIDECAR_SECRET",
 				"APP_VERSION",
 				"APP_COMMIT",
 				"APP_ENVIRONMENT",
