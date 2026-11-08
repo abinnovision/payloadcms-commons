@@ -1,0 +1,42 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@internal/example-v4-agents",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Flue sidecar for example-v4, serving the editor and reviewer agents behind a shared secret.",
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"dev": "vite dev --port 3101",
+		"format:check": "prettier --check 'src/**/*.ts' '*.{json{,5},md,y{,a}ml,mjs,ts}'",
+		"format:fix": "prettier --write 'src/**/*.ts' '*.{json{,5},md,y{,a}ml,mjs,ts}'",
+		"lint:check": "eslint 'src/**/*.ts' '*.ts'",
+		"lint:fix": "eslint 'src/**/*.ts' '*.ts' --fix",
+		"start": "PORT=3101 node --env-file-if-exists=.env dist/server.mjs",
+		"typecheck": "tsc --noEmit"
+	},
+	"lint-staged": {
+		"{src/**/*,*}.ts": [
+			"eslint --fix",
+			"prettier --write"
+		],
+		"*.{json{,5},md,y{,a}ml}": "prettier --write"
+	},
+	"prettier": "@abinnovision/prettier-config",
+	"dependencies": {
+		"@abinnovision/payloadcms-flue": "workspace:*",
+		"@flue/runtime": "2.3.0",
+		"hono": "^4.13.16",
+		"valibot": "^1.1.0"
+	},
+	"devDependencies": {
+		"@abinnovision/eslint-config-base": "^3.4.2",
+		"@abinnovision/prettier-config": "^2.2.0",
+		"@flue/vite": "2.3.0",
+		"@types/node": "^26.6.6",
+		"eslint": "^10.14.0",
+		"prettier": "^3.9.10",
+		"typescript": "^6.0.3",
+		"vite": "^8.3.5"
+	}
+}

@@ -62,19 +62,19 @@ export type SupportedTimezones =
 	| "Pacific/Fiji";
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_84D21871".
+ * via the `definition` "LexicalNodes_F6452B57".
  */
-export type LexicalNodes_84D21871 =
+export type LexicalNodes_F6452B57 =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_84D21871>
-	| SerializedAutoLinkNode<LexicalNodes_84D21871, LexicalLinkFields_E469DC16>
-	| SerializedLinkNode<LexicalNodes_84D21871, LexicalLinkFields_E469DC16>
+	| SerializedParagraphNode<LexicalNodes_F6452B57>
+	| SerializedAutoLinkNode<LexicalNodes_F6452B57, LexicalLinkFields_E469DC16>
+	| SerializedLinkNode<LexicalNodes_F6452B57, LexicalLinkFields_E469DC16>
 	| SerializedBlockNode<CalloutBlock>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
-	| SerializedQuoteNode<LexicalNodes_84D21871>
+	| SerializedQuoteNode<LexicalNodes_F6452B57>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -82,27 +82,28 @@ export type LexicalNodes_84D21871 =
 			| "sections"
 			| "posts"
 			| "tags"
-			| "mcpx-api-keys"
+			| "flue-threads"
 			| "payload-kv"
+			| "payload-jobs"
 			| "payload-locked-documents"
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedListNode<LexicalNodes_84D21871>
-	| SerializedListItemNode<LexicalNodes_84D21871>
-	| SerializedHeadingNode<LexicalNodes_84D21871>;
+	| SerializedListNode<LexicalNodes_F6452B57>
+	| SerializedListItemNode<LexicalNodes_F6452B57>
+	| SerializedHeadingNode<LexicalNodes_F6452B57>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_3C6F0263".
+ * via the `definition` "LexicalNodes_5400F3D2".
  */
-export type LexicalNodes_3C6F0263 =
+export type LexicalNodes_5400F3D2 =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_3C6F0263>
+	| SerializedParagraphNode<LexicalNodes_5400F3D2>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
-	| SerializedQuoteNode<LexicalNodes_3C6F0263>
+	| SerializedQuoteNode<LexicalNodes_5400F3D2>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -110,17 +111,18 @@ export type LexicalNodes_3C6F0263 =
 			| "sections"
 			| "posts"
 			| "tags"
-			| "mcpx-api-keys"
+			| "flue-threads"
 			| "payload-kv"
+			| "payload-jobs"
 			| "payload-locked-documents"
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedAutoLinkNode<LexicalNodes_3C6F0263, LexicalLinkFields>
-	| SerializedLinkNode<LexicalNodes_3C6F0263, LexicalLinkFields>
-	| SerializedListNode<LexicalNodes_3C6F0263>
-	| SerializedListItemNode<LexicalNodes_3C6F0263>
-	| SerializedHeadingNode<LexicalNodes_3C6F0263>;
+	| SerializedAutoLinkNode<LexicalNodes_5400F3D2, LexicalLinkFields>
+	| SerializedLinkNode<LexicalNodes_5400F3D2, LexicalLinkFields>
+	| SerializedListNode<LexicalNodes_5400F3D2>
+	| SerializedListItemNode<LexicalNodes_5400F3D2>
+	| SerializedHeadingNode<LexicalNodes_5400F3D2>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
@@ -154,7 +156,9 @@ export interface Config {
 		tags: Tag;
 		media: Media;
 		"mcpx-api-keys": McpxApiKey;
+		"flue-threads": FlueThread;
 		"payload-kv": PayloadKv;
+		"payload-jobs": PayloadJob;
 		"payload-locked-documents": PayloadLockedDocument;
 		"payload-preferences": PayloadPreference;
 		"payload-migrations": PayloadMigration;
@@ -170,7 +174,9 @@ export interface Config {
 		tags: TagsSelect<false> | TagsSelect<true>;
 		media: MediaSelect<false> | MediaSelect<true>;
 		"mcpx-api-keys": McpxApiKeysSelect<false> | McpxApiKeysSelect<true>;
+		"flue-threads": FlueThreadsSelect<false> | FlueThreadsSelect<true>;
 		"payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
+		"payload-jobs": PayloadJobsSelect<false> | PayloadJobsSelect<true>;
 		"payload-locked-documents":
 			PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
 		"payload-preferences":
@@ -192,11 +198,14 @@ export interface Config {
 	globals: {
 		"site-settings": SiteSetting;
 		"collections-mapping": CollectionsMapping;
+		"payload-jobs-stats": PayloadJobsStat;
 	};
 	globalsSelect: {
 		"site-settings": SiteSettingsSelect<false> | SiteSettingsSelect<true>;
 		"collections-mapping":
 			CollectionsMappingSelect<false> | CollectionsMappingSelect<true>;
+		"payload-jobs-stats":
+			PayloadJobsStatsSelect<false> | PayloadJobsStatsSelect<true>;
 	};
 	locale: "en" | "de";
 	widgets: {
@@ -208,7 +217,13 @@ export interface Config {
 	};
 	user: User;
 	jobs: {
-		tasks: unknown;
+		tasks: {
+			"flue-dispatch": TaskFlueDispatch;
+			inline: {
+				input: unknown;
+				output: unknown;
+			};
+		};
 		workflows: unknown;
 	};
 }
@@ -247,7 +262,7 @@ export interface HeroModuleBlock {
  * via the `definition` "RichTextModuleBlock".
  */
 export interface RichTextModuleBlock {
-	content?: LexicalRichText<LexicalNodes_84D21871> | null;
+	content?: LexicalRichText<LexicalNodes_F6452B57> | null;
 	id?: string | null;
 	blockName?: string | null;
 	blockType: "rich-text-module";
@@ -346,6 +361,10 @@ export interface SectionWrapper {
  */
 export interface User {
 	id: number;
+	/**
+	 * May chat with the reviewer agent. Set by the seed.
+	 */
+	agentAccess?: boolean | null;
 	createdBy?: {
 		relationTo: "users";
 		value: number | User;
@@ -440,7 +459,7 @@ export interface Post {
 	id: number;
 	title: string;
 	excerpt?: string | null;
-	content?: LexicalRichText<LexicalNodes_3C6F0263> | null;
+	content?: LexicalRichText<LexicalNodes_5400F3D2> | null;
 	image?: (number | null) | Media;
 	tags?: (number | Tag)[] | null;
 	createdBy?: {
@@ -612,10 +631,6 @@ export interface McpxApiKey {
 				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
 				 */
 				delete?: boolean | null;
-				/**
-				 * Move documents to trash without asking this key's user.
-				 */
-				deleteUnattended?: boolean | null;
 			};
 			sections?: {
 				/**
@@ -689,6 +704,43 @@ export interface McpxApiKey {
 			};
 		};
 	};
+	managedBy?: string | null;
+	updatedAt: string;
+	createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "flue-threads".
+ */
+export interface FlueThread {
+	id: number;
+	agent: string;
+	conversationId?: string | null;
+	handleHash?: string | null;
+	title?: string | null;
+	agentTitle?: string | null;
+	context?: {
+		collection?: string | null;
+		docId?: string | null;
+		global?: string | null;
+		locale?: string | null;
+	};
+	kind?: ("chat" | "reactive" | "ambient") | null;
+	onBehalfOf?: (number | null) | User;
+	status?: ("idle" | "running" | "failed" | "archived") | null;
+	lastMessageAt?: string | null;
+	lastReadAt?: string | null;
+	lastSubmissionId?: string | null;
+	flueUid?: string | null;
+	dispatchJob?: string | null;
+	createdBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
 	updatedAt: string;
 	createdAt: string;
 }
@@ -708,6 +760,116 @@ export interface PayloadKv {
 		| number
 		| boolean
 		| null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs".
+ */
+export interface PayloadJob {
+	id: number;
+	/**
+	 * Input data provided to the job
+	 */
+	input?:
+		| {
+				[k: string]: unknown;
+		  }
+		| unknown[]
+		| string
+		| number
+		| boolean
+		| null;
+	taskStatus?:
+		| {
+				[k: string]: unknown;
+		  }
+		| unknown[]
+		| string
+		| number
+		| boolean
+		| null;
+	meta?:
+		| {
+				[k: string]: unknown;
+		  }
+		| unknown[]
+		| string
+		| number
+		| boolean
+		| null;
+	completedAt?: string | null;
+	totalTried?: number | null;
+	/**
+	 * If hasError is true this job will not be retried
+	 */
+	hasError?: boolean | null;
+	/**
+	 * If hasError is true, this is the error that caused it
+	 */
+	error?:
+		| {
+				[k: string]: unknown;
+		  }
+		| unknown[]
+		| string
+		| number
+		| boolean
+		| null;
+	/**
+	 * Task execution log
+	 */
+	log?:
+		| {
+				executedAt: string;
+				completedAt: string;
+				taskSlug: "inline" | "flue-dispatch";
+				taskID: string;
+				input:
+					| {
+							[k: string]: unknown;
+					  }
+					| unknown[]
+					| string
+					| number
+					| boolean
+					| null;
+				output?:
+					| {
+							[k: string]: unknown;
+					  }
+					| unknown[]
+					| string
+					| number
+					| boolean
+					| null;
+				state: "failed" | "succeeded";
+				error?:
+					| {
+							[k: string]: unknown;
+					  }
+					| unknown[]
+					| string
+					| number
+					| boolean
+					| null;
+				parent?: {
+					taskSlug?: ("inline" | "flue-dispatch") | null;
+					taskID?: string | null;
+				};
+				id?: string | null;
+		  }[]
+		| null;
+	taskSlug?: ("inline" | "flue-dispatch") | null;
+	queue?: string | null;
+	waitUntil?: string | null;
+	processingUntil?: string | null;
+	processingToken?: string | null;
+	/**
+	 * Used for concurrency control. Jobs with the same key are subject to exclusive/supersedes rules.
+	 */
+	concurrencyKey?: string | null;
+	updatedAt: string;
+	createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -747,6 +909,10 @@ export interface PayloadLockedDocument {
 		| ({
 				relationTo: "mcpx-api-keys";
 				value: number | McpxApiKey;
+		  } | null)
+		| ({
+				relationTo: "flue-threads";
+				value: number | FlueThread;
 		  } | null);
 	globalSlug?: string | null;
 	user: {
@@ -817,6 +983,7 @@ export interface PayloadLlmInstruction {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+	agentAccess?: T;
 	createdBy?: T;
 	updatedBy?: T;
 	updatedAt?: T;
@@ -1015,7 +1182,6 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 										write?: T;
 										publish?: T;
 										delete?: T;
-										deleteUnattended?: T;
 								  };
 							sections?:
 								| T
@@ -1054,6 +1220,38 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 								  };
 					  };
 		  };
+	managedBy?: T;
+	updatedAt?: T;
+	createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "flue-threads_select".
+ */
+export interface FlueThreadsSelect<T extends boolean = true> {
+	agent?: T;
+	conversationId?: T;
+	handleHash?: T;
+	title?: T;
+	agentTitle?: T;
+	context?:
+		| T
+		| {
+				collection?: T;
+				docId?: T;
+				global?: T;
+				locale?: T;
+		  };
+	kind?: T;
+	onBehalfOf?: T;
+	status?: T;
+	lastMessageAt?: T;
+	lastReadAt?: T;
+	lastSubmissionId?: T;
+	flueUid?: T;
+	dispatchJob?: T;
+	createdBy?: T;
+	updatedBy?: T;
 	updatedAt?: T;
 	createdAt?: T;
 }
@@ -1064,6 +1262,46 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 export interface PayloadKvSelect<T extends boolean = true> {
 	key?: T;
 	data?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs_select".
+ */
+export interface PayloadJobsSelect<T extends boolean = true> {
+	input?: T;
+	taskStatus?: T;
+	meta?: T;
+	completedAt?: T;
+	totalTried?: T;
+	hasError?: T;
+	error?: T;
+	log?:
+		| T
+		| {
+				executedAt?: T;
+				completedAt?: T;
+				taskSlug?: T;
+				taskID?: T;
+				input?: T;
+				output?: T;
+				state?: T;
+				error?: T;
+				parent?:
+					| T
+					| {
+							taskSlug?: T;
+							taskID?: T;
+					  };
+				id?: T;
+		  };
+	taskSlug?: T;
+	queue?: T;
+	waitUntil?: T;
+	processingUntil?: T;
+	processingToken?: T;
+	concurrencyKey?: T;
+	updatedAt?: T;
+	createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1166,6 +1404,24 @@ export interface CollectionsMapping {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs-stats".
+ */
+export interface PayloadJobsStat {
+	id: number;
+	stats?:
+		| {
+				[k: string]: unknown;
+		  }
+		| unknown[]
+		| string
+		| number
+		| boolean
+		| null;
+	updatedAt?: string | null;
+	createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "site-settings_select".
  */
 export interface SiteSettingsSelect<T extends boolean = true> {
@@ -1191,6 +1447,16 @@ export interface CollectionsMappingSelect<T extends boolean = true> {
 		  };
 	createdBy?: T;
 	updatedBy?: T;
+	updatedAt?: T;
+	createdAt?: T;
+	globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs-stats_select".
+ */
+export interface PayloadJobsStatsSelect<T extends boolean = true> {
+	stats?: T;
 	updatedAt?: T;
 	createdAt?: T;
 	globalType?: T;
@@ -1276,6 +1542,14 @@ export interface UploadDropzoneWidget {
 		excludedCollections?: "media"[] | null;
 	};
 	width: "x-small" | "small" | "medium" | "large" | "x-large" | "full";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskFlue-dispatch".
+ */
+export interface TaskFlueDispatch {
+	input?: unknown;
+	output?: unknown;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

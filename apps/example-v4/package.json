@@ -30,6 +30,7 @@
 	"dependencies": {
 		"@abinnovision/payloadcms-colophon": "workspace:*",
 		"@abinnovision/payloadcms-dummy": "workspace:*",
+		"@abinnovision/payloadcms-flue": "workspace:*",
 		"@abinnovision/payloadcms-mcpx": "workspace:*",
 		"@abinnovision/payloadcms-montage": "workspace:*",
 		"@abinnovision/payloadcms-oidc": "workspace:*",

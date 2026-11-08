@@ -8,9 +8,10 @@ the packages that already support Payload v4, and grows as more of them migrate.
 | [`montage`](../../packages/montage)     | `src/blocks/*`, the block tree rendered by the one route                                       |
 | [`wayfinder`](../../packages/wayfinder) | every URL on the site, plus the links inside blocks and rich text                              |
 | [`colophon`](../../packages/colophon)   | `colophonPlugin()` in `src/payload.config.ts`, the build group under the admin navigation      |
-| [`mcpx`](../../packages/mcpx)           | `mcpxPlugin()` in `src/payload.config.ts`, the MCP endpoint and key management                 |
+| [`mcpx`](../../packages/mcpx)           | `mcpxPlugin()` in `src/payload.config.ts`, how the agents reach the content                    |
 | [`dummy`](../../packages/dummy)         | `src/seed.ts` and `src/seeds/*`, run through `yarn seed`                                       |
 | [`oidc`](../../packages/oidc)           | `src/auth/oidc.ts`, single sign-on when `OIDC_ISSUER` is set; `src/idp.ts` is a local provider |
+| [`flue`](../../packages/flue)           | `src/agents.ts`, the chat panel in the admin and the run queued on publishing an article       |
 
 The frontend is the montage and wayfinder half of the v3 site: one catch-all
 route serves `pages`, `sections` and `articles` from the URL patterns authored
@@ -21,6 +22,7 @@ it supports v4, and with it the live preview addressing and refresh-on-save.
 
 ```bash
 cp .env.example .env
+# Set FLUE_SIDECAR_SECRET, see "Agents" below.
 yarn install
 yarn workspace @internal/example-v4 seed
 yarn workspace @internal/example-v4 dev
@@ -74,6 +76,47 @@ the import map with `OIDC_ISSUER` set. `dev` rewrites `payload-types.ts` for
 whatever config it runs, so do not commit the version written with the plugin
 on.
 
+## Agents
+
+The admin chats with the three agents of
+[`example-v4-agents`](../example-v4-agents), a Flue sidecar on port 3101 that
+reaches this app only through mcpx. Both apps need the same
+`FLUE_SIDECAR_SECRET`, at least 32 characters, and the sidecar needs a provider
+key:
+
+```bash
+cp .env.example .env
+cp ../example-v4-agents/.env.example ../example-v4-agents/.env
+# Set FLUE_SIDECAR_SECRET in both files, ANTHROPIC_API_KEY in the sidecar's.
+yarn workspace @internal/example-v4 seed
+yarn turbo run dev --filter=@internal/example-v4
+```
+
+`dev` starts the sidecar alongside, through `with` in `turbo.json`.
+
+Sign in at http://localhost:3001/admin and open the chat panel with the chat
+button or Ctrl/Cmd+J.
+
+| User                   | Password | Sees                                                    |
+| ---------------------- | -------- | ------------------------------------------------------- |
+| `editor@example.com`   | password | `editor`, `summarizer` and the threads of agent runs    |
+| `reviewer@example.com` | password | all three agents and the threads of agent runs          |
+| `agent@example.com`    | random   | nobody signs in as it; runs started by a hook act as it |
+
+`editor` reads, edits and publishes pages, articles and posts. Deleting a post
+waits for an approval on the mcpx key's edit view, which the chat links to.
+`reviewer` only reads, and only users with "Agent access" ticked see it; the
+seed sets that box, which neither the admin nor the API can change.
+`summarizer` only reads, and every user sees it. Publishing an article queues a
+run of `summarizer` as `agent@example.com` on behalf of the publisher, which
+`jobs.autoRun` picks up within a minute. Every signed-in user reads agent runs,
+so the run shows read-only on the Runs tab of the chat panel's Threads view.
+
+| Variable              | Required | Purpose                                                         |
+| --------------------- | -------- | --------------------------------------------------------------- |
+| `FLUE_SIDECAR_SECRET` | yes      | Shared with the sidecar. Payload refuses to start without it.   |
+| `FLUE_SIDECAR_URL`    | no       | Where the sidecar listens. Defaults to `http://localhost:3101`. |
+
 ## Two Payload versions in one workspace
 
 The repository root and every package resolve Payload 3, while this app installs
@@ -91,8 +134,8 @@ Each tool that resolves modules is pointed back at this app instead:
   `--preserve-symlinks`, so a package resolves its imports from
   `node_modules/@abinnovision/<name>` here rather than from its real path.
 - **TypeScript**: `preserveSymlinks` in `tsconfig.json` does the same for types.
-  Packages that install their own Payload 4 for their tests (oidc) would still
-  bring a second copy of its types, so `paths` in `tsconfig.json` points
+  Packages that install their own Payload 4 for their tests (oidc, flue) would
+  still bring a second copy of its types, so `paths` in `tsconfig.json` points
   `payload` and `@payloadcms/ui` at this app's copies.
 
 A package that moves to v4 and imports another Payload package needs that name

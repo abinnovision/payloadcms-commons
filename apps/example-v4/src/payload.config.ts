@@ -1,4 +1,5 @@
 import { colophonPlugin } from "@abinnovision/payloadcms-colophon/config";
+import { fluePlugin, flueQueues } from "@abinnovision/payloadcms-flue";
 import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
 import { montagePlugin } from "@abinnovision/payloadcms-montage/config";
 import { wayfinderPlugin } from "@abinnovision/payloadcms-wayfinder/config";
@@ -9,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildConfig } from "payload";
 
+import { fluePluginOptions, reviewPublishedArticle } from "./agents";
 import { oidc } from "./auth/oidc";
 import { callToActionBlock } from "./blocks/call-to-action";
 import { calloutBlock } from "./blocks/callout";
@@ -49,8 +51,35 @@ export default buildConfig({
 	editor: lexicalEditor(),
 	admin: { user: users.slug },
 	localization: { locales: ["en", "de"], defaultLocale: "en" },
-	collections: [users, pages, articles, sections, posts, tags, media],
+	collections: [
+		users,
+		pages,
+		{
+			...articles,
+			hooks: {
+				...articles.hooks,
+				afterChange: [
+					...(articles.hooks?.afterChange ?? []),
+					reviewPublishedArticle,
+				],
+			},
+		},
+		sections,
+		posts,
+		tags,
+		media,
+	],
 	globals: [siteSettings],
+	/*
+	 * Runs the flue jobs inside this server. The admin and API requests start
+	 * Payload with its crons on.
+	 */
+	jobs: {
+		autoRun: flueQueues(fluePluginOptions).map((queue) => ({
+			queue,
+			cron: "* * * * *",
+		})),
+	},
 	plugins: [
 		/*
 		 * Only appends to `config.blocks`. The section wrapper is deliberately
@@ -86,7 +115,9 @@ export default buildConfig({
 			collections: {
 				pages: { delete: "unattended" },
 				articles: { delete: "unattended" },
-				posts: { delete: "unattended" },
+				// Deleting a post waits for the key's user to approve the call on the key's
+				// edit view.
+				posts: { delete: true },
 				sections: { delete: "unattended" },
 				tags: { delete: "unattended" },
 				media: { delete: "unattended" },
@@ -101,6 +132,8 @@ export default buildConfig({
 		 */
 		colophonPlugin(),
 		...oidc(),
+		// Chat in the admin (Ctrl/Cmd+J) with the agents of apps/example-v4-agents.
+		fluePlugin(fluePluginOptions),
 	],
 	graphQL: { disable: true },
 	typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },
