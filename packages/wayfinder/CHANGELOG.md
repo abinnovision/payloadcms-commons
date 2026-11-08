@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-wayfinder-v1.0.1...payloadcms-wayfinder-v1.1.0) (2026-11-08)
+
+
+### Features
+
+* **wayfinder:** support Payload v4 ([#182](https://github.com/abinnovision/payloadcms-commons/issues/182)) ([644330f](https://github.com/abinnovision/payloadcms-commons/commit/644330f0f7e6579e8e6c546c0803e0ec05e912ff))
+
 ## [1.0.1](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-wayfinder-v1.0.0...payloadcms-wayfinder-v1.0.1) (2026-10-04)
 
 
