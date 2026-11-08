@@ -103,8 +103,12 @@ button or Ctrl/Cmd+J.
 | `reviewer@example.com` | password | all three agents and the threads of agent runs          |
 | `agent@example.com`    | random   | nobody signs in as it; runs started by a hook act as it |
 
-`editor` reads, edits and publishes pages, articles and posts. Deleting a post
-waits for an approval on the mcpx key's edit view, which the chat links to.
+`editor` reads, edits, publishes and deletes every collection and global mcpx
+exposes. Deleting waits for an approval on the mcpx key's edit view, which the
+chat links to. Asked for a file, it writes Markdown to the `documents` upload
+collection, and asked to keep a file attached to the message, it saves images
+to `media` and PDFs to `documents`; the chat shows either as a card. The chat
+takes images and PDFs as attachments.
 `reviewer` only reads, and only users with "Agent access" ticked see it; the
 seed sets that box, which neither the admin nor the API can change.
 `summarizer` only reads, and every user sees it. Publishing an article queues a

@@ -18,6 +18,7 @@ import { heroBlock } from "./blocks/hero";
 import { recentPostsBlock } from "./blocks/recent-posts";
 import { richTextBlock } from "./blocks/rich-text";
 import { articles } from "./collections/articles";
+import { documents } from "./collections/documents";
 import { media } from "./collections/media";
 import { pages } from "./collections/pages";
 import { posts } from "./collections/posts";
@@ -68,6 +69,7 @@ export default buildConfig({
 		posts,
 		tags,
 		media,
+		documents,
 	],
 	globals: [siteSettings],
 	/*
@@ -121,6 +123,7 @@ export default buildConfig({
 				sections: { delete: "unattended" },
 				tags: { delete: "unattended" },
 				media: { delete: "unattended" },
+				documents: { delete: "unattended" },
 			},
 			globals: { "site-settings": true },
 			limits: { maxLimit: 25, maxDepth: 1 },
