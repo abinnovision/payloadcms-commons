@@ -77,7 +77,7 @@ export const readJson = async (
 	if (body === null) {
 		return refusal(
 			413,
-			`The request body is larger than ${String(max / 1024)} KiB.`,
+			`The request body is larger than ${String(Math.ceil(max / 1024))} KiB.`,
 		);
 	}
 

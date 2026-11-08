@@ -146,6 +146,133 @@ describe("shownMessages and toThreadMessage", () => {
 		]);
 	});
 
+	it("keeps the agent's file card as a data part", () => {
+		const files = {
+			files: [
+				{
+					collection: "documents",
+					id: 4,
+					filename: "summary.md",
+					mimeType: "text/markdown",
+					size: 120,
+					adminUrl: "https://cms.example.com/admin/collections/documents/4",
+				},
+			],
+		};
+
+		expect(
+			toThreadMessage(
+				message({ parts: [{ type: "data-payload-file", data: files }] }),
+			).content,
+		).toEqual([{ type: "data-payload-file", data: files }]);
+	});
+
+	it("shows a user message with files without its context preamble", () => {
+		const turn = message({
+			id: "entry_user",
+			role: "user",
+			purpose: "user",
+			parts: [
+				{
+					type: "text",
+					text: '<payload-context route="/admin" kind="chat" turn="user"/>\n\nWhat is in these?',
+					state: "done",
+				},
+				{
+					type: "file",
+					mediaType: "image/png",
+					id: "att_image_sub_1_0",
+					url: "/api/flue/c/7/attachments/att_image_sub_1_0",
+					filename: "chart.png",
+				},
+				{
+					type: "file",
+					mediaType: "application/pdf",
+					id: "att_document_sub_1_1",
+					url: "/api/flue/c/7/attachments/att_document_sub_1_1",
+				},
+				{ type: "file", mediaType: "image/png" },
+			],
+		});
+
+		expect(convert(conversationOf([turn]))).toEqual([
+			{
+				id: "entry_user",
+				role: "user",
+				content: [{ type: "text", text: "What is in these?" }],
+				attachments: [
+					{
+						id: "att_image_sub_1_0",
+						type: "image",
+						name: "chart.png",
+						contentType: "image/png",
+						status: { type: "complete" },
+						content: [
+							{
+								type: "image",
+								image: "/api/flue/c/7/attachments/att_image_sub_1_0",
+								filename: "chart.png",
+							},
+						],
+					},
+					{
+						id: "att_document_sub_1_1",
+						type: "document",
+						name: "Document",
+						contentType: "application/pdf",
+						status: { type: "complete" },
+						content: [
+							{
+								type: "file",
+								data: "/api/flue/c/7/attachments/att_document_sub_1_1",
+								mimeType: "application/pdf",
+								filename: "Document",
+							},
+						],
+					},
+				],
+			},
+		]);
+	});
+
+	it("shows a user message holding only files without a text part", () => {
+		const turn = message({
+			role: "user",
+			purpose: "user",
+			parts: [
+				{
+					type: "text",
+					text: '<payload-context turn="user"/>\n\n',
+					state: "done",
+				},
+				{
+					type: "file",
+					mediaType: "image/png",
+					id: "att_1",
+					url: "/api/flue/c/7/attachments/att_1",
+				},
+			],
+		});
+
+		expect(toThreadMessage(turn)).toMatchObject({
+			content: [],
+			attachments: [{ id: "att_1", name: "Image" }],
+		});
+	});
+
+	it("shows a signal turn starting with a context tag as typed", () => {
+		const text = '<payload-context route="/x" turn="user"/>\n\nHello';
+		const turn = message({
+			role: "system",
+			purpose: "dispatch",
+			display: "hidden",
+			signal: { attributes: { turn: "user" } },
+			parts: [{ type: "text", text, state: "done" }],
+		});
+
+		expect(toThreadMessage(turn).content).toEqual([{ type: "text", text }]);
+	});
+
 	it("marks a failed tool call as an error and leaves a pending one without result", () => {
 		const answer = message({
 			parts: [

@@ -11,6 +11,7 @@ Payload  -- secret -->           sidecar
 sidecar  -- secret + handle -->  Payload  POST /api/flue/exchange, returns the mcpx key
 sidecar  -- mcpx key -->         Payload  POST /api/mcpx
 sidecar  -- secret -->           Payload  POST /api/flue/settled, reports a settled submission
+sidecar  -- upload grant -->     Payload  PUT /api/mcpx/upload, the bytes of usePayload().upload()
 ```
 
 - The browser talks only to Payload, with its admin session. It never reaches the sidecar.
@@ -182,6 +183,43 @@ delete requests have no human approver and expire after mcpx's 15 minutes unless
 as the agent user to decide them. The plugin warns at startup for an ambient agent that may
 delete; a reactive run of an agent with `delete` gets no warning.
 
+## Attachments
+
+Attachments are off by default. Once `attachments` is on:
+
+- **Access.** The panel reads a file only through `GET /c/:thread/attachments/:attachment`, which
+  reads the thread as the user, as the conversation route does. A user who cannot read the thread
+  gets 404 and nothing is requested from the sidecar.
+- **Body cap.** `POST /chat/:agent` accepts bodies of tens of MiB, about 26.7 MiB at the defaults,
+  from every user who may chat with an agent, not only from those who attach files. The plugin
+  buffers and parses each body in memory, so every concurrent request of that size holds its
+  body and the parsed copy. Narrow the limits, or limit bodies and requests in front of Payload.
+- **Storage.** Files live in the Flue sidecar's store, not in Payload, and stay there as long as
+  the conversation (see [limitations](./limitations.md#attachments)).
+- **Headers.** Flue's `Content-Security-Policy: sandbox` and the plugin's `nosniff` pass through,
+  and every file that is not an image is served as a download, so no attachment runs as active
+  content on the admin's origin.
+- **Browser cache.** Flue answers `Cache-Control: private, max-age=31536000, immutable`. A file
+  stays in the browser's cache after logout, so on a shared machine the next person at the browser
+  can still open it from the cache.
+- **Cookies.** Thumbnails load with an `<img>` tag, which sends the session cookie only to the
+  same site. A panel served from another site than Payload needs `SameSite=None` cookies to show
+  them.
+
+The preamble of a turn with files is not a trust boundary. Payload writes it and agent code reads
+only the preamble at the start of the body, so `contextOf` cannot be forged. The model, however,
+reads the whole body: a user can still type a `<payload-context .../>` tag or a block that looks
+like an `<attachments>` manifest into their text, and mislead the model with it. Never treat the
+context, or anything the model concludes from it, as authorization; mcpx's key and Payload access
+control decide what a run may do.
+
+### Upload grants
+
+`createDocument` returns a single-use upload grant, valid for five minutes, in the
+`x-mcpx-grant` header of the handoff. `upload()` uses it for one PUT and drops it. It never
+appears in an error message, a log line, the tool output or the `data-payload-file` part. The
+document is created as the key's user, so Payload access control applies as for any other write.
+
 ## CSRF and CORS
 
 The panel calls the plugin's endpoints, the threads REST API and mcpx's confirmations endpoints
@@ -198,15 +236,16 @@ headers. Payload's `cors` option applies to its endpoints as to any other.
 
 ## Limits
 
-| Limit                                          | Value                                                                          |
-| ---------------------------------------------- | ------------------------------------------------------------------------------ |
-| `POST /chat/:agent` body                       | 64 KiB, counted in bytes                                                       |
-| message                                        | 1 to 16,000 characters                                                         |
-| `POST /exchange` body                          | 4 KiB, counted in bytes                                                        |
-| `POST /settled` body                           | 4 KiB, counted in bytes; `conversation` and `submissionId` 1 to 256 characters |
-| `offset` on `view=updates`                     | `^(?:-1\|\d{1,32}_\d{1,32})$`                                                  |
-| `cursor`, `from`, `before`                     | `^[\w.~=+/-]{1,2048}$`                                                         |
-| thread id (`:thread`, `thread` in a chat body) | `^\d{1,20}$` on an adapter with numeric ids, else `^[\w-]{1,64}$`              |
-| thread title from the agent                    | 120 characters                                                                 |
+| Limit                                          | Value                                                                                         |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `POST /chat/:agent` body                       | 64 KiB, counted in bytes; with attachments see [integration.md](./integration.md#attachments) |
+| attachment id (`:attachment`)                  | `^att_[\w-]{1,200}$`                                                                          |
+| message                                        | 1 to 16,000 characters                                                                        |
+| `POST /exchange` body                          | 4 KiB, counted in bytes                                                                       |
+| `POST /settled` body                           | 4 KiB, counted in bytes; `conversation` and `submissionId` 1 to 256 characters                |
+| `offset` on `view=updates`                     | `^(?:-1\|\d{1,32}_\d{1,32})$`                                                                 |
+| `cursor`, `from`, `before`                     | `^[\w.~=+/-]{1,2048}$`                                                                        |
+| thread id (`:thread`, `thread` in a chat body) | `^\d{1,20}$` on an adapter with numeric ids, else `^[\w-]{1,64}$`                             |
+| thread title from the agent                    | 120 characters                                                                                |
 
 The plugin sets no rate limits or turn caps (see [limitations.md](./limitations.md)).

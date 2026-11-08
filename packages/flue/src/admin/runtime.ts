@@ -7,6 +7,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { errorText } from "./api.js";
+import { attachmentAdapter, deliveredOf, echoParts } from "./attachments.js";
 import { refreshConversation, useConversation } from "./conversation.js";
 import {
 	hasRunningSubmission,
@@ -19,6 +20,10 @@ import { threadListAdapter } from "./thread-list.js";
 
 import type { FlueApi, SendContext, ThreadDoc } from "./api.js";
 import type { Creations } from "./creations.js";
+import type {
+	AttachmentLimits,
+	DeliveredAttachment,
+} from "../protocol/attachments.js";
 import type { AppendMessage, AssistantRuntime } from "@assistant-ui/react";
 import type { FlueConversationMessage } from "@flue/sdk";
 import type { RefObject } from "react";
@@ -30,6 +35,8 @@ export interface ChatSession {
 	agent: string | undefined;
 	/** The admin page a message is sent from. */
 	context: () => SendContext;
+	/** The limits of chat attachments; null while they are off. */
+	attachments: AttachmentLimits | null;
 	/** Lists the threads again, after a send and once a run settles. */
 	refresh: () => void;
 	onError: (message: string) => void;
@@ -42,6 +49,7 @@ export const useReadOnly = (): boolean =>
 // A message on its way, shown until the conversation carries it.
 interface Pending {
 	text: string;
+	attachments: DeliveredAttachment[];
 	submissionId?: string;
 }
 
@@ -51,7 +59,12 @@ const echoOf = (pending: Pending): FlueConversationMessage => ({
 	role: "user",
 	purpose: "user",
 	display: "visible",
-	parts: [{ type: "text", text: pending.text, state: "done" }],
+	parts: [
+		...(pending.text === ""
+			? []
+			: [{ type: "text", text: pending.text, state: "done" } as const]),
+		...echoParts(pending.attachments),
+	],
 	metadata: { isOptimistic: true },
 });
 
@@ -73,6 +86,19 @@ const useThreadRuntime = (
 	const { conversation, phase, error } = useConversation(url);
 	const [pending, setPending] = useState<Pending>();
 	const runtimeRef = useRef<AssistantRuntime>(null);
+	const limits = session.current.attachments;
+	const attachments = useMemo(
+		() =>
+			limits === null
+				? undefined
+				: attachmentAdapter(
+						limits,
+						() =>
+							runtimeRef.current?.thread.composer.getState().attachments
+								.length ?? 0,
+					),
+		[limits],
+	);
 
 	const delivered =
 		pending?.submissionId !== undefined &&
@@ -101,6 +127,7 @@ const useThreadRuntime = (
 			.map((part) => (part.type === "text" ? part.text : ""))
 			.join("")
 			.trim();
+		const files = deliveredOf(message.attachments ?? []);
 		const item = aui.threadListItem.getState();
 		const created =
 			item.remoteId === undefined ? creations.start(item.id) : undefined;
@@ -109,23 +136,29 @@ const useThreadRuntime = (
 		 * An empty message, or one without an agent to go to, creates no
 		 * thread, so a thread list waiting for one is let go.
 		 */
-		if (text === "" || agent === undefined) {
+		if ((text === "" && files.length === 0) || agent === undefined) {
 			created?.reject(new Error("The message cannot be sent."));
 
 			return;
 		}
 
-		setPending({ text });
+		setPending({ text, attachments: files });
 
 		try {
 			const result = await api.chat(agent, {
 				message: text,
 				thread: item.remoteId,
 				context: context(),
+				// The key goes only with files, as the endpoint refuses it while attachments are off.
+				...(files.length === 0 ? {} : { attachments: files }),
 			});
 
 			created?.resolve(result.thread.id);
-			setPending({ text, submissionId: result.submissionId });
+			setPending({
+				text,
+				attachments: files,
+				submissionId: result.submissionId,
+			});
 
 			// An observation that stopped does not see the new message by itself.
 			if (
@@ -137,7 +170,23 @@ const useThreadRuntime = (
 		} catch (sendError) {
 			created?.reject(sendError);
 			setPending(undefined);
-			runtimeRef.current?.thread.composer.setText(text);
+			const composer = runtimeRef.current?.thread.composer;
+
+			composer?.setText(text);
+
+			for (const attachment of message.attachments ?? []) {
+				composer
+					?.addAttachment({
+						type: attachment.type,
+						name: attachment.name,
+						...(attachment.contentType === undefined
+							? {}
+							: { contentType: attachment.contentType }),
+						content: [...attachment.content],
+					})
+					.catch(() => undefined);
+			}
+
 			onError(errorText(sendError, "The message could not be sent."));
 		} finally {
 			refresh();
@@ -166,6 +215,7 @@ const useThreadRuntime = (
 		isDisabled: readOnly,
 		onNew,
 		onCancel,
+		...(attachments === undefined ? {} : { adapters: { attachments } }),
 	});
 
 	useEffect(() => {

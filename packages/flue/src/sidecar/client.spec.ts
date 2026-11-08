@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSidecarClient, SidecarError } from "./client.js";
 import { fixture } from "../../test/builders/fixtures.js";
 
+import type { SidecarMessage } from "./client.js";
+
 const SECRET = "sidecar-secret-0123456789abcdefghijklmnop";
 const CONVERSATION = "conv/one";
 const BASE = "http://sidecar.internal:3101";
@@ -104,6 +106,82 @@ describe("createSidecarClient", () => {
 		await client.send("editor", CONVERSATION, { message: MESSAGE });
 
 		expect(requests[0]?.body).toEqual(MESSAGE);
+	});
+
+	it("posts a user message with its attachments under a deadline of its own", async () => {
+		const message: SidecarMessage = {
+			kind: "user",
+			body: "Look at this",
+			attachments: [
+				{
+					type: "image",
+					data: "iVBORw0KGgo=",
+					mimeType: "image/png",
+					filename: "a.png",
+				},
+			],
+		};
+		const requests: unknown[] = [];
+		const client = createSidecarClient({
+			url: BASE,
+			secret: SECRET,
+			timeoutMs: 5,
+			fetch: async (_input, init) => {
+				requests.push(JSON.parse(init?.body as string));
+				await new Promise((resolve) => {
+					setTimeout(resolve, 20);
+				});
+
+				return Response.json(
+					{ offset: "0_1", submissionId: "sub_1", uid: "u" },
+					{ status: 202 },
+				);
+			},
+		});
+
+		await expect(
+			client.send("editor", CONVERSATION, { message, timeoutMs: 1_000 }),
+		).resolves.toEqual({ offset: "0_1", submissionId: "sub_1", uid: "u" });
+		expect(requests).toEqual([message]);
+	});
+
+	it("reads an attachment and returns the sidecar's response", async () => {
+		const { requests, client } = recordingFetch(
+			() =>
+				new Response("bytes", {
+					headers: { "content-type": "image/png" },
+				}),
+		);
+
+		const response = await client.attachment(
+			"editor",
+			CONVERSATION,
+			"att_image_sub_1_0",
+		);
+
+		expect(await response.text()).toBe("bytes");
+		expect(response.headers.get("content-type")).toBe("image/png");
+		expect(requests[0]).toMatchObject({
+			url: `${CONVERSATION_URL}/attachments/att_image_sub_1_0`,
+			method: "GET",
+		});
+		expect(requests[0]?.headers.get("authorization")).toBe(`Bearer ${SECRET}`);
+	});
+
+	it("turns a missing attachment into a SidecarError with status 404", async () => {
+		const { client } = recordingFetch(() =>
+			Response.json(
+				{ error: { type: "attachment_not_found" } },
+				{ status: 404 },
+			),
+		);
+
+		const error: unknown = await client
+			.attachment("editor", CONVERSATION, "att_image_sub_1_9")
+			.catch((caught: unknown) => caught);
+
+		expect(error).toBeInstanceOf(SidecarError);
+		expect(error).toMatchObject({ status: 404, type: "attachment_not_found" });
 	});
 
 	it("reads history and answers undefined for a conversation Flue has not seen", async () => {
@@ -288,6 +366,7 @@ describe("createSidecarClient", () => {
 			() => client.history("editor", CONVERSATION),
 			() => client.updates("editor", CONVERSATION, { offset: "0_3" }),
 			() => client.abort("editor", CONVERSATION),
+			() => client.attachment("editor", CONVERSATION, "att_image_sub_1_0"),
 		]) {
 			// eslint-disable-next-line no-await-in-loop
 			const error: unknown = await call().catch((caught: unknown) => caught);

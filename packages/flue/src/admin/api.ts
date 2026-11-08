@@ -3,6 +3,10 @@ import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 
 import type { Keyset, Where } from "./keyset.js";
+import type {
+	AttachmentLimits,
+	DeliveredAttachment,
+} from "../protocol/attachments.js";
 import type { ChatContext, RunKind } from "../protocol/context.js";
 import type { ThreadStatus } from "../protocol/events.js";
 import type { RelationValue } from "../protocol/owner.js";
@@ -22,6 +26,8 @@ export interface AgentsAnswer {
 	agents: AgentSummary[];
 	/** Every agent, when the user may read agent runs; null otherwise. */
 	runs: null | { agents: AgentSummary[] };
+	/** The limits of chat attachments; null while attachments are off. */
+	attachments: null | AttachmentLimits;
 }
 
 /** A thread row as the REST API returns it at depth 0. */
@@ -196,11 +202,11 @@ export const flueApi = ({
 
 	return {
 		agents: async (): Promise<AgentsAnswer> => {
-			const { agents, runs } = await request<AgentsAnswer>(
+			const { agents, runs, attachments } = await request<AgentsAnswer>(
 				plugin(routePath("agents")),
 			);
 
-			return { agents, runs: runs ?? null };
+			return { agents, runs: runs ?? null, attachments: attachments ?? null };
 		},
 
 		/**
@@ -249,6 +255,7 @@ export const flueApi = ({
 				message: string;
 				thread?: ThreadId | undefined;
 				context: SendContext;
+				attachments?: DeliveredAttachment[];
 			},
 		): Promise<ChatResult> =>
 			request(plugin(routePath("chat", { agent })), json("POST", body)),

@@ -8,6 +8,8 @@ export const FLUE_ROUTES = {
 	/** A thread's Flue conversation route: `view=history` and `view=updates`. */
 	conversation: "/c/:thread",
 	conversationAbort: "/c/:thread/abort",
+	/** One attachment of the thread's conversation, where the Flue client resolves `file` parts. */
+	conversationAttachment: "/c/:thread/attachments/:attachment",
 	exchange: "/exchange",
 	/** The sidecar reports a settled submission; Payload reconciles from history. */
 	settled: "/settled",

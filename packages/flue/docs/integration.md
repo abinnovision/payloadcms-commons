@@ -14,6 +14,7 @@
 | `threads.overrideCollection` | none                | Function that receives the threads collection and returns it.                                                                |
 | `threads.readAgentRuns`      | nobody              | `(req) => boolean`. Lets a user read every reactive and ambient thread. See [security.md](./security.md#reading-agent-runs). |
 | `dispatch.queue`             | `flue`              | The jobs queue `queueFlueRun` queues on.                                                                                     |
+| `attachments`                | off                 | `true` or an object. Lets chat users attach images and PDFs to a turn. See [attachments](#attachments).                      |
 
 The plugin reads mcpx's key collection slug, user collection and endpoint path from mcpx's
 options, with mcpx's defaults: `mcpx-api-keys`, `config.admin.user` then `users`, and `/mcpx`.
@@ -53,6 +54,27 @@ the exchange on a request built for the thread's user, without headers or sessio
 reads anything but `req.user` gives a different answer there. See
 [security.md](./security.md#agent-access).
 
+### Attachments
+
+`attachments: true` takes the defaults. An object sets each field up to its maximum.
+
+| Field              | Default                   | Maximum    |
+| ------------------ | ------------------------- | ---------- |
+| `mimeTypes`        | PNG, JPEG, GIF, WebP, PDF | those five |
+| `maxImageBytes`    | 3.75 MiB                  | 3.75 MiB   |
+| `maxDocumentBytes` | 5 MiB                     | 10 MiB     |
+| `maxFiles`         | 4                         | 20         |
+
+The sizes count decoded bytes. 3.75 MiB of image is 5 MiB as base64, the most Anthropic accepts for
+one image; 10 MiB of PDF stays under Flue's 14 MiB base64 cap. Other types, SVG and HEIC
+included, are refused because providers reject them, and a rejected file fails every later turn
+of its thread (see [limitations](./limitations.md#attachments)).
+
+With attachments on, the body cap of `POST /chat/:agent` rises from 64 KiB to
+`64 KiB + maxFiles * (ceil(L * 4 / 3) + 2 KiB)`, where `L` is the larger size limit of the allowed types,, about 26.7 MiB at the defaults. It
+rises for every chat user (see [security.md](./security.md#attachments)). Lower `maxFiles` or the
+sizes to lower it.
+
 ## Startup validation
 
 The plugin throws `InvalidConfiguration` when Payload builds the config for any of these:
@@ -67,6 +89,8 @@ The plugin throws `InvalidConfiguration` when Payload builds the config for any 
 - `endpointPath` does not start with `/`, ends with `/`, contains whitespace or equals mcpx's
   endpoint path;
 - `threads.slug` is taken by another collection;
+- `attachments.mimeTypes` is empty or names another type, a size is not a whole number between 1
+  and its maximum, or `maxFiles` is not a whole number between 1 and 20;
 - mcpx's key collection has no `apiKey`, `user` or `capabilities` field, `apiKey` is not a text
   field, or it already defines `managedBy` as anything but a text field;
 - a grant names a checkbox mcpx does not offer, lacks the grant it requires, or names a tool that
@@ -83,7 +107,7 @@ agent user can approve its deletes.
 ## What the plugin adds
 
 - The `flue-threads` collection. See [concepts.md](./concepts.md#threads).
-- Six endpoints below `{routes.api}{endpointPath}`. See [endpoints](#endpoints).
+- Seven endpoints below `{routes.api}{endpointPath}`. See [endpoints](#endpoints).
 - The `flue-dispatch` job task, with one schedule per ambient agent.
 - On mcpx's key collection: a `managedBy` text field, hidden in the admin, and the locks described
   in [security.md](./security.md#managed-key-locks).
@@ -96,12 +120,13 @@ agent user can approve its deletes.
 
 The sidecar is a Flue app. Payload calls it at `{sidecar.url}/agents/<slug>/<conversation>`:
 
-| Request                               | Used for                                      |
-| ------------------------------------- | --------------------------------------------- |
-| `POST /agents/<slug>/<conversation>`  | sending a turn                                |
-| `GET .../<conversation>?view=history` | the panel's history reads, settlement reports |
-| `GET .../<conversation>?view=updates` | the panel's updates reads                     |
-| `POST .../<conversation>/abort`       | Stop and archive                              |
+| Request                                   | Used for                                      |
+| ----------------------------------------- | --------------------------------------------- |
+| `POST /agents/<slug>/<conversation>`      | sending a turn                                |
+| `GET .../<conversation>?view=history`     | the panel's history reads, settlement reports |
+| `GET .../<conversation>?view=updates`     | the panel's updates reads                     |
+| `POST .../<conversation>/abort`           | Stop and archive                              |
+| `GET .../<conversation>/attachments/<id>` | the panel's reads of chat attachments         |
 
 Every request carries `Authorization: Bearer <sidecar.secret>` and only the headers the plugin
 builds; no browser header is forwarded. A turn sends `uid: null` with `initialData` when it creates
@@ -196,11 +221,120 @@ It returns:
 - `identity()`: resolves `{ user, thread, kind }` from the exchange. Agent functions are
   synchronous, so call it from a tool's `run`.
 - `context()`: the [turn context](./concepts.md#the-turn) of the delivery in front of the model,
-  or `undefined` when that delivery is not Payload's context signal.
+  or `undefined` when that delivery is neither Payload's context signal nor a user message with
+  its preamble.
+- `upload(args)`: creates a document with a file in an upload collection as the run's user, lists
+  it in the response's file card and resolves `{ collection, id, filename, mimeType, size,
+adminUrl }`. See [uploads](#uploads).
+
+Agent code that reads `useDelivery()` itself gets the context of either turn shape with
+`contextOf(delivery)`, which `context()` uses.
+
+Call `usePayload` once per render. A second call registers a second MCP connection named
+`payload` and a second writer of the `payload-file` data part, and both collide with the first. It does not
+work in a subagent's render either, where Flue's `useMcpConnection` and `useDataWriter` throw.
 
 An exchange that fails rejects with `FlueExchangeError`, whose `status` is 401 for a wrong secret,
 404 for a handle that is not live and `undefined` when Payload was not reached. Its message never
 carries the secret or the handle.
+
+### Uploads
+
+`upload()` lets a tool hand a file it produced to Payload:
+
+```ts
+const payload = usePayload({ agent: "editor" });
+
+useTool({
+  name: "save_document",
+  description: "Saves a Markdown file to the documents collection.",
+  input: v.object({ filename: v.string(), markdown: v.string() }),
+  run: async ({ data }) => {
+    const file = await payload.upload({
+      collection: "documents",
+      filename: data.filename,
+      mimeType: "text/markdown",
+      data: data.markdown, // a string is sent as UTF-8, or pass a Uint8Array
+    });
+
+    return `Saved ${file.filename}: ${file.adminUrl}`;
+  },
+});
+```
+
+| Argument     | Description                                           |
+| ------------ | ----------------------------------------------------- |
+| `collection` | an upload collection the agent may write              |
+| `filename`   | the file name; returned as passed                     |
+| `mimeType`   | must be one of the collection's `upload.mimeTypes`    |
+| `data`       | the bytes, `Uint8Array` or a UTF-8 string             |
+| `fields`     | values of the collection's own fields, such as `alt`  |
+| `locale`     | the locale of `fields`; defaults to the turn's locale |
+
+To keep a file the user attached, read it from `useDelivery()`. Flue hands an agent only the
+attachments of the message it is answering, so a file from an earlier message has to be attached
+again:
+
+```ts
+const delivery = useDelivery();
+const attachments =
+  delivery.kind === "user" ? (delivery.attachments ?? []) : [];
+
+useTool({
+  name: "save_attachment",
+  description: "Saves a file attached to the current message.",
+  input: v.object({ index: v.pipe(v.number(), v.integer(), v.minValue(0)) }),
+  run: async ({ data }) => {
+    const file = attachments[data.index];
+
+    if (!file) {
+      return `The current message has ${String(attachments.length)} attachments.`;
+    }
+
+    const saved = await payload.upload({
+      collection: file.type === "image" ? "media" : "documents",
+      filename: file.filename ?? `attachment-${String(data.index)}`,
+      mimeType: file.mimeType,
+      data: Buffer.from(file.data, "base64"),
+    });
+
+    return `Saved ${saved.filename}: ${saved.adminUrl}`;
+  },
+});
+```
+
+Give the model a tool like this rather than leaving it mcpx's `file` argument: the model cannot
+send the bytes or know their size, so a `createDocument` call with `file` from the model itself
+never completes.
+
+It calls mcpx's `createDocument` over the agent's key, which returns a single-use upload handoff,
+then PUTs the bytes to `payloadUrl + mcpPath + /upload`. mcpx builds the handoff on Payload's
+public origin (`serverURL` or the request's), so the plugin checks only that its path ends with
+`mcpPath + /upload` and sends the PUT to `payloadUrl`, which the sidecar reaches. The grant from
+the handoff never reaches an error, a log, the tool output or the card.
+
+Prerequisites:
+
+- an upload collection that sets `upload.mimeTypes`, listed in mcpx's `collections`;
+- the agent granted `read` and `write` on it;
+- mcpx leases: Payload's database KV, the default, and no mcpx `auth.resolve`;
+- on a localized config, a locale: the turn's, or `locale` in the call;
+- a sidecar that reaches Payload at `payloadUrl`.
+
+`upload()` rejects with `FlueUploadError` when one is missing, when mcpx refuses the document,
+when the handoff path does not match, or when the PUT fails. Its `status` is that of the PUT, or
+`undefined` before it. Exchange failures stay `FlueExchangeError`.
+
+Target upload collections only. mcpx refuses a call whose collection takes no files, and a key
+that may send files to no collection, because none of its writable collections is an upload
+collection that sets `upload.mimeTypes` or mcpx has no leases, gets no `file` argument at all.
+Either way `upload()` throws `FlueUploadError` and nothing is created.
+
+Each response shows its uploads in one `data-payload-file` part, `{ files: [...] }`, which the
+panel renders as a card with a link to each document. The model never sees the part. The list is
+kept in memory per conversation and starts empty with each response. A sidecar restart or a
+retried response starts it again, so the card then lists only later uploads; the documents stay
+in Payload.
 
 `useThreadTitle()` returns a writer for the thread's title, 1 to 120 characters. Like every Flue
 data writer it works only while the agent responds, such as from a tool's `run`.
@@ -243,35 +377,42 @@ The sidecar also needs the dependency pin in the README's
 All endpoints sit below `{routes.api}{endpointPath}`, so `/api/flue` by default. A refusal
 answers `{ error: string }`.
 
-| Endpoint                      | Auth                                                             | Limits                                              |
-| ----------------------------- | ---------------------------------------------------------------- | --------------------------------------------------- |
-| `GET /agents`                 | admin session of a user in mcpx's user collection                | none                                                |
-| `POST /chat/:agent`           | session, and the agent's `access`                                | JSON, body 64 KiB, `message` 1 to 16,000 characters |
-| `GET /c/:thread?view=history` | session, and read access to the thread                           | query parameters as below                           |
-| `GET /c/:thread?view=updates` | session, and read access to the thread                           | query parameters as below                           |
-| `POST /c/:thread/abort`       | session, and ownership of the thread                             | JSON content type; the body is not read             |
-| `POST /exchange`              | `Authorization: Bearer <sidecar.secret>`; the session is ignored | JSON, body 4 KiB                                    |
-| `POST /settled`               | `Authorization: Bearer <sidecar.secret>`; the session is ignored | JSON, body 4 KiB                                    |
+| Endpoint                                 | Auth                                                             | Limits                                                                               |
+| ---------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `GET /agents`                            | admin session of a user in mcpx's user collection                | none                                                                                 |
+| `POST /chat/:agent`                      | session, and the agent's `access`                                | JSON, body 64 KiB, `message` 1 to 16,000 characters; see [attachments](#attachments) |
+| `GET /c/:thread/attachments/:attachment` | session, and read access to the thread                           | none                                                                                 |
+| `GET /c/:thread?view=history`            | session, and read access to the thread                           | query parameters as below                                                            |
+| `GET /c/:thread?view=updates`            | session, and read access to the thread                           | query parameters as below                                                            |
+| `POST /c/:thread/abort`                  | session, and ownership of the thread                             | JSON content type; the body is not read                                              |
+| `POST /exchange`                         | `Authorization: Bearer <sidecar.secret>`; the session is ignored | JSON, body 4 KiB                                                                     |
+| `POST /settled`                          | `Authorization: Bearer <sidecar.secret>`; the session is ignored | JSON, body 4 KiB                                                                     |
 
 Every session endpoint answers 401 without a signed-in user and 403 for a user outside mcpx's user
 collection.
 
-`GET /agents` returns `{ agents: [{ slug, label, description }], runs }` with the agents whose
-`access` admits the user. `runs` is `{ agents: [{ slug, label }] }` with every configured agent
-when `threads.readAgentRuns` admits the user, so the panel can label runs of any agent, and `null`
-otherwise.
+`GET /agents` returns `{ agents: [{ slug, label, description }], runs, attachments }` with the
+agents whose `access` admits the user. `runs` is `{ agents: [{ slug, label }] }` with every
+configured agent when `threads.readAgentRuns` admits the user, so the panel can label runs of any
+agent, and `null` otherwise. `attachments` is
+`{ mimeTypes, maxImageBytes, maxDocumentBytes, maxFiles }`, or `null` while attachments are off.
 
 `POST /chat/:agent` takes `{ message, thread?, context }` and returns
 `{ thread: { id, title, status }, offset, submissionId, streamUrl }`. `offset` is where the
 turn's updates start, and `streamUrl` is the thread's conversation route, such as
 `/api/flue/c/42`. `context` is
 `{ route, collection?, id?, global?, locale? }`: `collection` and `global` must exist, and
-`locale` must be one of the config's locales. It answers
+`locale` must be one of the config's locales.
+
+With attachments on, the body may also carry `attachments`: up to `maxFiles` of
+`{ type, mimeType, data, filename? }` in Flue's shape, `type` `image` or `document` matching the
+MIME type, `data` base64 within the type's limit and `filename` up to 255 characters. `message`
+may then be empty. With attachments off, a body with `attachments` gets 400. It answers
 404 for an unknown agent or a thread that is not the user's, 403 when `access` refuses, 415
 without a JSON content type, 413 over the body limit, 400 for an invalid body, 409 for an
 archived thread, one archived while the message went out, or a thread whose conversation Flue no
 longer has or that has no stored `uid`, and 502 when the sidecar refuses or does not answer within
-10 seconds. A refused `access` creates no thread, key or upstream request. A failed send answers
+10 seconds, or 60 seconds for a turn with attachments. A 413 names the cap in whole KiB. A refused `access` creates no thread, key or upstream request. A failed send answers
 `{ error }` only. When Flue refuses the first message of a new thread with a 4xx, the thread is
 deleted; after a 5xx or no answer it stays as a `failed` thread.
 
@@ -308,6 +449,14 @@ Flue's 400, 404 (a conversation Flue has not seen), 410 (a history cursor from a
 and 416 keep their status with a body of the plugin's own, since Flue's names the conversation;
 any other refusal or an unreachable sidecar is 502. Flue 2.3 answers an offset past the end of the
 stream with 500, not 416, so such a read gets 502.
+
+`GET /c/:thread/attachments/:attachment` serves one file of the conversation from the sidecar,
+for anyone who can read the thread; `@flue/sdk` resolves a file part's URL to it. The id must
+match `^att_[\w-]{1,200}$`, else 400. The body streams through with Flue's `Content-Type`,
+`Content-Length`, `Content-Disposition`, `Cache-Control` and `Content-Security-Policy`, plus
+`X-Content-Type-Options: nosniff`. A file that is not an image gets `Content-Disposition:
+attachment`. A thread the user cannot read and an id Flue does not know get 404; any other
+failure 502.
 
 `POST /c/:thread/abort` forwards the abort and returns `{ aborted }`, which is false when no run
 was live or Flue has not seen the conversation. For a `running` thread it disables the key of the
@@ -418,7 +567,10 @@ database KV adapter, which is the default; an in-memory KV breaks them across se
 ## Example apps
 
 [`apps/example-v4`](../../apps/example-v4) mounts mcpx and flue with three agents (`editor`,
-`reviewer`, limited by `access`, and the read-only `summarizer`), a hook that queues a reactive run
+`reviewer`, limited by `access`, and the read-only `summarizer`), an `editor` granted every
+collection and global mcpx exposes, chat attachments, a `documents` upload collection the editor
+saves Markdown files to through a `save_document` tool, a `save_attachment` tool that keeps files
+attached to the chat in `media` or `documents`, a hook that queues a reactive run
 of `summarizer` when an article is published, `threads.readAgentRuns` for every signed-in user,
 and `jobs.autoRun` from `flueQueues`. [`apps/example-v4-agents`](../../apps/example-v4-agents) is
 the Flue sidecar for it, on port 3101.

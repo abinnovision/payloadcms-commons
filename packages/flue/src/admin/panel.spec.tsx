@@ -11,6 +11,7 @@ import { fixtureJson } from "../../test/builders/fixtures.js";
 import type { AgentSummary } from "./api.js";
 import type { PanelView } from "./panel.js";
 import type { ThreadsListProps } from "./threads-view.js";
+import type { AttachmentLimits } from "../protocol/attachments.js";
 import type { FlueConversationMessage, FlueConversationState } from "@flue/sdk";
 import type { ReactNode } from "react";
 
@@ -40,6 +41,7 @@ vi.mock("@payloadcms/ui", () => ({
 	SearchIcon: () => <svg />,
 	SpinnerIcon: () => <svg />,
 	XIcon: () => <svg />,
+	toast: { error: () => undefined },
 }));
 
 const { ConversationTitle, FluePanel, LOST_CONVERSATION, lostConversation } =
@@ -47,6 +49,7 @@ const { ConversationTitle, FluePanel, LOST_CONVERSATION, lostConversation } =
 const { ThreadsList } = await import("./threads-view.js");
 const { shownMessages, toThreadMessage } = await import("./convert.js");
 const { ToolsContext } = await import("./tools.js");
+const { attachmentAdapter } = await import("./attachments.js");
 
 const history = fixtureJson<FlueConversationState>("flue-history.json");
 
@@ -88,11 +91,15 @@ const Thread: React.FC<{
 	view?: PanelView | undefined;
 	agent: string | undefined;
 	runAgents?: AgentSummary[] | undefined;
-}> = ({ messages, view = "conversation", agent, runAgents }) => {
+	attachments?: AttachmentLimits | undefined;
+}> = ({ messages, view = "conversation", agent, runAgents, attachments }) => {
 	const runtime = useExternalStoreRuntime({
 		messages,
 		convertMessage: toThreadMessage,
 		onNew: () => Promise.resolve(),
+		...(attachments === undefined
+			? {}
+			: { adapters: { attachments: attachmentAdapter(attachments, () => 0) } }),
 	});
 
 	return (
@@ -106,6 +113,7 @@ const Thread: React.FC<{
 						agent === undefined ? [] : [{ slug: "editor", label: "Editor" }]
 					}
 					api={api}
+					attachments={attachments}
 					loadMoreError={undefined}
 					onAgent={() => undefined}
 					onClose={() => undefined}
@@ -128,11 +136,16 @@ const Thread: React.FC<{
 const render = (
 	messages: FlueConversationMessage[],
 	view?: PanelView,
-	props: { agent?: string | undefined; runAgents?: AgentSummary[] } = {},
+	props: {
+		agent?: string | undefined;
+		runAgents?: AgentSummary[];
+		attachments?: AttachmentLimits;
+	} = {},
 ): string =>
 	renderToStaticMarkup(
 		<Thread
 			agent={"agent" in props ? props.agent : "editor"}
+			attachments={props.attachments}
 			messages={messages}
 			runAgents={props.runAgents}
 			view={view}
@@ -234,6 +247,135 @@ describe("the FluePanel component", () => {
 		expect(html).toContain('aria-label="Agent"');
 		expect(html).toContain("Editor");
 		expect(html).toContain('aria-label="Message"');
+	});
+
+	it("offers no attachment button while attachments are off", () => {
+		expect(render([])).not.toContain("Attach</button>");
+	});
+
+	it("offers an attachment button while attachments are on", () => {
+		const html = render([], "conversation", {
+			attachments: {
+				mimeTypes: ["image/png", "application/pdf"],
+				maxImageBytes: 3_932_160,
+				maxDocumentBytes: 5_242_880,
+				maxFiles: 4,
+			},
+		});
+
+		expect(html).toContain("Attach</button>");
+	});
+
+	it("shows a user's image as a thumbnail and a PDF as a link", () => {
+		const html = render([
+			{
+				id: "entry_user",
+				role: "user",
+				purpose: "user",
+				display: "visible",
+				parts: [
+					{
+						type: "text",
+						text: '<payload-context turn="user"/>\n\nCompare these.',
+						state: "done",
+					},
+					{
+						type: "file",
+						mediaType: "image/png",
+						id: "att_image_sub_1_0",
+						url: "/api/flue/c/7/attachments/att_image_sub_1_0",
+						filename: "chart.png",
+					},
+					{
+						type: "file",
+						mediaType: "application/pdf",
+						id: "att_document_sub_1_1",
+						url: "/api/flue/c/7/attachments/att_document_sub_1_1",
+						filename: "brief.pdf",
+					},
+				],
+			},
+		]);
+
+		expect(html).toContain("Compare these.");
+		expect(html).not.toContain("payload-context");
+		expect(html).toMatch(
+			/<img alt="chart.png" class="flue-attachment__image" src="\/api\/flue\/c\/7\/attachments\/att_image_sub_1_0"/,
+		);
+		expect(html).toMatch(
+			/href="\/api\/flue\/c\/7\/attachments\/att_document_sub_1_1"[^>]*>brief.pdf<\/a>/,
+		);
+	});
+
+	it("shows a PDF that is still sending by name, without a link", () => {
+		const html = render([
+			{
+				id: "entry_user",
+				role: "user",
+				purpose: "user",
+				display: "visible",
+				parts: [
+					{
+						type: "file",
+						mediaType: "application/pdf",
+						url: `data:application/pdf;base64,${btoa("%PDF-1")}`,
+						filename: "brief.pdf",
+					},
+				],
+			},
+		]);
+
+		expect(html).toContain('<span class="flue-attachment">brief.pdf</span>');
+		expect(html).not.toContain("data:application/pdf");
+	});
+
+	it("lists the files the agent uploaded in one card", () => {
+		const upload = (id: number, filename: string) => ({
+			collection: "documents",
+			id,
+			filename,
+			mimeType: "text/markdown",
+			size: 2048,
+			adminUrl: `https://cms.example.com/admin/collections/documents/${String(id)}`,
+		});
+		const html = render([
+			{
+				id: "entry_files",
+				role: "assistant",
+				purpose: "assistant",
+				display: "visible",
+				parts: [
+					{
+						type: "data-payload-file",
+						data: { files: [upload(4, "a.md"), upload(5, "b.md")] },
+					},
+				],
+			},
+		]);
+
+		expect(html).toContain("Uploaded files");
+		expect(html).toContain('href="/admin/collections/documents/4"');
+		expect(html).toContain(">a.md</a>");
+		expect(html).toContain('href="/admin/collections/documents/5"');
+		expect(html).toContain(">b.md</a>");
+		expect(html).toContain("text/markdown, 2.0 KiB");
+	});
+
+	it("renders nothing for a malformed file card", () => {
+		const html = render([
+			{
+				id: "entry_files",
+				role: "assistant",
+				purpose: "assistant",
+				display: "visible",
+				parts: [
+					{ type: "data-payload-file", data: { files: [{ filename: 3 }] } },
+					{ type: "data-payload-file", data: "broken" },
+				],
+			},
+		]);
+
+		expect(html).not.toContain("flue-files");
 	});
 
 	it("shows a deletion waiting for approval with its review link", () => {

@@ -1,9 +1,12 @@
+import type { AttachmentMimeType } from "./protocol/attachments.js";
 import type { ChatContext, RunKind } from "./protocol/context.js";
 import type {
 	CollectionConfig,
 	DefaultDocumentIDType,
 	PayloadRequest,
 } from "payload";
+
+export type { AttachmentMimeType } from "./protocol/attachments.js";
 
 declare module "payload" {
 	interface RequestContext {
@@ -79,6 +82,23 @@ export interface FluePluginOptions {
 		/** The jobs queue flue runs are queued on. Default `flue`. */
 		queue?: string;
 	};
+	/**
+	 * Lets chat users attach images and PDFs to a turn; `true` takes the
+	 * defaults. Raises the chat body cap to fit the files. Default off.
+	 */
+	attachments?: boolean | FlueAttachmentOptions;
+}
+
+/** Limits of chat attachments; each may only narrow the default. */
+export interface FlueAttachmentOptions {
+	/** Default: PNG, JPEG, GIF, WebP and PDF. */
+	mimeTypes?: AttachmentMimeType[];
+	/** Largest decoded image in bytes. Default and maximum 3.75 MiB. */
+	maxImageBytes?: number;
+	/** Largest decoded PDF in bytes. Default 5 MiB, maximum 10 MiB. */
+	maxDocumentBytes?: number;
+	/** Files per turn. Default 4, maximum 20. */
+	maxFiles?: number;
 }
 
 /** The input of the `flue-dispatch` job task. */

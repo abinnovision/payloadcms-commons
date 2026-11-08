@@ -67,6 +67,23 @@ const STALE_UID = JSON.parse(fixture("flue-send-stale-uid.json")) as {
 	body: unknown;
 };
 
+/** The bytes an attachment read gets, by the kind its id names. */
+export const ATTACHMENT_BYTES = {
+	image: Buffer.from("89504e470d0a1a0a", "hex"),
+	document: Buffer.from("%PDF-1.7\n"),
+	svg: Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"),
+};
+
+const ATTACHMENT_TYPES = {
+	image: "image/png",
+	document: "application/pdf",
+	svg: "image/svg+xml",
+};
+
+// An attachment route, its id of the form Flue's store mints.
+const ATTACHMENT_PATH =
+	/^\/agents\/[^/]+\/[^/]+\/attachments\/att_(image|document|svg)_/;
+
 const recordedEvents = UPDATES_SSE.split("\n\n")
 	.filter((block) => block !== "")
 	.map((block) => {
@@ -101,9 +118,11 @@ const isSend = (request: RecordedRequest): boolean =>
  * T0 recordings. It records every request and admits every message with
  * 202, echoing the conversation's incarnation `uid`, except a message whose
  * `uid` names no incarnation it holds, which gets flue-send-stale-uid.json.
- * It answers every abort with 200, and replays flue-updates.sse for
- * `live=sse` and its chunks as one JSON page for any other updates read, a
- * long poll included. The fields above change these answers per test.
+ * It answers every abort with 200, an attachment whose id starts with
+ * `att_image_` or `att_document_` with fixed bytes and Flue's headers, and
+ * replays flue-updates.sse for `live=sse` and its chunks as one JSON page
+ * for any other updates read, a long poll included. The fields above change
+ * these answers per test.
  */
 export const startSidecar = async (): Promise<FakeSidecar> => {
 	const requests: RecordedRequest[] = [];
@@ -226,6 +245,29 @@ export const startSidecar = async (): Promise<FakeSidecar> => {
 						);
 					}
 				});
+			} else if (
+				request.method === "GET" &&
+				pathname.includes("/attachments/")
+			) {
+				const kind = ATTACHMENT_PATH.exec(pathname)?.[1] as
+					keyof typeof ATTACHMENT_BYTES | undefined;
+
+				if (kind === undefined) {
+					send(
+						404,
+						JSON.stringify({ error: { type: "attachment_not_found" } }),
+					);
+				} else {
+					// The headers Flue's attachment route answers with; the SVG comes unsandboxed.
+					res.writeHead(200, {
+						"content-type": ATTACHMENT_TYPES[kind],
+						"content-length": String(ATTACHMENT_BYTES[kind].byteLength),
+						"content-disposition": "inline",
+						"cache-control": "private, max-age=31536000, immutable",
+						...(kind === "svg" ? {} : { "content-security-policy": "sandbox" }),
+					});
+					res.end(ATTACHMENT_BYTES[kind]);
+				}
 			} else if (view === "history" && sidecar.history === "unknown") {
 				send(HISTORY_UNKNOWN.status, JSON.stringify(HISTORY_UNKNOWN.body));
 			} else if (view === "history") {

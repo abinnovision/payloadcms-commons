@@ -7,6 +7,7 @@ import {
 	encodeContext,
 	TURN_ATTRIBUTE,
 	USER_TURN,
+	userTurnBody,
 } from "./protocol/context.js";
 import { INITIAL_DATA_KEY } from "./protocol/exchange.js";
 import { isOwner } from "./protocol/owner.js";
@@ -15,10 +16,12 @@ import { handleHash } from "./threads/handle.js";
 
 import type { KeySettings } from "./keys/manager.js";
 import type { NormalizedOptions } from "./options.js";
+import type { DeliveredAttachment } from "./protocol/attachments.js";
 import type { ChatContext, RunKind } from "./protocol/context.js";
 import type { ThreadStatus } from "./protocol/events.js";
 import type { FlueInitialData } from "./protocol/exchange.js";
 import type { RelationValue } from "./protocol/owner.js";
+import type { SendArgs } from "./sidecar/client.js";
 import type { FlueAgentConfig, FlueRequestContext } from "./types.js";
 import type { DefaultDocumentIDType, Payload, PayloadRequest } from "payload";
 
@@ -57,6 +60,8 @@ export interface TurnArgs {
 	/** An existing thread of `user` and `agent`; a new one when left out. */
 	threadId?: DefaultDocumentIDType | undefined;
 	message: string;
+	/** Sends the turn as a Flue `user` message when non-empty. */
+	attachments?: DeliveredAttachment[] | undefined;
 	context: TurnContext;
 	kind: RunKind;
 	onBehalfOf?: DefaultDocumentIDType | undefined;
@@ -73,6 +78,9 @@ export interface TurnResult {
 
 const TITLE_MAX = 80;
 
+// Attachment sends carry large bodies, which Flue may still admit after 10 seconds.
+const ATTACHMENT_SEND_MS = 60_000;
+
 const randomToken = (): string => randomBytes(32).toString("base64url");
 
 // Leaves out unset values, which exact optional properties do not accept.
@@ -82,6 +90,47 @@ const defined = <T extends object>(
 	Object.fromEntries(
 		Object.entries(value).filter(([, entry]) => entry !== undefined),
 	) as { [K in keyof T]?: Exclude<T[K], undefined> };
+
+// A new thread's title: the text, else the first file's name.
+const titleOf = (
+	message: string,
+	attachments: DeliveredAttachment[],
+): string => {
+	const text = message.trim();
+	const title = text === "" ? (attachments[0]?.filename?.trim() ?? "") : text;
+
+	return title.slice(0, TITLE_MAX);
+};
+
+/*
+ * The turn as Flue takes it: a context signal, or a `user` message with the
+ * context in a preamble when it carries files, which only `user` messages can.
+ */
+const turnMessage = (
+	context: ChatContext,
+	message: string,
+	attachments: DeliveredAttachment[],
+): Pick<SendArgs, "message" | "timeoutMs"> =>
+	attachments.length > 0
+		? {
+				message: {
+					kind: "user",
+					body: userTurnBody(context, message),
+					attachments,
+				},
+				timeoutMs: ATTACHMENT_SEND_MS,
+			}
+		: {
+				message: {
+					kind: "signal",
+					type: CONTEXT_SIGNAL_TYPE,
+					body: message,
+					attributes: {
+						...encodeContext(context),
+						[TURN_ATTRIBUTE]: USER_TURN,
+					},
+				},
+			};
 
 const refuse = (message: string, status: number): APIError =>
 	new APIError(message, status, null, true);
@@ -136,6 +185,7 @@ export const startTurn = async (
 ): Promise<TurnResult> => {
 	const { payload } = req;
 	const { agent, kind, onBehalfOf, dispatchJob } = args;
+	const attachments = args.attachments ?? [];
 	const { userCollection } = settings.mcpx;
 	const collection = settings.threads.slug;
 	const user: TurnUser = { ...args.user, collection: userCollection };
@@ -169,7 +219,7 @@ export const startTurn = async (
 				agent: agent.slug,
 				conversationId: randomToken(),
 				handleHash: handleHash(handle),
-				title: args.message.trim().slice(0, TITLE_MAX),
+				title: titleOf(args.message, attachments),
 				context: {
 					collection: args.context.collection,
 					docId: args.context.id,
@@ -248,23 +298,13 @@ export const startTurn = async (
 			await ensureKey();
 		}
 
+		const context = defined({
+			...args.context,
+			kind,
+			onBehalfOf: onBehalfOf === undefined ? undefined : String(onBehalfOf),
+		});
 		const submission = await client.send(agent.slug, conversationId, {
-			message: {
-				kind: "signal",
-				type: CONTEXT_SIGNAL_TYPE,
-				body: args.message,
-				attributes: {
-					...encodeContext(
-						defined({
-							...args.context,
-							kind,
-							onBehalfOf:
-								onBehalfOf === undefined ? undefined : String(onBehalfOf),
-						}),
-					),
-					[TURN_ATTRIBUTE]: USER_TURN,
-				},
-			},
+			...turnMessage(context, args.message, attachments),
 			uid: handle === undefined ? flueUid : null,
 			initialData:
 				handle === undefined

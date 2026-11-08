@@ -1,5 +1,11 @@
 import { InvalidConfiguration } from "payload";
 
+import {
+	ATTACHMENT_MIME_TYPES,
+	attachmentKind,
+} from "./protocol/attachments.js";
+
+import type { AttachmentLimits } from "./protocol/attachments.js";
 import type { FlueAgentConfig, FluePluginOptions } from "./types.js";
 import type { Config, PayloadRequest, Plugin } from "payload";
 
@@ -14,6 +20,24 @@ const KEY_TTL = { min: 5 * MINUTE, max: 7 * DAY, default: 2 * 60 * MINUTE };
 
 /** The jobs queue flue runs go to unless `dispatch.queue` names another. */
 export const DISPATCH_QUEUE = "flue";
+
+const KIB = 1024;
+const MIB = 1024 * KIB;
+
+/** The chat body cap without attachments. */
+export const CHAT_BODY_MAX = 64 * KIB;
+
+/*
+ * Images stay within Anthropic's 5 MiB base64 image limit. PDFs stay under
+ * Flue's 14 MiB base64 cap. Each file adds room for its JSON keys and a
+ * file name of 255 characters escaped as `\uXXXX`.
+ */
+const ATTACHMENTS = {
+	maxImageBytes: 3.75 * MIB,
+	maxDocumentBytes: { default: 5 * MIB, max: 10 * MIB },
+	maxFiles: { default: 4, max: 20 },
+	fileSlack: 2 * KIB,
+};
 
 /** The subset of mcpx's options flue reads. */
 interface McpxOptions {
@@ -43,7 +67,15 @@ export interface NormalizedOptions {
 	endpointPath: string;
 	threads: { slug: string; readAgentRuns: (req: PayloadRequest) => boolean };
 	dispatch: { queue: string };
+	/** `false` when chat attachments are off. */
+	attachments: false | NormalizedAttachments;
 	mcpx: McpxSettings;
+}
+
+/** The attachment limits plus the chat body cap they imply. */
+export interface NormalizedAttachments extends AttachmentLimits {
+	/** The chat body cap in bytes. */
+	bodyMax: number;
 }
 
 /** Receives what normalizing finds that is reported only at startup. */
@@ -166,6 +198,70 @@ const assertAgents = (agents: FlueAgentConfig[]): void => {
 	}
 };
 
+const isCount = (value: number, min: number, max: number): boolean =>
+	Number.isInteger(value) && value >= min && value <= max;
+
+const normalizeAttachments = (
+	option: FluePluginOptions["attachments"],
+): false | NormalizedAttachments => {
+	if (option === undefined || option === false) {
+		return false;
+	}
+
+	const {
+		mimeTypes = [...ATTACHMENT_MIME_TYPES],
+		maxImageBytes = ATTACHMENTS.maxImageBytes,
+		maxDocumentBytes = ATTACHMENTS.maxDocumentBytes.default,
+		maxFiles = ATTACHMENTS.maxFiles.default,
+	} = option === true ? {} : option;
+
+	if (mimeTypes.length === 0) {
+		throw invalid("attachments.mimeTypes must name at least one type.");
+	}
+
+	for (const mimeType of mimeTypes) {
+		if (!(ATTACHMENT_MIME_TYPES as readonly string[]).includes(mimeType)) {
+			throw invalid(
+				`attachments.mimeTypes may only hold ${ATTACHMENT_MIME_TYPES.join(", ")}, got "${mimeType}".`,
+			);
+		}
+	}
+
+	if (!isCount(maxImageBytes, 1, ATTACHMENTS.maxImageBytes)) {
+		throw invalid(
+			`attachments.maxImageBytes must be between 1 and ${String(ATTACHMENTS.maxImageBytes)} (3.75 MiB), got ${String(maxImageBytes)}.`,
+		);
+	}
+
+	if (!isCount(maxDocumentBytes, 1, ATTACHMENTS.maxDocumentBytes.max)) {
+		throw invalid(
+			`attachments.maxDocumentBytes must be between 1 and ${String(ATTACHMENTS.maxDocumentBytes.max)} (10 MiB), got ${String(maxDocumentBytes)}.`,
+		);
+	}
+
+	if (!isCount(maxFiles, 1, ATTACHMENTS.maxFiles.max)) {
+		throw invalid(
+			`attachments.maxFiles must be between 1 and ${String(ATTACHMENTS.maxFiles.max)}, got ${String(maxFiles)}.`,
+		);
+	}
+
+	const largest = Math.max(
+		...mimeTypes.map((mimeType) =>
+			attachmentKind(mimeType) === "image" ? maxImageBytes : maxDocumentBytes,
+		),
+	);
+
+	return {
+		mimeTypes: [...new Set(mimeTypes)],
+		maxImageBytes,
+		maxDocumentBytes,
+		maxFiles,
+		bodyMax:
+			CHAT_BODY_MAX +
+			maxFiles * (Math.ceil((largest * 4) / 3) + ATTACHMENTS.fileSlack),
+	};
+};
+
 /**
  * Validates the options against the config at startup and fills in the
  * defaults. Expects mcpx to have run first, so its key collection is in
@@ -243,6 +339,7 @@ export const normalizeOptions = (
 			readAgentRuns: options.threads?.readAgentRuns ?? (() => false),
 		},
 		dispatch: { queue },
+		attachments: normalizeAttachments(options.attachments),
 		mcpx,
 	};
 };

@@ -7,6 +7,31 @@ import { isRecord } from "./guards.js";
  */
 export const TITLE_PART = "title";
 
+/**
+ * The name of the Flue data part listing the files an agent uploaded during
+ * one response. History carries it as a `data-payload-file` part whose data
+ * is {@link FilePartData}; each write replaces the previous one.
+ */
+export const FILE_PART = "payload-file";
+
+/** One file an agent uploaded to a Payload upload collection. */
+export interface PayloadUpload {
+	collection: string;
+	id: number | string;
+	/** The filename the agent requested; Payload may store it renamed. */
+	filename: string;
+	mimeType: string;
+	/** In bytes. */
+	size: number;
+	/** The document in the admin panel. */
+	adminUrl: string;
+}
+
+/** The data of a `data-payload-file` part. */
+export interface FilePartData {
+	files: PayloadUpload[];
+}
+
 /** The status a thread row carries. */
 export type ThreadStatus = "idle" | "running" | "failed" | "archived";
 

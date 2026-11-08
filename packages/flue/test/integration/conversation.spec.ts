@@ -21,11 +21,13 @@ import {
 	THREADS_SLUG,
 } from "./helpers/payload.js";
 import {
+	ATTACHMENT_BYTES,
 	HISTORY_JSON,
 	UPDATES_JSON,
 	UPDATES_NEXT_OFFSET,
 	UPDATES_SSE,
 } from "./helpers/sidecar.js";
+import { routePath } from "../../src/protocol/paths.js";
 import { handleHash } from "../../src/threads/handle.js";
 
 import type { Booted, Doc, Seeded, SeededUser } from "./helpers/payload.js";
@@ -460,6 +462,127 @@ describe("the conversation endpoints", () => {
 				expect((await stored(booted, thread.id))["status"]).toBe("running");
 			},
 		);
+	});
+
+	describe("conversationAttachmentHandler", () => {
+		const IMAGE = "att_image_sub_01M6VB02GCSHGD7X1Z5829HF5Q_0";
+		const DOCUMENT = "att_document_sub_01M6VB02GCSHGD7X1Z5829HF5Q_1";
+
+		// The path the Flue client resolves a `file` part's url to.
+		const attachmentPath = (thread: Doc, attachment: string): string =>
+			`/api/flue${routePath("conversation", { thread: thread.id })}/attachments/${attachment}`;
+
+		const fetchAttachment = (
+			thread: Doc,
+			attachment: string,
+			user: null | SeededUser = seeded.first,
+		): Promise<Response> =>
+			send(booted, attachmentPath(thread, attachment), {
+				...(user === null ? {} : { token: user.token }),
+			});
+
+		it("passes an image and Flue's headers through to the owner", async () => {
+			const thread = await runningThread(RECORDED_SUBMISSION);
+			const response = await fetchAttachment(thread, IMAGE);
+
+			expect(response.status).toBe(200);
+			expect(Buffer.from(await response.arrayBuffer())).toEqual(
+				ATTACHMENT_BYTES.image,
+			);
+			expect(Object.fromEntries(response.headers)).toMatchObject({
+				"content-type": "image/png",
+				"content-length": String(ATTACHMENT_BYTES.image.byteLength),
+				"content-disposition": "inline",
+				"cache-control": "private, max-age=31536000, immutable",
+				"content-security-policy": "sandbox",
+				"x-content-type-options": "nosniff",
+			});
+			expect(upstreamPaths(thread)).toEqual([
+				`/agents/editor/${String(thread["conversationId"])}/attachments/${IMAGE}`,
+			]);
+		});
+
+		it("serves a PDF as a download", async () => {
+			const thread = await runningThread(RECORDED_SUBMISSION);
+			const response = await fetchAttachment(thread, DOCUMENT);
+
+			expect(response.status).toBe(200);
+			expect(Buffer.from(await response.arrayBuffer())).toEqual(
+				ATTACHMENT_BYTES.document,
+			);
+			expect(Object.fromEntries(response.headers)).toMatchObject({
+				"content-type": "application/pdf",
+				"content-disposition": "attachment",
+				"cache-control": "private, max-age=31536000, immutable",
+				"content-security-policy": "sandbox",
+				"x-content-type-options": "nosniff",
+			});
+		});
+
+		it("serves an SVG as a sandboxed download", async () => {
+			const thread = await runningThread(RECORDED_SUBMISSION);
+			const response = await fetchAttachment(
+				thread,
+				"att_svg_sub_01M6VB02GCSHGD7X1Z5829HF5Q_2",
+			);
+
+			expect(response.status).toBe(200);
+			expect(Object.fromEntries(response.headers)).toMatchObject({
+				"content-type": "image/svg+xml",
+				"content-disposition": "attachment",
+				"content-security-policy": "sandbox",
+			});
+		});
+
+		it("refuses another user's thread with 404 and forwards nothing", async () => {
+			const thread = await runningThread(RECORDED_SUBMISSION);
+			const response = await fetchAttachment(thread, IMAGE, seeded.second);
+
+			expect(response.status).toBe(404);
+			expect(await response.json()).toEqual({ error: expect.any(String) });
+			expect(requestsTo(thread)).toEqual([]);
+		});
+
+		it("refuses a request without a session with 401 and forwards nothing", async () => {
+			const thread = await runningThread(RECORDED_SUBMISSION);
+			const response = await fetchAttachment(thread, IMAGE, null);
+
+			expect(response.status).toBe(401);
+			expect(await response.json()).toEqual({ error: expect.any(String) });
+			expect(requestsTo(thread)).toEqual([]);
+		});
+
+		it("answers 404 for an attachment Flue does not have", async () => {
+			const thread = await runningThread(RECORDED_SUBMISSION);
+			const response = await fetchAttachment(thread, "att_unknown_1");
+
+			expect(response.status).toBe(404);
+			expect(await response.json()).toEqual({ error: expect.any(String) });
+		});
+
+		it.each(["nope", "att_", "att_a.b", `att_${"a".repeat(201)}`])(
+			"refuses the malformed id %j with 400 and forwards nothing",
+			async (attachment) => {
+				const thread = await runningThread(RECORDED_SUBMISSION);
+				const response = await fetchAttachment(thread, attachment);
+
+				expect(response.status).toBe(400);
+				expect(await response.json()).toEqual({ error: expect.any(String) });
+				expect(requestsTo(thread)).toEqual([]);
+			},
+		);
+
+		it("answers 502 without naming the conversation when the sidecar refuses", async () => {
+			const thread = await runningThread(RECORDED_SUBMISSION);
+
+			booted.sidecar.refuse = true;
+
+			const response = await fetchAttachment(thread, IMAGE);
+			const text = await response.text();
+
+			expect(response.status).toBe(502);
+			expect(text).not.toContain(String(thread["conversationId"]));
+		});
 	});
 
 	describe("abortHandler", () => {
