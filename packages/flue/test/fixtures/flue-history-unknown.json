@@ -1,0 +1,10 @@
+{
+	"status": 404,
+	"body": {
+		"error": {
+			"type": "stream_not_found",
+			"message": "Event stream \"agents/Spike/never-seen-conversation\" was not found.",
+			"details": "Streams are created when their agent instance receives its first prompt."
+		}
+	}
+}

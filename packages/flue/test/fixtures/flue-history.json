@@ -1,0 +1,47 @@
+{
+	"v": 1,
+	"conversationId": "conv_01M6VB02GDBHFNNR166HKMC2P8",
+	"offset": "0000000000000000_0000000000000016",
+	"messages": [
+		{
+			"id": "entry_direct_c3ViXzAxTTZWQjAyR0NTSEdEN1gxWjU4MjlIRjVR",
+			"role": "user",
+			"purpose": "user",
+			"display": "visible",
+			"submissionId": "sub_01M6VB02GCSHGD7X1Z5829HF5Q",
+			"timestamp": "2026-11-07T15:45:52.669Z",
+			"parts": [{ "type": "text", "text": "Word?", "state": "done" }]
+		},
+		{
+			"id": "entry_01M6VB0391VD7SMCEXPQRTT40N",
+			"role": "assistant",
+			"purpose": "assistant",
+			"display": "visible",
+			"submissionId": "sub_01M6VB02GCSHGD7X1Z5829HF5Q",
+			"turnId": "turn_01M6VB02GZE3R15X36ZRW0JR3Z",
+			"timestamp": "2026-11-07T15:45:53.442Z",
+			"parts": [
+				{
+					"type": "dynamic-tool",
+					"toolName": "lookup_word",
+					"toolCallId": "toolu_01JpXbuMBY1frGqhRLvZ2qUM",
+					"state": "output-available",
+					"input": {},
+					"output": { "word": "pelican" },
+					"durationMs": 2
+				},
+				{ "type": "data-title", "data": "Secret word lookup" },
+				{ "type": "text", "text": "The word is \"pelican.\"", "state": "done" }
+			]
+		}
+	],
+	"settlements": [
+		{
+			"submissionId": "sub_01M6VB02GCSHGD7X1Z5829HF5Q",
+			"outcome": "completed",
+			"answeredBySubmissionId": "sub_01M6VB02GCSHGD7X1Z5829HF5Q",
+			"timestamp": "2026-11-07T15:45:54.115Z"
+		}
+	],
+	"incarnation": "inc_01M6VB02GCX7PH0E997J22PVAA"
+}

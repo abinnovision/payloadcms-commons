@@ -1,0 +1,63 @@
+event: data
+data:[{"type":"stream-checkpoint","incarnation":"inc_01M6VB1PKSYZR9CJV2S1JCNNDK"}]
+
+event: data
+data:[{"type":"message-appended","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","message":{"id":"entry_direct_c3ViXzAxTTZWQjFQS1NOSjZZS0MwUjYxWFFEWVNF","role":"user","purpose":"user","display":"visible","submissionId":"sub_01M6VB1PKSNJ6YKC0R61XQDYSE","timestamp":"2026-11-07T15:46:46.011Z","parts":[{"type":"text","text":"Count from 1 to 400.","state":"done"}]},"position":{"batch":1,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000003","upToDate":true}
+
+event: data
+data:[{"type":"message-started","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","submissionId":"sub_01M6VB1PKSNJ6YKC0R61XQDYSE","turnId":"turn_01M6VB1PKVERE0A6K4X41TXTSY","timestamp":"2026-11-07T15:46:47.420Z","position":{"batch":4,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000004","upToDate":true}
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000005","upToDate":true}
+
+event: data
+data:[{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"reasoning","delta":"I need","position":{"batch":6,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000006","upToDate":true}
+
+event: data
+data:[{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"reasoning","delta":" to list","position":{"batch":7,"index":0}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"reasoning","delta":" the numbers 1 through","position":{"batch":7,"index":1}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"reasoning","delta":" 400,","position":{"batch":7,"index":2}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"reasoning","delta":" one per line, with n","position":{"batch":7,"index":3}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"reasoning","delta":"othing else in the","position":{"batch":7,"index":4}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"reasoning","delta":" output.","position":{"batch":7,"index":5}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"reasoning","delta":"\n\n","position":{"batch":7,"index":6}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000007","upToDate":true}
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000008","upToDate":true}
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000009","upToDate":true}
+
+event: data
+data:[{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"1\n2\n3\n4","position":{"batch":10,"index":0}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n5\n6\n7\n8","position":{"batch":10,"index":1}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n9\n10\n11\n12","position":{"batch":10,"index":2}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n13\n14\n15\n16","position":{"batch":10,"index":3}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n17\n18\n19\n20","position":{"batch":10,"index":4}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n21\n22\n23\n24","position":{"batch":10,"index":5}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n25\n26\n27\n28","position":{"batch":10,"index":6}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n29\n30\n31\n32","position":{"batch":10,"index":7}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n33\n34\n35\n36","position":{"batch":10,"index":8}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n37\n38\n39\n40","position":{"batch":10,"index":9}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n41\n42\n43\n44","position":{"batch":10,"index":10}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n45\n46\n47\n48","position":{"batch":10,"index":11}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n49\n50\n51\n52","position":{"batch":10,"index":12}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n53\n54\n55\n56","position":{"batch":10,"index":13}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n57\n58\n59\n60","position":{"batch":10,"index":14}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n61\n62\n63\n64","position":{"batch":10,"index":15}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n65\n66\n67\n68","position":{"batch":10,"index":16}},{"type":"message-delta","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","kind":"text","delta":"\n69\n70\n71\n72","position":{"batch":10,"index":17}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000010","upToDate":true}
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000011","upToDate":true}
+
+event: data
+data:[{"type":"message-completed","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","messageId":"entry_01M6VB1QZVEV4Y920CV5B99RFS","timestamp":"2026-11-07T15:46:48.014Z","position":{"batch":12,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000012","upToDate":true}
+
+event: data
+data:[{"type":"message-appended","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","message":{"id":"entry_submission_aborted_sub_01M6VB1PKSNJ6YKC0R61XQDYSE","role":"system","purpose":"advisory","display":"diagnostic","signal":{"attributes":{"submissionId":"sub_01M6VB1PKSNJ6YKC0R61XQDYSE","kind":"direct","reason":"aborted"}},"settlement":{"outcome":"aborted"},"timestamp":"2026-11-07T15:46:48.015Z","parts":[{"type":"text","text":"Submission was aborted.","state":"done"}]},"position":{"batch":13,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000013","upToDate":true}
+
+event: data
+data:[{"type":"submission-settled","conversationId":"conv_01M6VB1PKT7ZRVCEZPQDHVACCV","submissionId":"sub_01M6VB1PKSNJ6YKC0R61XQDYSE","outcome":"aborted","error":{"name":"FlueError","message":"Submission was aborted.","type":"submission_aborted","details":"The operation was stopped before it produced a completed response."},"answeredBySubmissionId":"sub_01M6VB1PKSNJ6YKC0R61XQDYSE","timestamp":"2026-11-07T15:46:48.015Z","position":{"batch":14,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000014","upToDate":true}
+

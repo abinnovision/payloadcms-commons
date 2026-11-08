@@ -1,0 +1,15 @@
+{
+	"extends": ["../../tsconfig.base.json"],
+	"include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts"],
+	"compilerOptions": {
+		"paths": {
+			"payload": ["../../apps/example-v4/node_modules/payload/dist/index.d.ts"],
+			"@payloadcms/ui": [
+				"../../apps/example-v4/node_modules/@payloadcms/ui/dist/exports/client/index.d.ts"
+			],
+			"@payloadcms/db-sqlite": [
+				"../../apps/example-v4/node_modules/@payloadcms/db-sqlite/dist/index.d.ts"
+			]
+		}
+	}
+}

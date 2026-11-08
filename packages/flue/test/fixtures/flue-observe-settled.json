@@ -1,0 +1,106 @@
+[
+	{
+		"observation": {
+			"type": "submission_settled",
+			"submissionId": "sub_01M6XE60JYPNKV1HHYM1G9V58Q",
+			"outcome": "completed",
+			"instanceId": "t0-built-completed",
+			"agentName": "Probe",
+			"v": 3,
+			"eventIndex": 13,
+			"timestamp": "2026-11-08T11:20:02.738Z"
+		},
+		"context": {
+			"id": "t0-built-completed",
+			"agentName": "Probe",
+			"req": {
+				"method": "POST",
+				"url": "https://flue.invalid/agents/Probe/t0-built-completed"
+			}
+		}
+	},
+	{
+		"observation": {
+			"type": "submission_settled",
+			"submissionId": "sub_01M6XE60MNN6XEBMT32VKJHP74",
+			"outcome": "failed",
+			"error": {
+				"name": "Error",
+				"message": "The agent submission failed because of an internal error.",
+				"type": "internal_error",
+				"details": "The server encountered an unexpected error while processing the agent submission. When reporting this failure, quote the settlement submissionId — server-side logs carry the same id."
+			},
+			"instanceId": "t0-built-failed-summarizer",
+			"agentName": "Summarizer",
+			"v": 3,
+			"eventIndex": 1,
+			"timestamp": "2026-11-08T11:20:01.943Z",
+			"errorInfo": {
+				"type": "Error",
+				"name": "Error",
+				"message": "[payloadcms-flue] usePayload needs a conversation created by Payload, whose initial data carries the exchange handle.",
+				"stack": "[redacted]"
+			}
+		},
+		"context": {
+			"id": "t0-built-failed-summarizer",
+			"agentName": "Summarizer",
+			"req": {
+				"method": "POST",
+				"url": "https://flue.invalid/agents/Summarizer/t0-built-failed-summarizer"
+			}
+		}
+	},
+	{
+		"observation": {
+			"type": "submission_settled",
+			"submissionId": "sub_01M6XE60NXA14A48JKMCHTEDEM",
+			"outcome": "aborted",
+			"error": {
+				"name": "FlueError",
+				"message": "Submission was aborted.",
+				"type": "submission_aborted",
+				"details": "The operation was stopped before it produced a completed response."
+			},
+			"instanceId": "t0-built-aborted",
+			"agentName": "Probe",
+			"v": 3,
+			"eventIndex": 13,
+			"timestamp": "2026-11-08T11:20:03.516Z",
+			"errorInfo": {
+				"type": "submission_aborted",
+				"name": "FlueError",
+				"message": "Submission was aborted.",
+				"stack": "[redacted]"
+			}
+		},
+		"context": {
+			"id": "t0-built-aborted",
+			"agentName": "Probe",
+			"req": {
+				"method": "POST",
+				"url": "https://flue.invalid/agents/Probe/t0-built-aborted"
+			}
+		}
+	},
+	{
+		"observation": {
+			"type": "submission_settled",
+			"submissionId": "sub_01M6XE6FXHRKQT1RZ1SQ6M9ED5",
+			"outcome": "completed",
+			"instanceId": "t0-built-recovered",
+			"agentName": "Probe",
+			"v": 3,
+			"eventIndex": 475,
+			"timestamp": "2026-11-08T11:21:08.634Z"
+		},
+		"context": {
+			"id": "t0-built-recovered",
+			"agentName": "Probe",
+			"req": {
+				"method": "POST",
+				"url": "https://flue.invalid/agents/Probe/t0-built-recovered"
+			}
+		}
+	}
+]

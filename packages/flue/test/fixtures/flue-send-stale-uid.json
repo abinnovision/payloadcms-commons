@@ -1,0 +1,10 @@
+{
+	"status": 404,
+	"body": {
+		"error": {
+			"type": "agent_instance_not_found",
+			"message": "Agent instance \"t0-spike-a\" was not found.",
+			"details": "No instance with this id and uid exists. The id may be wrong, or the instance was re-created and this uid names its previous incarnation. Send without a uid to deliver unconditionally."
+		}
+	}
+}
