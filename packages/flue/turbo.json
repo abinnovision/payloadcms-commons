@@ -1,0 +1,25 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"build": {
+			"inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/apps/example-v4/package.json"]
+		},
+		"typecheck": {
+			"inputs": [
+				"$TURBO_EXTENDS$",
+				"tsconfig*.json",
+				"$TURBO_ROOT$/apps/example-v4/package.json"
+			]
+		},
+		"lint:check": {
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/example-v4/package.json"]
+		},
+		"test-unit": {
+			"inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/apps/example-v4/package.json"]
+		},
+		"test-integration": {
+			"inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/apps/example-v4/package.json"]
+		}
+	}
+}

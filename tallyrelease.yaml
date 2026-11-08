@@ -22,6 +22,9 @@ branches:
   - name: "release/email-lettermint/{major}.x"
     line: maintenance
     unit: email-lettermint
+  - name: "release/flue/{major}.x"
+    line: maintenance
+    unit: flue
   - name: "release/hatchet/{major}.x"
     line: maintenance
     unit: hatchet
@@ -45,6 +48,7 @@ units:
   packages/colophon: { release: true }
   packages/dummy: { release: true }
   packages/email-lettermint: { release: true }
+  packages/flue: { release: true, initialVersion: 0.1.0 }
   packages/hatchet: { release: true, initialVersion: 0.1.0 }
   packages/mcpx: { release: true }
   packages/montage: { release: true }

@@ -8,7 +8,8 @@ Building blocks for production [Payload CMS](https://payloadcms.com/) sites.
 
 Mostly plugins, built to be used together on the same site, each covering one
 concern and each installing on its own. Take the one you need or take all of
-them. Nothing here requires anything else here.
+them. The one dependency between them is flue, which reaches Payload through
+mcpx.
 
 ## Packages
 
@@ -17,6 +18,7 @@ them. Nothing here requires anything else here.
 | [`@abinnovision/payloadcms-colophon`](./packages/colophon)                 | System metadata in the admin sidebar, read from the environment at request time.           |
 | [`@abinnovision/payloadcms-dummy`](./packages/dummy)                       | Declarative, idempotent seeding: ordered seed units, natural-key upsert and references.    |
 | [`@abinnovision/payloadcms-email-lettermint`](./packages/email-lettermint) | Email adapter sending transactional mail through the Lettermint API.                       |
+| [`@abinnovision/payloadcms-flue`](./packages/flue)                         | Flue agents in the Payload 4 admin, acting through mcpx: chat, hook and scheduled runs.    |
 | [`@abinnovision/payloadcms-hatchet`](./packages/hatchet)                   | Runs Payload jobs on Hatchet: Hatchet triggers, Payload executes.                          |
 | [`@abinnovision/payloadcms-mcpx`](./packages/mcpx)                         | MCP server over the content model, with a fixed tool surface and per-API-key capabilities. |
 | [`@abinnovision/payloadcms-montage`](./packages/montage)                   | Typed block registry and RSC renderer for Payload blocks.                                  |
@@ -48,7 +50,12 @@ wayfinder's glue is a short adapter over whatever context the app already has
 ([both paths](./packages/wayfinder/docs/recipes.md)). colophon, mcpx, oidc and
 the Lettermint adapter touch nothing else at all.
 
-[`apps/example-v3`](./apps/example-v3) mounts every package but the Lettermint adapter,
+flue is the exception: it requires mcpx. Its agents read and write only through
+mcpx, and it locks the mcpx API keys it manages on mcpx's key collection. mcpx
+does not know flue exists.
+
+[`apps/example-v3`](./apps/example-v3) mounts every package but the Lettermint adapter
+and flue,
 with the seams wired and a seed, written with dummy, that leaves a routed,
 localized site to click through. It stays on Payload 3.
 [`apps/example-v4`](./apps/example-v4) runs Payload 4 and mounts the packages

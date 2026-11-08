@@ -1,0 +1,37 @@
+{
+	"v": 1,
+	"conversationId": "conv_01M6VB1PKT7ZRVCEZPQDHVACCV",
+	"offset": "0000000000000000_0000000000000009",
+	"messages": [
+		{
+			"id": "entry_direct_c3ViXzAxTTZWQjFQS1NOSjZZS0MwUjYxWFFEWVNF",
+			"role": "user",
+			"purpose": "user",
+			"display": "visible",
+			"submissionId": "sub_01M6VB1PKSNJ6YKC0R61XQDYSE",
+			"timestamp": "2026-11-07T15:46:46.011Z",
+			"parts": [
+				{ "type": "text", "text": "Count from 1 to 400.", "state": "done" }
+			]
+		},
+		{
+			"id": "entry_01M6VB1QZVEV4Y920CV5B99RFS",
+			"role": "assistant",
+			"purpose": "assistant",
+			"display": "visible",
+			"submissionId": "sub_01M6VB1PKSNJ6YKC0R61XQDYSE",
+			"turnId": "turn_01M6VB1PKVERE0A6K4X41TXTSY",
+			"timestamp": "2026-11-07T15:46:47.420Z",
+			"parts": [
+				{
+					"type": "reasoning",
+					"text": "I need to list the numbers 1 through 400, one per line, with nothing else in the output.\n\n",
+					"state": "done"
+				},
+				{ "type": "text", "text": "", "state": "streaming" }
+			]
+		}
+	],
+	"settlements": [],
+	"incarnation": "inc_01M6VB1PKSYZR9CJV2S1JCNNDK"
+}

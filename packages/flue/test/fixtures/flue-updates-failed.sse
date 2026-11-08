@@ -1,0 +1,9 @@
+event: data
+data:[{"type":"stream-checkpoint","incarnation":"inc_01M6VB16QRF2EQNDEG6A6SRE03"}]
+
+event: data
+data:[{"type":"submission-settled","conversationId":"conv_01M6VB16QR3X6VETB0FVGN6NMT","submissionId":"sub_01M6VB16QRSGWJ3B031FCXAJR3","outcome":"failed","error":{"name":"Error","message":"The agent submission failed because of an internal error.","type":"internal_error","details":"The server encountered an unexpected error while processing the agent submission. When reporting this failure, quote the settlement submissionId — server-side logs carry the same id."},"timestamp":"2026-11-07T15:46:29.761Z","position":{"batch":1,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000001","upToDate":true}
+

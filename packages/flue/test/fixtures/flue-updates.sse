@@ -1,0 +1,78 @@
+event: data
+data:[{"type":"stream-checkpoint","incarnation":"inc_01M6VB02GCX7PH0E997J22PVAA"}]
+
+event: data
+data:[{"type":"message-appended","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","message":{"id":"entry_direct_c3ViXzAxTTZWQjAyR0NTSEdEN1gxWjU4MjlIRjVR","role":"user","purpose":"user","display":"visible","submissionId":"sub_01M6VB02GCSHGD7X1Z5829HF5Q","timestamp":"2026-11-07T15:45:52.669Z","parts":[{"type":"text","text":"Word?","state":"done"}]},"position":{"batch":1,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000003","upToDate":true}
+
+event: data
+data:[{"type":"message-started","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","messageId":"entry_01M6VB0391VD7SMCEXPQRTT40N","submissionId":"sub_01M6VB02GCSHGD7X1Z5829HF5Q","turnId":"turn_01M6VB02GZE3R15X36ZRW0JR3Z","timestamp":"2026-11-07T15:45:53.442Z","position":{"batch":4,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000004","upToDate":true}
+
+event: data
+data:[{"type":"tool-input","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","messageId":"entry_01M6VB0391VD7SMCEXPQRTT40N","toolCallId":"toolu_01JpXbuMBY1frGqhRLvZ2qUM","toolName":"lookup_word","input":{},"timestamp":"2026-11-07T15:45:53.542Z","position":{"batch":5,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000005","upToDate":true}
+
+event: data
+data:[{"type":"message-completed","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","messageId":"entry_01M6VB0391VD7SMCEXPQRTT40N","timestamp":"2026-11-07T15:45:53.544Z","position":{"batch":6,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000006","upToDate":true}
+
+event: data
+data:[{"type":"data-part","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","messageId":"entry_01M6VB0391VD7SMCEXPQRTT40N","name":"title","data":"Secret word lookup","position":{"batch":7,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000007","upToDate":true}
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000008","upToDate":true}
+
+event: data
+data:[{"type":"tool-output","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","toolCallId":"toolu_01JpXbuMBY1frGqhRLvZ2qUM","output":{"word":"pelican"},"durationMs":2,"timestamp":"2026-11-07T15:45:53.549Z","position":{"batch":9,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000009","upToDate":true}
+
+event: data
+data:[{"type":"message-started","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","messageId":"entry_01M6VB0391VD7SMCEXPQRTT40N","submissionId":"sub_01M6VB02GCSHGD7X1Z5829HF5Q","turnId":"turn_01M6VB03CFP3WCSVNQTJ3A45W9","timestamp":"2026-11-07T15:45:54.089Z","position":{"batch":10,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000010","upToDate":true}
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000011","upToDate":true}
+
+event: data
+data:[{"type":"message-delta","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","messageId":"entry_01M6VB0391VD7SMCEXPQRTT40N","kind":"text","delta":"The word is \"","position":{"batch":12,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000012","upToDate":true}
+
+event: data
+data:[{"type":"message-delta","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","messageId":"entry_01M6VB0391VD7SMCEXPQRTT40N","kind":"text","delta":"pelican.\"","position":{"batch":13,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000013","upToDate":true}
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000014","upToDate":true}
+
+event: data
+data:[{"type":"message-completed","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","messageId":"entry_01M6VB0391VD7SMCEXPQRTT40N","timestamp":"2026-11-07T15:45:54.111Z","position":{"batch":15,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000015","upToDate":true}
+
+event: data
+data:[{"type":"submission-settled","conversationId":"conv_01M6VB02GDBHFNNR166HKMC2P8","submissionId":"sub_01M6VB02GCSHGD7X1Z5829HF5Q","outcome":"completed","answeredBySubmissionId":"sub_01M6VB02GCSHGD7X1Z5829HF5Q","timestamp":"2026-11-07T15:45:54.115Z","position":{"batch":16,"index":0}}]
+
+event: control
+data:{"streamNextOffset":"0000000000000000_0000000000000016","upToDate":true}
+
