@@ -39,6 +39,10 @@
 		"{.github/**/*,*}.{json{,5},md,y{,a}ml}": "prettier --write"
 	},
 	"prettier": "@abinnovision/prettier-config",
+	"resolutions": {
+		"@earendil-works/pi-agent-core": "1.4.0",
+		"@earendil-works/pi-ai": "1.4.0"
+	},
 	"devDependencies": {
 		"@abinnovision/commitlint-config": "^2.3.1",
 		"@abinnovision/eslint-config-base": "^3.4.2",
