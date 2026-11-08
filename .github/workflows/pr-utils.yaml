@@ -22,5 +22,5 @@ jobs:
       pull-requests: write
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: abinnovision/actions@triage-dependabot-pr-v1

@@ -11,7 +11,8 @@ defaults:
 branches:
   - name: main
     line: default
-    channel: beta
+    channels:
+      build: beta
   # Maintenance lines per package, cut from a tag: release/<package>/<major>.x.
   - name: "release/colophon/{major}.x"
     line: maintenance
@@ -45,16 +46,16 @@ branches:
     unit: wayfinder
 
 units:
-  packages/colophon: { release: true }
-  packages/dummy: { release: true }
-  packages/email-lettermint: { release: true }
-  packages/flue: { release: true, initialVersion: 0.1.0 }
-  packages/hatchet: { release: true, initialVersion: 0.1.0 }
-  packages/mcpx: { release: true }
-  packages/montage: { release: true }
-  packages/oidc: { release: true, initialVersion: 0.1.0 }
-  packages/viewfinder: { release: true }
-  packages/wayfinder: { release: true }
+  packages/colophon: { release: true, tags: [dist] }
+  packages/dummy: { release: true, tags: [dist] }
+  packages/email-lettermint: { release: true, tags: [dist] }
+  packages/flue: { release: true, tags: [dist], initialVersion: 0.1.0 }
+  packages/hatchet: { release: true, tags: [dist], initialVersion: 0.1.0 }
+  packages/mcpx: { release: true, tags: [dist] }
+  packages/montage: { release: true, tags: [dist] }
+  packages/oidc: { release: true, tags: [dist], initialVersion: 0.1.0 }
+  packages/viewfinder: { release: true, tags: [dist] }
+  packages/wayfinder: { release: true, tags: [dist] }
 
 # Changes here rebuild every unit (added to the node plugin defaults).
 globalInputs:
