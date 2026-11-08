@@ -62,19 +62,18 @@ export type SupportedTimezones =
 	| "Pacific/Fiji";
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_F6452B57".
+ * via the `definition` "LexicalNodes_EFD36D8D".
  */
-export type LexicalNodes_F6452B57 =
+export type LexicalNodes_EFD36D8D =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_F6452B57>
-	| SerializedAutoLinkNode<LexicalNodes_F6452B57, LexicalLinkFields_E469DC16>
-	| SerializedLinkNode<LexicalNodes_F6452B57, LexicalLinkFields_E469DC16>
+	| SerializedParagraphNode<LexicalNodes_EFD36D8D>
 	| SerializedBlockNode<CalloutBlock>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
-	| SerializedQuoteNode<LexicalNodes_F6452B57>
+	| SerializedUploadNode<"documents">
+	| SerializedQuoteNode<LexicalNodes_EFD36D8D>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -89,21 +88,22 @@ export type LexicalNodes_F6452B57 =
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedListNode<LexicalNodes_F6452B57>
-	| SerializedListItemNode<LexicalNodes_F6452B57>
-	| SerializedHeadingNode<LexicalNodes_F6452B57>;
+	| SerializedListNode<LexicalNodes_EFD36D8D>
+	| SerializedListItemNode<LexicalNodes_EFD36D8D>
+	| SerializedHeadingNode<LexicalNodes_EFD36D8D>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_5400F3D2".
+ * via the `definition` "LexicalNodes_CB00AB58".
  */
-export type LexicalNodes_5400F3D2 =
+export type LexicalNodes_CB00AB58 =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_5400F3D2>
+	| SerializedParagraphNode<LexicalNodes_CB00AB58>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
-	| SerializedQuoteNode<LexicalNodes_5400F3D2>
+	| SerializedUploadNode<"documents">
+	| SerializedQuoteNode<LexicalNodes_CB00AB58>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -118,11 +118,11 @@ export type LexicalNodes_5400F3D2 =
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedAutoLinkNode<LexicalNodes_5400F3D2, LexicalLinkFields>
-	| SerializedLinkNode<LexicalNodes_5400F3D2, LexicalLinkFields>
-	| SerializedListNode<LexicalNodes_5400F3D2>
-	| SerializedListItemNode<LexicalNodes_5400F3D2>
-	| SerializedHeadingNode<LexicalNodes_5400F3D2>;
+	| SerializedAutoLinkNode<LexicalNodes_CB00AB58, LexicalLinkFields>
+	| SerializedLinkNode<LexicalNodes_CB00AB58, LexicalLinkFields>
+	| SerializedListNode<LexicalNodes_CB00AB58>
+	| SerializedListItemNode<LexicalNodes_CB00AB58>
+	| SerializedHeadingNode<LexicalNodes_CB00AB58>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
@@ -155,6 +155,7 @@ export interface Config {
 		posts: Post;
 		tags: Tag;
 		media: Media;
+		documents: Document;
 		"mcpx-api-keys": McpxApiKey;
 		"flue-threads": FlueThread;
 		"payload-kv": PayloadKv;
@@ -173,6 +174,7 @@ export interface Config {
 		posts: PostsSelect<false> | PostsSelect<true>;
 		tags: TagsSelect<false> | TagsSelect<true>;
 		media: MediaSelect<false> | MediaSelect<true>;
+		documents: DocumentsSelect<false> | DocumentsSelect<true>;
 		"mcpx-api-keys": McpxApiKeysSelect<false> | McpxApiKeysSelect<true>;
 		"flue-threads": FlueThreadsSelect<false> | FlueThreadsSelect<true>;
 		"payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -262,7 +264,7 @@ export interface HeroModuleBlock {
  * via the `definition` "RichTextModuleBlock".
  */
 export interface RichTextModuleBlock {
-	content?: LexicalRichText<LexicalNodes_F6452B57> | null;
+	content?: LexicalRichText<LexicalNodes_EFD36D8D> | null;
 	id?: string | null;
 	blockName?: string | null;
 	blockType: "rich-text-module";
@@ -459,7 +461,7 @@ export interface Post {
 	id: number;
 	title: string;
 	excerpt?: string | null;
-	content?: LexicalRichText<LexicalNodes_5400F3D2> | null;
+	content?: LexicalRichText<LexicalNodes_CB00AB58> | null;
 	image?: (number | null) | Media;
 	tags?: (number | Tag)[] | null;
 	createdBy?: {
@@ -531,6 +533,43 @@ export interface Tag {
 	updatedAt: string;
 	createdAt: string;
 	deletedAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "documents".
+ */
+export interface Document {
+	id: number;
+	createdBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedAt: string;
+	createdAt: string;
+	deletedAt?: string | null;
+	url?: string | null;
+	thumbnailURL?: string | null;
+	filename?: string | null;
+	mimeType?: string | null;
+	filesize?: number | null;
+	width?: number | null;
+	height?: number | null;
+	original?: {
+		filename?: string | null;
+		url?: string | null;
+		mimeType?: string | null;
+		filesize?: number | null;
+		width?: number | null;
+		height?: number | null;
+		prefix?: string | null;
+		_objectKey?: string | null;
+	};
+	focalX?: number | null;
+	focalY?: number | null;
 }
 /**
  * Keys for MCP clients. Each key acts as its user and may only do what its capabilities allow.
@@ -669,6 +708,24 @@ export interface McpxApiKey {
 				deleteUnattended?: boolean | null;
 			};
 			media?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+				/**
+				 * Delete documents. Each one is approved by this key's user in the admin panel, unless the config allows trashing directly and this key is set to.
+				 */
+				delete?: boolean | null;
+				/**
+				 * Move documents to trash without asking this key's user.
+				 */
+				deleteUnattended?: boolean | null;
+			};
+			documents?: {
 				/**
 				 * Describe, find and read.
 				 */
@@ -907,6 +964,10 @@ export interface PayloadLockedDocument {
 				value: number | Media;
 		  } | null)
 		| ({
+				relationTo: "documents";
+				value: number | Document;
+		  } | null)
+		| ({
 				relationTo: "mcpx-api-keys";
 				value: number | McpxApiKey;
 		  } | null)
@@ -1141,6 +1202,38 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "documents_select".
+ */
+export interface DocumentsSelect<T extends boolean = true> {
+	createdBy?: T;
+	updatedBy?: T;
+	updatedAt?: T;
+	createdAt?: T;
+	deletedAt?: T;
+	url?: T;
+	thumbnailURL?: T;
+	filename?: T;
+	mimeType?: T;
+	filesize?: T;
+	width?: T;
+	height?: T;
+	original?:
+		| T
+		| {
+				filename?: T;
+				url?: T;
+				mimeType?: T;
+				filesize?: T;
+				width?: T;
+				height?: T;
+				prefix?: T;
+				_objectKey?: T;
+		  };
+	focalX?: T;
+	focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "mcpx-api-keys_select".
  */
 export interface McpxApiKeysSelect<T extends boolean = true> {
@@ -1200,6 +1293,14 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 										deleteUnattended?: T;
 								  };
 							media?:
+								| T
+								| {
+										read?: T;
+										write?: T;
+										delete?: T;
+										deleteUnattended?: T;
+								  };
+							documents?:
 								| T
 								| {
 										read?: T;
@@ -1496,6 +1597,7 @@ export interface CollectionQueryWidget {
 			| "posts"
 			| "tags"
 			| "media"
+			| "documents"
 			| "mcpx-api-keys";
 		where?:
 			| {
@@ -1527,6 +1629,7 @@ export interface ActivityWidget {
 					| "posts"
 					| "tags"
 					| "media"
+					| "documents"
 					| "mcpx-api-keys"
 			  )[]
 			| null;
@@ -1539,7 +1642,7 @@ export interface ActivityWidget {
  */
 export interface UploadDropzoneWidget {
 	data?: {
-		excludedCollections?: "media"[] | null;
+		excludedCollections?: ("media" | "documents")[] | null;
 	};
 	width: "x-small" | "small" | "medium" | "large" | "x-large" | "full";
 }
@@ -1550,47 +1653,6 @@ export interface UploadDropzoneWidget {
 export interface TaskFlueDispatch {
 	input?: unknown;
 	output?: unknown;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalLinkFields_E469DC16".
- */
-export interface LexicalLinkFields_E469DC16 {
-	link: {
-		label: string;
-		type?: ("reference" | "custom" | "same-page" | "download") | null;
-		newTab?: boolean | null;
-		reference?:
-			| ({
-					relationTo: "pages";
-					value: number | Page;
-			  } | null)
-			| ({
-					relationTo: "articles";
-					value: number | Article;
-			  } | null)
-			| ({
-					relationTo: "sections";
-					value: number | Section;
-			  } | null);
-		url?: string | null;
-		samePageIdentifier?: string | null;
-		fileName?: string | null;
-		inline?: boolean | null;
-	};
-	doc?: {
-		relationTo: string;
-		value:
-			| string
-			| number
-			| {
-					id: string | number;
-					[k: string]: unknown;
-			  };
-	} | null;
-	linkType: "custom" | "internal";
-	newTab: boolean;
-	url?: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1663,34 +1725,6 @@ export interface SerializedParagraphNode<
 	type: "paragraph";
 	textFormat: number;
 	textStyle: string;
-}
-
-export interface LexicalLinkFields {
-	[k: string]: unknown;
-	doc?: {
-		relationTo: string;
-		value:
-			| Config["db"]["defaultIDType"]
-			| { [k: string]: unknown; id: Config["db"]["defaultIDType"] };
-	} | null;
-	linkType: "custom" | "internal";
-	newTab: boolean;
-	url?: string;
-}
-export interface SerializedLinkNode<
-	TChildren,
-	TFields = LexicalLinkFields,
-> extends SerializedLexicalElementBase<TChildren> {
-	type: "link";
-	fields: TFields;
-	id?: string;
-}
-export interface SerializedAutoLinkNode<
-	TChildren,
-	TFields = LexicalLinkFields,
-> extends SerializedLexicalElementBase<TChildren> {
-	type: "autolink";
-	fields: TFields;
 }
 
 export type SerializedBlockNode<TFields extends { blockType: string }> =
@@ -1797,6 +1831,34 @@ export interface LexicalRichText<TNode> {
 		/** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
 		version: number;
 	};
+}
+
+export interface LexicalLinkFields {
+	[k: string]: unknown;
+	doc?: {
+		relationTo: string;
+		value:
+			| Config["db"]["defaultIDType"]
+			| { [k: string]: unknown; id: Config["db"]["defaultIDType"] };
+	} | null;
+	linkType: "custom" | "internal";
+	newTab: boolean;
+	url?: string;
+}
+export interface SerializedLinkNode<
+	TChildren,
+	TFields = LexicalLinkFields,
+> extends SerializedLexicalElementBase<TChildren> {
+	type: "link";
+	fields: TFields;
+	id?: string;
+}
+export interface SerializedAutoLinkNode<
+	TChildren,
+	TFields = LexicalLinkFields,
+> extends SerializedLexicalElementBase<TChildren> {
+	type: "autolink";
+	fields: TFields;
 }
 
 declare module "payload" {

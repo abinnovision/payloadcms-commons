@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { mcpxSettings, normalizeOptions } from "./options.js";
 
-import type { FlueAgentConfig, FluePluginOptions } from "./types.js";
+import type {
+	FlueAgentConfig,
+	FlueAttachmentOptions,
+	FluePluginOptions,
+} from "./types.js";
 import type { CollectionConfig, Config, PayloadRequest, Plugin } from "payload";
 
 const SECRET = "s".repeat(32);
@@ -270,5 +274,85 @@ describe("normalizeOptions", () => {
 		expect(() => normalize(options({ threads: { slug: "users" } }))).toThrow(
 			/threads\.slug "users"/,
 		);
+	});
+
+	describe("attachments", () => {
+		const MIB = 1024 * 1024;
+
+		it("is off by default", () => {
+			expect(normalize().normalized.attachments).toBe(false);
+			expect(
+				normalize(options({ attachments: false })).normalized.attachments,
+			).toBe(false);
+		});
+
+		it("applies the defaults for true and sizes the body cap for four PDFs", () => {
+			expect(
+				normalize(options({ attachments: true })).normalized.attachments,
+			).toEqual({
+				mimeTypes: [
+					"image/png",
+					"image/jpeg",
+					"image/gif",
+					"image/webp",
+					"application/pdf",
+				],
+				maxImageBytes: 3.75 * MIB,
+				maxDocumentBytes: 5 * MIB,
+				maxFiles: 4,
+				bodyMax: 64 * 1024 + 4 * (Math.ceil((5 * MIB * 4) / 3) + 2048),
+			});
+		});
+
+		it("sizes the body cap by the largest allowed type", () => {
+			expect(
+				normalize(
+					options({
+						attachments: {
+							mimeTypes: ["image/png"],
+							maxImageBytes: 3000,
+							maxDocumentBytes: 10 * MIB,
+							maxFiles: 2,
+						},
+					}),
+				).normalized.attachments,
+			).toEqual({
+				mimeTypes: ["image/png"],
+				maxImageBytes: 3000,
+				maxDocumentBytes: 10 * MIB,
+				maxFiles: 2,
+				bodyMax: 64 * 1024 + 2 * (4000 + 2048),
+			});
+		});
+
+		it.each([
+			[
+				"a type outside the five",
+				{ mimeTypes: ["image/svg+xml"] },
+				/mimeTypes/,
+			],
+			["an empty type list", { mimeTypes: [] }, /mimeTypes/],
+			[
+				"images over 3.75 MiB",
+				{ maxImageBytes: 3.75 * MIB + 1 },
+				/maxImageBytes/,
+			],
+			[
+				"PDFs over 10 MiB",
+				{ maxDocumentBytes: 10 * MIB + 1 },
+				/maxDocumentBytes/,
+			],
+			["no files", { maxFiles: 0 }, /maxFiles/],
+			["a fraction of a file", { maxFiles: 1.5 }, /maxFiles/],
+			["more than 20 files", { maxFiles: 21 }, /maxFiles/],
+		])("refuses %s", (_label, attachments, message) => {
+			expect(() =>
+				normalize(
+					options({
+						attachments: attachments as FlueAttachmentOptions,
+					}),
+				),
+			).toThrow(message);
+		});
 	});
 });

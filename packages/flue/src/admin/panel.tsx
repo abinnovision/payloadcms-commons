@@ -2,11 +2,13 @@
 
 import {
 	ActionBarPrimitive,
+	AttachmentPrimitive,
 	AuiIf,
 	ComposerPrimitive,
 	MessagePrimitive,
 	ThreadListPrimitive,
 	ThreadPrimitive,
+	useAuiEvent,
 	useAuiState,
 } from "@assistant-ui/react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
@@ -16,22 +18,27 @@ import {
 	CopyIcon,
 	PlusIcon,
 	SpinnerIcon,
+	toast,
 	XIcon,
 } from "@payloadcms/ui";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useConversation } from "./conversation.js";
+import { FileCard } from "./file-card.js";
 import { PANEL_ID, PANEL_WIDTH, clampWidth } from "./layout.js";
 import { useReadOnly } from "./runtime.js";
 import { agentLabel, runMeta } from "./thread-row.js";
 import { ThreadsView } from "./threads-view.js";
 import { ConfirmableToolRow, DELETE_TOOL, ToolRow } from "./tools.js";
+import { FILE_PART } from "../protocol/events.js";
 
 import type { AgentSummary, FlueApi } from "./api.js";
 import type { ConversationSnapshot } from "./conversation.js";
 import type { RunningRow } from "./stale-running.js";
 import type { ThreadCustom } from "./thread-list.js";
+import type { AttachmentLimits } from "../protocol/attachments.js";
 import type {
+	Attachment,
 	ReasoningMessagePartComponent,
 	TextMessagePartComponent,
 } from "@assistant-ui/react";
@@ -88,12 +95,74 @@ const ASSISTANT_PARTS = {
 	Text: Markdown,
 	Reasoning,
 	tools: { by_name: { [DELETE_TOOL]: ConfirmableToolRow }, Fallback: ToolRow },
+	data: { by_name: { [FILE_PART]: FileCard } },
+};
+
+// An http(s) URL or a path on the admin's origin; a data URL is not linked.
+const LINKABLE = /^(?:https?:\/\/|\/(?!\/))/i;
+
+/*
+ * A file of a user's message: an image as a thumbnail, anything else as a
+ * link. The URL is the attachment route's, or a data URL while sending, when
+ * only the name shows.
+ */
+const MessageAttachment: React.FC<{ attachment: Attachment }> = ({
+	attachment,
+}) => {
+	const part = attachment.content?.[0];
+
+	if (part?.type === "image") {
+		return (
+			<img
+				alt={attachment.name}
+				className="flue-attachment__image"
+				src={part.image}
+			/>
+		);
+	}
+
+	if (part?.type !== "file") {
+		return null;
+	}
+
+	return LINKABLE.test(part.data) ? (
+		<a
+			className="flue-attachment flue-attachment__link"
+			href={part.data}
+			rel="noopener noreferrer"
+			target="_blank"
+		>
+			{attachment.name}
+		</a>
+	) : (
+		<span className="flue-attachment">{attachment.name}</span>
+	);
 };
 
 const UserMessage: React.FC = () => (
 	<MessagePrimitive.Root className="flue-message flue-message--user">
+		<div className="flue-message__attachments">
+			<MessagePrimitive.Attachments>
+				{({ attachment }) => <MessageAttachment attachment={attachment} />}
+			</MessagePrimitive.Attachments>
+		</div>
 		<MessagePrimitive.Parts components={{ Text }} />
 	</MessagePrimitive.Root>
+);
+
+// A file waiting in the composer, with its name and a remove button.
+const ComposerAttachment: React.FC = () => (
+	<AttachmentPrimitive.Root className="flue-attachment">
+		<span className="flue-attachment__name">
+			<AttachmentPrimitive.Name />
+		</span>
+		<AttachmentPrimitive.Remove
+			aria-label="Remove file"
+			className="flue-icon-button flue-attachment__remove"
+		>
+			<XIcon size={16} />
+		</AttachmentPrimitive.Remove>
+	</AttachmentPrimitive.Root>
 );
 
 const AssistantMessage: React.FC = () => (
@@ -219,6 +288,8 @@ export interface FluePanelProps {
 	agent: string | undefined;
 	/** Every agent, when the user may read agent runs. */
 	runAgents?: AgentSummary[] | undefined;
+	/** The limits of chat attachments; null or unset while they are off. */
+	attachments?: AttachmentLimits | null | undefined;
 	/** Switches the agent, which opens a new thread. */
 	onAgent: (slug: string) => void;
 	/** Opens a chat of any agent, switching the agent when it differs. */
@@ -250,6 +321,7 @@ export const FluePanel: React.FC<FluePanelProps> = ({
 	agents,
 	agent,
 	runAgents,
+	attachments,
 	onAgent,
 	onOpenThread,
 	onOpenRun,
@@ -267,6 +339,11 @@ export const FluePanel: React.FC<FluePanelProps> = ({
 	const composer = useRef<HTMLTextAreaElement>(null);
 	// Set when returning to the conversation should focus the composer.
 	const focusComposer = useRef(false);
+
+	// A file the composer refused, by type, size or count.
+	useAuiEvent("composer.attachmentAddError", ({ message }) => {
+		toast.error(message);
+	});
 
 	const showConversation = (focus: boolean): void => {
 		focusComposer.current = focus;
@@ -443,6 +520,13 @@ export const FluePanel: React.FC<FluePanelProps> = ({
 					</ThreadPrimitive.Viewport>
 					{agent === undefined ? null : (
 						<ComposerPrimitive.Root className="flue-composer">
+							{attachments ? (
+								<div className="flue-composer__attachments">
+									<ComposerPrimitive.Attachments>
+										{() => <ComposerAttachment />}
+									</ComposerPrimitive.Attachments>
+								</div>
+							) : null}
 							<ComposerPrimitive.Input
 								aria-label="Message"
 								className="flue-composer__input"
@@ -457,6 +541,11 @@ export const FluePanel: React.FC<FluePanelProps> = ({
 								submitMode="enter"
 							/>
 							<div className="flue-composer__actions">
+								{attachments ? (
+									<ComposerPrimitive.AddAttachment className="flue-button flue-composer__attach">
+										Attach
+									</ComposerPrimitive.AddAttachment>
+								) : null}
 								<AuiIf
 									condition={(state) =>
 										state.thread.isRunning && !state.thread.isDisabled

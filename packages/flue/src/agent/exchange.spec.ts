@@ -186,3 +186,123 @@ describe("exchangeSession", () => {
 		});
 	});
 });
+
+describe("exchangeSession.callTool", () => {
+	const toolAnswer = (result: unknown): Response =>
+		Response.json({ jsonrpc: "2.0", id: 1, result });
+
+	it("posts one tools/call with the exchanged key and resolves the parsed text", async () => {
+		const { requests, fetch } = recordingFetch((url) =>
+			url === MCP_URL
+				? toolAnswer({ content: [{ type: "text", text: '{"id":4}' }] })
+				: Response.json(exchanged("key-1")),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(
+			session.callTool("createDocument", { collection: "files" }),
+		).resolves.toEqual({ id: 4 });
+
+		const calls = requests.filter((r) => r.url === MCP_URL);
+
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.method).toBe("POST");
+		expect(calls[0]?.headers.get("authorization")).toBe("Bearer key-1");
+		expect(calls[0]?.headers.get("accept")).toBe(
+			"application/json, text/event-stream",
+		);
+		expect(calls[0]?.body).toEqual({
+			jsonrpc: "2.0",
+			id: 1,
+			method: "tools/call",
+			params: { name: "createDocument", arguments: { collection: "files" } },
+		});
+	});
+
+	it("prefers the structured content", async () => {
+		const { fetch } = recordingFetch((url) =>
+			url === MCP_URL
+				? toolAnswer({
+						content: [{ type: "text", text: "ignored" }],
+						structuredContent: { id: 5 },
+					})
+				: Response.json(exchanged("key-1")),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(session.callTool("getDocument", {})).resolves.toEqual({
+			id: 5,
+		});
+	});
+
+	it("exchanges again and retries once after a 401", async () => {
+		const keys = ["key-1", "key-2"];
+		const answers = [
+			new Response(null, { status: 401 }),
+			toolAnswer({ content: [{ type: "text", text: '{"ok":true}' }] }),
+		];
+		const { requests, fetch } = recordingFetch((url) =>
+			url === MCP_URL
+				? (answers.shift() ?? new Response(null, { status: 500 }))
+				: Response.json(exchanged(keys.shift() ?? "none")),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(session.callTool("getDocument", {})).resolves.toEqual({
+			ok: true,
+		});
+		expect(
+			requests
+				.filter((r) => r.url === MCP_URL)
+				.map((r) => r.headers.get("authorization")),
+		).toEqual(["Bearer key-1", "Bearer key-2"]);
+	});
+
+	it("throws after a second 401", async () => {
+		const { fetch } = recordingFetch((url) =>
+			url === MCP_URL
+				? new Response(null, { status: 401 })
+				: Response.json(exchanged("key-1")),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(session.callTool("getDocument", {})).rejects.toThrow(
+			'[payloadcms-flue] mcpx answered "getDocument" with status 401.',
+		);
+	});
+
+	it("throws the tool's error message when the result is an error", async () => {
+		const { fetch } = recordingFetch((url) =>
+			url === MCP_URL
+				? toolAnswer({
+						content: [
+							{ type: "text", text: '{"error":"Nothing was created."}' },
+						],
+						isError: true,
+					})
+				: Response.json(exchanged("key-1")),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(session.callTool("createDocument", {})).rejects.toThrow(
+			'[payloadcms-flue] "createDocument" failed: Nothing was created.',
+		);
+	});
+
+	it("throws a JSON-RPC error", async () => {
+		const { fetch } = recordingFetch((url) =>
+			url === MCP_URL
+				? Response.json({
+						jsonrpc: "2.0",
+						id: 1,
+						error: { code: -32602, message: "Invalid params" },
+					})
+				: Response.json(exchanged("key-1")),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(session.callTool("createDocument", {})).rejects.toThrow(
+			'[payloadcms-flue] mcpx refused "createDocument": Invalid params',
+		);
+	});
+});

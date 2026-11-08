@@ -3,7 +3,10 @@ import { definePlugin } from "payload";
 import { abortHandler } from "./endpoints/abort.js";
 import { agentsHandler } from "./endpoints/agents.js";
 import { chatHandler } from "./endpoints/chat.js";
-import { conversationHandler } from "./endpoints/conversation.js";
+import {
+	conversationAttachmentHandler,
+	conversationHandler,
+} from "./endpoints/conversation.js";
 import { exchangeHandler } from "./endpoints/exchange.js";
 import { settledHandler } from "./endpoints/settled.js";
 import { createDispatchTask } from "./jobs/dispatch.js";
@@ -135,6 +138,11 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				endpoint("chat", "post", chatHandler(full)),
 				endpoint("conversation", "get", conversationHandler(full)),
 				endpoint("conversationAbort", "post", abortHandler(full)),
+				endpoint(
+					"conversationAttachment",
+					"get",
+					conversationAttachmentHandler(full),
+				),
 				endpoint("exchange", "post", exchangeHandler(full)),
 				endpoint("settled", "post", settledHandler(full)),
 			],

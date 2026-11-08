@@ -742,6 +742,101 @@ export const PANEL_CSS = `
 	background: var(--color-bg-secondary);
 }
 
+.flue-message__attachments,
+.flue-composer__attachments {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--spacer-1);
+}
+
+.flue-message__attachments:empty,
+.flue-composer__attachments:empty {
+	display: none;
+}
+
+.flue-message__attachments:not(:empty) {
+	margin-bottom: var(--spacer-1);
+}
+
+.flue-attachment {
+	display: inline-flex;
+	gap: var(--spacer-1);
+	align-items: center;
+	max-width: 100%;
+	min-height: var(--button-height);
+	padding-inline: var(--spacer-2) var(--spacer-1);
+	border: var(--stroke-width-small) solid var(--color-border);
+	border-radius: var(--radius-medium);
+	background: var(--color-bg);
+}
+
+.flue-attachment__link {
+	padding-inline-end: var(--spacer-2);
+	color: inherit;
+	text-decoration: underline;
+	text-underline-offset: 0.2em;
+	overflow-wrap: anywhere;
+}
+
+.flue-attachment__name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.flue-attachment__image {
+	display: block;
+	max-width: 100%;
+	max-height: 12rem;
+	border-radius: var(--radius-medium);
+	object-fit: contain;
+}
+
+.flue-files {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacer-1);
+	padding: var(--spacer-2) var(--spacer-2-5);
+	border: var(--stroke-width-small) solid var(--color-border);
+	border-radius: var(--radius-medium);
+}
+
+.flue-files__title {
+	margin: 0;
+	color: var(--color-text-secondary);
+}
+
+.flue-files__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacer-1);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.flue-files__item {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--spacer-1) var(--spacer-2);
+	align-items: baseline;
+}
+
+.flue-files__name {
+	color: inherit;
+	overflow-wrap: anywhere;
+}
+
+a.flue-files__name {
+	text-decoration: underline;
+	text-underline-offset: 0.2em;
+}
+
+.flue-files__meta {
+	color: var(--color-text-secondary);
+}
+
 .flue-message--system {
 	flex-direction: row;
 	align-items: center;
@@ -1108,6 +1203,14 @@ export const PANEL_CSS = `
 	gap: var(--spacer-1);
 	justify-content: flex-end;
 	padding: var(--spacer-1);
+}
+
+.flue-composer__attachments {
+	padding: var(--spacer-2) var(--field-padding-inline) 0;
+}
+
+.flue-composer__attach {
+	margin-inline-end: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

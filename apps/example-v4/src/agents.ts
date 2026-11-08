@@ -20,12 +20,22 @@ export const fluePluginOptions: FluePluginOptions = {
 		{
 			slug: "editor",
 			label: "Editor",
-			description: "Reads, edits and publishes pages, articles and posts.",
+			description:
+				"Reads, edits, publishes and deletes everything mcpx exposes.",
+			// Every collection and global mcpx exposes; deletes wait for the user's approval.
 			capabilities: {
 				collections: {
-					pages: { read: true, write: true, publish: true },
-					articles: { read: true, write: true, publish: true },
+					pages: { read: true, write: true, publish: true, delete: true },
+					articles: { read: true, write: true, publish: true, delete: true },
 					posts: { read: true, write: true, publish: true, delete: true },
+					sections: { read: true, write: true, delete: true },
+					tags: { read: true, write: true, delete: true },
+					// Where `save_attachment` and `save_document` upload.
+					media: { read: true, write: true, delete: true },
+					documents: { read: true, write: true, delete: true },
+				},
+				globals: {
+					"site-settings": { read: true, write: true, publish: true },
 				},
 			},
 		},
@@ -60,6 +70,8 @@ export const fluePluginOptions: FluePluginOptions = {
 	agentUser: { email: AGENT_EMAIL },
 	// Every signed-in user reads agent runs, so a publisher sees the run their publish queued.
 	threads: { readAgentRuns: (req) => Boolean(req.user) },
+	// Images and PDFs in the chat, with the default limits.
+	attachments: true,
 };
 
 /**

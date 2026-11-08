@@ -17,7 +17,7 @@ import {
 import type { FakeSidecar } from "./sidecar.js";
 import type { FluePluginOptions } from "../../../src/index.js";
 import type { KeySettings } from "../../../src/keys/manager.js";
-import type { Payload, SanitizedConfig, Where } from "payload";
+import type { Config, Payload, SanitizedConfig, Where } from "payload";
 
 export const API_KEYS_SLUG = "mcpx-api-keys";
 export const THREADS_SLUG = "flue-threads";
@@ -45,17 +45,19 @@ export interface Booted {
 
 /**
  * Starts a fake sidecar and boots the fixture against it, with `flue`
- * replacing flue's options key by key. `getPayload` caches by key, so every
- * spec passes its own.
+ * replacing flue's options key by key and `overrides` the config's.
+ * `getPayload` caches by key, so every spec passes its own.
  */
 export const bootPayload = async (
 	cacheKey: string,
 	flue?: Partial<FluePluginOptions>,
+	overrides: Partial<Config> = {},
 ): Promise<Booted> => {
 	const sidecar = await startSidecar();
-	const config = buildConfig(
-		fixtureConfig({ sidecarUrl: sidecar.url, ...(flue ? { flue } : {}) }),
-	);
+	const config = buildConfig({
+		...fixtureConfig({ sidecarUrl: sidecar.url, ...(flue ? { flue } : {}) }),
+		...overrides,
+	});
 	const payload = await getPayload({ config, key: cacheKey });
 
 	return { config, payload, cacheKey, sidecar };

@@ -45,11 +45,11 @@ server does not install Flue. The package is ESM only, like Payload.
 
 ## Entry points
 
-| Entry     | Runs in            | Exports                                                                                                          |
-| --------- | ------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues` and the option types                                                  |
-| `./admin` | the admin browser  | `FlueProvider` and `FlueToggle`, mounted by the plugin                                                           |
-| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `FlueExchangeError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
+| Entry     | Runs in            | Exports                                                                                                                                          |
+| --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues` and the option types                                                                                  |
+| `./admin` | the admin browser  | `FlueProvider` and `FlueToggle`, mounted by the plugin                                                                                           |
+| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `FlueExchangeError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
 
 `./admin` needs three browser packages: `@flue/sdk` to follow conversations,
 `@assistant-ui/react` for the chat UI and `@assistant-ui/react-markdown` for
@@ -160,6 +160,21 @@ export function Editor(): string {
 }
 ```
 
+### Attachments and uploads
+
+Both are opt-in:
+
+| Feature          | Turned on by                                | Does                                                                                     |
+| ---------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Chat attachments | `attachments: true` in the plugin's options | users attach PNG, JPEG, GIF, WebP and PDF files to a turn; the model gets them natively  |
+| Agent uploads    | `usePayload().upload()` in a tool           | the agent saves a file to an upload collection through mcpx; the chat shows it as a card |
+
+Attachments raise the chat body cap to about 27 MiB at the defaults, and their
+files stay in the sidecar's store. Uploads need an upload collection with
+`upload.mimeTypes`, `read` and `write` granted on it, and mcpx leases. See
+[attachments](./docs/integration.md#attachments) and
+[uploads](./docs/integration.md#uploads).
+
 [`docs/integration.md`](./docs/integration.md) covers every option, the
 sidecar contract, the endpoints and jobs.
 [`apps/example-v4`](../../apps/example-v4) and
@@ -178,6 +193,9 @@ sidecar contract, the endpoints and jobs.
   logout disables all of a user's managed keys.
 - An agent's `access` decides who may chat with it. It must depend on
   `req.user` only.
+- Chat attachments are served only through a Payload route that checks read
+  access to the thread. The context preamble of a turn with files is not a
+  trust boundary for the model.
 
 Details: [`docs/security.md`](./docs/security.md).
 

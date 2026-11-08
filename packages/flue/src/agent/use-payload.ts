@@ -1,11 +1,28 @@
-import { useDelivery, useInitialData, useMcpConnection } from "@flue/runtime";
+import {
+	useDataWriter,
+	useDelivery,
+	useInitialData,
+	useMcpConnection,
+	useResponseFinish,
+	useResponseStart,
+} from "@flue/runtime";
 
+import { contextOf } from "./context.js";
 import { exchangeSession } from "./exchange.js";
-import { CONTEXT_SIGNAL_TYPE, decodeContext } from "../protocol/context.js";
+import {
+	addResponseFile,
+	filePartSchema,
+	finishResponseFiles,
+	startResponseFiles,
+	uploadDocument,
+} from "./upload.js";
+import { FILE_PART } from "../protocol/events.js";
 import { INITIAL_DATA_KEY } from "../protocol/exchange.js";
 
 import type { ExchangeSession, ExchangeSessionArgs } from "./exchange.js";
+import type { PayloadUploadArgs } from "./upload.js";
 import type { ChatContext } from "../protocol/context.js";
+import type { PayloadUpload } from "../protocol/events.js";
 import type {
 	ExchangeResponse,
 	FlueInitialData,
@@ -38,6 +55,12 @@ export interface PayloadRun {
 	identity: () => Promise<PayloadIdentity>;
 	/** The context of the turn in front of the model, if Payload sent it. */
 	context: () => ChatContext | undefined;
+	/**
+	 * Creates a document with a file in an upload collection as the run's
+	 * user, and lists it in the response's `data-payload-file` part. The
+	 * locale defaults to the turn's. Call it from a tool's `run`.
+	 */
+	upload: (args: PayloadUploadArgs) => Promise<PayloadUpload>;
 }
 
 type InitialData =
@@ -104,13 +127,23 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 		);
 	}
 
+	const mcpPath = options.mcpPath ?? process.env["MCPX_PATH"] ?? "/api/mcpx";
 	const session = cachedSession({
 		payloadUrl,
 		secret,
 		handle,
 		agent: options.agent,
-		mcpPath: options.mcpPath ?? process.env["MCPX_PATH"] ?? "/api/mcpx",
+		mcpPath,
 		fluePath: options.fluePath ?? "/api/flue",
+	});
+	const writeFiles = useDataWriter(FILE_PART, { schema: filePartSchema });
+	const context = (): ChatContext | undefined => contextOf(delivery);
+
+	useResponseStart(() => {
+		startResponseFiles(handle);
+	});
+	useResponseFinish(() => {
+		finishResponseFiles(handle);
 	});
 
 	useMcpConnection({
@@ -126,12 +159,16 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 
 			return { kind, thread, user };
 		},
-		// Payload sends the context of each turn as one signal of this type.
-		context: () =>
-			delivery.kind === "signal" &&
-			delivery.type === CONTEXT_SIGNAL_TYPE &&
-			delivery.attributes !== undefined
-				? decodeContext(delivery.attributes)
-				: undefined,
+		context,
+		upload: async (args) => {
+			const file = await uploadDocument(
+				{ session, payloadUrl, mcpPath, locale: context()?.locale },
+				args,
+			);
+
+			writeFiles(addResponseFile(handle, file));
+
+			return file;
+		},
 	};
 };

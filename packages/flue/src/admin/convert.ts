@@ -1,4 +1,4 @@
-import { isUserTurn } from "../protocol/context.js";
+import { isUserTurn, readUserTurnBody } from "../protocol/context.js";
 import { TITLE_PART } from "../protocol/events.js";
 import { isRecord } from "../protocol/guards.js";
 
@@ -11,6 +11,7 @@ import type {
 
 type Part = Exclude<ThreadMessageLike["content"], string>[number];
 type ToolArgs = NonNullable<Extract<Part, { type: "tool-call" }>["args"]>;
+type Attachment = NonNullable<ThreadMessageLike["attachments"]>[number];
 
 const OUTCOME_TEXT = {
 	failed: "The run failed.",
@@ -33,6 +34,40 @@ const isShown = (message: FlueConversationMessage): boolean =>
 
 const textOf = (message: FlueConversationMessage): string =>
 	message.parts.map((part) => (part.type === "text" ? part.text : "")).join("");
+
+/*
+ * A user's file as an attachment: an image shows from its URL, any other
+ * file links to it. A file whose bytes cannot be resolved yet is left out.
+ */
+const attachmentsOf = (message: FlueConversationMessage): Attachment[] =>
+	message.parts.flatMap((part, index): Attachment[] => {
+		if (part.type !== "file" || part.url === undefined) {
+			return [];
+		}
+
+		const image = part.mediaType.startsWith("image/");
+		const name = part.filename ?? (image ? "Image" : "Document");
+
+		return [
+			{
+				id: part.id ?? `${message.id}:${String(index)}`,
+				type: image ? "image" : "document",
+				name,
+				contentType: part.mediaType,
+				status: { type: "complete" },
+				content: [
+					image
+						? { type: "image", image: part.url, filename: name }
+						: {
+								type: "file",
+								data: part.url,
+								mimeType: part.mediaType,
+								filename: name,
+							},
+				],
+			},
+		];
+	});
 
 // Titles reach the thread list through the threads collection instead.
 const partsOf = (part: FlueConversationPart): Part[] => {
@@ -97,14 +132,23 @@ export const toThreadMessage = (
 	}
 
 	if (message.role !== "assistant") {
+		// The runtime's echo of a message on its way; Flue's own messages carry no such key.
+		const optimistic = message.metadata?.["isOptimistic"] === true;
+		const raw = textOf(message);
+		// A turn with files reaches Flue as a user message whose body starts with the context.
+		const text =
+			message.purpose === "user" && !optimistic
+				? (readUserTurnBody(raw)?.text ?? raw)
+				: raw;
+		const attachments = attachmentsOf(message);
+
 		return {
 			...base,
 			role: "user",
-			content: [{ type: "text", text: textOf(message) }],
-			// The runtime's echo of a message on its way; Flue's own messages carry no such key.
-			...(message.metadata?.["isOptimistic"] === true
-				? { metadata: { isOptimistic: true } }
-				: {}),
+			content:
+				text === "" && attachments.length > 0 ? [] : [{ type: "text", text }],
+			...(attachments.length === 0 ? {} : { attachments }),
+			...(optimistic ? { metadata: { isOptimistic: true } } : {}),
 		};
 	}
 

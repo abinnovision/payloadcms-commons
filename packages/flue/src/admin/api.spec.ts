@@ -172,6 +172,26 @@ describe("flueApi", () => {
 		await expect(api.agents()).resolves.toEqual({
 			agents: [{ slug: "editor" }],
 			runs: { agents: [{ slug: "editor" }, { slug: "auditor" }] },
+			attachments: null,
+		});
+	});
+
+	it("reads the attachment limits", async () => {
+		const attachments = {
+			mimeTypes: ["image/png", "application/pdf"],
+			maxImageBytes: 3_932_160,
+			maxDocumentBytes: 5_242_880,
+			maxFiles: 4,
+		};
+
+		answer(() =>
+			Response.json({ agents: [{ slug: "editor" }], runs: null, attachments }),
+		);
+
+		await expect(api.agents()).resolves.toEqual({
+			agents: [{ slug: "editor" }],
+			runs: null,
+			attachments,
 		});
 	});
 

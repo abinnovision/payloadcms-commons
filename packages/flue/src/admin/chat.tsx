@@ -83,7 +83,7 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 	onOpenThread,
 	...panel
 }) => {
-	const { api, agent, open } = panel;
+	const { api, agent, open, attachments = null } = panel;
 	const { config } = useConfig();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
@@ -123,6 +123,7 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 		agent,
 		context: (): SendContext =>
 			localeCode === undefined ? route : { ...route, locale: localeCode },
+		attachments,
 		refresh: () => {
 			runtimeRef.current?.threads.reload().catch(() => undefined);
 		},

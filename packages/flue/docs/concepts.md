@@ -70,7 +70,7 @@ agent until the next turn. Both are best effort and logged on failure.
 
 Each message is one turn, and each turn is exactly one Flue submission: a signal of type
 `payload-context` (`CONTEXT_SIGNAL_TYPE`) whose body is the message and whose attributes carry the
-context.
+context. A turn with attachments takes another shape, described [below](#turns-with-attachments).
 
 | Attribute    | Value                                                                     |
 | ------------ | ------------------------------------------------------------------------- |
@@ -84,12 +84,33 @@ context.
 | `onBehalfOf` | the triggering user's id, reactive runs only                              |
 | `turn`       | `user`, which marks the signal as the user's turn                         |
 
-Unset values are left out. Agent code reads the context with `usePayload().context()`, or decodes
-a delivery's attributes itself with `decodeContext`. The panel shows a signal marked `turn: user`
+Unset values are left out. Agent code reads the context with `usePayload().context()`, or with
+`contextOf(delivery)` from a delivery of either turn shape. The panel shows a signal marked `turn: user`
 as the user's message and hides every other signal.
 
 A turn carries the user's message and its context together, because a signal alone starts a model
 run and a second message joining a live run would race the context.
+
+### Turns with attachments
+
+With the `attachments` option on, the panel's composer takes images and PDFs. Only a Flue `user`
+message carries files, so a turn with at least one file is sent as one: its body starts with a
+preamble Payload writes, a self-closing tag with the same attributes, values XML-escaped, then a
+blank line and the user's text as typed.
+
+```
+<payload-context route="/admin/collections/posts/12" collection="posts" id="12" locale="en" kind="chat" turn="user"/>
+
+Describe this picture.
+```
+
+Text-only turns and runs from jobs stay signals, so a thread can hold both shapes. Only a preamble
+at the very start of a `user` message is read; the same tag anywhere else is the user's text.
+The panel hides the preamble and shows the files with the message.
+
+Flue keeps the files in the sidecar's store and replays them to the model on every later turn.
+The panel loads them through `GET /api/flue/c/:thread/attachments/:attachment`, never from the
+sidecar. Payload stores none of them.
 
 A dispatch job that runs again finds its thread through `dispatchJob` and sends nothing (see
 [jobs](./integration.md#jobs)).
@@ -254,6 +275,12 @@ agent no longer has this conversation. Start a new thread."
   are dropped, raw HTML is skipped and links open in a new tab with
   `rel="noopener noreferrer nofollow"`, because a reply can repeat text from the content the agent
   read. The user's messages show as typed.
+- With attachments on, the composer has an add button limited to the configured types, and refuses
+  a file over its type's limit. A turn's files show with the user's message: images as
+  thumbnails, PDFs as links. A failed send puts the text and the files back in the composer.
+- Files an agent uploaded with `usePayload().upload()` show as one card per response, from the
+  `data-payload-file` part, with each file's name, type and size and a link to its document.
+  A link that does not lead into the admin's collections is left out, and the name shows alone.
 - A tool call shows as a collapsed row with its input and output. When `deleteDocument` returns an
   mcpx confirmation, the row asks for approval. Approve and Reject decide the call through mcpx's
   confirmations endpoints as the key's user, then send "Approved. Run the confirmed call." or

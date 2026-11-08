@@ -1,14 +1,20 @@
 import { isRecord } from "../protocol/guards.js";
 
+import type { DeliveredAttachment } from "../protocol/attachments.js";
 import type { FlueHistory } from "../protocol/events.js";
 
-/** One message for a conversation. Flue takes exactly one per request. */
-export interface SidecarMessage {
-	kind: "signal";
-	type: string;
-	body: string;
-	attributes: Record<string, string>;
-}
+/**
+ * One message for a conversation. Flue takes exactly one per request; only
+ * a `user` message carries attachments.
+ */
+export type SidecarMessage =
+	| {
+			kind: "signal";
+			type: string;
+			body: string;
+			attributes: Record<string, string>;
+	  }
+	| { kind: "user"; body: string; attachments: DeliveredAttachment[] };
 
 export interface SendArgs {
 	message: SidecarMessage;
@@ -20,6 +26,8 @@ export interface SendArgs {
 	uid?: null | string | undefined;
 	/** Read when the request creates the conversation; needs `uid: null` or none. */
 	initialData?: Record<string, unknown> | undefined;
+	/** Replaces the client's deadline for this request. */
+	timeoutMs?: number | undefined;
 }
 
 /** What Flue answers when it admits a message. */
@@ -226,7 +234,7 @@ export const createSidecarClient = ({
 		send: async (
 			agent: string,
 			conversationId: string,
-			{ message, uid, initialData }: SendArgs,
+			{ message, uid, initialData, timeoutMs: sendTimeoutMs }: SendArgs,
 		): Promise<Submission> => {
 			const response = await request(conversation(agent, conversationId), {
 				method: "POST",
@@ -235,6 +243,7 @@ export const createSidecarClient = ({
 					"content-type": "application/json",
 				},
 				body: JSON.stringify({ ...message, uid, initialData }),
+				deadline: { ms: sendTimeoutMs ?? timeoutMs },
 			});
 			const { json: body } = await readBody(response);
 
@@ -333,6 +342,26 @@ export const createSidecarClient = ({
 						ms: live === "long-poll" ? LONG_POLL_HEADERS_MS : timeoutMs,
 						until: "headers",
 					},
+					signal,
+				},
+			),
+
+		/**
+		 * One attachment of the conversation, as the sidecar's response. The
+		 * deadline ends with the headers, so a large body may outlast it.
+		 */
+		attachment: (
+			agent: string,
+			conversationId: string,
+			attachmentId: string,
+			{ signal }: { signal?: AbortSignal | undefined } = {},
+		): Promise<Response> =>
+			request(
+				`${conversation(agent, conversationId)}/attachments/${encodeURIComponent(attachmentId)}`,
+				{
+					method: "GET",
+					headers: { accept: "*/*" },
+					deadline: { ms: timeoutMs, until: "headers" },
 					signal,
 				},
 			),

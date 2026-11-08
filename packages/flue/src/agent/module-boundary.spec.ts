@@ -58,10 +58,12 @@ describe("./agent module boundary", () => {
 
 		expect(files).toEqual(
 			expect.arrayContaining([
+				"agent/context.ts",
 				"agent/index.ts",
 				"agent/exchange.ts",
 				"agent/settled.ts",
 				"agent/title.ts",
+				"agent/upload.ts",
 				"agent/use-payload.ts",
 				"protocol/context.ts",
 				"protocol/events.ts",

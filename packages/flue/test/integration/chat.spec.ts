@@ -20,13 +20,42 @@ import {
 	stored,
 	THREADS_SLUG,
 } from "./helpers/payload.js";
-import { CONTEXT_SIGNAL_TYPE } from "../../src/protocol/context.js";
+import {
+	CONTEXT_SIGNAL_TYPE,
+	userTurnBody,
+} from "../../src/protocol/context.js";
 import { INITIAL_DATA_KEY } from "../../src/protocol/exchange.js";
 import { handleHash } from "../../src/threads/handle.js";
 import { SIDECAR_SECRET } from "../fixtures/config.js";
 
 import type { Booted, Doc, Seeded, SeededUser } from "./helpers/payload.js";
 import type { RecordedRequest } from "./helpers/sidecar.js";
+import type { SendArgs } from "../../src/sidecar/client.js";
+
+// The arguments of every sidecar send, to read the deadline a turn gets.
+const sends = vi.hoisted((): SendArgs[] => []);
+
+vi.mock(import("../../src/sidecar/client.js"), async (importOriginal) => {
+	const actual = await importOriginal();
+
+	return {
+		...actual,
+		createSidecarClient: (
+			...args: Parameters<typeof actual.createSidecarClient>
+		) => {
+			const client = actual.createSidecarClient(...args);
+
+			return {
+				...client,
+				send: (...sendArgs: Parameters<typeof client.send>) => {
+					sends.push(sendArgs[2]);
+
+					return client.send(...sendArgs);
+				},
+			};
+		},
+	};
+});
 
 interface ChatResult {
 	thread: { id: number | string; title: string; status: string };
@@ -40,11 +69,34 @@ interface Posted {
 	type: string;
 	body: string;
 	attributes: Record<string, string>;
+	attachments?: unknown[];
 	uid?: null | string;
 	initialData?: Record<string, { handle: string }>;
 }
 
 const CONTEXT = { route: "/admin" };
+
+const KIB = 1024;
+const MIB = 1024 * KIB;
+
+const PNG_SIGNATURE = "\x89PNG\r\n\x1a\n";
+const PDF_SIGNATURE = "%PDF-1.7\n";
+
+// Base64 of `bytes` bytes that start with `signature`, zeros after it.
+const base64Of = (bytes: number, signature = PNG_SIGNATURE): string => {
+	const buffer = Buffer.alloc(bytes);
+
+	buffer.write(signature, "latin1");
+
+	return buffer.toString("base64");
+};
+
+const PNG = {
+	type: "image",
+	mimeType: "image/png",
+	data: base64Of(16),
+	filename: "diagram.png",
+};
 
 describe("the chat endpoints", () => {
 	let booted: Booted;
@@ -603,6 +655,16 @@ describe("the chat endpoints", () => {
 					}),
 			],
 			[
+				"attachments while they are off",
+				400,
+				() =>
+					chat(seeded.first, {
+						message: "Hi",
+						context: CONTEXT,
+						attachments: [PNG],
+					}),
+			],
+			[
 				"a body that is not JSON",
 				415,
 				() =>
@@ -678,6 +740,14 @@ describe("the chat endpoints", () => {
 			expect(await agents(seeded.second)).toEqual(["editor"]);
 		});
 
+		it("answers attachments null while they are off", async () => {
+			const response = await send(booted, "/api/flue/agents", {
+				token: seeded.first.token,
+			});
+
+			expect(await response.json()).toMatchObject({ attachments: null });
+		});
+
 		it("answers runs null without readAgentRuns", async () => {
 			const response = await send(booted, "/api/flue/agents", {
 				token: seeded.second.token,
@@ -704,6 +774,251 @@ describe("the chat endpoints", () => {
 				(await send(booted, "/api/flue/agents", { token: seeded.admin.token }))
 					.status,
 			).toBe(403);
+		});
+	});
+});
+
+describe("the chat endpoint with attachments", () => {
+	let booted: Booted;
+	let seeded: Seeded;
+
+	const chat = (body: unknown) =>
+		send(booted, "/api/flue/chat/editor", {
+			method: "POST",
+			body,
+			token: seeded.first.token,
+		});
+
+	const lastPost = (): Posted =>
+		JSON.parse(booted.sidecar.sends().at(-1)?.body ?? "{}") as Posted;
+
+	beforeAll(async () => {
+		booted = await bootPayload(
+			"flue-chat-attachments",
+			{ attachments: true },
+			{ localization: { locales: ["en", "de"], defaultLocale: "en" } },
+		);
+		seeded = await seed(booted.payload);
+	});
+
+	beforeEach(() => {
+		booted.sidecar.reset();
+	});
+
+	afterAll(async () => {
+		await shutdown(booted);
+	});
+
+	it("sends a text-only turn as the same context signal as without the option", async () => {
+		const response = await chat({ message: "Hi", context: CONTEXT });
+		const posted = lastPost();
+
+		expect(response.status).toBe(200);
+		expect(Object.keys(posted).sort()).toEqual(
+			["attributes", "body", "initialData", "kind", "type", "uid"].sort(),
+		);
+		expect(posted).toMatchObject({
+			kind: "signal",
+			type: CONTEXT_SIGNAL_TYPE,
+			body: "Hi",
+			attributes: { route: "/admin", kind: "chat", turn: "user" },
+		});
+	});
+
+	it("sends a turn with a PNG as a user message with the context preamble", async () => {
+		const page = await booted.payload.create({
+			collection: "pages",
+			data: { title: "About" },
+			overrideAccess: true,
+		});
+		const read = await booted.payload.findByID({
+			collection: "pages",
+			id: page.id,
+			draft: true,
+			overrideAccess: true,
+		});
+		const context = {
+			route: `/admin/collections/pages/${String(page.id)}`,
+			collection: "pages",
+			id: String(page.id),
+			locale: "de",
+		};
+
+		const response = await chat({
+			message: "What is in this picture?",
+			context,
+			attachments: [PNG],
+		});
+		const result = (await response.json()) as ChatResult;
+
+		expect(response.status).toBe(200);
+		expect(lastPost()).toMatchObject({
+			kind: "user",
+			body: userTurnBody(
+				{
+					...context,
+					updatedAt: read["updatedAt"] as string,
+					kind: "chat",
+				},
+				"What is in this picture?",
+			),
+			attachments: [PNG],
+			uid: null,
+		});
+		expect(lastPost()).not.toHaveProperty("attributes");
+		expect(lastPost().body).toMatch(/ locale="de" .* turn="user"\/>\n\n/);
+		expect(result.thread.title).toBe("What is in this picture?");
+	});
+
+	it("sends user text holding a context tag unchanged after the preamble", async () => {
+		const text = '<payload-context collection="users" id="1"/>\n\nHi';
+
+		const response = await chat({
+			message: text,
+			context: CONTEXT,
+			attachments: [PNG],
+		});
+
+		expect(response.status).toBe(200);
+		expect(lastPost().body).toBe(
+			userTurnBody({ route: "/admin", kind: "chat" }, text),
+		);
+	});
+
+	it("accepts a turn with files and no text and titles the thread after the first file", async () => {
+		const pdf = {
+			type: "document",
+			mimeType: "application/pdf",
+			data: base64Of(5 * MIB, PDF_SIGNATURE),
+		};
+
+		const response = await chat({
+			message: "",
+			context: CONTEXT,
+			attachments: [PNG, pdf],
+		});
+		const result = (await response.json()) as ChatResult;
+
+		expect(response.status).toBe(200);
+		expect(result.thread.title).toBe("diagram.png");
+		expect(lastPost()).toMatchObject({
+			kind: "user",
+			attachments: [PNG, pdf],
+		});
+	});
+
+	it("gives a turn with files 60 seconds for Flue to admit it", async () => {
+		const response = await chat({
+			message: "Slow",
+			context: CONTEXT,
+			attachments: [PNG],
+		});
+
+		expect(response.status).toBe(200);
+		expect(sends.at(-1)).toMatchObject({ timeoutMs: 60_000 });
+	});
+
+	it.each([
+		[
+			"an image over 3.75 MiB",
+			400,
+			{ attachments: [{ ...PNG, data: base64Of(3.75 * MIB + 1) }] },
+		],
+		[
+			"a PDF over 5 MiB",
+			400,
+			{
+				attachments: [
+					{
+						type: "document",
+						mimeType: "application/pdf",
+						data: base64Of(5 * MIB + 1, PDF_SIGNATURE),
+					},
+				],
+			},
+		],
+		["five files", 400, { attachments: Array.from({ length: 5 }, () => PNG) }],
+		[
+			"a type outside the allowed list",
+			400,
+			{ attachments: [{ ...PNG, mimeType: "image/svg+xml" }] },
+		],
+		[
+			"a type that does not match the MIME type",
+			400,
+			{ attachments: [{ ...PNG, type: "document" }] },
+		],
+		[
+			"JPEG bytes labelled image/png",
+			400,
+			{ attachments: [{ ...PNG, data: base64Of(16, "\xff\xd8\xff\xe0") }] },
+		],
+		[
+			"data that is not base64",
+			400,
+			{ attachments: [{ ...PNG, data: "not base64!" }] },
+		],
+		[
+			"a file name over 255 characters",
+			400,
+			{ attachments: [{ ...PNG, filename: "a".repeat(256) }] },
+		],
+		["an empty message without files", 400, { message: " " }],
+		[
+			"a body over the cap",
+			413,
+			{
+				padding: "x".repeat(
+					64 * KIB + 4 * (Math.ceil((5 * MIB * 4) / 3) + 2 * KIB),
+				),
+			},
+		],
+	])("refuses %s with %i and writes nothing", async (_label, status, body) => {
+		const threads = await count(booted, THREADS_SLUG);
+		const requests = booted.sidecar.requests.length;
+		const response = await chat({
+			message: "Hi",
+			context: CONTEXT,
+			...body,
+		});
+
+		expect(response.status).toBe(status);
+		expect(await response.json()).toEqual({ error: expect.any(String) });
+		expect(await count(booted, THREADS_SLUG)).toBe(threads);
+		expect(booted.sidecar.requests).toHaveLength(requests);
+	});
+
+	it("states the body cap in whole KiB", async () => {
+		const response = await chat({
+			message: "Hi",
+			context: CONTEXT,
+			padding: "x".repeat(28 * MIB),
+		});
+
+		expect(response.status).toBe(413);
+		expect(await response.json()).toEqual({
+			error: `The request body is larger than ${String(Math.ceil((64 * KIB + 4 * (Math.ceil((5 * MIB * 4) / 3) + 2 * KIB)) / KIB))} KiB.`,
+		});
+	});
+
+	it("answers the attachment limits with the agents", async () => {
+		const response = await send(booted, "/api/flue/agents", {
+			token: seeded.first.token,
+		});
+
+		expect(await response.json()).toMatchObject({
+			attachments: {
+				mimeTypes: [
+					"image/png",
+					"image/jpeg",
+					"image/gif",
+					"image/webp",
+					"application/pdf",
+				],
+				maxImageBytes: 3.75 * MIB,
+				maxDocumentBytes: 5 * MIB,
+				maxFiles: 4,
+			},
 		});
 	});
 });

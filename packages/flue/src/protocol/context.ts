@@ -94,3 +94,69 @@ export const decodeContext = (
 export const isUserTurn = (
 	attributes: Readonly<Record<string, string>>,
 ): boolean => attributes[TURN_ATTRIBUTE] === USER_TURN;
+
+const ESCAPES: Record<string, string> = {
+	"&": "&amp;",
+	"<": "&lt;",
+	">": "&gt;",
+	'"': "&quot;",
+};
+const UNESCAPES: Record<string, string> = Object.fromEntries(
+	Object.entries(ESCAPES).map(([raw, entity]) => [entity, raw]),
+);
+
+// The preamble at the start of the body and its separator; values hold only escaped text.
+const PREAMBLE = new RegExp(
+	`^<${CONTEXT_SIGNAL_TYPE}((?: [A-Za-z]+="(?:[^"<>&]|&(?:amp|lt|gt|quot);)*")*)/>\\n\\n`,
+);
+const ATTRIBUTE = /([A-Za-z]+)="([^"]*)"/g;
+
+/**
+ * The body of a user's turn sent as a Flue `user` message: a self-closing
+ * `payload-context` tag carrying the context and the user turn marker, a
+ * blank line, then the user's text as typed.
+ */
+export const userTurnBody = (context: ChatContext, text: string): string => {
+	const attributes = Object.entries({
+		...encodeContext(context),
+		[TURN_ATTRIBUTE]: USER_TURN,
+	})
+		.map(
+			([name, value]) =>
+				`${name}="${value.replace(/[&<>"]/g, (char) => ESCAPES[char] ?? char)}"`,
+		)
+		.join(" ");
+
+	return `<${CONTEXT_SIGNAL_TYPE} ${attributes}/>\n\n${text}`;
+};
+
+/**
+ * The context and the user's text of a body written by {@link userTurnBody},
+ * or `undefined` when the body does not start with its preamble. A tag
+ * anywhere else is the user's text.
+ */
+export const readUserTurnBody = (
+	body: string,
+): { context: ChatContext; text: string } | undefined => {
+	const match = PREAMBLE.exec(body);
+
+	if (!match) {
+		return undefined;
+	}
+
+	const attributes: Record<string, string> = {};
+
+	for (const [, name = "", value = ""] of (match[1] ?? "").matchAll(
+		ATTRIBUTE,
+	)) {
+		attributes[name] = value.replace(
+			/&(?:amp|lt|gt|quot);/g,
+			(entity) => UNESCAPES[entity] ?? entity,
+		);
+	}
+
+	return {
+		context: decodeContext(attributes),
+		text: body.slice(match[0].length),
+	};
+};

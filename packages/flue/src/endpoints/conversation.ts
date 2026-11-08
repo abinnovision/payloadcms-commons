@@ -1,4 +1,5 @@
 import { endpointHandler, isDocumentId, refusal, requireUser } from "./http.js";
+import { ATTACHMENT_MIME_TYPES } from "../protocol/attachments.js";
 import { createSidecarClient, SidecarError } from "../sidecar/client.js";
 import {
 	applyObservation,
@@ -102,6 +103,48 @@ const forwarded = (
 	return result;
 };
 
+// Flue's attachment ids: `att_<kind>_<submissionId>_<index>`.
+const ATTACHMENT_ID = /^att_[\w-]{1,200}$/;
+
+// The answer headers of an attachment that pass through as Flue sent them.
+const ATTACHMENT_HEADERS = [
+	"content-type",
+	"content-length",
+	"content-disposition",
+	"cache-control",
+];
+
+// The attachment types that render inline: the allowed raster images.
+const INLINE_TYPES: readonly string[] = ATTACHMENT_MIME_TYPES.filter((type) =>
+	type.startsWith("image/"),
+);
+
+/*
+ * The thread of the route's `:thread`, if the user can read it and it has a
+ * conversation; `null` otherwise.
+ */
+const readableThread = async (
+	req: PayloadRequest,
+	settings: PluginSettings,
+): Promise<null | (ThreadDoc & { conversationId: string })> => {
+	const id = req.routeParams?.["thread"];
+	const thread = isDocumentId(req, id)
+		? ((await req.payload.findByID({
+				collection: settings.threads.slug,
+				id,
+				depth: 0,
+				overrideAccess: false,
+				showHiddenFields: true,
+				disableErrors: true,
+				req,
+			})) as null | ThreadDoc)
+		: null;
+
+	return thread?.conversationId
+		? (thread as ThreadDoc & { conversationId: string })
+		: null;
+};
+
 // The internal request, as the reader, that writes to the thread.
 const threadRequest = (
 	req: PayloadRequest,
@@ -178,20 +221,9 @@ export const conversationHandler = (settings: PluginSettings): PayloadHandler =>
 			return refusal(400, "offset must be a stream offset.");
 		}
 
-		const id = req.routeParams?.["thread"];
-		const thread = isDocumentId(req, id)
-			? ((await req.payload.findByID({
-					collection: settings.threads.slug,
-					id,
-					depth: 0,
-					overrideAccess: false,
-					showHiddenFields: true,
-					disableErrors: true,
-					req,
-				})) as null | ThreadDoc)
-			: null;
+		const thread = await readableThread(req, settings);
 
-		if (!thread?.conversationId) {
+		if (!thread) {
 			return refusal(404, "The thread does not exist.");
 		}
 
@@ -274,4 +306,78 @@ export const conversationHandler = (settings: PluginSettings): PayloadHandler =>
 				? refusal(status, message)
 				: refusal(502, "The agent sidecar could not be reached.");
 		}
+	});
+
+/**
+ * `GET {base}/c/:thread/attachments/:attachment`: one attachment of the
+ * thread's conversation, for a user who can read the thread. Bytes and
+ * Flue's headers pass through, always sandboxed; a file that is not an
+ * allowed image is served as a download.
+ */
+export const conversationAttachmentHandler = (
+	settings: PluginSettings,
+): PayloadHandler =>
+	endpointHandler(async (req) => {
+		const user = requireUser(req, settings.mcpx.userCollection);
+
+		if (user instanceof Response) {
+			return user;
+		}
+
+		const attachmentId = req.routeParams?.["attachment"];
+
+		if (typeof attachmentId !== "string" || !ATTACHMENT_ID.test(attachmentId)) {
+			return refusal(400, "The attachment id is malformed.");
+		}
+
+		const thread = await readableThread(req, settings);
+
+		if (!thread) {
+			return refusal(404, "The thread does not exist.");
+		}
+
+		let upstream: Response;
+
+		try {
+			upstream = await createSidecarClient(settings.sidecar).attachment(
+				thread.agent,
+				thread.conversationId,
+				attachmentId,
+				{ signal: req.signal },
+			);
+		} catch (error) {
+			if (!(error instanceof SidecarError)) {
+				throw error;
+			}
+
+			return error.status === 404
+				? refusal(404, "The attachment does not exist.")
+				: refusal(502, "The agent sidecar could not be reached.");
+		}
+
+		const headers = new Headers({
+			"x-content-type-options": "nosniff",
+			"content-security-policy": "sandbox",
+		});
+
+		for (const name of ATTACHMENT_HEADERS) {
+			const value = upstream.headers.get(name);
+
+			if (value !== null) {
+				headers.set(name, value);
+			}
+		}
+
+		// Only raster images render inline; anything else must not open in the admin's origin.
+		const type = headers
+			.get("content-type")
+			?.split(";")[0]
+			?.trim()
+			.toLowerCase();
+
+		if (type === undefined || !INLINE_TYPES.includes(type)) {
+			headers.set("content-disposition", "attachment");
+		}
+
+		return new Response(upstream.body, { headers });
 	});

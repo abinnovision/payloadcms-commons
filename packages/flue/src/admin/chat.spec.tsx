@@ -6,9 +6,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flueApi } from "./api.js";
 import { POLL_MS } from "./threads-view.js";
 
-import type { FlueApi, ThreadDoc, ThreadFilter, ThreadState } from "./api.js";
+import type {
+	ChatResult,
+	FlueApi,
+	ThreadDoc,
+	ThreadFilter,
+	ThreadState,
+} from "./api.js";
 import type { FlueChatProps } from "./chat.js";
 import type { Keyset } from "./keyset.js";
+import type { AttachmentLimits } from "../protocol/attachments.js";
 import type { ReactNode } from "react";
 
 (
@@ -19,8 +26,10 @@ import type { ReactNode } from "react";
  * The real module pulls in the whole admin bundle, including its styles. The
  * panel runs on the dashboard, outside any document.
  */
+const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
+
 vi.mock("@payloadcms/ui", () => ({
-	toast: { error: () => undefined },
+	toast: { error: toastError },
 	useConfig: () => ({
 		config: { serverURL: "", routes: { admin: "/admin", api: "/api" } },
 	}),
@@ -310,6 +319,7 @@ beforeEach(() => {
 afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
+	toastError.mockClear();
 });
 
 describe("the FlueChat component", () => {
@@ -615,6 +625,132 @@ describe("the FlueChat component", () => {
 
 		expect(onOpenThread).toHaveBeenCalledWith("summarizer", "3001");
 		expect(panel.onThreadId).not.toHaveBeenCalled();
+		panel.unmount();
+	});
+});
+
+describe("attachments in the FlueChat composer", () => {
+	const LIMITS: AttachmentLimits = {
+		mimeTypes: ["image/png", "application/pdf"],
+		maxImageBytes: 3_932_160,
+		maxDocumentBytes: 5_242_880,
+		maxFiles: 4,
+	};
+
+	const RESULT: ChatResult = {
+		thread: { id: 1001, status: "running", title: "dot.png" },
+		offset: "-1",
+		streamUrl: "/api/flue/c/1001",
+		submissionId: "sub_1",
+	};
+
+	const mountComposer = (chat: FlueApi["chat"]) => {
+		const { api } = server([]);
+		const panel = mount(
+			{ ...api, chat },
+			{ attachments: LIMITS, view: "conversation" },
+		);
+
+		return {
+			...panel,
+			// Picks a file through the input the Attach button opens.
+			pick: (file: File): HTMLInputElement => {
+				panel.click("Attach");
+
+				const input =
+					document.body.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+				Object.defineProperty(input, "files", { value: [file] });
+				act(() => {
+					input.dispatchEvent(new Event("change"));
+				});
+
+				return input;
+			},
+			write: (text: string) => {
+				const input = panel.container.querySelector<HTMLTextAreaElement>(
+					'textarea[aria-label="Message"]',
+				)!;
+
+				act(() => {
+					Object.getOwnPropertyDescriptor(
+						HTMLTextAreaElement.prototype,
+						"value",
+					)!.set!.call(input, text);
+					input.dispatchEvent(new Event("input", { bubbles: true }));
+				});
+			},
+			attached: () =>
+				[
+					...panel.container.querySelectorAll(
+						".flue-composer .flue-attachment__name",
+					),
+				].map((name) => name.textContent),
+		};
+	};
+
+	it("sends a picked image in base64 with the message", async () => {
+		const chat = vi.fn(() => Promise.resolve(RESULT));
+		const panel = mountComposer(chat);
+		const input = panel.pick(
+			new File(["png"], "dot.png", { type: "image/png" }),
+		);
+
+		expect(input.accept).toBe("image/png,application/pdf");
+		await until(() => panel.attached().length === 1);
+		expect(panel.attached()).toEqual(["dot.png"]);
+
+		panel.write("What is this?");
+		panel.click("Send");
+		await until(() => chat.mock.calls.length === 1);
+
+		expect(chat).toHaveBeenCalledWith("editor", {
+			message: "What is this?",
+			thread: undefined,
+			context: { route: "/admin" },
+			attachments: [
+				{
+					type: "image",
+					data: btoa("png"),
+					mimeType: "image/png",
+					filename: "dot.png",
+				},
+			],
+		});
+		panel.unmount();
+	});
+
+	it("refuses an image over its limit with an error", async () => {
+		const panel = mountComposer(vi.fn());
+
+		panel.pick(
+			new File(["x".repeat(3_932_161)], "big.png", { type: "image/png" }),
+		);
+		await until(() => toastError.mock.calls.length > 0);
+
+		expect(toastError).toHaveBeenCalledWith("big.png is larger than 3.75 MiB.");
+		expect(panel.attached()).toEqual([]);
+		panel.unmount();
+	});
+
+	it("puts the text and files back into the composer when the send fails", async () => {
+		const chat = vi.fn(() => Promise.reject(new Error("Too large.")));
+		const panel = mountComposer(chat);
+
+		panel.pick(new File(["%PDF-1"], "brief.pdf", { type: "application/pdf" }));
+		await until(() => panel.attached().length === 1);
+		panel.write("Summarize");
+		panel.click("Send");
+		await until(() => chat.mock.calls.length === 1);
+		await until(() => panel.attached().length === 1);
+
+		expect(panel.attached()).toEqual(["brief.pdf"]);
+		expect(
+			panel.container.querySelector<HTMLTextAreaElement>(
+				'textarea[aria-label="Message"]',
+			)!.value,
+		).toBe("Summarize");
+		expect(toastError).toHaveBeenCalledWith("Too large.");
 		panel.unmount();
 	});
 });

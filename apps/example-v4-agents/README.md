@@ -7,7 +7,7 @@ only through mcpx as the user a run acts for.
 
 | Agent        | Mounted at           | Does                                        |
 | ------------ | -------------------- | ------------------------------------------- |
-| `editor`     | `/agents/editor`     | reads and edits content, names threads      |
+| `editor`     | `/agents/editor`     | edits all content, saves files and uploads  |
 | `reviewer`   | `/agents/reviewer`   | reviews content without changing it         |
 | `summarizer` | `/agents/summarizer` | summarises the document a run is started on |
 
