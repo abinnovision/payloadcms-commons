@@ -68,7 +68,7 @@
 		"@internal/test-utils": "workspace:*",
 		"@payloadcms/db-sqlite": "4.0.0-beta.2",
 		"@payloadcms/ui": "4.0.0-beta.2",
-		"@swc/core": "^1.16.21",
+		"@swc/core": "^1.16.22",
 		"@types/node": "^26.6.6",
 		"@types/react": "^19.3.0",
 		"@vitest/coverage-v8": "^5.1.0",
