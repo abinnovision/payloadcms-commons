@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.0.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v2.1.0...payloadcms-mcpx-v3.0.0) (2026-11-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcpx:** support Payload 4 ([#196](https://github.com/abinnovision/payloadcms-commons/issues/196))
+
+### Features
+
+* **mcpx:** add an in-process MCP client under ./local ([#140](https://github.com/abinnovision/payloadcms-commons/issues/140)) ([95856c0](https://github.com/abinnovision/payloadcms-commons/commit/95856c0102c2bc383e3c15a04f563d9b0e12446a))
+* **mcpx:** support Payload 4 ([#196](https://github.com/abinnovision/payloadcms-commons/issues/196)) ([de906d5](https://github.com/abinnovision/payloadcms-commons/commit/de906d53a15617beedb21758c9e2f93ffa575b2a))
+
 ## [2.1.0](https://github.com/abinnovision/payloadcms-commons/compare/payloadcms-mcpx-v2.0.0...payloadcms-mcpx-v2.1.0) (2026-10-09)
 
 
