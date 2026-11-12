@@ -18,6 +18,8 @@ const full: ChatContext = {
 	global: "settings",
 	locale: "de",
 	updatedAt: "2026-11-07T10:00:00.000Z",
+	drafts: true,
+	focus: "blocks.0.title",
 	kind: "reactive",
 	onBehalfOf: "3",
 };
@@ -33,6 +35,11 @@ describe("encodeContext", () => {
 			id: "12",
 		});
 	});
+
+	it("writes drafts as true or false", () => {
+		expect(encodeContext({ drafts: true })).toEqual({ drafts: "true" });
+		expect(encodeContext({ drafts: false })).toEqual({ drafts: "false" });
+	});
 });
 
 describe("decodeContext", () => {
@@ -44,6 +51,14 @@ describe("decodeContext", () => {
 		expect(
 			decodeContext({ collection: "pages", id: 12, theme: "dark" }),
 		).toEqual({ collection: "pages" });
+	});
+
+	it("reads drafts and ignores a value other than true or false", () => {
+		expect(decodeContext({ drafts: "false", focus: "title" })).toEqual({
+			drafts: false,
+			focus: "title",
+		});
+		expect(decodeContext({ drafts: "yes" })).toEqual({});
 	});
 
 	it("ignores a kind outside the run kinds", () => {

@@ -1,6 +1,7 @@
 export { CONTEXT_SIGNAL_TYPE, decodeContext } from "../protocol/context.js";
 export { contextOf } from "./context.js";
 export { FlueExchangeError } from "./exchange.js";
+export { openDocumentGuidance } from "./guidance.js";
 export { reportSettlements } from "./settled.js";
 export { useThreadTitle } from "./title.js";
 export { FlueUploadError } from "./upload.js";

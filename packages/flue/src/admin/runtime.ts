@@ -16,10 +16,13 @@ import {
 	toThreadMessage,
 } from "./convert.js";
 import { createCreations } from "./creations.js";
+import { finishedCalls, newDocumentWrites } from "./document-writes.js";
+import { prepareTurn } from "./document.js";
 import { threadListAdapter } from "./thread-list.js";
 
 import type { FlueApi, SendContext, ThreadDoc } from "./api.js";
 import type { Creations } from "./creations.js";
+import type { OpenDocument } from "./document.js";
 import type {
 	AttachmentLimits,
 	DeliveredAttachment,
@@ -35,6 +38,10 @@ export interface ChatSession {
 	agent: string | undefined;
 	/** The admin page a message is sent from. */
 	context: () => SendContext;
+	/** The document the page edits, if its edit view is open. */
+	document: () => OpenDocument | undefined;
+	/** Calls `listener` when an edit view registers its document. */
+	subscribeDocument: (listener: () => void) => () => void;
 	/** The limits of chat attachments; null while they are off. */
 	attachments: AttachmentLimits | null;
 	/** Lists the threads again, after a send and once a run settles. */
@@ -122,7 +129,7 @@ const useThreadRuntime = (
 				!isSettled(conversation, pending.submissionId)));
 
 	const onNew = async (message: AppendMessage): Promise<void> => {
-		const { api, agent, context, refresh, onError } = session.current;
+		const { api, agent, context, document, refresh, onError } = session.current;
 		const text = message.content
 			.map((part) => (part.type === "text" ? part.text : ""))
 			.join("")
@@ -145,6 +152,8 @@ const useThreadRuntime = (
 		setPending({ text, attachments: files });
 
 		try {
+			await prepareTurn(document());
+
 			const result = await api.chat(agent, {
 				message: text,
 				thread: item.remoteId,
@@ -221,6 +230,58 @@ const useThreadRuntime = (
 	useEffect(() => {
 		runtimeRef.current = runtime;
 	}, [runtime]);
+
+	/*
+	 * Each write of the agent to the open document reloads its form. Calls of
+	 * settled submissions are history when the conversation first loads.
+	 */
+	const handled = useRef<{ url: string; calls: Set<string> }>(undefined);
+	// Counts documents registering, so writes waiting for one are delivered.
+	const [registered, setRegistered] = useState(0);
+
+	useEffect(
+		() =>
+			session.current.subscribeDocument(() => {
+				setRegistered((count) => count + 1);
+			}),
+		[session],
+	);
+
+	useEffect(() => {
+		if (url === undefined || conversation === undefined) {
+			return;
+		}
+
+		if (handled.current?.url !== url) {
+			handled.current = {
+				url,
+				calls: new Set(
+					finishedCalls(
+						conversation.messages.filter(
+							(message) =>
+								message.submissionId === undefined ||
+								isSettled(conversation, message.submissionId),
+						),
+					),
+				),
+			};
+		}
+
+		const open = session.current.document();
+		const writes = newDocumentWrites(
+			conversation.messages,
+			handled.current.calls,
+			open,
+		);
+
+		if (open !== undefined && writes.length > 0) {
+			for (const write of writes) {
+				handled.current.calls.add(write);
+			}
+
+			open.reload(writes.length);
+		}
+	}, [url, conversation, session, registered]);
 
 	// A settled run may have changed the thread's title and status.
 	const wasRunning = useRef(running);

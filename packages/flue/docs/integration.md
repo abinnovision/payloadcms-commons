@@ -115,7 +115,11 @@ agent user can approve its deletes.
 - An `afterLogout` hook on mcpx's user collection that disables the user's managed keys. A failure
   is logged and never blocks the logout.
 - `FlueProvider` in `admin.components.providers` and `FlueToggle` in `admin.components.actions`.
-  Run `payload generate:importmap` after adding the plugin.
+- `FlueDocumentBridge` in `admin.components.edit.beforeDocumentControls` of every collection and
+  global except the threads collection and mcpx's key collection, after the entries already there.
+  See [editing the open document](./concepts.md#editing-the-open-document).
+
+Run `payload generate:importmap` after adding the plugin, and again after updating it.
 
 ## The sidecar
 
@@ -230,6 +234,10 @@ adminUrl }`. See [uploads](#uploads).
 
 Agent code that reads `useDelivery()` itself gets the context of either turn shape with
 `contextOf(delivery)`, which `context()` uses.
+
+`openDocumentGuidance(context)` returns a short instruction for a turn sent from an edit view, or
+`undefined` without one, to add to the agent's instructions: the user sees each write as it lands,
+writes are drafts when `drafts` is set, and `focus` names the field the user means.
 
 Call `usePayload` once per render. A second call registers a second MCP connection named
 `payload` and a second writer of the `payload-file` data part, and both collide with the first. It does not

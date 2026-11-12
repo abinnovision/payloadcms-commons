@@ -18,6 +18,7 @@ import React, {
 } from "react";
 
 import { isUnread } from "./api.js";
+import { documentKey } from "./document.js";
 import { FluePanel } from "./panel.js";
 import { contextFromPath } from "./route-context.js";
 import { useFlueRuntime } from "./runtime.js";
@@ -26,6 +27,7 @@ import { ToolsContext } from "./tools.js";
 import { isOwner } from "../protocol/owner.js";
 
 import type { SendContext, ThreadDoc } from "./api.js";
+import type { DocumentRegistry, OpenDocument } from "./document.js";
 import type { FluePanelProps } from "./panel.js";
 import type { ChatSession } from "./runtime.js";
 import type { RunningRow } from "./stale-running.js";
@@ -43,23 +45,12 @@ export type FlueChatProps = Omit<
 	chosen: boolean;
 	onThreadId: (threadId: string | undefined) => void;
 	onRunning: (running: boolean) => void;
+	/** Where the open edit view registers its document. */
+	registry: DocumentRegistry;
 };
 
 const showError = (message: string): void => {
 	toast.error(message);
-};
-
-// The document an edit view shows, or the global, as one comparable value.
-const documentKey = (
-	collection: null | string | undefined,
-	id: null | string | undefined,
-	global: null | string | undefined,
-): string | undefined => {
-	if (collection && id) {
-		return `${collection}/${id}`;
-	}
-
-	return global ? `global/${global}` : undefined;
 };
 
 /*
@@ -81,6 +72,7 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 	onThreadId,
 	onRunning,
 	onOpenThread,
+	registry,
 	...panel
 }) => {
 	const { api, agent, open, attachments = null } = panel;
@@ -118,11 +110,31 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 		[userId, userCollection],
 	);
 
+	// The registered document while it is the one the route shows.
+	const openDocument = (): OpenDocument | undefined => {
+		const current = registry.current();
+
+		return current !== undefined &&
+			docKey !== undefined &&
+			documentKey(current.collection, current.id, current.global) === docKey
+			? current
+			: undefined;
+	};
+
 	const session: ChatSession = {
 		api,
 		agent,
-		context: (): SendContext =>
-			localeCode === undefined ? route : { ...route, locale: localeCode },
+		context: (): SendContext => {
+			const focus = openDocument()?.focus();
+
+			return {
+				...route,
+				...(localeCode === undefined ? {} : { locale: localeCode }),
+				...(focus === undefined ? {} : { focus }),
+			};
+		},
+		document: openDocument,
+		subscribeDocument: (listener) => registry.subscribe(listener),
 		attachments,
 		refresh: () => {
 			runtimeRef.current?.threads.reload().catch(() => undefined);

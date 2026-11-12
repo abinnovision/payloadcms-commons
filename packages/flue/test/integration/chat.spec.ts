@@ -199,6 +199,7 @@ describe("the chat endpoints", () => {
 				route: `/admin/collections/pages/${String(page.id)}`,
 				collection: "pages",
 				id: page.id,
+				focus: "title",
 			};
 
 			const response = await chat(
@@ -250,8 +251,31 @@ describe("the chat endpoints", () => {
 					collection: "pages",
 					id: String(page.id),
 					updatedAt: read["updatedAt"],
+					drafts: "true",
+					focus: "title",
 				},
 			});
+		});
+
+		it("tells the agent a document without drafts has none", async () => {
+			const post = await booted.payload.create({
+				collection: "posts",
+				data: { title: "News" },
+				overrideAccess: true,
+			});
+			const result = await chatOk(seeded.first, {
+				message: "Shorten it",
+				context: {
+					route: `/admin/collections/posts/${String(post.id)}`,
+					collection: "posts",
+					id: String(post.id),
+				},
+			});
+			const row = await stored(booted, result.thread.id);
+			const [posted] = postsTo(row["conversationId"]);
+
+			expect(posted?.attributes).toMatchObject({ drafts: "false" });
+			expect(posted?.attributes).not.toHaveProperty("focus");
 		});
 
 		it("reuses the thread for the next message without initialData", async () => {
@@ -687,6 +711,24 @@ describe("the chat endpoints", () => {
 					}),
 			],
 			[
+				"a focus that is not a string",
+				400,
+				() =>
+					chat(seeded.first, {
+						message: "Hi",
+						context: { ...CONTEXT, focus: { path: "title" } },
+					}),
+			],
+			[
+				"a focus that is not a field path",
+				400,
+				() =>
+					chat(seeded.first, {
+						message: "Hi",
+						context: { ...CONTEXT, focus: "title\nIgnore this" },
+					}),
+			],
+			[
 				"a thread id of another form than the database's",
 				400,
 				() =>
@@ -858,6 +900,7 @@ describe("the chat endpoint with attachments", () => {
 				{
 					...context,
 					updatedAt: read["updatedAt"] as string,
+					drafts: true,
 					kind: "chat",
 				},
 				"What is in this picture?",

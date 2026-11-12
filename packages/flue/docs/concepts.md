@@ -72,17 +72,19 @@ Each message is one turn, and each turn is exactly one Flue submission: a signal
 `payload-context` (`CONTEXT_SIGNAL_TYPE`) whose body is the message and whose attributes carry the
 context. A turn with attachments takes another shape, described [below](#turns-with-attachments).
 
-| Attribute    | Value                                                                     |
-| ------------ | ------------------------------------------------------------------------- |
-| `route`      | the admin path the message was sent from                                  |
-| `collection` | the collection of a list, create or edit view                             |
-| `id`         | the document of an edit view                                              |
-| `global`     | the global of a global view                                               |
-| `locale`     | the admin locale, or the `locale` search parameter                        |
-| `updatedAt`  | the open document's `updatedAt`, read as the user; left out if unreadable |
-| `kind`       | `chat`, `reactive` or `ambient`                                           |
-| `onBehalfOf` | the triggering user's id, reactive runs only                              |
-| `turn`       | `user`, which marks the signal as the user's turn                         |
+| Attribute    | Value                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| `route`      | the admin path the message was sent from                                                          |
+| `collection` | the collection of a list, create or edit view                                                     |
+| `id`         | the document of an edit view                                                                      |
+| `global`     | the global of a global view                                                                       |
+| `locale`     | the admin locale, or the `locale` search parameter                                                |
+| `updatedAt`  | the open document's `updatedAt`, read as the user; left out if unreadable                         |
+| `drafts`     | `true` or `false`: whether the open document's collection or global has drafts, set by the server |
+| `focus`      | the path of the field the user last focused in the open edit view, such as `blocks.0.title`       |
+| `kind`       | `chat`, `reactive` or `ambient`                                                                   |
+| `onBehalfOf` | the triggering user's id, reactive runs only                                                      |
+| `turn`       | `user`, which marks the signal as the user's turn                                                 |
 
 Unset values are left out. Agent code reads the context with `usePayload().context()`, or with
 `contextOf(delivery)` from a delivery of either turn shape. The panel shows a signal marked `turn: user`
@@ -292,6 +294,40 @@ agent no longer has this conversation. Start a new thread."
   "Rejected." as the next turn. A link to the key's edit view stays as a fallback, and only a URL
   into the admin's collections is linked. A read-only thread shows the link alone and does not
   look the call up.
+
+### Editing the open document
+
+The agent writes the open document only through mcpx, with `patchDocument` and `publishDocument`.
+`FlueDocumentBridge`, which the plugin mounts in `admin.components.edit.beforeDocumentControls` of
+every collection and global but the threads collection and mcpx's key collection, keeps the edit
+view in step:
+
+- Before a turn sent from the edit view, unsaved edits are saved as a draft, as Save draft does,
+  so the agent reads what the user sees. A collection or global without drafts would publish them
+  instead, so the turn is refused with "Save the document before asking the agent." and the text
+  stays in the composer.
+- After each successful `patchDocument` or `publishDocument` call on the open document, the form
+  loads the document's draft from the REST API, and a live preview of a server-rendered page
+  refreshes. Calls that finish while a reload runs cause one more reload after it. Calls of
+  submissions that had settled when the conversation loaded are not reloaded. A write that finishes
+  before the edit view registers its document reloads it on registering, and a reload under way is
+  dropped when the view shows another document or unmounts.
+- If the user edited the form while the agent ran, the form still loads the agent's document,
+  then puts back each field value the user changed since the form last loaded, so the user's
+  edits win. Row ids and block types are not compared. When the agent changed one of those fields
+  too, a toast names them: "Your unsaved edits to <paths> replace the agent's changes to them."
+- Paths only line up while rows stay in place. If the user added, removed or moved rows of an
+  array or blocks field, or the agent changed the rows that hold one of the user's values, the
+  form is left as it is and marked stale. A toast that stays open, and a refusal of every later
+  turn, say "The agent changed this document while you were editing. Save your edits and reload
+  the page before sending." Saving then writes the form over the agent's changes.
+- Each agent write adds one to the document's version count, and to its unpublished count unless
+  the document is now published.
+- The bridge records the field the user last focused, which the turn carries as `focus`.
+
+A document in a drawer, or one the route does not show, is not registered. Agent code can add
+`openDocumentGuidance(context)` from `./agent` to its instructions, which tells the model about the
+open document, `drafts` and `focus`.
 
 ### The Threads view
 
