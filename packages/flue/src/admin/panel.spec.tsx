@@ -407,6 +407,23 @@ describe("the FluePanel component", () => {
 		expect(html).toContain("<code>The team</code>");
 	});
 
+	it("renders the agent's Markdown tables", () => {
+		const html = render([
+			answer("| Collection | Count |\n|---|---|\n| Pages | 2 |"),
+		]);
+
+		expect(html).toContain("<table>");
+		expect(html).toContain("<th>Collection</th>");
+		expect(html).toContain("<td>2</td>");
+	});
+
+	it("keeps the agent's footnote links in the message", () => {
+		const html = render([answer("A claim.[^1]\n\n[^1]: The source.")]);
+
+		expect(html).toContain('href="#user-content-fn-1"');
+		expect(html).not.toMatch(/href="#user-content-fn-1"[^>]*target=/);
+	});
+
 	it("loads no image from the agent's Markdown", () => {
 		const html = render([answer("Look: ![x](https://x.example/p.png)")]);
 

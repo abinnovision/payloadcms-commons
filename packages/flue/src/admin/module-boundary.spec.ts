@@ -66,6 +66,7 @@ describe("./admin module boundary", () => {
 						"@assistant-ui/react",
 						"@assistant-ui/react-markdown",
 						"@flue/sdk",
+						"remark-gfm",
 					].includes(s),
 			),
 		).toEqual([]);

@@ -996,6 +996,62 @@ a.flue-files__name {
 	border-top: var(--stroke-width-small) solid var(--color-border);
 }
 
+.flue-markdown table {
+	display: block;
+	max-width: 100%;
+	margin: 0 0 var(--spacer-2);
+	overflow-x: auto;
+	border-collapse: collapse;
+}
+
+.flue-markdown :is(th, td) {
+	padding: var(--spacer-1) var(--spacer-2);
+	overflow-wrap: normal;
+	border: var(--stroke-width-small) solid var(--color-border);
+	text-align: start;
+	vertical-align: top;
+}
+
+.flue-markdown th {
+	background: var(--color-bg-secondary);
+	font-weight: var(--text-body-medium-bold-font-weight);
+}
+
+.flue-markdown del {
+	color: var(--color-text-secondary);
+}
+
+.flue-markdown .contains-task-list {
+	padding-inline-start: 0;
+	list-style: none;
+}
+
+.flue-markdown .task-list-item input {
+	margin: 0 var(--spacer-1) 0 0;
+	vertical-align: middle;
+	accent-color: var(--color-text-brand);
+}
+
+.flue-markdown sup {
+	line-height: 0;
+}
+
+.flue-markdown .footnotes {
+	padding-top: var(--spacer-2);
+	border-top: var(--stroke-width-small) solid var(--color-border);
+	color: var(--color-text-secondary);
+	font-size: var(--text-body-small-font-size);
+}
+
+.flue-markdown .sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
 .flue-disclosure {
 	display: flex;
 	gap: var(--spacer-1);
