@@ -22,6 +22,7 @@ import {
 	XIcon,
 } from "@payloadcms/ui";
 import React, { useEffect, useRef, useState } from "react";
+import remarkGfm from "remark-gfm";
 
 import { useConversation } from "./conversation.js";
 import { FileCard } from "./file-card.js";
@@ -58,21 +59,28 @@ const Text: TextMessagePartComponent = ({ text }) => (
 /*
  * The agent writes Markdown, which can repeat text from the content it read.
  * Nothing in it loads by itself: images are dropped, raw HTML is skipped and
- * links open in a new tab without a referrer.
+ * links open in a new tab without a referrer. Footnote links stay in the
+ * message.
  */
 const MARKDOWN_COMPONENTS: MarkdownTextPrimitiveProps["components"] = {
-	a: ({ node: _node, ...props }) => (
-		<a {...props} rel="noopener noreferrer nofollow" target="_blank" />
-	),
+	a: ({ node: _node, ...props }) =>
+		props.href?.startsWith("#") ? (
+			<a {...props} />
+		) : (
+			<a {...props} rel="noopener noreferrer nofollow" target="_blank" />
+		),
 };
 
 const MARKDOWN_DISALLOWED = ["img"];
+
+const MARKDOWN_PLUGINS = [remarkGfm];
 
 const Markdown: React.FC = () => (
 	<MarkdownTextPrimitive
 		className="flue-markdown"
 		components={MARKDOWN_COMPONENTS}
 		disallowedElements={MARKDOWN_DISALLOWED}
+		remarkPlugins={MARKDOWN_PLUGINS}
 		skipHtml
 	/>
 );
