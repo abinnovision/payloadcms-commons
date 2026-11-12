@@ -99,10 +99,10 @@ export const isUnread = (thread: ThreadDoc): boolean =>
 	(typeof thread.lastReadAt !== "string" ||
 		Date.parse(thread.lastMessageAt) > Date.parse(thread.lastReadAt));
 
-/** What the panel sends with a message. The server adds `updatedAt`. */
+/** What the panel sends with a message. The server adds `updatedAt` and `drafts`. */
 export type SendContext = Pick<
 	ChatContext,
-	"collection" | "global" | "id" | "locale" | "route"
+	"collection" | "focus" | "global" | "id" | "locale" | "route"
 >;
 
 /** What `POST /chat/:agent` returns. */

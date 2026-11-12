@@ -20,6 +20,7 @@ import React, {
 } from "react";
 
 import { errorText, flueApi, isRun } from "./api.js";
+import { DocumentRegistryContext, documentRegistry } from "./document.js";
 import { PANEL_ID, PANEL_WIDTH, clampWidth } from "./layout.js";
 import { PANEL_CSS } from "./styles.js";
 
@@ -109,6 +110,8 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 		],
 	);
 
+	// Where the open edit view's bridge registers its document.
+	const [registry] = useState(documentRegistry);
 	// The user the state below was restored for.
 	const [loadedFor, setLoadedFor] = useState<string>();
 	const [open, setOpen] = useState(false);
@@ -291,7 +294,11 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 				{PANEL_CSS}
 			</style>
 			<div className="flue-layout" style={layoutStyle}>
-				<div className="flue-layout__main">{children}</div>
+				<div className="flue-layout__main">
+					<DocumentRegistryContext value={registry}>
+						{children}
+					</DocumentRegistryContext>
+				</div>
 				{loaded &&
 				userId !== undefined &&
 				(agent !== undefined || runAgents !== undefined) ? (
@@ -322,6 +329,7 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 							onThreadId={setThreadId}
 							onView={setView}
 							open={open}
+							registry={registry}
 							runAgents={runAgents}
 							threadId={threadId}
 							userCollection={userCollection}

@@ -51,8 +51,9 @@ export interface ThreadDoc {
 
 /** The page a turn starts from. Unset values stay out of the signal. */
 export type TurnContext = {
-	[K in Exclude<keyof ChatContext, "kind" | "onBehalfOf">]?: string | undefined;
-};
+	[K in Exclude<keyof ChatContext, "drafts" | "kind" | "onBehalfOf">]?:
+		string | undefined;
+} & { drafts?: boolean | undefined };
 
 export interface TurnArgs {
 	agent: FlueAgentConfig;

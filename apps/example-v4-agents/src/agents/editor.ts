@@ -1,6 +1,9 @@
 "use agent";
 
-import { usePayload } from "@abinnovision/payloadcms-flue/agent";
+import {
+	openDocumentGuidance,
+	usePayload,
+} from "@abinnovision/payloadcms-flue/agent";
 import { useDelivery, useModel, useTool } from "@flue/runtime";
 import * as v from "valibot";
 
@@ -72,5 +75,8 @@ export function Editor(): string {
 		"When the user asks for a file, write it as Markdown and call save_document.",
 		"To store a file the user attached, call save_attachment with its position, counting from 0. Never pass `file` to createDocument yourself: you cannot send the bytes.",
 		"After your first reply in a conversation, call set_thread_title with a short title for it.",
-	].join(" ");
+		openDocumentGuidance(payload.context()),
+	]
+		.filter((line) => line !== undefined)
+		.join(" ");
 }

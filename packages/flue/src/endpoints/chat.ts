@@ -24,11 +24,13 @@ import type { PayloadHandler, PayloadRequest } from "payload";
 
 const MESSAGE_MAX = 16_000;
 const FILENAME_MAX = 255;
+const FOCUS_MAX = 256;
+const FOCUS_PATH = /^[\w.-]+$/;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 type SendContext = Pick<
 	TurnContext,
-	"collection" | "global" | "id" | "locale" | "route"
+	"collection" | "focus" | "global" | "id" | "locale" | "route"
 >;
 
 interface ChatBody {
@@ -48,6 +50,16 @@ const optionalString = (value: unknown): string | undefined | false => {
 	}
 
 	return typeof value === "string" ? value : false;
+};
+
+// The path of the focused field, or false when it is not one.
+const parseFocus = (value: unknown): string | undefined | false => {
+	const focus = optionalString(value);
+
+	return typeof focus === "string" &&
+		(focus.length > FOCUS_MAX || !FOCUS_PATH.test(focus))
+		? false
+		: focus;
 };
 
 // The decoded size of valid base64.
@@ -211,6 +223,7 @@ const parseBody = (
 	const id = optionalString(context["id"]);
 	const global = optionalString(context["global"]);
 	const locale = optionalString(context["locale"]);
+	const focus = parseFocus(context["focus"]);
 
 	if (
 		collection === false ||
@@ -241,11 +254,15 @@ const parseBody = (
 		return "context.locale must name a locale.";
 	}
 
+	if (focus === false) {
+		return `context.focus must be a field path of at most ${String(FOCUS_MAX)} characters.`;
+	}
+
 	return {
 		message: parsed.text,
 		attachments,
 		thread: thread ?? undefined,
-		context: { route: context["route"], collection, id, global, locale },
+		context: { route: context["route"], collection, id, global, locale, focus },
 	};
 };
 
@@ -282,6 +299,28 @@ const updatedAtOf = async (
 	}
 
 	return typeof doc?.["updatedAt"] === "string" ? doc["updatedAt"] : undefined;
+};
+
+// Whether the open document or global has drafts; undefined without one open.
+const draftsOf = (
+	req: PayloadRequest,
+	context: SendContext,
+): boolean | undefined => {
+	if (context.collection !== undefined && context.id !== undefined) {
+		return Boolean(
+			req.payload.collections[context.collection]?.config.versions?.drafts,
+		);
+	}
+
+	if (context.global !== undefined) {
+		return Boolean(
+			req.payload.config.globals.find(
+				(candidate) => candidate.slug === context.global,
+			)?.versions?.drafts,
+		);
+	}
+
+	return undefined;
 };
 
 /**
@@ -339,6 +378,7 @@ export const chatHandler = (settings: PluginSettings): PayloadHandler =>
 			context: {
 				...body.context,
 				updatedAt: await updatedAtOf(req, body.context),
+				drafts: draftsOf(req, body.context),
 			},
 			kind: "chat",
 		});

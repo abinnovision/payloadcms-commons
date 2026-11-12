@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { flueApi } from "./api.js";
+import { documentRegistry } from "./document.js";
 import { POLL_MS } from "./threads-view.js";
 
 import type {
@@ -14,6 +15,7 @@ import type {
 	ThreadState,
 } from "./api.js";
 import type { FlueChatProps } from "./chat.js";
+import type { DocumentRegistry, OpenDocument } from "./document.js";
 import type { Keyset } from "./keyset.js";
 import type { AttachmentLimits } from "../protocol/attachments.js";
 import type { ReactNode } from "react";
@@ -24,9 +26,11 @@ import type { ReactNode } from "react";
 
 /*
  * The real module pulls in the whole admin bundle, including its styles. The
- * panel runs on the dashboard, outside any document.
+ * panel runs on the dashboard, outside any document, unless a test opens one.
  */
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
+
+let pathname = "/admin";
 
 vi.mock("@payloadcms/ui", () => ({
 	toast: { error: toastError },
@@ -34,7 +38,7 @@ vi.mock("@payloadcms/ui", () => ({
 		config: { serverURL: "", routes: { admin: "/admin", api: "/api" } },
 	}),
 	useLocale: () => undefined,
-	usePathname: () => "/admin",
+	usePathname: () => pathname,
 	useSearchParams: () => new URLSearchParams(),
 	PayloadLink: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 	CheckIcon: () => <svg />,
@@ -218,7 +222,11 @@ const until = async (check: () => boolean, attempts = 100): Promise<void> => {
  * Mounts the chat with its props held as the provider holds them: the
  * thread it reports opening comes back as `threadId`.
  */
-const mount = (api: FlueApi, props: Partial<FlueChatProps> = {}) => {
+const mount = (
+	api: FlueApi,
+	props: Partial<FlueChatProps> = {},
+	registry: DocumentRegistry = documentRegistry(),
+) => {
 	const container = document.createElement("div");
 	const root = createRoot(container);
 	const onView = vi.fn();
@@ -238,6 +246,7 @@ const mount = (api: FlueApi, props: Partial<FlueChatProps> = {}) => {
 			onThreadId={onThreadId}
 			onView={onView}
 			open
+			registry={registry}
 			threadId={undefined}
 			userCollection="users"
 			userId={7}
@@ -317,6 +326,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	pathname = "/admin";
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
 	toastError.mockClear();
@@ -751,6 +761,123 @@ describe("attachments in the FlueChat composer", () => {
 			)!.value,
 		).toBe("Summarize");
 		expect(toastError).toHaveBeenCalledWith("Too large.");
+		panel.unmount();
+	});
+});
+
+describe("the open document in the FlueChat composer", () => {
+	const RESULT: ChatResult = {
+		thread: { id: 1001, status: "running", title: "Shorter" },
+		offset: "-1",
+		streamUrl: "/api/flue/c/1001",
+		submissionId: "sub_1",
+	};
+
+	// What the chat did with the open document, in order.
+	let events: string[] = [];
+
+	const openDocument = (state: {
+		modified: boolean;
+		drafts: boolean;
+	}): DocumentRegistry => {
+		const registry = documentRegistry();
+		const document: OpenDocument = {
+			collection: "pages",
+			id: "12",
+			drafts: state.drafts,
+			modified: () => state.modified,
+			stale: () => false,
+			focus: () => "hero.title",
+			saveDraft: async () => {
+				events.push("save started");
+				await settle(20);
+				events.push("saved");
+			},
+			reload: () => undefined,
+		};
+
+		registry.register(document);
+		pathname = "/admin/collections/pages/12";
+
+		return registry;
+	};
+
+	const send = (registry: DocumentRegistry) => {
+		const chat = vi.fn(() => {
+			events.push("chat");
+
+			return Promise.resolve(RESULT);
+		});
+		const panel = mount(
+			{ ...server([]).api, chat },
+			{ view: "conversation" },
+			registry,
+		);
+		const input = panel.container.querySelector<HTMLTextAreaElement>(
+			'textarea[aria-label="Message"]',
+		)!;
+
+		act(() => {
+			Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)!.set!.call(input, "Make it shorter");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		panel.click("Send");
+
+		return { panel, chat, input };
+	};
+
+	beforeEach(() => {
+		events = [];
+	});
+
+	it("saves unsaved edits as a draft before the message goes out", async () => {
+		const { panel, chat } = send(
+			openDocument({ modified: true, drafts: true }),
+		);
+
+		await until(() => chat.mock.calls.length === 1);
+
+		expect(events).toEqual(["save started", "saved", "chat"]);
+		expect(chat).toHaveBeenCalledWith("editor", {
+			message: "Make it shorter",
+			thread: undefined,
+			context: {
+				route: "/admin/collections/pages/12",
+				collection: "pages",
+				id: "12",
+				focus: "hero.title",
+			},
+		});
+		panel.unmount();
+	});
+
+	it("refuses to send unsaved edits of a document without drafts", async () => {
+		const { panel, chat, input } = send(
+			openDocument({ modified: true, drafts: false }),
+		);
+
+		await until(() => toastError.mock.calls.length > 0);
+
+		expect(toastError).toHaveBeenCalledWith(
+			"Save the document before asking the agent.",
+		);
+		expect(chat).not.toHaveBeenCalled();
+		expect(events).toEqual([]);
+		await until(() => input.value === "Make it shorter");
+		panel.unmount();
+	});
+
+	it("sends without saving when the form has no unsaved edits", async () => {
+		const { panel, chat } = send(
+			openDocument({ modified: false, drafts: true }),
+		);
+
+		await until(() => chat.mock.calls.length === 1);
+
+		expect(events).toEqual(["chat"]);
 		panel.unmount();
 	});
 });

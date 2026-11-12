@@ -23,7 +23,8 @@ const RUN_KINDS: readonly string[] = ["chat", "reactive", "ambient"];
 /**
  * What the agent learns about the run and the admin page it was started
  * from, once per turn. `updatedAt` is the open document's, so a resumed
- * thread can tell its picture is stale.
+ * thread can tell its picture is stale. `drafts` says whether the open
+ * document has drafts, `focus` names the field the user last focused.
  */
 export interface ChatContext {
 	route?: string;
@@ -32,6 +33,8 @@ export interface ChatContext {
 	global?: string;
 	locale?: string;
 	updatedAt?: string;
+	drafts?: boolean;
+	focus?: string;
 	kind?: RunKind;
 	onBehalfOf?: string;
 }
@@ -43,11 +46,16 @@ const KEYS = [
 	"global",
 	"locale",
 	"updatedAt",
+	"drafts",
+	"focus",
 	"kind",
 	"onBehalfOf",
 ] as const satisfies readonly (keyof ChatContext)[];
 
-/** The context as Flue signal attributes, leaving out unset values. */
+/**
+ * The context as Flue signal attributes, leaving out unset values. `drafts`
+ * becomes `"true"` or `"false"`.
+ */
 export const encodeContext = (context: ChatContext): Record<string, string> => {
 	const attributes: Record<string, string> = {};
 
@@ -55,7 +63,7 @@ export const encodeContext = (context: ChatContext): Record<string, string> => {
 		const value = context[key];
 
 		if (value !== undefined) {
-			attributes[key] = value;
+			attributes[key] = String(value);
 		}
 	}
 
@@ -63,8 +71,9 @@ export const encodeContext = (context: ChatContext): Record<string, string> => {
 };
 
 /**
- * The context from Flue signal attributes. Attributes it does not know, and
- * a `kind` outside {@link RunKind}, are ignored.
+ * The context from Flue signal attributes. Attributes it does not know, a
+ * `kind` outside {@link RunKind} and a `drafts` other than `"true"` or
+ * `"false"` are ignored.
  */
 export const decodeContext = (
 	attributes: Readonly<Record<string, unknown>>,
@@ -81,6 +90,10 @@ export const decodeContext = (
 		if (key === "kind") {
 			if (RUN_KINDS.includes(value)) {
 				context.kind = value as RunKind;
+			}
+		} else if (key === "drafts") {
+			if (value === "true" || value === "false") {
+				context.drafts = value === "true";
 			}
 		} else {
 			context[key] = value;

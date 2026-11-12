@@ -8,7 +8,12 @@
 | Programmatic mcpx calls from `usePayload`     | The agent calls mcpx tools through the MCP connection `usePayload` registers. `upload()` is the one exception.                               |
 | A `changes` audit on threads                  | mcpx writes are attributed to the key's user by Payload's authorship, not to a thread.                                                       |
 | In-chat actions                               | No `proposeValues`, `navigate`, `openDocument`, `showList`, `focusField`, `uiAction` or `useAgentAction`. The agent cannot drive the admin.  |
-| The edit-view bridge                          | The agent does not see unsaved form state, `formModified` or document locks. It gets the open document's `updatedAt` per turn.               |
+| Unsaved form state for the agent              | Unsaved edits reach the agent as a draft saved before the turn. Without drafts the turn is refused until the user saves.                     |
+| Merging around moved rows                     | A form whose rows the user or the agent moved during a run goes stale; the user saves and reloads instead.                                   |
+| Reloads for other threads                     | Only the thread open in the panel is watched, so writes from other threads or reactive and ambient runs do not reload the form.              |
+| Typing during a reload                        | A keystroke made while a reload resets the form can be lost.                                                                                 |
+| Rich text in a merge                          | Rich-text (Lexical) values are put back through form state and have not been verified to repaint.                                            |
+| Document locks                                | The agent does not see them. mcpx writes as the chat's user, so a lock that user holds does not block a write.                               |
 | `sidebar.tabs`                                | The panel docks next to the admin and opens from the header or with Ctrl or Cmd plus J.                                                      |
 | Confirmable publish                           | `publish` is a plain mcpx grant: an agent with it publishes without approval.                                                                |
 | Rate limits and turn caps                     | Limit runs in the sidecar or in front of Payload.                                                                                            |

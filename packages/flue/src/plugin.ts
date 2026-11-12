@@ -30,10 +30,34 @@ import type {
 	CollectionAfterLogoutHook,
 	CollectionConfig,
 	Endpoint,
+	GlobalConfig,
 	InvalidConfiguration,
 } from "payload";
 
 const ADMIN_ENTRY = "@abinnovision/payloadcms-flue/admin";
+
+/*
+ * Keeps the open edit view in step with the agent's writes. Rendered inside
+ * the document's form, which the chat's provider sits above.
+ */
+const withDocumentBridge = <T extends CollectionConfig | GlobalConfig>(
+	entity: T,
+): T => ({
+	...entity,
+	admin: {
+		...entity.admin,
+		components: {
+			...entity.admin?.components,
+			edit: {
+				...entity.admin?.components?.edit,
+				beforeDocumentControls: [
+					...(entity.admin?.components?.edit?.beforeDocumentControls ?? []),
+					{ path: ADMIN_ENTRY, exportName: "FlueDocumentBridge" },
+				],
+			},
+		},
+	},
+});
 
 /*
  * Logging out disables the user's managed keys; the next turn enables them.
@@ -98,7 +122,7 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				}
 
 				if (collection.slug === userCollection) {
-					return {
+					return withDocumentBridge({
 						...collection,
 						hooks: {
 							...collection.hooks,
@@ -107,10 +131,10 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 								disableKeysOnLogout(settings),
 							],
 						},
-					};
+					});
 				}
 
-				return collection;
+				return withDocumentBridge(collection);
 			},
 		);
 
@@ -132,6 +156,7 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				...collections,
 				options.threads?.overrideCollection?.(threads) ?? threads,
 			],
+			globals: (config.globals ?? []).map(withDocumentBridge),
 			endpoints: [
 				...(config.endpoints ?? []),
 				endpoint("agents", "get", agentsHandler(full)),
