@@ -112,7 +112,8 @@ Flue keeps the files in the sidecar's store and replays them to the model on eve
 The panel loads them through `GET /api/flue/c/:thread/attachments/:attachment`, never from the
 sidecar. Payload stores none of them.
 
-A dispatch job that runs again finds its thread through `dispatchJob` and sends nothing (see
+A dispatch job that runs again finds its thread through `dispatchJob` and sends nothing. With
+`dispatch.wait` on, it waits on the thread's recorded submission (see
 [jobs](./integration.md#jobs)).
 
 A turn, in order:
@@ -187,7 +188,7 @@ The thread's `status` follows its current submission:
 Only a settlement of the row's `lastSubmissionId` changes the status, and only while the row is
 `running`, so an old settlement replayed on a reconnect changes nothing.
 
-The plugin learns about settlements in three places:
+The plugin learns about settlements in three places, and in a fourth when `dispatch.wait` is on:
 
 - The conversation route reads the updates it proxies to the panel, whether a JSON page, a long
   poll or server-sent events. A settlement sets the status, and a `title` data part sets the
@@ -200,6 +201,10 @@ The plugin learns about settlements in three places:
   settles. Payload answers 409 while the row has not recorded that submission, so the sidecar
   tries again. Otherwise it reads the conversation's history and applies it as above. The report
   only names the thread; the status and title come from Flue's history.
+
+- A `flue-dispatch` job with [`dispatch.wait`](./integration.md#waiting-for-the-run) on. It reads
+  the conversation's history until its submission settles and applies it as above. Without
+  `dispatch.wait`, or after its timeout, the job settles nothing.
 
 The report is best effort. Without `reportSettlements()`, for a run started with `flue run`, or
 when Payload stays unreachable past the report's retries, a thread keeps `running` until someone

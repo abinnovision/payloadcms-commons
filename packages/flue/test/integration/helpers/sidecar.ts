@@ -13,7 +13,7 @@ export interface RecordedRequest {
 }
 
 /** Which recorded history `view=history` answers with. */
-export type HistoryMode = "found" | "running" | "unknown";
+export type HistoryMode = "failed" | "found" | "running" | "unknown";
 
 export interface FakeSidecar {
 	url: string;
@@ -58,6 +58,7 @@ export interface FakeSidecar {
 export const UPDATES_SSE = fixture("flue-updates.sse");
 export const HISTORY_JSON = fixture("flue-history.json");
 const HISTORY_RUNNING_JSON = fixture("flue-history-running.json");
+const HISTORY_FAILED_JSON = fixture("flue-history-failed.json");
 const HISTORY_UNKNOWN = JSON.parse(fixture("flue-history-unknown.json")) as {
 	status: number;
 	body: unknown;
@@ -272,7 +273,11 @@ export const startSidecar = async (): Promise<FakeSidecar> => {
 				send(HISTORY_UNKNOWN.status, JSON.stringify(HISTORY_UNKNOWN.body));
 			} else if (view === "history") {
 				const body =
-					sidecar.history === "running" ? HISTORY_RUNNING_JSON : HISTORY_JSON;
+					sidecar.history === "running"
+						? HISTORY_RUNNING_JSON
+						: sidecar.history === "failed"
+							? HISTORY_FAILED_JSON
+							: HISTORY_JSON;
 
 				send(200, body, {
 					"cache-control": "no-store",

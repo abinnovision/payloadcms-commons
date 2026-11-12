@@ -2,19 +2,20 @@
 
 ## Options
 
-| Option                       | Default             | Description                                                                                                                  |
-| ---------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `sidecar.url`                | required            | Absolute http(s) URL of the sidecar, as Payload reaches it.                                                                  |
-| `sidecar.secret`             | required            | Shared secret, at least 32 characters. Authenticates Payload to the sidecar and the sidecar to the exchange.                 |
-| `agents`                     | required            | The agents the sidecar serves, at least one. See [agents](#agents).                                                          |
-| `agentUser.email`            | none                | The existing user that reactive and ambient runs act as. Required once an agent has `ambient`.                               |
-| `keyTtlMs`                   | `7200000` (2 hours) | How long a managed key stays valid after it is written. A turn writes it once half or less is left. 5 minutes to 7 days.     |
-| `endpointPath`               | `/flue`             | Path of the plugin's endpoints below the API route.                                                                          |
-| `threads.slug`               | `flue-threads`      | Slug of the threads collection.                                                                                              |
-| `threads.overrideCollection` | none                | Function that receives the threads collection and returns it.                                                                |
-| `threads.readAgentRuns`      | nobody              | `(req) => boolean`. Lets a user read every reactive and ambient thread. See [security.md](./security.md#reading-agent-runs). |
-| `dispatch.queue`             | `flue`              | The jobs queue `queueFlueRun` queues on.                                                                                     |
-| `attachments`                | off                 | `true` or an object. Lets chat users attach images and PDFs to a turn. See [attachments](#attachments).                      |
+| Option                       | Default             | Description                                                                                                                                      |
+| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sidecar.url`                | required            | Absolute http(s) URL of the sidecar, as Payload reaches it.                                                                                      |
+| `sidecar.secret`             | required            | Shared secret, at least 32 characters. Authenticates Payload to the sidecar and the sidecar to the exchange.                                     |
+| `agents`                     | required            | The agents the sidecar serves, at least one. See [agents](#agents).                                                                              |
+| `agentUser.email`            | none                | The existing user that reactive and ambient runs act as. Required once an agent has `ambient`.                                                   |
+| `keyTtlMs`                   | `7200000` (2 hours) | How long a managed key stays valid after it is written. A turn writes it once half or less is left. 5 minutes to 7 days.                         |
+| `endpointPath`               | `/flue`             | Path of the plugin's endpoints below the API route.                                                                                              |
+| `threads.slug`               | `flue-threads`      | Slug of the threads collection.                                                                                                                  |
+| `threads.overrideCollection` | none                | Function that receives the threads collection and returns it.                                                                                    |
+| `threads.readAgentRuns`      | nobody              | `(req) => boolean`. Lets a user read every reactive and ambient thread. See [security.md](./security.md#reading-agent-runs).                     |
+| `dispatch.queue`             | `flue`              | The jobs queue `queueFlueRun` queues on.                                                                                                         |
+| `dispatch.wait`              | `false`             | `true` or `{ maxWaitMs }`. Keeps a `flue-dispatch` job open until its run settles. `true` waits 10 minutes. See [waiting](#waiting-for-the-run). |
+| `attachments`                | off                 | `true` or an object. Lets chat users attach images and PDFs to a turn. See [attachments](#attachments).                                          |
 
 The plugin reads mcpx's key collection slug, user collection and endpoint path from mcpx's
 options, with mcpx's defaults: `mcpx-api-keys`, `config.admin.user` then `users`, and `/mcpx`.
@@ -488,8 +489,8 @@ The task is idempotent on the job: the thread stores the job's id and creation t
 `dispatchJob` as `<id>@<createdAt>`, and a job that runs again finds that thread and sends nothing.
 The creation time tells a new job apart from a deleted one whose id SQLite reused. A thread found
 without a submission is logged as a warning: another run is still sending it, or a run ended
-between creating it and sending. The job outputs `{ thread, submissionId }`, with `submissionId`
-`null` when the job has none.
+between creating it and sending. The job outputs `{ thread, submissionId, outcome }`, with
+`submissionId` `null` when the job has none. `outcome` is `null` unless the job [waited](#waiting-for-the-run).
 
 ### `queueFlueRun`
 
@@ -535,7 +536,8 @@ export const reviewPublishedArticle: CollectionAfterChangeHook<
 Flue jobs run on `dispatch.queue` and on one queue per ambient agent, `flue-<slug>`. Each ambient
 agent has its own queue because Payload's default `beforeSchedule` skips a schedule while a job of
 the same task is queued or running on its queue. `flueQueues(options)` returns all of them. Each
-needs its own `jobs.autoRun` entry, an entry with `allQueues: true`, or a worker:
+needs its own `jobs.autoRun` entry, an entry with `allQueues: true`, or a worker. With
+[`dispatch.wait`](#waiting-for-the-run) on, use one entry per queue and never `allQueues: true`:
 
 ```ts
 jobs: {
@@ -548,11 +550,81 @@ jobs: {
 so a Next.js app runs its jobs once it has served a request. A script that calls
 `getPayload({ config })` does not run them.
 
+### Waiting for the run
+
+By default the job completes once the sidecar accepts the message. With `dispatch.wait` on, it
+stays open until its submission settles:
+
+```ts
+fluePlugin({ dispatch: { wait: { maxWaitMs: 5 * 60_000 } } });
+```
+
+The job reads the conversation's history every 5 seconds and settles the thread row from it, the
+same way the conversation route does. It outputs `{ thread, submissionId, outcome }`:
+
+| `outcome`   | Meaning                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------- |
+| `completed` | the run settled `completed`                                                                                   |
+| `aborted`   | the run settled `aborted`. The job succeeds.                                                                  |
+| `null`      | waiting is off, the job has no submission, or the thread was archived or deleted before a settlement was seen |
+
+- A run that settles `failed` fails the job with Flue's error message.
+- A run still going after `maxWaitMs` fails the job with an error naming the thread and the
+  submission. The run continues and the thread stays `running` until another path settles it. Nothing
+  aborts it.
+- `maxWaitMs` must be a positive, finite number. It bounds how long one job blocks its runner. It
+  has no relation to Payload's `processingLease`, which a live job renews.
+- Failed and timed-out jobs stay in `payload-jobs`, because `deleteJobOnComplete` deletes only
+  successful jobs.
+- A job that runs again, for example after a crash, finds its thread and waits on its recorded
+  submission. It sends nothing. After a crash, Payload re-claims the job once its lease lapses, 20
+  minutes by default.
+- A SIGTERM during a wait ends the handler. The run continues in Flue, and the job is picked up
+  again only after its lease lapses.
+
+Waiting holds the job's queue tick, and with it the other jobs of that tick and the schedules it
+would run, until the slowest job of the batch finishes. A queue runs at most `limit` jobs per tick,
+10 by default. So:
+
+- Give every flue queue its own `jobs.autoRun` entry. An entry with `allQueues: true` blocks every
+  queue of the app behind a waiting run.
+- Do not call `/api/payload-jobs/run` from a serverless or time-limited platform. The request stays
+  open for the whole wait. A killed process leaves the job leased for the lease duration.
+- `jobs.cancel` does not interrupt a wait. The tick stays blocked until the run settles or
+  `maxWaitMs` passes. The job's final update is then dropped with a `JobRunAbortedError`.
+- An ambient agent whose cron is shorter than its run skips ticks, because Payload does not
+  schedule a job while one of the same task is queued or running.
+
+In a Payload workflow, call the task by its slug, exported as `DISPATCH_TASK`. A workflow job may
+hold one `flue-dispatch` step. A second step fails with a message saying so. Branch on
+`outcome === "aborted"`, which is a successful step:
+
+```ts
+import { DISPATCH_TASK } from "@abinnovision/payloadcms-flue";
+import type { FlueRunOutput } from "@abinnovision/payloadcms-flue";
+
+// inside a workflow handler
+const { outcome } = (await tasks[DISPATCH_TASK]!("run", {
+  input: {
+    agent: "summarizer",
+    message: "Summarise the article.",
+    kind: "reactive",
+  },
+})) as FlueRunOutput;
+
+if (outcome === "aborted") {
+  return;
+}
+```
+
 ### Status of dispatched runs
 
-The job completes once the sidecar accepts the message. The thread leaves `running` when the
-sidecar reports the settlement (see [settlement reports](#settlement-reports)), or when someone who
-can read it opens it.
+With `dispatch.wait` off, the job completes once the sidecar accepts the message. The thread leaves
+`running` when the sidecar reports the settlement (see
+[settlement reports](#settlement-reports)), or when someone who can read it opens it.
+
+With `dispatch.wait` on, the job settles the thread itself and fails when the run fails. After a
+timeout the thread stays `running` and follows the same paths as above.
 
 ## Database
 

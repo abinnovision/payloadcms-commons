@@ -17,6 +17,7 @@ const ENDPOINT_PATH = /^\/\S*[^\s/]$/;
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 const KEY_TTL = { min: 5 * MINUTE, max: 7 * DAY, default: 2 * 60 * MINUTE };
+const DISPATCH_MAX_WAIT = 10 * MINUTE;
 
 /** The jobs queue flue runs go to unless `dispatch.queue` names another. */
 export const DISPATCH_QUEUE = "flue";
@@ -66,7 +67,8 @@ export interface NormalizedOptions {
 	keyTtlMs: number;
 	endpointPath: string;
 	threads: { slug: string; readAgentRuns: (req: PayloadRequest) => boolean };
-	dispatch: { queue: string };
+	/** `wait` is `false` when dispatch jobs return on admission. */
+	dispatch: { queue: string; wait: false | { maxWaitMs: number } };
 	/** `false` when chat attachments are off. */
 	attachments: false | NormalizedAttachments;
 	mcpx: McpxSettings;
@@ -198,6 +200,24 @@ const assertAgents = (agents: FlueAgentConfig[]): void => {
 	}
 };
 
+const normalizeWait = (
+	option: NonNullable<FluePluginOptions["dispatch"]>["wait"],
+): false | { maxWaitMs: number } => {
+	if (option === undefined || option === false) {
+		return false;
+	}
+
+	const { maxWaitMs = DISPATCH_MAX_WAIT } = option === true ? {} : option;
+
+	if (!(Number.isFinite(maxWaitMs) && maxWaitMs > 0)) {
+		throw invalid(
+			`dispatch.wait.maxWaitMs must be a positive finite number, got ${String(maxWaitMs)}.`,
+		);
+	}
+
+	return { maxWaitMs };
+};
+
 const isCount = (value: number, min: number, max: number): boolean =>
 	Number.isInteger(value) && value >= min && value <= max;
 
@@ -305,6 +325,7 @@ export const normalizeOptions = (
 	}
 
 	const queue = options.dispatch?.queue ?? DISPATCH_QUEUE;
+	const wait = normalizeWait(options.dispatch?.wait);
 
 	const endpointPath = options.endpointPath ?? "/flue";
 
@@ -338,7 +359,7 @@ export const normalizeOptions = (
 			slug: threadsSlug,
 			readAgentRuns: options.threads?.readAgentRuns ?? (() => false),
 		},
-		dispatch: { queue },
+		dispatch: { queue, wait },
 		attachments: normalizeAttachments(options.attachments),
 		mcpx,
 	};

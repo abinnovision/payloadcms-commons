@@ -47,7 +47,7 @@ server does not install Flue. The package is ESM only, like Payload.
 
 | Entry     | Runs in            | Exports                                                                                                                                          |
 | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues` and the option types                                                                                  |
+| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                 |
 | `./admin` | the admin browser  | `FlueProvider` and `FlueToggle`, mounted by the plugin                                                                                           |
 | `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `FlueExchangeError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
 

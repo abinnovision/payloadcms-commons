@@ -1,7 +1,9 @@
 import { ValidationError } from "payload";
 
+import { awaitSettlement } from "./settle.js";
 import { startTurn } from "../turn.js";
 
+import type { SettlementOutcome } from "../protocol/events.js";
 import type {
 	PluginSettings,
 	ThreadDoc,
@@ -20,6 +22,12 @@ export const DISPATCH_TASK = "flue-dispatch";
 export interface FlueRunOutput {
 	thread: DefaultDocumentIDType;
 	submissionId: null | string;
+	/**
+	 * How the run settled while the job waited (`dispatch.wait`). `null` when
+	 * waiting is off, nothing was sent, or the thread was archived or deleted
+	 * before the run settled.
+	 */
+	outcome: Exclude<SettlementOutcome, "failed"> | null;
 }
 
 /** The queue of an agent's ambient runs, one per agent. */
@@ -33,7 +41,9 @@ const agentUserMissing = (email: string | undefined): string =>
 /**
  * The `flue-dispatch` task: starts a reactive or ambient turn as the agent
  * user. A job re-run after its lease lapsed finds its thread by the job id
- * and sends at most once. Ambient agents get a schedule on their own queue.
+ * and sends at most once. With `dispatch.wait`, the job waits for the run to
+ * settle, and a re-run waits for the submission it recorded. Ambient agents
+ * get a schedule on their own queue.
  */
 export const createDispatchTask = (
 	settings: PluginSettings,
@@ -72,6 +82,18 @@ export const createDispatchTask = (
 		retries: 0,
 		...(schedule.length > 0 ? { schedule } : {}),
 		handler: async ({ input, job, req }) => {
+			// Every step of one workflow job shares the job's dispatch key.
+			if (
+				job.workflowSlug &&
+				Object.values(job.taskStatus[DISPATCH_TASK] ?? {}).some(
+					(step) => step.complete,
+				)
+			) {
+				throw new Error(
+					"[payloadcms-flue] One flue-dispatch step per workflow job.",
+				);
+			}
+
 			const { payload } = req;
 			const agent = settings.agents.find(
 				(candidate) => candidate.slug === input.agent,
@@ -165,10 +187,34 @@ export const createDispatchTask = (
 				}
 			}
 
+			const { wait } = settings.dispatch;
+			const settlement =
+				wait && result.submissionId !== undefined
+					? await awaitSettlement(
+							req,
+							settings,
+							result.thread.id,
+							result.submissionId,
+							wait,
+						)
+					: null;
+
+			if (settlement?.outcome === "failed") {
+				const reason =
+					settlement.error?.message ??
+					settlement.error?.type ??
+					"no error recorded";
+
+				throw new Error(
+					`[payloadcms-flue] flue-dispatch run ${settlement.submissionId} of thread ${String(result.thread.id)} failed: ${reason}`,
+				);
+			}
+
 			return {
 				output: {
 					thread: result.thread.id,
 					submissionId: result.submissionId ?? null,
+					outcome: settlement?.outcome ?? null,
 				},
 			};
 		},
