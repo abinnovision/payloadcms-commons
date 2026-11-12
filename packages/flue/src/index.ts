@@ -1,6 +1,7 @@
 import type { FluePluginOptions } from "./types.js";
 
 export { fluePlugin } from "./plugin.js";
+export { DISPATCH_TASK } from "./jobs/dispatch.js";
 export { flueQueues, queueFlueRun } from "./jobs/queue.js";
 
 export type { FlueRunOutput } from "./jobs/dispatch.js";

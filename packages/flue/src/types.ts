@@ -81,6 +81,15 @@ export interface FluePluginOptions {
 	dispatch?: {
 		/** The jobs queue flue runs are queued on. Default `flue`. */
 		queue?: string;
+		/**
+		 * Keeps a `flue-dispatch` job open until its run settles, for up to
+		 * `maxWaitMs`, and settles the thread itself; `true` waits up to 10
+		 * minutes. A failed run fails the job. A timeout fails the job without
+		 * stopping the run. A waiting job blocks its runner tick, so give each
+		 * `flueQueues` queue its own autoRun entry and do not run these jobs
+		 * from an HTTP runner. Default off.
+		 */
+		wait?: boolean | { maxWaitMs?: number };
 	};
 	/**
 	 * Lets chat users attach images and PDFs to a turn; `true` takes the

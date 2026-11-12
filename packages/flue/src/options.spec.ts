@@ -136,7 +136,7 @@ describe("normalizeOptions", () => {
 			keyTtlMs: 2 * 60 * MINUTE,
 			endpointPath: "/flue",
 			threads: { slug: "flue-threads" },
-			dispatch: { queue: "flue" },
+			dispatch: { queue: "flue", wait: false },
 			agentUser: undefined,
 			mcpx: { apiKeysSlug: "mcpx-api-keys", mcpPath: "/api/mcpx" },
 		});
@@ -274,6 +274,40 @@ describe("normalizeOptions", () => {
 		expect(() => normalize(options({ threads: { slug: "users" } }))).toThrow(
 			/threads\.slug "users"/,
 		);
+	});
+
+	describe("dispatch.wait", () => {
+		it("is off by default", () => {
+			expect(normalize().normalized.dispatch.wait).toBe(false);
+			expect(
+				normalize(options({ dispatch: { wait: false } })).normalized.dispatch
+					.wait,
+			).toBe(false);
+		});
+
+		it("waits 10 minutes for true", () => {
+			expect(
+				normalize(options({ dispatch: { wait: true } })).normalized.dispatch
+					.wait,
+			).toEqual({ maxWaitMs: 10 * MINUTE });
+		});
+
+		it("takes a custom maxWaitMs", () => {
+			expect(
+				normalize(options({ dispatch: { wait: { maxWaitMs: 30_000 } } }))
+					.normalized.dispatch,
+			).toEqual({ queue: "flue", wait: { maxWaitMs: 30_000 } });
+		});
+
+		it.each([
+			["zero", 0],
+			["a negative value", -1],
+			["Infinity", Number.POSITIVE_INFINITY],
+		])("refuses %s", (_label, maxWaitMs) => {
+			expect(() =>
+				normalize(options({ dispatch: { wait: { maxWaitMs } } })),
+			).toThrow(/dispatch\.wait\.maxWaitMs/);
+		});
 	});
 
 	describe("attachments", () => {

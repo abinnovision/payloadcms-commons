@@ -30,7 +30,7 @@ import type {
 	FlueRunInput,
 	FlueRunOutput,
 } from "../../src/index.js";
-import type { TaskHandler } from "payload";
+import type { TaskHandler, WorkflowConfig } from "payload";
 
 const AGENT_EMAIL = "agent@example.com";
 const JOBS = "payload-jobs";
@@ -45,11 +45,13 @@ const DIGEST: FlueAgentConfig = {
 const bootWithAgentUser = async (
 	cacheKey: string,
 	flue: Parameters<typeof bootPayload>[1] = {},
+	overrides: Parameters<typeof bootPayload>[2] = {},
 ): Promise<{ booted: Booted; seeded: Seeded; agentUser: Doc }> => {
-	const booted = await bootPayload(cacheKey, {
-		agentUser: { email: AGENT_EMAIL },
-		...flue,
-	});
+	const booted = await bootPayload(
+		cacheKey,
+		{ agentUser: { email: AGENT_EMAIL }, ...flue },
+		overrides,
+	);
 	const seeded = await seed(booted.payload);
 	const agentUser = await booted.payload.create({
 		collection: "users",
@@ -217,6 +219,7 @@ describe("flue-dispatch", () => {
 		expect(first).toEqual({
 			thread: thread?.id,
 			submissionId: thread?.["lastSubmissionId"],
+			outcome: null,
 		});
 		expect(second).toEqual(first);
 		expect(
@@ -227,6 +230,11 @@ describe("flue-dispatch", () => {
 			}),
 		).toEqual({ totalDocs: 1 });
 		expect(posts(before)).toHaveLength(1);
+		expect(
+			booted.sidecar.requests
+				.slice(before)
+				.filter((request) => request.path.includes("view=history")),
+		).toEqual([]);
 	});
 
 	it("runs two jobs in a row as two threads when the second reuses the first's id", async () => {
@@ -287,6 +295,7 @@ describe("flue-dispatch", () => {
 			expect(output).toEqual({
 				thread: thread.id,
 				submissionId: null,
+				outcome: null,
 			});
 			expect(booted.sidecar.requests).toHaveLength(before);
 			expect(warned).toHaveBeenCalledWith(
@@ -410,5 +419,213 @@ describe("flue-dispatch", () => {
 			agent: "digest",
 			createdBy: { relationTo: "users", value: agentUser.id },
 		});
+	});
+});
+
+// A workflow with two flue-dispatch steps, which share the job's dispatch key.
+const TWO_DISPATCHES: WorkflowConfig = {
+	slug: "two-dispatches",
+	handler: async ({ tasks }) => {
+		for (const step of ["first", "second"]) {
+			// eslint-disable-next-line no-await-in-loop
+			await tasks["flue-dispatch"]!(step, {
+				input: { agent: "editor", message: `Step ${step}.`, kind: "reactive" },
+			});
+		}
+	},
+};
+
+describe("flue-dispatch with dispatch.wait", () => {
+	let booted: Booted;
+	let agentUser: Doc;
+
+	const input = (message: string): FlueRunInput => ({
+		agent: "editor",
+		message,
+		kind: "reactive",
+	});
+
+	// A dispatched row as a run leaves it once it sent RECORDED_SUBMISSION.
+	const recordedThread = (job: JobRef, status: string) =>
+		booted.payload.create({
+			collection: THREADS_SLUG,
+			data: {
+				agent: "editor",
+				kind: "reactive",
+				conversationId: randomUUID(),
+				handleHash: handleHash(randomUUID()),
+				createdBy: { relationTo: "users", value: agentUser.id },
+				dispatchJob: dispatchKey(job),
+				lastSubmissionId: RECORDED_SUBMISSION,
+				flueUid: "inst_recorded",
+				status,
+			},
+			overrideAccess: true,
+		});
+
+	beforeAll(async () => {
+		({ booted, agentUser } = await bootWithAgentUser(
+			"flue-dispatch-wait",
+			{ agents: [EDITOR], dispatch: { wait: { maxWaitMs: 200 } } },
+			{ jobs: { workflows: [TWO_DISPATCHES] } },
+		));
+	});
+
+	beforeEach(() => {
+		booted.sidecar.reset();
+	});
+
+	afterAll(async () => {
+		await shutdown(booted);
+	});
+
+	it("waits for a completed run and settles its thread", async () => {
+		const job = handlerJob("wait-completed");
+
+		booted.sidecar.submissionId = RECORDED_SUBMISSION;
+
+		const output = await runHandler(booted, input("Completes."), job);
+		const thread = await threadOfJob(booted, job);
+
+		expect(output).toEqual({
+			thread: thread?.id,
+			submissionId: RECORDED_SUBMISSION,
+			outcome: "completed",
+		});
+		expect(thread).toMatchObject({ status: "idle" });
+	});
+
+	it("fails the job when the run does not settle in time and leaves it running", async () => {
+		const job = handlerJob("wait-timeout");
+
+		booted.sidecar.submissionId = RECORDED_SUBMISSION;
+		booted.sidecar.history = "running";
+
+		await expect(
+			runHandler(booted, input("Never settles."), job),
+		).rejects.toThrow("did not settle within 200 ms");
+		expect(await threadOfJob(booted, job)).toMatchObject({
+			status: "running",
+		});
+	});
+
+	it("fails the job with Flue's reason when the run failed", async () => {
+		const job = handlerJob("wait-failed");
+
+		booted.sidecar.submissionId = RECORDED_SUBMISSION;
+		booted.sidecar.history = "failed";
+
+		await expect(runHandler(booted, input("Fails."), job)).rejects.toThrow(
+			"failed: The model provider is unavailable.",
+		);
+		expect(await threadOfJob(booted, job)).toMatchObject({ status: "failed" });
+	});
+
+	it("a re-run waits for the recorded submission without sending", async () => {
+		const job = handlerJob("wait-rerun");
+		const thread = await recordedThread(job, "running");
+		const sends = booted.sidecar.sends().length;
+
+		const output = await runHandler(booted, input("Re-run."), job);
+
+		expect(output).toEqual({
+			thread: thread.id,
+			submissionId: RECORDED_SUBMISSION,
+			outcome: "completed",
+		});
+		expect(booted.sidecar.sends()).toHaveLength(sends);
+		expect(await threadOfJob(booted, job)).toMatchObject({ status: "idle" });
+	});
+
+	it("a re-run after the thread was archived reports no outcome and sends nothing", async () => {
+		const job = handlerJob("wait-archived");
+
+		booted.sidecar.submissionId = RECORDED_SUBMISSION;
+		booted.sidecar.history = "running";
+
+		await expect(
+			runHandler(booted, input("Archived later."), job),
+		).rejects.toThrow("did not settle within 200 ms");
+
+		const thread = await threadOfJob(booted, job);
+
+		await booted.payload.update({
+			collection: THREADS_SLUG,
+			id: thread!.id,
+			data: { status: "archived" },
+			overrideAccess: true,
+		});
+
+		const sends = booted.sidecar.sends().length;
+		const output = await runHandler(booted, input("Archived later."), job);
+
+		expect(output).toEqual({
+			thread: thread!.id,
+			submissionId: RECORDED_SUBMISSION,
+			outcome: null,
+		});
+		expect(booted.sidecar.sends()).toHaveLength(sends);
+	});
+
+	it("reports a run that settled before its thread was archived", async () => {
+		const job = handlerJob("wait-settled-archived");
+		const thread = await recordedThread(job, "archived");
+
+		const output = await runHandler(booted, input("Settled first."), job);
+
+		expect(output).toEqual({
+			thread: thread.id,
+			submissionId: RECORDED_SUBMISSION,
+			outcome: "completed",
+		});
+	});
+
+	it("refuses a second flue-dispatch step in one workflow job", async () => {
+		const job = {
+			...handlerJob("wait-workflow"),
+			workflowSlug: "review",
+			taskStatus: {
+				"flue-dispatch": {
+					first: { complete: true, taskSlug: "flue-dispatch", totalTried: 1 },
+				},
+			},
+		};
+		const sends = booted.sidecar.sends().length;
+
+		await expect(
+			runHandler(booted, input("Second step."), job),
+		).rejects.toThrow("One flue-dispatch step per workflow job.");
+		expect(booted.sidecar.sends()).toHaveLength(sends);
+		expect(await threadOfJob(booted, job)).toBeUndefined();
+	});
+
+	it("fails the second flue-dispatch step of a real workflow run", async () => {
+		booted.sidecar.submissionId = RECORDED_SUBMISSION;
+
+		const sends = booted.sidecar.sends().length;
+		const job = await booted.payload.jobs.queue({
+			workflow: "two-dispatches",
+			input: {},
+			queue: "flue",
+			overrideAccess: true,
+		});
+
+		await booted.payload.jobs.run({ queue: "flue", overrideAccess: true });
+
+		const failed = await findJob(booted, job.id);
+		const steps = (
+			failed["taskStatus"] as Record<
+				string,
+				Record<string, { complete: boolean }>
+			>
+		)["flue-dispatch"];
+
+		expect(failed["hasError"]).toBe(true);
+		expect(steps?.["first"]?.complete).toBe(true);
+		expect(steps?.["second"]?.complete).not.toBe(true);
+		expect(JSON.stringify(failed)).toContain(
+			"One flue-dispatch step per workflow job.",
+		);
+		expect(booted.sidecar.sends()).toHaveLength(sends + 1);
 	});
 });

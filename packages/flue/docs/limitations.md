@@ -61,7 +61,8 @@ from an mcpx tool output as the result, its text or the parsed object, but no re
 conversation carrying an MCP tool output exists, so the shape Flue sends is assumed. Approval is
 offered for `deleteDocument`, mcpx's only confirmable tool.
 
-The status of a thread nobody has open can lag. Settlement reports are best effort and only reach
+The status of a thread nobody has open can lag. It still does with `dispatch.wait` off, and after a
+wait times out, because the run continues. Settlement reports are best effort and only reach
 Payload while the sidecar process that ran the submission is up. A sidecar that does not call
 `reportSettlements()`, a run started with `flue run`, which never loads `app.ts`, and a report that
 finds Payload unreachable for longer than its retries, about 5 seconds, all leave the thread
@@ -93,7 +94,13 @@ ends its exchange but leaves the conversation in the sidecar's store.
 
 A dispatch job that ends between creating its thread and sending, for example in a crash, leaves
 an `idle` thread without a conversation. A new run of the job finds that thread and sends nothing,
-so the run never happens.
+so the run never happens. With `dispatch.wait` on the job outputs `outcome: null` for it.
+
+A workflow job may hold one `flue-dispatch` step. Its steps share one dispatch key, so a second step
+fails with a message saying so instead of returning the first step's thread.
+
+`jobs.cancel` does not interrupt a job that waits for its run. The job keeps its queue tick blocked
+until the run settles or `dispatch.wait`'s `maxWaitMs` passes, and its final update is then dropped.
 
 Without `src/db.ts`, Flue's Vite dev server resets its store on a cold start and the built server
 keeps conversations in memory. A thread whose conversation the store lost refuses new turns with
