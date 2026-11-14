@@ -135,6 +135,12 @@ releases of that major, and publishes them under the `backport` dist-tag, so
 `latest` stays on the newest major. Delete the branch once the major is no
 longer supported. Without such a branch everything releases from `main`.
 
+## Maintained by
+
+Built and maintained by [abi services](https://abiservices.io/en/services/web-development),
+the client-work team of abi group GmbH. The packages run in the Payload sites we
+build and operate for clients.
+
 ## License
 
 Apache-2.0
