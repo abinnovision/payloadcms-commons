@@ -75,7 +75,7 @@
 		"eslint": "^10.14.0",
 		"oauth2-mock-server": "^9.3.0",
 		"payload": "4.0.0-beta.2",
-		"prettier": "^3.9.10",
+		"prettier": "^3.10.0",
 		"publint": "^0.3.25",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
