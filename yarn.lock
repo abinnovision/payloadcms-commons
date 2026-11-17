@@ -46,7 +46,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^5.1.0"
     eslint: "npm:^10.14.0"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
@@ -79,7 +79,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^5.1.0"
     eslint: "npm:^10.14.0"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
@@ -105,7 +105,7 @@ __metadata:
     eslint: "npm:^10.14.0"
     lettermint: "npm:^2.8.0"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
@@ -139,7 +139,7 @@ __metadata:
     eventsource-parser: "npm:^4.1.3"
     happy-dom: "npm:21.0.4"
     payload: "npm:4.0.0-beta.7"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
@@ -186,7 +186,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^5.1.0"
     eslint: "npm:^10.14.0"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
@@ -215,7 +215,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^5.1.0"
     eslint: "npm:^10.14.0"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
@@ -253,7 +253,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^5.1.0"
     eslint: "npm:^10.14.0"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
@@ -290,7 +290,7 @@ __metadata:
     oauth2-mock-server: "npm:^9.3.0"
     openid-client: "npm:^6.8.9"
     payload: "npm:4.0.0-beta.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
@@ -325,7 +325,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^5.1.0"
     eslint: "npm:^10.14.0"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
@@ -363,7 +363,7 @@ __metadata:
     eslint: "npm:^10.14.0"
     path-to-regexp: "npm:^8.4.2"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     publint: "npm:^0.3.25"
     react: "npm:^19.3.0"
     tsdown: "npm:^0.23.7"
@@ -2930,7 +2930,7 @@ __metadata:
     graphql: "npm:^17.0.2"
     next: "npm:^16.3.8"
     payload: "npm:3.90.2"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
     typescript: "npm:^6.0.3"
@@ -2950,10 +2950,10 @@ __metadata:
     "@types/node": "npm:^26.6.6"
     eslint: "npm:^10.14.0"
     hono: "npm:^4.13.16"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     typescript: "npm:^6.0.3"
     valibot: "npm:^1.1.0"
-    vite: "npm:^8.3.7"
+    vite: "npm:^8.3.8"
   languageName: unknown
   linkType: soft
 
@@ -2983,7 +2983,7 @@ __metadata:
     oauth2-mock-server: "npm:^9.3.0"
     path-to-regexp: "npm:^8.4.2"
     payload: "npm:4.0.0-beta.7"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
     typescript: "npm:^6.0.3"
@@ -3002,12 +3002,12 @@ __metadata:
     eslint: "npm:^10.14.0"
     husky: "npm:^9.1.7"
     lint-staged: "npm:^17.6.0"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     rimraf: "npm:^6.1.4"
     sort-package-json: "npm:^4.1.0"
-    turbo: "npm:^2.11.10"
+    turbo: "npm:^2.11.11"
     typescript: "npm:^6.0.3"
-    vite: "npm:^8.3.7"
+    vite: "npm:^8.3.8"
     vitest: "npm:^5.1.0"
   languageName: unknown
   linkType: soft
@@ -3020,9 +3020,9 @@ __metadata:
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@types/node": "npm:^26.6.6"
     eslint: "npm:^10.14.0"
-    prettier: "npm:^3.9.10"
+    prettier: "npm:^3.10.0"
     typescript: "npm:^6.0.3"
-    vite: "npm:^8.3.7"
+    vite: "npm:^8.3.8"
     vitest: "npm:^5.1.0"
   languageName: unknown
   linkType: soft
@@ -6708,44 +6708,44 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@turbo/darwin-64@npm:2.11.10":
-  version: 2.11.10
-  resolution: "@turbo/darwin-64@npm:2.11.10"
+"@turbo/darwin-64@npm:2.11.11":
+  version: 2.11.11
+  resolution: "@turbo/darwin-64@npm:2.11.11"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/darwin-arm64@npm:2.11.10":
-  version: 2.11.10
-  resolution: "@turbo/darwin-arm64@npm:2.11.10"
+"@turbo/darwin-arm64@npm:2.11.11":
+  version: 2.11.11
+  resolution: "@turbo/darwin-arm64@npm:2.11.11"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/linux-64@npm:2.11.10":
-  version: 2.11.10
-  resolution: "@turbo/linux-64@npm:2.11.10"
+"@turbo/linux-64@npm:2.11.11":
+  version: 2.11.11
+  resolution: "@turbo/linux-64@npm:2.11.11"
   conditions: (os=android | os=linux) & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/linux-arm64@npm:2.11.10":
-  version: 2.11.10
-  resolution: "@turbo/linux-arm64@npm:2.11.10"
+"@turbo/linux-arm64@npm:2.11.11":
+  version: 2.11.11
+  resolution: "@turbo/linux-arm64@npm:2.11.11"
   conditions: (os=android | os=linux) & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/windows-64@npm:2.11.10":
-  version: 2.11.10
-  resolution: "@turbo/windows-64@npm:2.11.10"
+"@turbo/windows-64@npm:2.11.11":
+  version: 2.11.11
+  resolution: "@turbo/windows-64@npm:2.11.11"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/windows-arm64@npm:2.11.10":
-  version: 2.11.10
-  resolution: "@turbo/windows-arm64@npm:2.11.10"
+"@turbo/windows-arm64@npm:2.11.11":
+  version: 2.11.11
+  resolution: "@turbo/windows-arm64@npm:2.11.11"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
@@ -12546,12 +12546,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^3.2.5, prettier@npm:^3.9.10":
-  version: 3.9.10
-  resolution: "prettier@npm:3.9.10"
+"prettier@npm:^3.10.0, prettier@npm:^3.2.5":
+  version: 3.10.1
+  resolution: "prettier@npm:3.10.1"
   bin:
     prettier: bin/prettier.cjs
-  checksum: 10/5d0118add4b44eb9d50c114f5c525451cc92be9da300ad0552787472535a3f23884baed3223d9b577bb7d1152eb58aeccfcc2b4541c0cf2274c0b4d328e36834
+  checksum: 10/ab4fc7bbee5823eb99200f89172e1dc360a8225facc19db336f30aa4e089bd8576f141ca8e129ce6ce850f1d7beb4d6e8b7630c2522b3b2fdc62330114f828b2
   languageName: node
   linkType: hard
 
@@ -14198,16 +14198,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"turbo@npm:^2.11.10":
-  version: 2.11.10
-  resolution: "turbo@npm:2.11.10"
+"turbo@npm:^2.11.11":
+  version: 2.11.11
+  resolution: "turbo@npm:2.11.11"
   dependencies:
-    "@turbo/darwin-64": "npm:2.11.10"
-    "@turbo/darwin-arm64": "npm:2.11.10"
-    "@turbo/linux-64": "npm:2.11.10"
-    "@turbo/linux-arm64": "npm:2.11.10"
-    "@turbo/windows-64": "npm:2.11.10"
-    "@turbo/windows-arm64": "npm:2.11.10"
+    "@turbo/darwin-64": "npm:2.11.11"
+    "@turbo/darwin-arm64": "npm:2.11.11"
+    "@turbo/linux-64": "npm:2.11.11"
+    "@turbo/linux-arm64": "npm:2.11.11"
+    "@turbo/windows-64": "npm:2.11.11"
+    "@turbo/windows-arm64": "npm:2.11.11"
   dependenciesMeta:
     "@turbo/darwin-64":
       optional: true
@@ -14223,7 +14223,7 @@ __metadata:
       optional: true
   bin:
     turbo: bin/turbo
-  checksum: 10/1aea290655d521785eff88bc940836e631e4ad68ceb13d1f97f848a42ef3f6dc6a49a17c6c60eeb93747a77a0bb5fbff85d8ac1f28c13b236edd6f89e6cdbb72
+  checksum: 10/a5a647eccfc2ffea002f719e3cae21cb84f507aa86749245d930aa6f310ceaf8637c93396dff759f12c84a50a89c5b1268c59f566d2ef5e3a79557b540ce84b6
   languageName: node
   linkType: hard
 
@@ -14744,9 +14744,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:^8.3.7":
-  version: 8.3.7
-  resolution: "vite@npm:8.3.7"
+"vite@npm:^8.3.8":
+  version: 8.3.8
+  resolution: "vite@npm:8.3.8"
   dependencies:
     fsevents: "npm:~2.3.3"
     lightningcss: "npm:^1.33.0"
@@ -14797,7 +14797,7 @@ __metadata:
       optional: true
   bin:
     vite: bin/vite.js
-  checksum: 10/18803d5c9977dd179a17cffef22bf5365f23f815f5bab78e461b3a7d9f213cbf2ccaa5995d4bc01d7bf408c48114e61932ddfd3fab539cbf47444817626b000e
+  checksum: 10/8444028a3515debb9b3c05fe5428c382b1fa7158321789d94e6f844f231a81c3d5ee0eadd92487492924ad5d24f85e48dd96982de4c7b623a3beb1939622af96
   languageName: node
   linkType: hard
 

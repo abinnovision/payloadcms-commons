@@ -71,7 +71,7 @@
 		"@vitest/coverage-v8": "^5.1.0",
 		"eslint": "^10.14.0",
 		"payload": "3.90.2",
-		"prettier": "^3.9.10",
+		"prettier": "^3.10.0",
 		"publint": "^0.3.25",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
