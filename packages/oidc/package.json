@@ -58,7 +58,7 @@
 	},
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
-		"jose": "^6.2.12",
+		"jose": "^6.2.17",
 		"openid-client": "^6.8.9"
 	},
 	"devDependencies": {
@@ -77,8 +77,8 @@
 		"payload": "4.0.0-beta.2",
 		"prettier": "^3.10.0",
 		"publint": "^0.3.25",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
 		"tsdown": "^0.23.7",
 		"typescript": "^6.0.3",
 		"unplugin-swc": "^2.0.0",
