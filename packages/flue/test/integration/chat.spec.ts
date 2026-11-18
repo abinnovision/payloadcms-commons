@@ -30,6 +30,7 @@ import { SIDECAR_SECRET } from "../fixtures/config.js";
 
 import type { Booted, Doc, Seeded, SeededUser } from "./helpers/payload.js";
 import type { RecordedRequest } from "./helpers/sidecar.js";
+import type { DeliveredAttachment } from "../../src/protocol/attachments.js";
 import type { SendArgs } from "../../src/sidecar/client.js";
 
 // The arguments of every sidecar send, to read the deadline a turn gets.
@@ -96,6 +97,13 @@ const PNG = {
 	mimeType: "image/png",
 	data: base64Of(16),
 	filename: "diagram.png",
+};
+
+const MARKDOWN = {
+	type: "document",
+	mimeType: "text/markdown",
+	data: Buffer.from("# Checkpoints\n\n- Gate ✓\n").toString("base64"),
+	filename: "checkpoints.md",
 };
 
 describe("the chat endpoints", () => {
@@ -950,6 +958,44 @@ describe("the chat endpoint with attachments", () => {
 		});
 	});
 
+	it("inlines a text file into the body and attaches only the other files", async () => {
+		const response = await chat({
+			message: "Create these",
+			context: CONTEXT,
+			attachments: [PNG, MARKDOWN],
+		});
+
+		expect(response.status).toBe(200);
+		expect(lastPost()).toMatchObject({
+			kind: "user",
+			body: userTurnBody({ route: "/admin", kind: "chat" }, "Create these", [
+				MARKDOWN,
+			] as DeliveredAttachment[]),
+			attachments: [PNG],
+		});
+		expect(lastPost().body).toContain(
+			'<payload-file filename="checkpoints.md" mimeType="text/markdown" length="24">\n# Checkpoints\n\n- Gate ✓\n\n</payload-file>',
+		);
+	});
+
+	it("sends a turn with only a text file as a user message without attachments", async () => {
+		const csv = {
+			type: "document",
+			mimeType: "text/csv",
+			data: Buffer.from("a,b\n1,2").toString("base64"),
+		};
+
+		const response = await chat({
+			message: "",
+			context: CONTEXT,
+			attachments: [csv],
+		});
+
+		expect(response.status).toBe(200);
+		expect(lastPost()).toMatchObject({ kind: "user", attachments: [] });
+		expect(lastPost().body).toContain("a,b\n1,2");
+	});
+
 	it("gives a turn with files 60 seconds for Flue to admit it", async () => {
 		const response = await chat({
 			message: "Slow",
@@ -995,6 +1041,60 @@ describe("the chat endpoint with attachments", () => {
 			"JPEG bytes labelled image/png",
 			400,
 			{ attachments: [{ ...PNG, data: base64Of(16, "\xff\xd8\xff\xe0") }] },
+		],
+		[
+			"a text file over 512 KiB",
+			400,
+			{
+				attachments: [
+					{
+						...MARKDOWN,
+						data: Buffer.alloc(512 * KIB + 1, "a").toString("base64"),
+					},
+				],
+			},
+		],
+		[
+			"text files over 512 KiB together",
+			400,
+			{
+				attachments: [
+					{
+						...MARKDOWN,
+						data: Buffer.alloc(256 * KIB, "a").toString("base64"),
+					},
+					{
+						...MARKDOWN,
+						data: Buffer.alloc(256 * KIB + 1, "b").toString("base64"),
+					},
+				],
+			},
+		],
+		[
+			"a text file holding a NUL byte",
+			400,
+			{
+				attachments: [
+					{ ...MARKDOWN, data: Buffer.from("a\0b").toString("base64") },
+				],
+			},
+		],
+		[
+			"a text file that is not UTF-8",
+			400,
+			{
+				attachments: [
+					{
+						...MARKDOWN,
+						data: Buffer.from([0x61, 0xff, 0x62]).toString("base64"),
+					},
+				],
+			},
+		],
+		[
+			"a text file typed as an image",
+			400,
+			{ attachments: [{ ...MARKDOWN, type: "image" }] },
 		],
 		[
 			"data that is not base64",
@@ -1057,9 +1157,13 @@ describe("the chat endpoint with attachments", () => {
 					"image/gif",
 					"image/webp",
 					"application/pdf",
+					"text/markdown",
+					"text/plain",
+					"text/csv",
 				],
 				maxImageBytes: 3.75 * MIB,
 				maxDocumentBytes: 5 * MIB,
+				maxTextBytes: 512 * KIB,
 				maxFiles: 4,
 			},
 		});

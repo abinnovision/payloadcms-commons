@@ -95,7 +95,7 @@ run and a second message joining a live run would race the context.
 
 ### Turns with attachments
 
-With the `attachments` option on, the panel's composer takes images and PDFs. Only a Flue `user`
+With the `attachments` option on, the panel's composer takes images, PDFs and text files. Only a Flue `user`
 message carries files, so a turn with at least one file is sent as one: its body starts with a
 preamble Payload writes, a self-closing tag with the same attributes, values XML-escaped, then a
 blank line and the user's text as typed.
@@ -110,9 +110,28 @@ Text-only turns and runs from jobs stay signals, so a thread can hold both shape
 at the very start of a `user` message is read; the same tag anywhere else is the user's text.
 The panel hides the preamble and shows the files with the message.
 
-Flue keeps the files in the sidecar's store and replays them to the model on every later turn.
-The panel loads them through `GET /api/flue/c/:thread/attachments/:attachment`, never from the
-sidecar. Payload stores none of them.
+Flue takes only images and PDFs as files, so Markdown, text and CSV files go into the body: the
+preamble counts them in `files`, and each follows it in a `payload-file` tag with its name, type
+and `length` in UTF-16 code units, before the user's text. The length, not the closing tag, ends
+the file, so a file may hold anything. `attachmentsOf(delivery)` in `./agent` reads them back.
+
+```
+<payload-context route="/admin" kind="chat" turn="user" files="1"/>
+
+<payload-file filename="checkpoints.md" mimeType="text/markdown" length="24">
+# Checkpoints
+
+- Gate ✓
+
+</payload-file>
+
+Create these checkpoints.
+```
+
+Flue keeps the images and PDFs in the sidecar's store and replays them to the model on every
+later turn; text files are replayed as part of the message. The panel loads stored files through
+`GET /api/flue/c/:thread/attachments/:attachment`, never from the sidecar, and reads text files
+from the message. Payload stores none of them.
 
 A dispatch job that runs again finds its thread through `dispatchJob` and sends nothing. With
 `dispatch.wait` on, it waits on the thread's recorded submission (see
@@ -282,9 +301,10 @@ agent no longer has this conversation. Start a new thread."
   are dropped, raw HTML is skipped and links open in a new tab with
   `rel="noopener noreferrer nofollow"`, because a reply can repeat text from the content the agent
   read. The user's messages show as typed.
-- With attachments on, the composer has an add button limited to the configured types, and refuses
-  a file over its type's limit. A turn's files show with the user's message: images as
-  thumbnails, PDFs as links. A failed send puts the text and the files back in the composer.
+- With attachments on, the composer has an add button limited to the configured types, and the
+  whole conversation takes dropped files, showing a drop target while a file is dragged over it.
+  Both refuse a file over its type's limit. A turn's files show with the user's message: images as
+  thumbnails, PDFs as links, text files by name. A failed send puts the text and the files back in the composer.
 - Files an agent uploaded with `usePayload().upload()` show as one card per response, from the
   `data-payload-file` part, with each file's name, type and size and a link to its document.
   A link that does not lead into the admin's collections is left out, and the name shows alone.

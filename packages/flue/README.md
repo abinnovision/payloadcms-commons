@@ -45,11 +45,11 @@ server does not install Flue. The package is ESM only, like Payload.
 
 ## Entry points
 
-| Entry     | Runs in            | Exports                                                                                                                                                                  |
-| --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                                         |
-| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                             |
-| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `openDocumentGuidance`, `FlueExchangeError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
+| Entry     | Runs in            | Exports                                                                                                                                                                                   |
+| --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                                                          |
+| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                                              |
+| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `attachmentsOf`, `openDocumentGuidance`, `FlueExchangeError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
 
 `./admin` needs three browser packages: `@flue/sdk` to follow conversations,
 `@assistant-ui/react` for the chat UI and `@assistant-ui/react-markdown` for
@@ -166,7 +166,7 @@ Both are opt-in:
 
 | Feature          | Turned on by                                | Does                                                                                     |
 | ---------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Chat attachments | `attachments: true` in the plugin's options | users attach PNG, JPEG, GIF, WebP and PDF files to a turn; the model gets them natively  |
+| Chat attachments | `attachments: true` in the plugin's options | users attach images, PDFs and Markdown, text or CSV files to a turn                      |
 | Agent uploads    | `usePayload().upload()` in a tool           | the agent saves a file to an upload collection through mcpx; the chat shows it as a card |
 
 Attachments raise the chat body cap to about 27 MiB at the defaults, and their

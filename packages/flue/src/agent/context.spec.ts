@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { contextOf } from "./context.js";
+import { attachmentsOf, contextOf } from "./context.js";
+import { textToBase64 } from "../protocol/attachments.js";
 import {
 	CONTEXT_SIGNAL_TYPE,
 	encodeContext,
@@ -58,5 +59,37 @@ describe("contextOf", () => {
 				attributes: { locale: "de" },
 			}),
 		).toBeUndefined();
+	});
+});
+
+describe("attachmentsOf", () => {
+	const PNG = { type: "image", data: "AA==", mimeType: "image/png" } as const;
+	const MARKDOWN = {
+		type: "document",
+		data: textToBase64("# Checkpoints\n- one"),
+		mimeType: "text/markdown",
+		filename: "list.md",
+	} as const;
+
+	it("answers the text files of the body, then Flue's attachments", () => {
+		expect(
+			attachmentsOf({
+				kind: "user",
+				body: userTurnBody(CONTEXT, "Create these", [MARKDOWN]),
+				attachments: [PNG],
+			}),
+		).toEqual([MARKDOWN, PNG]);
+	});
+
+	it("answers no files for a signal or a body without a preamble", () => {
+		expect(
+			attachmentsOf({
+				kind: "signal",
+				type: CONTEXT_SIGNAL_TYPE,
+				body: "Hi",
+				attributes: encodeContext(CONTEXT),
+			}),
+		).toEqual([]);
+		expect(attachmentsOf({ kind: "user", body: "Hi" })).toEqual([]);
 	});
 });

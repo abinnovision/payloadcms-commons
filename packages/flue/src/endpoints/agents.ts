@@ -38,6 +38,7 @@ export const agentsHandler = (settings: PluginSettings): PayloadHandler =>
 						mimeTypes: settings.attachments.mimeTypes,
 						maxImageBytes: settings.attachments.maxImageBytes,
 						maxDocumentBytes: settings.attachments.maxDocumentBytes,
+						maxTextBytes: settings.attachments.maxTextBytes,
 						maxFiles: settings.attachments.maxFiles,
 					}
 				: null,

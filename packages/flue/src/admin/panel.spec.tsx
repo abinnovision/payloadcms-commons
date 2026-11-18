@@ -37,6 +37,7 @@ vi.mock("@payloadcms/ui", () => ({
 	ChevronIcon: () => <svg />,
 	CircledXIcon: () => <svg />,
 	CopyIcon: () => <svg />,
+	DocumentIcon: () => <svg />,
 	PlusIcon: () => <svg />,
 	SearchIcon: () => <svg />,
 	SpinnerIcon: () => <svg />,
@@ -249,8 +250,11 @@ describe("the FluePanel component", () => {
 		expect(html).toContain('aria-label="Message"');
 	});
 
-	it("offers no attachment button while attachments are off", () => {
-		expect(render([])).not.toContain("Attach</button>");
+	it("offers no attachment button or drop target while attachments are off", () => {
+		const html = render([]);
+
+		expect(html).not.toContain("Attach</button>");
+		expect(html).not.toContain("Drop to attach");
 	});
 
 	it("offers an attachment button while attachments are on", () => {
@@ -259,11 +263,14 @@ describe("the FluePanel component", () => {
 				mimeTypes: ["image/png", "application/pdf"],
 				maxImageBytes: 3_932_160,
 				maxDocumentBytes: 5_242_880,
+				maxTextBytes: 524_288,
 				maxFiles: 4,
 			},
 		});
 
 		expect(html).toContain("Attach</button>");
+		expect(html).toContain("Drop to attach");
+		expect(html).toContain("Images and PDFs, up to 4 per message");
 	});
 
 	it("shows a user's image as a thumbnail and a PDF as a link", () => {

@@ -15,7 +15,7 @@
 | `threads.readAgentRuns`      | nobody              | `(req) => boolean`. Lets a user read every reactive and ambient thread. See [security.md](./security.md#reading-agent-runs).                     |
 | `dispatch.queue`             | `flue`              | The jobs queue `queueFlueRun` queues on.                                                                                                         |
 | `dispatch.wait`              | `false`             | `true` or `{ maxWaitMs }`. Keeps a `flue-dispatch` job open until its run settles. `true` waits 10 minutes. See [waiting](#waiting-for-the-run). |
-| `attachments`                | off                 | `true` or an object. Lets chat users attach images and PDFs to a turn. See [attachments](#attachments).                                          |
+| `attachments`                | off                 | `true` or an object. Lets chat users attach images, PDFs and text files to a turn. See [attachments](#attachments).                              |
 
 The plugin reads mcpx's key collection slug, user collection and endpoint path from mcpx's
 options, with mcpx's defaults: `mcpx-api-keys`, `config.admin.user` then `users`, and `/mcpx`.
@@ -59,17 +59,30 @@ reads anything but `req.user` gives a different answer there. See
 
 `attachments: true` takes the defaults. An object sets each field up to its maximum.
 
-| Field              | Default                   | Maximum    |
-| ------------------ | ------------------------- | ---------- |
-| `mimeTypes`        | PNG, JPEG, GIF, WebP, PDF | those five |
-| `maxImageBytes`    | 3.75 MiB                  | 3.75 MiB   |
-| `maxDocumentBytes` | 5 MiB                     | 10 MiB     |
-| `maxFiles`         | 4                         | 20         |
+| Field              | Default                                              | Maximum     |
+| ------------------ | ---------------------------------------------------- | ----------- |
+| `mimeTypes`        | PNG, JPEG, GIF, WebP, PDF, Markdown, plain text, CSV | those eight |
+| `maxImageBytes`    | 3.75 MiB                                             | 3.75 MiB    |
+| `maxDocumentBytes` | 5 MiB                                                | 10 MiB      |
+| `maxTextBytes`     | 512 KiB, for all text files of a turn together       | 2 MiB       |
+| `maxFiles`         | 4                                                    | 20          |
 
 The sizes count decoded bytes. 3.75 MiB of image is 5 MiB as base64, the most Anthropic accepts for
 one image; 10 MiB of PDF stays under Flue's 14 MiB base64 cap. Other types, SVG and HEIC
 included, are refused because providers reject them, and a rejected file fails every later turn
 of its thread (see [limitations](./limitations.md#attachments)).
+
+Text files (`text/markdown`, `text/plain`, `text/csv`) are on with the defaults; list
+`mimeTypes` without them to turn them off. They have no signature to check, so the chat endpoint
+takes one only when it decodes as UTF-8 and holds no NUL byte. Flue takes no text documents, so
+Payload writes each text file into the turn's text instead of attaching it (see
+[turns with attachments](./concepts.md#turns-with-attachments)). Every model reads it that way, and
+it counts against the model's context on every later turn. `maxTextBytes` bounds the text of all
+text files of a turn together, so one turn adds at most that much. The composer refuses an empty
+file and a text file that is not UTF-8 when it is added; a byte order mark is dropped.
+The composer matches text files by their `.md`, `.markdown`, `.txt` and `.csv` extensions before
+the type the browser reports, since browsers report an empty or generic type for some of them.
+Files dropped anywhere on the conversation go through the same checks as the Attach button.
 
 With attachments on, the body cap of `POST /chat/:agent` rises from 64 KiB to
 `64 KiB + maxFiles * (ceil(L * 4 / 3) + 2 KiB)`, where `L` is the larger size limit of the allowed types,, about 26.7 MiB at the defaults. It
@@ -90,8 +103,8 @@ The plugin throws `InvalidConfiguration` when Payload builds the config for any 
 - `endpointPath` does not start with `/`, ends with `/`, contains whitespace or equals mcpx's
   endpoint path;
 - `threads.slug` is taken by another collection;
-- `attachments.mimeTypes` is empty or names another type, a size is not a whole number between 1
-  and its maximum, or `maxFiles` is not a whole number between 1 and 20;
+- `attachments.mimeTypes` is empty or names another type, a size (`maxImageBytes`,
+  `maxDocumentBytes`, `maxTextBytes`) is not a whole number between 1 and its maximum, or `maxFiles` is not a whole number between 1 and 20;
 - mcpx's key collection has no `apiKey`, `user` or `capabilities` field, `apiKey` is not a text
   field, or it already defines `managedBy` as anything but a text field;
 - a grant names a checkbox mcpx does not offer, lacks the grant it requires, or names a tool that
@@ -233,7 +246,10 @@ It returns:
 adminUrl }`. See [uploads](#uploads).
 
 Agent code that reads `useDelivery()` itself gets the context of either turn shape with
-`contextOf(delivery)`, which `context()` uses.
+`contextOf(delivery)`, which `context()` uses, and the files of a user's turn with
+`attachmentsOf(delivery)`: the text files Payload wrote into the body, each as a base64
+`document` with its text MIME type and file name, then Flue's attachments. Flue takes only PDFs
+as documents, so a text entry cannot be passed back to `prompt` or `dispatch`.
 
 `openDocumentGuidance(context)` returns a short instruction for a turn sent from an edit view, or
 `undefined` without one, to add to the agent's instructions: the user sees each write as it lands,
@@ -280,14 +296,13 @@ useTool({
 | `fields`     | values of the collection's own fields, such as `alt`  |
 | `locale`     | the locale of `fields`; defaults to the turn's locale |
 
-To keep a file the user attached, read it from `useDelivery()`. Flue hands an agent only the
-attachments of the message it is answering, so a file from an earlier message has to be attached
-again:
+To keep a file the user attached, read it with `attachmentsOf(useDelivery())`.
+`delivery.attachments` holds only the images and PDFs, because text files reach Flue as part of the
+turn's text. Flue hands an agent only the files of the message it is answering, so a file from an
+earlier message has to be attached again:
 
 ```ts
-const delivery = useDelivery();
-const attachments =
-  delivery.kind === "user" ? (delivery.attachments ?? []) : [];
+const attachments = attachmentsOf(useDelivery());
 
 useTool({
   name: "save_attachment",

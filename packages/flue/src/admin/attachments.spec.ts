@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 
-import { attachmentAdapter, deliveredOf, echoParts } from "./attachments.js";
+import {
+	attachmentAdapter,
+	deliveredOf,
+	dropHint,
+	echoParts,
+	mimeTypeOf,
+} from "./attachments.js";
 
 import type { AttachmentLimits } from "../protocol/attachments.js";
 import type { PendingAttachment } from "@assistant-ui/react";
@@ -10,6 +16,7 @@ const LIMITS: AttachmentLimits = {
 	mimeTypes: ["image/png", "application/pdf"],
 	maxImageBytes: 3_932_160,
 	maxDocumentBytes: 5_242_880,
+	maxTextBytes: 524_288,
 	maxFiles: 2,
 };
 
@@ -95,6 +102,102 @@ describe("attachmentAdapter", () => {
 				filename: "brief.pdf",
 			},
 		]);
+	});
+});
+
+describe("text attachments", () => {
+	const TEXT: AttachmentLimits = {
+		...LIMITS,
+		mimeTypes: ["text/markdown", "text/plain", "text/csv"],
+	};
+
+	it("accepts the text types and their extensions in the file picker", () => {
+		expect(attachmentAdapter(TEXT, () => 0).accept).toBe(
+			"text/markdown,text/plain,text/csv,.md,.markdown,.txt,.csv",
+		);
+	});
+
+	it.each([
+		["notes.md", "", "text/markdown"],
+		["notes.MD", "text/x-markdown", "text/markdown"],
+		["notes.markdown", "application/octet-stream", "text/markdown"],
+		["notes.txt", "text/plain", "text/plain"],
+		["table.csv", "application/vnd.ms-excel", "text/csv"],
+		["table.csv", "text/csv", "text/csv"],
+		["table.csv", "text/plain", "text/csv"],
+	])("takes %s reported as %j as %s", (name, type, expected) => {
+		expect(mimeTypeOf({ name, type }, TEXT.mimeTypes)).toBe(expected);
+	});
+
+	it("takes no extension outside the allowed types", () => {
+		expect(
+			mimeTypeOf({ name: "notes.md", type: "" }, ["text/plain"]),
+		).toBeUndefined();
+		expect(mimeTypeOf({ name: "notes", type: "" }, TEXT.mimeTypes)).toBe(
+			undefined,
+		);
+	});
+
+	it("sends a text file as a base64 file part of its mapped type", async () => {
+		const adapter = attachmentAdapter(TEXT, () => 0);
+		const sent = await adapter.send(
+			(await adapter.add({
+				file: fileOf("a.md", "", "# Hi"),
+			})) as PendingAttachment,
+		);
+
+		expect(deliveredOf([sent])).toEqual([
+			{
+				type: "document",
+				data: btoa("# Hi"),
+				mimeType: "text/markdown",
+				filename: "a.md",
+			},
+		]);
+	});
+
+	it("refuses an empty file and a text file that is not UTF-8", async () => {
+		const adapter = attachmentAdapter(TEXT, () => 0);
+
+		await expect(
+			adapter.add({ file: fileOf("empty.md", "", "") }),
+		).rejects.toThrow("empty.md is empty.");
+		await expect(
+			adapter.add({
+				file: new File([new Uint8Array([0x61, 0xff])], "latin.csv"),
+			}),
+		).rejects.toThrow("latin.csv is not UTF-8 text.");
+		await expect(
+			adapter.add({ file: fileOf("nul.txt", "text/plain", "a\0b") }),
+		).rejects.toThrow("nul.txt is not UTF-8 text.");
+	});
+
+	it("refuses a text file over its own limit", async () => {
+		await expect(
+			attachmentAdapter(TEXT, () => 0).add({
+				file: fileOf("big.txt", "text/plain", "x".repeat(524_289)),
+			}),
+		).rejects.toThrow("big.txt is larger than 0.5 MiB.");
+	});
+});
+
+describe("dropHint", () => {
+	it.each([
+		[
+			["image/png", "application/pdf"],
+			4,
+			"Images and PDFs, up to 4 per message",
+		],
+		[
+			["image/png", "application/pdf", "text/markdown", "text/csv"],
+			2,
+			"Images, PDFs and text files, up to 2 per message",
+		],
+		[["text/plain"], 1, "Text files, one per message"],
+	] as const)("names %j with %i files", (mimeTypes, maxFiles, hint) => {
+		expect(dropHint({ ...LIMITS, mimeTypes: [...mimeTypes], maxFiles })).toBe(
+			hint,
+		);
 	});
 });
 

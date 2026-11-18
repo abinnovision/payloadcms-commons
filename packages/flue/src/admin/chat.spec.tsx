@@ -45,6 +45,7 @@ vi.mock("@payloadcms/ui", () => ({
 	ChevronIcon: () => <svg />,
 	CircledXIcon: () => <svg />,
 	CopyIcon: () => <svg />,
+	DocumentIcon: () => <svg />,
 	PlusIcon: () => <svg />,
 	SearchIcon: () => <svg />,
 	SpinnerIcon: () => <svg />,
@@ -644,6 +645,7 @@ describe("attachments in the FlueChat composer", () => {
 		mimeTypes: ["image/png", "application/pdf"],
 		maxImageBytes: 3_932_160,
 		maxDocumentBytes: 5_242_880,
+		maxTextBytes: 524_288,
 		maxFiles: 4,
 	};
 

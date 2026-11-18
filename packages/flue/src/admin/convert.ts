@@ -2,6 +2,7 @@ import { isUserTurn, readUserTurnBody } from "../protocol/context.js";
 import { TITLE_PART } from "../protocol/events.js";
 import { isRecord } from "../protocol/guards.js";
 
+import type { DeliveredAttachment } from "../protocol/attachments.js";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import type {
 	FlueConversationMessage,
@@ -69,6 +70,27 @@ const attachmentsOf = (message: FlueConversationMessage): Attachment[] =>
 		];
 	});
 
+// A text file inlined into a user's turn, shown by name like a document.
+const textAttachment = (file: DeliveredAttachment, id: string): Attachment => {
+	const name = file.filename ?? "Text";
+
+	return {
+		id,
+		type: "document",
+		name,
+		contentType: file.mimeType,
+		status: { type: "complete" },
+		content: [
+			{
+				type: "file",
+				data: `data:${file.mimeType};base64,${file.data}`,
+				mimeType: file.mimeType,
+				filename: name,
+			},
+		],
+	};
+};
+
 // Titles reach the thread list through the threads collection instead.
 const partsOf = (part: FlueConversationPart): Part[] => {
 	switch (part.type) {
@@ -135,12 +157,18 @@ export const toThreadMessage = (
 		// The runtime's echo of a message on its way; Flue's own messages carry no such key.
 		const optimistic = message.metadata?.["isOptimistic"] === true;
 		const raw = textOf(message);
-		// A turn with files reaches Flue as a user message whose body starts with the context.
-		const text =
+		// A turn with files reaches Flue as a user message whose body starts with the context and its text files.
+		const body =
 			message.purpose === "user" && !optimistic
-				? (readUserTurnBody(raw)?.text ?? raw)
-				: raw;
-		const attachments = attachmentsOf(message);
+				? readUserTurnBody(raw)
+				: undefined;
+		const text = body?.text ?? raw;
+		const attachments = [
+			...(body?.files.map((file, index) =>
+				textAttachment(file, `${message.id}:text:${String(index)}`),
+			) ?? []),
+			...attachmentsOf(message),
+		];
 
 		return {
 			...base,

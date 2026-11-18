@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { APIError, createPayloadRequest } from "payload";
 
 import { ensureAgentKey } from "./keys/manager.js";
+import { isTextMimeType } from "./protocol/attachments.js";
 import {
 	CONTEXT_SIGNAL_TYPE,
 	encodeContext,
@@ -106,6 +107,7 @@ const titleOf = (
 /*
  * The turn as Flue takes it: a context signal, or a `user` message with the
  * context in a preamble when it carries files, which only `user` messages can.
+ * Flue takes no text documents, so text files go into the body.
  */
 const turnMessage = (
 	context: ChatContext,
@@ -116,8 +118,14 @@ const turnMessage = (
 		? {
 				message: {
 					kind: "user",
-					body: userTurnBody(context, message),
-					attachments,
+					body: userTurnBody(
+						context,
+						message,
+						attachments.filter((file) => isTextMimeType(file.mimeType)),
+					),
+					attachments: attachments.filter(
+						(file) => !isTextMimeType(file.mimeType),
+					),
 				},
 				timeoutMs: ATTACHMENT_SEND_MS,
 			}

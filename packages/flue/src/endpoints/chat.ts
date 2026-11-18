@@ -9,7 +9,12 @@ import {
 	requireUser,
 } from "./http.js";
 import { CHAT_BODY_MAX } from "../options.js";
-import { attachmentKind } from "../protocol/attachments.js";
+import {
+	attachmentKind,
+	base64ToText,
+	isTextMimeType,
+	maxBytesOf,
+} from "../protocol/attachments.js";
 import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 import { startTurn } from "../turn.js";
@@ -18,6 +23,7 @@ import type { NormalizedAttachments } from "../options.js";
 import type {
 	AttachmentMimeType,
 	DeliveredAttachment,
+	TextMimeType,
 } from "../protocol/attachments.js";
 import type { PluginSettings, TurnContext } from "../turn.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
@@ -67,9 +73,9 @@ const decodedSize = (data: string): number =>
 	(data.length / 4) * 3 -
 	(data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0);
 
-// The leading bytes of each type, by offset, as latin1 text.
+// The leading bytes of each binary type, by offset, as latin1 text.
 const SIGNATURES: Record<
-	AttachmentMimeType,
+	Exclude<AttachmentMimeType, TextMimeType>,
 	ReadonlyArray<readonly [number, string]>
 > = {
 	"image/png": [[0, "\x89PNG"]],
@@ -82,8 +88,15 @@ const SIGNATURES: Record<
 	"application/pdf": [[0, "%PDF-"]],
 };
 
-// Whether the base64 bytes start like a file of the type.
-const hasSignature = (data: string, mimeType: AttachmentMimeType): boolean => {
+/*
+ * Whether the base64 bytes are a file of the type: a text file decodes as
+ * UTF-8 without NUL bytes, any other file starts with its signature.
+ */
+const isFileOf = (data: string, mimeType: AttachmentMimeType): boolean => {
+	if (isTextMimeType(mimeType)) {
+		return base64ToText(data) !== undefined;
+	}
+
 	const head = Buffer.from(data.slice(0, 16), "base64").toString("latin1");
 
 	return SIGNATURES[mimeType].every(([offset, signature]) =>
@@ -109,6 +122,7 @@ const parseAttachments = (
 	}
 
 	const attachments: DeliveredAttachment[] = [];
+	let textBytes = 0;
 
 	for (const [index, item] of (value as unknown[]).entries()) {
 		const at = `attachments[${String(index)}]`;
@@ -132,8 +146,7 @@ const parseAttachments = (
 			return `${at}.type must be "${kind}" for ${mimeType}.`;
 		}
 
-		const max =
-			kind === "image" ? limits.maxImageBytes : limits.maxDocumentBytes;
+		const max = maxBytesOf(limits, mimeType as AttachmentMimeType);
 
 		if (
 			typeof data !== "string" ||
@@ -144,8 +157,18 @@ const parseAttachments = (
 			return `${at}.data must be base64 of at most ${String(max)} bytes.`;
 		}
 
-		if (!hasSignature(data, mimeType as AttachmentMimeType)) {
-			return `${at}.data is not a ${mimeType} file.`;
+		if (isTextMimeType(mimeType)) {
+			textBytes += decodedSize(data);
+
+			if (textBytes > limits.maxTextBytes) {
+				return `The text files of a message hold at most ${String(limits.maxTextBytes)} bytes together.`;
+			}
+		}
+
+		if (!isFileOf(data, mimeType as AttachmentMimeType)) {
+			return isTextMimeType(mimeType)
+				? `${at}.data must be UTF-8 text without NUL bytes.`
+				: `${at}.data is not a ${mimeType} file.`;
 		}
 
 		if (

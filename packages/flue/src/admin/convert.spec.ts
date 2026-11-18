@@ -7,6 +7,8 @@ import {
 	toThreadMessage,
 } from "./convert.js";
 import { fixtureJson } from "../../test/builders/fixtures.js";
+import { textToBase64 } from "../protocol/attachments.js";
+import { userTurnBody } from "../protocol/context.js";
 
 import type { FlueConversationMessage, FlueConversationState } from "@flue/sdk";
 
@@ -233,6 +235,50 @@ describe("shownMessages and toThreadMessage", () => {
 				],
 			},
 		]);
+	});
+
+	it("shows the text files of a user's turn as documents and not as text", () => {
+		const file = {
+			type: "document",
+			data: textToBase64("# Checkpoints"),
+			mimeType: "text/markdown",
+			filename: "list.md",
+		} as const;
+		const turn = message({
+			id: "entry_text",
+			role: "user",
+			purpose: "user",
+			parts: [
+				{
+					type: "text",
+					text: userTurnBody({ kind: "chat" }, "Create these", [file]),
+					state: "done",
+				},
+			],
+		});
+
+		expect(toThreadMessage(turn)).toEqual({
+			id: "entry_text",
+			role: "user",
+			content: [{ type: "text", text: "Create these" }],
+			attachments: [
+				{
+					id: "entry_text:text:0",
+					type: "document",
+					name: "list.md",
+					contentType: "text/markdown",
+					status: { type: "complete" },
+					content: [
+						{
+							type: "file",
+							data: `data:text/markdown;base64,${file.data}`,
+							mimeType: "text/markdown",
+							filename: "list.md",
+						},
+					],
+				},
+			],
+		});
 	});
 
 	it("shows a user message holding only files without a text part", () => {

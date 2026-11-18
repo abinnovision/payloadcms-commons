@@ -1,9 +1,6 @@
 import { InvalidConfiguration } from "payload";
 
-import {
-	ATTACHMENT_MIME_TYPES,
-	attachmentKind,
-} from "./protocol/attachments.js";
+import { ATTACHMENT_MIME_TYPES, maxBytesOf } from "./protocol/attachments.js";
 
 import type { AttachmentLimits } from "./protocol/attachments.js";
 import type { FlueAgentConfig, FluePluginOptions } from "./types.js";
@@ -30,12 +27,14 @@ export const CHAT_BODY_MAX = 64 * KIB;
 
 /*
  * Images stay within Anthropic's 5 MiB base64 image limit. PDFs stay under
- * Flue's 14 MiB base64 cap. Each file adds room for its JSON keys and a
- * file name of 255 characters escaped as `\uXXXX`.
+ * Flue's 14 MiB base64 cap. Text files go into the turn's text, so their
+ * cap keeps a turn within a model's context. Each file adds room for its
+ * JSON keys and a file name of 255 characters escaped as `\uXXXX`.
  */
 const ATTACHMENTS = {
 	maxImageBytes: 3.75 * MIB,
 	maxDocumentBytes: { default: 5 * MIB, max: 10 * MIB },
+	maxTextBytes: { default: 512 * KIB, max: 2 * MIB },
 	maxFiles: { default: 4, max: 20 },
 	fileSlack: 2 * KIB,
 };
@@ -232,6 +231,7 @@ const normalizeAttachments = (
 		mimeTypes = [...ATTACHMENT_MIME_TYPES],
 		maxImageBytes = ATTACHMENTS.maxImageBytes,
 		maxDocumentBytes = ATTACHMENTS.maxDocumentBytes.default,
+		maxTextBytes = ATTACHMENTS.maxTextBytes.default,
 		maxFiles = ATTACHMENTS.maxFiles.default,
 	} = option === true ? {} : option;
 
@@ -259,22 +259,26 @@ const normalizeAttachments = (
 		);
 	}
 
+	if (!isCount(maxTextBytes, 1, ATTACHMENTS.maxTextBytes.max)) {
+		throw invalid(
+			`attachments.maxTextBytes must be between 1 and ${String(ATTACHMENTS.maxTextBytes.max)} (2 MiB), got ${String(maxTextBytes)}.`,
+		);
+	}
+
 	if (!isCount(maxFiles, 1, ATTACHMENTS.maxFiles.max)) {
 		throw invalid(
 			`attachments.maxFiles must be between 1 and ${String(ATTACHMENTS.maxFiles.max)}, got ${String(maxFiles)}.`,
 		);
 	}
 
+	const limits = { maxImageBytes, maxDocumentBytes, maxTextBytes };
 	const largest = Math.max(
-		...mimeTypes.map((mimeType) =>
-			attachmentKind(mimeType) === "image" ? maxImageBytes : maxDocumentBytes,
-		),
+		...mimeTypes.map((mimeType) => maxBytesOf(limits, mimeType)),
 	);
 
 	return {
 		mimeTypes: [...new Set(mimeTypes)],
-		maxImageBytes,
-		maxDocumentBytes,
+		...limits,
 		maxFiles,
 		bodyMax:
 			CHAT_BODY_MAX +

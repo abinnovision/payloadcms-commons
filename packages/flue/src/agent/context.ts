@@ -5,7 +5,7 @@ import {
 } from "../protocol/context.js";
 
 import type { ChatContext } from "../protocol/context.js";
-import type { DeliveredMessage } from "@flue/runtime";
+import type { DeliveredAttachment, DeliveredMessage } from "@flue/runtime";
 
 /**
  * The context Payload sent with a delivery, from either turn shape: the
@@ -24,3 +24,20 @@ export const contextOf = (
 		? decodeContext(delivery.attributes)
 		: undefined;
 };
+
+/**
+ * The files of a user's turn: the text files Payload inlined into the body,
+ * as base64 UTF-8 `document` attachments with their own MIME type, then
+ * Flue's attachments, the order the panel shows them in. Empty for any other
+ * delivery. A text file cannot go back to Flue as a document, which takes
+ * only PDFs.
+ */
+export const attachmentsOf = (
+	delivery: DeliveredMessage,
+): DeliveredAttachment[] =>
+	delivery.kind === "user"
+		? [
+				...(readUserTurnBody(delivery.body)?.files ?? []),
+				...(delivery.attachments ?? []),
+			]
+		: [];

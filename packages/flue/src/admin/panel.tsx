@@ -16,6 +16,7 @@ import {
 	CheckIcon,
 	ChevronIcon,
 	CopyIcon,
+	DocumentIcon,
 	PlusIcon,
 	SpinnerIcon,
 	toast,
@@ -24,6 +25,7 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import remarkGfm from "remark-gfm";
 
+import { dropHint } from "./attachments.js";
 import { useConversation } from "./conversation.js";
 import { FileCard } from "./file-card.js";
 import { PANEL_ID, PANEL_WIDTH, clampWidth } from "./layout.js";
@@ -505,71 +507,85 @@ export const FluePanel: React.FC<FluePanelProps> = ({
 			/>
 			<div className="flue-conversation" hidden={view !== "conversation"}>
 				<TitleBar agents={runAgents ?? agents} api={api} />
-				<ThreadPrimitive.Root className="flue-thread">
-					<ThreadPrimitive.Viewport className="flue-thread__viewport">
-						<AuiIf condition={(state) => state.thread.isEmpty}>
-							<EmptyThread
-								agent={agents.find((entry) => entry.slug === agent)}
-							/>
-						</AuiIf>
-						<ThreadPrimitive.Messages>
-							{({ message }) => {
-								const Message = MESSAGES[message.role];
+				<ComposerPrimitive.AttachmentDropzone
+					className="flue-dropzone"
+					disabled={!attachments || readOnly}
+				>
+					<ThreadPrimitive.Root className="flue-thread">
+						<ThreadPrimitive.Viewport className="flue-thread__viewport">
+							<AuiIf condition={(state) => state.thread.isEmpty}>
+								<EmptyThread
+									agent={agents.find((entry) => entry.slug === agent)}
+								/>
+							</AuiIf>
+							<ThreadPrimitive.Messages>
+								{({ message }) => {
+									const Message = MESSAGES[message.role];
 
-								return <Message />;
-							}}
-						</ThreadPrimitive.Messages>
-						<AuiIf condition={(state) => state.thread.isRunning}>
-							<p className="flue-thread__working" role="status">
-								<SpinnerIcon size="sm" />
-								The agent is working.
-							</p>
-						</AuiIf>
-					</ThreadPrimitive.Viewport>
-					{agent === undefined ? null : (
-						<ComposerPrimitive.Root className="flue-composer">
-							{attachments ? (
-								<div className="flue-composer__attachments">
-									<ComposerPrimitive.Attachments>
-										{() => <ComposerAttachment />}
-									</ComposerPrimitive.Attachments>
-								</div>
-							) : null}
-							<ComposerPrimitive.Input
-								aria-label="Message"
-								className="flue-composer__input"
-								ref={composer}
-								maxRows={10}
-								minRows={2}
-								placeholder={
-									readOnly
-										? "This thread belongs to an agent run and is read-only."
-										: "Message the agent"
-								}
-								submitMode="enter"
-							/>
-							<div className="flue-composer__actions">
+									return <Message />;
+								}}
+							</ThreadPrimitive.Messages>
+							<AuiIf condition={(state) => state.thread.isRunning}>
+								<p className="flue-thread__working" role="status">
+									<SpinnerIcon size="sm" />
+									The agent is working.
+								</p>
+							</AuiIf>
+						</ThreadPrimitive.Viewport>
+						{agent === undefined ? null : (
+							<ComposerPrimitive.Root className="flue-composer">
 								{attachments ? (
-									<ComposerPrimitive.AddAttachment className="flue-button flue-composer__attach">
-										Attach
-									</ComposerPrimitive.AddAttachment>
+									<div className="flue-composer__attachments">
+										<ComposerPrimitive.Attachments>
+											{() => <ComposerAttachment />}
+										</ComposerPrimitive.Attachments>
+									</div>
 								) : null}
-								<AuiIf
-									condition={(state) =>
-										state.thread.isRunning && !state.thread.isDisabled
+								<ComposerPrimitive.Input
+									aria-label="Message"
+									className="flue-composer__input"
+									ref={composer}
+									maxRows={10}
+									minRows={2}
+									placeholder={
+										readOnly
+											? "This thread belongs to an agent run and is read-only."
+											: "Message the agent"
 									}
-								>
-									<ComposerPrimitive.Cancel className="flue-button">
-										Stop
-									</ComposerPrimitive.Cancel>
-								</AuiIf>
-								<ComposerPrimitive.Send className="flue-button flue-button--primary">
-									Send
-								</ComposerPrimitive.Send>
-							</div>
-						</ComposerPrimitive.Root>
-					)}
-				</ThreadPrimitive.Root>
+									submitMode="enter"
+								/>
+								<div className="flue-composer__actions">
+									{attachments ? (
+										<ComposerPrimitive.AddAttachment className="flue-button flue-composer__attach">
+											Attach
+										</ComposerPrimitive.AddAttachment>
+									) : null}
+									<AuiIf
+										condition={(state) =>
+											state.thread.isRunning && !state.thread.isDisabled
+										}
+									>
+										<ComposerPrimitive.Cancel className="flue-button">
+											Stop
+										</ComposerPrimitive.Cancel>
+									</AuiIf>
+									<ComposerPrimitive.Send className="flue-button flue-button--primary">
+										Send
+									</ComposerPrimitive.Send>
+								</div>
+							</ComposerPrimitive.Root>
+						)}
+					</ThreadPrimitive.Root>
+					{attachments && !readOnly ? (
+						<div aria-hidden="true" className="flue-dropzone__overlay">
+							<span className="flue-dropzone__icon">
+								<DocumentIcon size={24} />
+							</span>
+							<p className="flue-dropzone__title">Drop to attach</p>
+							<p className="flue-dropzone__hint">{dropHint(attachments)}</p>
+						</div>
+					) : null}
+				</ComposerPrimitive.AttachmentDropzone>
 			</div>
 		</aside>
 	);

@@ -330,9 +330,13 @@ describe("normalizeOptions", () => {
 					"image/gif",
 					"image/webp",
 					"application/pdf",
+					"text/markdown",
+					"text/plain",
+					"text/csv",
 				],
 				maxImageBytes: 3.75 * MIB,
 				maxDocumentBytes: 5 * MIB,
+				maxTextBytes: 512 * 1024,
 				maxFiles: 4,
 				bodyMax: 64 * 1024 + 4 * (Math.ceil((5 * MIB * 4) / 3) + 2048),
 			});
@@ -354,14 +358,32 @@ describe("normalizeOptions", () => {
 				mimeTypes: ["image/png"],
 				maxImageBytes: 3000,
 				maxDocumentBytes: 10 * MIB,
+				maxTextBytes: 512 * 1024,
 				maxFiles: 2,
 				bodyMax: 64 * 1024 + 2 * (4000 + 2048),
 			});
 		});
 
+		it("sizes the body cap by the text limit for text files only", () => {
+			expect(
+				normalize(
+					options({
+						attachments: {
+							mimeTypes: ["text/markdown", "text/csv"],
+							maxTextBytes: 2 * MIB,
+							maxFiles: 3,
+						},
+					}),
+				).normalized.attachments,
+			).toMatchObject({
+				maxTextBytes: 2 * MIB,
+				bodyMax: 64 * 1024 + 3 * (Math.ceil((2 * MIB * 4) / 3) + 2048),
+			});
+		});
+
 		it.each([
 			[
-				"a type outside the five",
+				"a type outside the allowed ones",
 				{ mimeTypes: ["image/svg+xml"] },
 				/mimeTypes/,
 			],
@@ -376,6 +398,8 @@ describe("normalizeOptions", () => {
 				{ maxDocumentBytes: 10 * MIB + 1 },
 				/maxDocumentBytes/,
 			],
+			["text files over 2 MiB", { maxTextBytes: 2 * MIB + 1 }, /maxTextBytes/],
+			["an empty text limit", { maxTextBytes: 0 }, /maxTextBytes/],
 			["no files", { maxFiles: 0 }, /maxFiles/],
 			["a fraction of a file", { maxFiles: 1.5 }, /maxFiles/],
 			["more than 20 files", { maxFiles: 21 }, /maxFiles/],

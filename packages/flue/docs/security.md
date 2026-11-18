@@ -209,7 +209,9 @@ Attachments are off by default. Once `attachments` is on:
 The preamble of a turn with files is not a trust boundary. Payload writes it and agent code reads
 only the preamble at the start of the body, so `contextOf` cannot be forged. The model, however,
 reads the whole body: a user can still type a `<payload-context .../>` tag or a block that looks
-like an `<attachments>` manifest into their text, and mislead the model with it. Never treat the
+like an `<attachments>` manifest into their text or a text file, and mislead the model with it.
+A text file the user attaches is part of the turn's text, so it reaches the model as if the user
+had typed it. Never treat the
 context, or anything the model concludes from it, as authorization; mcpx's key and Payload access
 control decide what a run may do.
 

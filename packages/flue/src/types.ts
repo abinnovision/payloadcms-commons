@@ -92,20 +92,28 @@ export interface FluePluginOptions {
 		wait?: boolean | { maxWaitMs?: number };
 	};
 	/**
-	 * Lets chat users attach images and PDFs to a turn; `true` takes the
-	 * defaults. Raises the chat body cap to fit the files. Default off.
+	 * Lets chat users attach images, PDFs and text files to a turn; `true`
+	 * takes the defaults. Raises the chat body cap to fit the files. Default off.
 	 */
 	attachments?: boolean | FlueAttachmentOptions;
 }
 
 /** Limits of chat attachments; each may only narrow the default. */
 export interface FlueAttachmentOptions {
-	/** Default: PNG, JPEG, GIF, WebP and PDF. */
+	/**
+	 * Default: PNG, JPEG, GIF, WebP, PDF, Markdown, plain text and CSV. Text
+	 * files reach the model inlined into the turn's text.
+	 */
 	mimeTypes?: AttachmentMimeType[];
 	/** Largest decoded image in bytes. Default and maximum 3.75 MiB. */
 	maxImageBytes?: number;
 	/** Largest decoded PDF in bytes. Default 5 MiB, maximum 10 MiB. */
 	maxDocumentBytes?: number;
+	/**
+	 * Largest decoded text of all text files of a turn, in bytes. Default
+	 * 512 KiB, maximum 2 MiB.
+	 */
+	maxTextBytes?: number;
 	/** Files per turn. Default 4, maximum 20. */
 	maxFiles?: number;
 }

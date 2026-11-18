@@ -39,6 +39,9 @@ not every limit can be checked before sending:
   PDFs at most 100 pages.
 - PDFs reach the model natively only on Anthropic, Google and Vertex, and OpenAI's Responses API.
   Other providers get a placeholder instead.
+- Text files reach every model, inlined into the turn's text, and stay in the history. 512 KiB of
+  text, the default for one turn, is roughly 130,000 tokens; a thread of several such turns can
+  outgrow the model's context.
 
 Hosts with a smaller request body limit than the [chat cap](./integration.md#attachments), such as
 some serverless platforms and proxies, refuse large turns before Payload sees them.
