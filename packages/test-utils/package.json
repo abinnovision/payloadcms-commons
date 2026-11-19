@@ -26,7 +26,7 @@
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@types/node": "^26.6.6",
-		"eslint": "^10.14.0",
+		"eslint": "^10.15.0",
 		"prettier": "^3.10.0",
 		"vite": "^8.3.8",
 		"vitest": "^5.1.0"
