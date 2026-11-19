@@ -39,17 +39,22 @@ yarn add @abinnovision/payloadcms-flue
 | `react`                         | `^19`               | the admin chat panel (`./admin`)      |
 | `@flue/runtime`                 | `^2.3.0`            | agent code in the sidecar (`./agent`) |
 | `valibot`                       | `^1.1.0`            | agent code in the sidecar (`./agent`) |
+| `read-excel-file`, `papaparse`  | `^9.3.17`, `^5.7.1` | spreadsheet tools (`./sheets`)        |
+| `unpdf`                         | `^2.2.1`            | PDF tools (`./pdf`)                   |
+| `@napi-rs/canvas`               | `^1.1.1`            | rendering PDF pages (`./pdf`)         |
 
 Every peer is optional, so the sidecar does not install Payload and the Payload
 server does not install Flue. The package is ESM only, like Payload.
 
 ## Entry points
 
-| Entry     | Runs in            | Exports                                                                                                                                                                                                                                                              |
-| --------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                                                                                                                                     |
-| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                                                                                                                         |
-| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `useFileTools`, `reportSettlements`, `contextOf`, `attachmentsOf`, `filesOf`, `openDocumentGuidance`, `FILE_BUDGETS`, `FILE_LIMITS`, `FlueExchangeError`, `FlueFileError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
+| Entry      | Runs in            | Exports                                                                                                                                                                                                                                                              |
+| ---------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`        | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                                                                                                                                     |
+| `./admin`  | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                                                                                                                         |
+| `./agent`  | the Flue sidecar   | `usePayload`, `useThreadTitle`, `useFileTools`, `reportSettlements`, `contextOf`, `attachmentsOf`, `filesOf`, `openDocumentGuidance`, `FILE_BUDGETS`, `FILE_LIMITS`, `FlueExchangeError`, `FlueFileError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
+| `./sheets` | the Flue sidecar   | `useSheetTools`, `readSheet`, `SHEET_BUDGETS`                                                                                                                                                                                                                        |
+| `./pdf`    | the Flue sidecar   | `usePdfTools`, `PDF_BUDGETS`                                                                                                                                                                                                                                         |
 
 `./admin` needs three browser packages: `@flue/sdk` to follow conversations,
 `@assistant-ui/react` for the chat UI and `@assistant-ui/react-markdown` for

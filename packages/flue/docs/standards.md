@@ -4,14 +4,16 @@ These rules apply to code in this package.
 
 ## Entries and layers
 
-The package has three entries, and each runs somewhere else. A boundary spec per entry walks its
+The package has five entries, and each runs somewhere else. A boundary spec per entry walks its
 module graph:
 
-| Entry     | Spec                                | Must not reach                                                                                         |
-| --------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `.`       | `src/module-boundary.spec.ts`       | a `.tsx` file, `react`, `@payloadcms/ui`, `@assistant-ui/*`, `@flue/*`, `valibot` (type-only included) |
-| `./admin` | `src/admin/module-boundary.spec.ts` | a runtime import of `payload`, `node:*`, `next/*`, `@flue/*` except `@flue/sdk`, `valibot`             |
-| `./agent` | `src/agent/module-boundary.spec.ts` | `payload` (type-only included), `@payloadcms/*`, `react`, `node:*`; only `@flue/runtime` and `valibot` |
+| Entry      | Spec                                 | Must not reach                                                                                              |
+| ---------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `.`        | `src/module-boundary.spec.ts`        | a `.tsx` file, `react`, `@payloadcms/ui`, `@assistant-ui/*`, `@flue/*`, `valibot` (type-only included)      |
+| `./admin`  | `src/admin/module-boundary.spec.ts`  | a runtime import of `payload`, `node:*`, `next/*`, `@flue/*` except `@flue/sdk`, `valibot`                  |
+| `./agent`  | `src/agent/module-boundary.spec.ts`  | `payload` (type-only included), `@payloadcms/*`, `react`, `node:*`; only `@flue/runtime` and `valibot`      |
+| `./sheets` | `src/sheets/module-boundary.spec.ts` | anything but `@flue/runtime`, `valibot`, `read-excel-file/universal`, `papaparse` and `agent/`, `protocol/` |
+| `./pdf`    | `src/pdf/module-boundary.spec.ts`    | anything but `@flue/runtime`, `valibot`, `unpdf`, `@napi-rs/canvas` and `agent/`, `protocol/`               |
 
 Inside the server entry, `src/layering.spec.ts` holds each file to its layer. A file imports its
 own layer and lower ones, type-only imports included:
@@ -26,7 +28,7 @@ own layer and lower ones, type-only imports included:
 | 5     | `plugin.ts`, `index.ts`                      |
 
 `admin/` and `agent/` stand outside the layers and may import only `protocol/` from the rest of
-`src/`. The rules are written three times: `layering.spec.ts`, the `no-restricted-imports` rules
+`src/`; `sheets/` and `pdf/` stand outside too and may import `agent/` and `protocol/`. The rules are written three times: `layering.spec.ts`, the `no-restricted-imports` rules
 in `eslint.config.ts` and the boundary specs. A change belongs in all three. Each spec has a
 sanity case that fails if its walk finds nothing.
 

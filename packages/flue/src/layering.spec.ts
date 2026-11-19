@@ -26,14 +26,20 @@ const LAYERS: Record<string, number> = {
 };
 
 /**
- * `./admin` and `./agent` run outside the Payload server, so they stand
- * outside the layering and may reach only protocol/ from the rest of src/.
+ * `./admin`, `./agent`, `./sheets` and `./pdf` run outside the Payload
+ * server, so they stand outside the layering and may reach only protocol/
+ * from the rest of src/; `./sheets` and `./pdf` build on agent/ as well.
  * The rule is written twice more: the `no-restricted-imports` rules in
  * eslint.config.ts and the module boundary specs. A change belongs in all
  * three.
  */
-const OUTSIDE = ["admin/", "agent/"];
-const OUTSIDE_MAY_IMPORT = ["protocol/"];
+const OUTSIDE = ["admin/", "agent/", "sheets/", "pdf/"];
+const OUTSIDE_MAY_IMPORT: Record<string, string[]> = {
+	"admin/": ["protocol/"],
+	"agent/": ["protocol/"],
+	"sheets/": ["protocol/", "agent/"],
+	"pdf/": ["protocol/", "agent/"],
+};
 
 const pathOf = (file: string): string => relative(here, file);
 
@@ -84,7 +90,7 @@ const forbiddenImports = (file: string, layer: number): string[] =>
 
 const forbiddenOutsideImports = (
 	file: string,
-	allowed: string[] = OUTSIDE_MAY_IMPORT,
+	allowed: string[] = OUTSIDE_MAY_IMPORT[outsideDirOf(file)!]!,
 ): string[] =>
 	importsOf(file)
 		.filter(
@@ -95,7 +101,7 @@ const forbiddenOutsideImports = (
 		.map((target) => `${pathOf(file)} -> ${pathOf(target)}`);
 
 describe("layer boundaries", () => {
-	it("finds server, admin and agent files to check", () => {
+	it("finds server files and files of each outside entry to check", () => {
 		expect(serverFiles).not.toEqual([]);
 
 		for (const dir of OUTSIDE) {
@@ -107,9 +113,11 @@ describe("layer boundaries", () => {
 
 	it("names only files and directories that exist", () => {
 		expect(
-			[...Object.keys(LAYERS), ...OUTSIDE, ...OUTSIDE_MAY_IMPORT].filter(
-				(path) => !existsSync(resolve(here, path)),
-			),
+			[
+				...Object.keys(LAYERS),
+				...OUTSIDE,
+				...Object.values(OUTSIDE_MAY_IMPORT).flat(),
+			].filter((path) => !existsSync(resolve(here, path))),
 		).toEqual([]);
 	});
 
@@ -125,7 +133,7 @@ describe("layer boundaries", () => {
 		).toEqual([]);
 	});
 
-	it("keeps admin and agent to protocol/", () => {
+	it("keeps the outside entries to what they may import", () => {
 		expect(
 			outsideFiles.flatMap((file) => forbiddenOutsideImports(file)),
 		).toEqual([]);

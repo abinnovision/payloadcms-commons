@@ -9,7 +9,7 @@ import {
 
 /*
  * Each entry runs in a different process: `.` in the Payload server, `./admin`
- * in the browser, `./agent` in the Flue sidecar. The rules below keep each
+ * in the browser, `./agent`, `./sheets` and `./pdf` in the Flue sidecar. The rules below keep each
  * file to what its runtime provides. The same lists are walked transitively
  * by src/layering.spec.ts and the module boundary specs; a change belongs in
  * all of them.
@@ -35,7 +35,9 @@ export default defineConfig([
 		ignores: [
 			"src/admin/**",
 			"src/agent/**",
+			"src/pdf/**",
 			"src/protocol/**",
+			"src/sheets/**",
 			"src/**/*.spec.ts",
 		],
 		rules: {
@@ -117,6 +119,37 @@ export default defineConfig([
 								"./agent runs in the Flue sidecar, which installs no Payload and reaches Payload only through mcpx. Not even `import type` may cross from payload.",
 						},
 						onlyProtocol("./agent"),
+					],
+				},
+			],
+		},
+	},
+	{
+		files: ["src/sheets/**/*.ts", "src/pdf/**/*.ts"],
+		ignores: ["src/sheets/**/*.spec.ts", "src/pdf/**/*.spec.ts"],
+		rules: {
+			"@typescript-eslint/no-restricted-imports": [
+				"error",
+				{
+					patterns: [
+						{
+							group: [
+								"payload",
+								"payload/*",
+								"@payloadcms/*",
+								"react",
+								"react/*",
+								"@assistant-ui/*",
+								"node:*",
+							],
+							message:
+								"./sheets and ./pdf run in the Flue sidecar beside ./agent. Not even `import type` may cross from payload.",
+						},
+						{
+							regex: "^\\.\\./(?!(agent|protocol)/[\\w-]+\\.js$)",
+							message:
+								"./sheets and ./pdf may import only agent/ and protocol/ from the rest of src/.",
+						},
 					],
 				},
 			],

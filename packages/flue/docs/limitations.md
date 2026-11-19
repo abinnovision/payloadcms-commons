@@ -90,8 +90,33 @@ These apply to the [file workspace](./integration.md#files).
 - Two tabs of the same user that send the same pending file at the same moment can both claim it.
   Both turns may reference it and the loser's tools answer `not_found`. The file belongs to the
   thread either way.
-- `useFileTools` reads text files and looks at images. PDFs and spreadsheets are accepted and
-  listed, but a tool of the agent has to read their bytes with `payload.files`.
+- `useFileTools` reads text files and looks at images. PDFs and spreadsheets need `./pdf` and
+  `./sheets`, or a tool of the agent that reads their bytes with `payload.files`.
+
+## Spreadsheets and PDFs
+
+These apply to `./sheets` and `./pdf` (see [integration](./integration.md#spreadsheets-and-pdfs)).
+
+- Memory. `read_sheet` parses a whole workbook, up to 32 MiB of file, 64 MiB of XML and 4 million
+  cells, once per response that reads it. Every PDF tool, `pdf_info` included, loads the whole file
+  into the sidecar; open PDFs are kept up to 256 MiB, charged by file size only. What pdf.js decodes
+  while it parses and renders comes on top; it drops its pages and decoded objects once no call uses
+  a document, but the document's parsed structure stays until eviction. Only documents not in use
+  are evicted, so a PDF that does not fit beside the ones in use is refused until they finish. Size
+  the sidecar's memory for that.
+- The 130 MB resident-memory check of the sidecar under PDF load is a manual end-to-end step that
+  has not been run yet.
+- PDFs above 150 MiB are refused. Loading by range, which would read only the pages a tool needs,
+  is not built.
+- `view_pdf_page` needs the prebuilt `@napi-rs/canvas` binary of the platform. It is tested on
+  macOS; Linux images on musl, such as Alpine, are untested. The tool is mounted when the package
+  resolves, and the binary loads on the first render; a missing binary refuses each render. A
+  bundled sidecar must keep `@napi-rs/canvas` external, or the package does not resolve.
+- The tools are generic: no outline of headings, no table detection, no layout heuristics. An agent
+  that needs those builds them on `readSheet`, `payload.files` and its own tools.
+- `read-excel-file` depends on `worker-f` and `unzipper-esm`, forks with a single maintainer. The
+  `./sheets` entry uses the package's universal build, which loads neither, but both are installed
+  with it. `unzipper-esm` brings `graceful-fs` (BlueOak-1.0.0).
 
 ## Known gaps
 

@@ -374,7 +374,8 @@ carries the secret or the handle.
 
 With `files` on, an agent reads the files of its thread through `payload.files`, which acts as the
 thread's owner. `filesOf(delivery)` returns the files a turn references, `{ id, name, mimeType,
-size }`, in the panel's order. `name` is the uploader's and untrusted.
+size }`, in the panel's order, typed `WorkspaceFileRef`. `name` is the uploader's and untrusted.
+`FILE_MIME_TYPES` lists the MIME types the workspace accepts, and `FileMimeType` is their union.
 
 | Call                      | Does                                                                                                  |
 | ------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -397,7 +398,8 @@ carries the secret, the handle or a download grant.
 
 The tools wrap file content in a `file_content` envelope with a notice that it is data and never
 instructions. `FILE_BUDGETS` holds what one response may spend (80 reads, 12 vision calls, page
-sizes and the like) and `FILE_LIMITS` the workspace limits; both are fixed and exported.
+sizes and the like) and `FILE_LIMITS` the workspace limits; both are fixed and exported. The reads
+and vision calls are shared with the tools of `./sheets` and `./pdf` in the same response.
 
 ```ts
 "use agent";
@@ -462,6 +464,61 @@ await payload.upload({
 
 `upload()` goes through mcpx, which caps a file at 25 MB, so a larger save fails with
 `FlueUploadError`. See [uploads](#uploads).
+
+#### Spreadsheets and PDFs
+
+Two more entries mount tools for workspace files. Each needs its own optional peers in the sidecar,
+which a sidecar without them never loads.
+
+| Entry      | Peers                                                         | Exports                                       |
+| ---------- | ------------------------------------------------------------- | --------------------------------------------- |
+| `./sheets` | `read-excel-file`, `papaparse`                                | `useSheetTools`, `readSheet`, `SHEET_BUDGETS` |
+| `./pdf`    | `unpdf`; `@napi-rs/canvas` for rendering, optional on its own | `usePdfTools`, `PDF_BUDGETS`                  |
+
+| Tool            | Does                                                                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read_sheet`    | rows of an xlsx or CSV file, one JSON array per line, by `sheet` (name or 1-based position), `offset` and `limit`; answers the sheet names and `nextOffset` |
+| `pdf_info`      | a PDF's page count, first page size in points and metadata                                                                                                  |
+| `read_pdf_page` | the text lines of one page, each prefixed with the `[x, y]` position of its top left in points from the page's top left                                     |
+| `view_pdf_page` | renders a page, or an `area` of it in the same points, and asks a vision model a question about it, like `look_at_image`                                    |
+
+`read_sheet` answers at most 200 rows by default, 1,000 with `limit`, 20,000 cells and 50,000
+characters per call, and marks a first row cut to fit with `truncated`; a CSV file's delimiter is
+detected. It refuses an xlsx workbook that unpacks to more than 64 MiB of XML or whose sheets span
+more than 4 million cells, counting the empty cells up to each sheet's last cell. The PDF tools load
+the whole file, refuse files above 150 MiB and PDFs of more than 2,000 pages, and answer at most
+8,000 characters of text per page. Open PDFs stay in a cache of the sidecar process, at most
+256 MiB by file size, so the next call on the same document skips the download.
+`view_pdf_page` is mounted only when `@napi-rs/canvas` resolves and loads it on its first call; a
+sidecar bundle must keep `@napi-rs/canvas` external. It renders one page at a time, at most 12
+million pixels for the page and 4,194,304 pixels for the image the model sees, and counts against
+the vision calls of the response. Each tool counts against the reads, `view_pdf_page` excepted.
+The budgets are fixed and exported. The tools wrap names and content in the same `file_content`
+envelope as `useFileTools`.
+
+```ts
+"use agent";
+
+import { useFileTools, usePayload } from "@abinnovision/payloadcms-flue/agent";
+import { usePdfTools } from "@abinnovision/payloadcms-flue/pdf";
+import { useSheetTools } from "@abinnovision/payloadcms-flue/sheets";
+import { useModel } from "@flue/runtime";
+
+export function Analyst(): string {
+  useModel(process.env.FLUE_MODEL!);
+  const payload = usePayload({ agent: "analyst" });
+
+  useFileTools(payload);
+  useSheetTools(payload);
+  usePdfTools(payload);
+
+  return "You answer questions about the files the user attached.";
+}
+```
+
+`readSheet(bytes, mimeType, { sheet, offset, limit })` reads the same pages from bytes an agent
+already holds, such as a `payload.download`. It takes `ReadSheetOptions` and answers a `SheetPage`
+of rows, the sheet names and `nextOffset`; `SHEET_BUDGETS` holds its fixed limits.
 
 ### Uploads
 

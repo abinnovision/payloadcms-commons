@@ -4,7 +4,13 @@ import swc from "unplugin-swc";
 export default defineConfig({
 	attw: { profile: "esm-only", level: "error" },
 	publint: true,
-	entry: ["src/index.ts", "src/admin/index.ts", "src/agent/index.ts"],
+	entry: [
+		"src/index.ts",
+		"src/admin/index.ts",
+		"src/agent/index.ts",
+		"src/sheets/index.ts",
+		"src/pdf/index.ts",
+	],
 	unbundle: true,
 	format: ["esm"],
 	clean: false,

@@ -251,6 +251,13 @@ The [file workspace](./integration.md#files) is off by default. Once `files` is 
   conversation persists, so an instruction injected by one image can stay in its context across
   later `look_at_image` calls of the thread. A steered child call is bounded by the same thing as
   the agent itself: the owner's mcpx grants.
+- **Spreadsheets and PDFs.** `./sheets` and `./pdf` envelope sheet names, cells, PDF metadata,
+  text and vision answers like `useFileTools`. pdf.js opens files without XFA and font loading and
+  with a cap on decoded image size; unpdf's build of pdf.js has no eval path. `view_pdf_page` is a
+  vision call like `look_at_image`, with the same child-call caveats. Open PDFs are cached per
+  conversation, after the thread's listing admits the file. Before parsing an xlsx file,
+  `read_sheet` checks its zip directory and cell references, so a zip bomb or a far cell is refused
+  instead of filling memory.
 - **Archive and storage.** Archiving deletes the thread's files from Payload. The images of vision
   calls stay in the sidecar's store (see [limitations](./limitations.md#files)).
 - **Host limits.** The plugin cannot see Next's `proxyClientMaxBodySize` or a reverse proxy's

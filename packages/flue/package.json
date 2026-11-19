@@ -35,6 +35,14 @@
 		"./agent": {
 			"types": "./dist/agent/index.d.mts",
 			"default": "./dist/agent/index.mjs"
+		},
+		"./sheets": {
+			"types": "./dist/sheets/index.d.mts",
+			"default": "./dist/sheets/index.mjs"
+		},
+		"./pdf": {
+			"types": "./dist/pdf/index.d.mts",
+			"default": "./dist/pdf/index.mjs"
 		}
 	},
 	"files": [
@@ -75,21 +83,26 @@
 		"@arethetypeswrong/core": "^0.18.5",
 		"@flue/runtime": "2.3.0",
 		"@internal/test-utils": "workspace:*",
+		"@napi-rs/canvas": "^1.1.1",
 		"@payloadcms/db-sqlite": "4.0.0-beta.7",
 		"@payloadcms/ui": "4.0.0-beta.7",
 		"@swc/core": "^1.16.22",
 		"@types/node": "^26.6.6",
+		"@types/papaparse": "^5.5.2",
 		"@types/react": "^19.3.0",
 		"@vitest/coverage-v8": "^5.1.0",
 		"eslint": "^10.14.0",
 		"happy-dom": "21.0.4",
+		"papaparse": "^5.7.1",
 		"payload": "4.0.0-beta.7",
 		"prettier": "^3.10.0",
 		"publint": "^0.3.25",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
+		"read-excel-file": "^9.3.17",
 		"tsdown": "^0.23.7",
 		"typescript": "^6.0.3",
+		"unpdf": "^2.2.1",
 		"unplugin-swc": "^2.0.0",
 		"valibot": "^1.1.0",
 		"vitest": "^5.1.0"
@@ -97,9 +110,13 @@
 	"peerDependencies": {
 		"@abinnovision/payloadcms-mcpx": ">=2.1.0 <4",
 		"@flue/runtime": "^2.3.0",
+		"@napi-rs/canvas": "^1.1.1",
 		"@payloadcms/ui": ">=4.0.0-beta.7 <5",
+		"papaparse": "^5.7.1",
 		"payload": ">=4.0.0-beta.7 <5",
 		"react": "^19",
+		"read-excel-file": "^9.3.17",
+		"unpdf": "^2.2.1",
 		"valibot": "^1.1.0"
 	},
 	"peerDependenciesMeta": {
@@ -109,13 +126,25 @@
 		"@flue/runtime": {
 			"optional": true
 		},
+		"@napi-rs/canvas": {
+			"optional": true
+		},
 		"@payloadcms/ui": {
+			"optional": true
+		},
+		"papaparse": {
 			"optional": true
 		},
 		"payload": {
 			"optional": true
 		},
 		"react": {
+			"optional": true
+		},
+		"read-excel-file": {
+			"optional": true
+		},
+		"unpdf": {
 			"optional": true
 		},
 		"valibot": {
