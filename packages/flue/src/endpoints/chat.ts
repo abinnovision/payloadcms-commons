@@ -8,6 +8,7 @@ import {
 	requireJson,
 	requireUser,
 } from "./http.js";
+import { sweepPending } from "../files/collection.js";
 import { CHAT_BODY_MAX } from "../options.js";
 import {
 	attachmentKind,
@@ -19,7 +20,7 @@ import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 import { startTurn } from "../turn.js";
 
-import type { NormalizedAttachments } from "../options.js";
+import type { NormalizedAttachments, NormalizedFiles } from "../options.js";
 import type {
 	AttachmentMimeType,
 	DeliveredAttachment,
@@ -42,6 +43,8 @@ type SendContext = Pick<
 interface ChatBody {
 	message: string;
 	attachments: DeliveredAttachment[];
+	/** Ids of pending workspace files. */
+	files: string[];
 	thread?: number | string | undefined;
 	context: SendContext;
 }
@@ -189,6 +192,38 @@ const parseAttachments = (
 	return attachments;
 };
 
+// The ids of pending workspace files, or the reason they are refused.
+const parseFiles = (
+	req: PayloadRequest,
+	value: unknown,
+	files: false | NormalizedFiles,
+): string | string[] => {
+	if (value === undefined) {
+		return [];
+	}
+
+	if (!files) {
+		return "files are not enabled.";
+	}
+
+	const ids = Array.isArray(value)
+		? (value as unknown[]).map((id) =>
+				typeof id === "number" ? String(id) : id,
+			)
+		: [];
+
+	if (
+		!Array.isArray(value) ||
+		ids.length > files.maxFilesPerTurn ||
+		!ids.every((id) => isDocumentId(req, id)) ||
+		new Set(ids).size !== ids.length
+	) {
+		return `files must be a list of at most ${String(files.maxFilesPerTurn)} distinct file ids.`;
+	}
+
+	return ids;
+};
+
 // The message, or the reason it is refused. A turn with files may come without text.
 const parseMessage = (
 	message: unknown,
@@ -208,6 +243,7 @@ const parseBody = (
 	req: PayloadRequest,
 	body: unknown,
 	limits: false | NormalizedAttachments,
+	fileLimits: false | NormalizedFiles,
 ): ChatBody | string => {
 	if (!isRecord(body)) {
 		return "The body must be a JSON object.";
@@ -220,7 +256,13 @@ const parseBody = (
 		return attachments;
 	}
 
-	const parsed = parseMessage(message, attachments.length > 0);
+	const files = parseFiles(req, body["files"], fileLimits);
+
+	if (typeof files === "string") {
+		return files;
+	}
+
+	const parsed = parseMessage(message, attachments.length + files.length > 0);
 
 	if (typeof parsed === "string") {
 		return parsed;
@@ -284,6 +326,7 @@ const parseBody = (
 	return {
 		message: parsed.text,
 		attachments,
+		files,
 		thread: thread ?? undefined,
 		context: { route: context["route"], collection, id, global, locale, focus },
 	};
@@ -377,6 +420,18 @@ export const chatHandler = (settings: PluginSettings): PayloadHandler =>
 			return notJson;
 		}
 
+		// Best effort: a failed sweep leaves the stale files for the next one.
+		if (settings.files) {
+			await sweepPending(req, { ...settings, files: settings.files }).catch(
+				(error: unknown) => {
+					req.payload.logger.error({
+						err: error,
+						msg: "[payloadcms-flue] Could not remove stale pending files.",
+					});
+				},
+			);
+		}
+
 		const raw = await readJson(
 			req,
 			settings.attachments ? settings.attachments.bodyMax : CHAT_BODY_MAX,
@@ -386,7 +441,7 @@ export const chatHandler = (settings: PluginSettings): PayloadHandler =>
 			return raw;
 		}
 
-		const body = parseBody(req, raw, settings.attachments);
+		const body = parseBody(req, raw, settings.attachments, settings.files);
 
 		if (typeof body === "string") {
 			return refusal(400, body);
@@ -398,6 +453,7 @@ export const chatHandler = (settings: PluginSettings): PayloadHandler =>
 			threadId: body.thread,
 			message: body.message,
 			attachments: body.attachments,
+			files: body.files,
 			context: {
 				...body.context,
 				updatedAt: await updatedAtOf(req, body.context),

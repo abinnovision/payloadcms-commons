@@ -7,7 +7,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { errorText } from "./api.js";
-import { attachmentAdapter, deliveredOf, echoParts } from "./attachments.js";
+import {
+	attachmentAdapter,
+	deliveredOf,
+	echoParts,
+	echoReferences,
+	fileAdapter,
+	fileIdsOf,
+} from "./attachments.js";
 import { refreshConversation, useConversation } from "./conversation.js";
 import {
 	hasRunningSubmission,
@@ -20,7 +27,8 @@ import { finishedCalls, newDocumentWrites } from "./document-writes.js";
 import { prepareTurn } from "./document.js";
 import { threadListAdapter } from "./thread-list.js";
 
-import type { FlueApi, SendContext, ThreadDoc } from "./api.js";
+import type { FilesLimits, FlueApi, SendContext, ThreadDoc } from "./api.js";
+import type { FilePart } from "./attachments.js";
 import type { Creations } from "./creations.js";
 import type { OpenDocument } from "./document.js";
 import type {
@@ -44,6 +52,8 @@ export interface ChatSession {
 	subscribeDocument: (listener: () => void) => () => void;
 	/** The limits of chat attachments; null while they are off. */
 	attachments: AttachmentLimits | null;
+	/** The limits of the file workspace, which replaces inline attachments; null while it is off. */
+	files: FilesLimits | null;
 	/** Lists the threads again, after a send and once a run settles. */
 	refresh: () => void;
 	onError: (message: string) => void;
@@ -57,6 +67,8 @@ export const useReadOnly = (): boolean =>
 interface Pending {
 	text: string;
 	attachments: DeliveredAttachment[];
+	/** The workspace files the message references. */
+	references: FilePart[];
 	submissionId?: string;
 }
 
@@ -71,6 +83,7 @@ const echoOf = (pending: Pending): FlueConversationMessage => ({
 			? []
 			: [{ type: "text", text: pending.text, state: "done" } as const]),
 		...echoParts(pending.attachments),
+		...pending.references,
 	],
 	metadata: { isOptimistic: true },
 });
@@ -93,19 +106,17 @@ const useThreadRuntime = (
 	const { conversation, phase, error } = useConversation(url);
 	const [pending, setPending] = useState<Pending>();
 	const runtimeRef = useRef<AssistantRuntime>(null);
-	const limits = session.current.attachments;
-	const attachments = useMemo(
-		() =>
-			limits === null
-				? undefined
-				: attachmentAdapter(
-						limits,
-						() =>
-							runtimeRef.current?.thread.composer.getState().attachments
-								.length ?? 0,
-					),
-		[limits],
-	);
+	const { api, attachments: limits, files: fileLimits } = session.current;
+	const attachments = useMemo(() => {
+		const count = (): number =>
+			runtimeRef.current?.thread.composer.getState().attachments.length ?? 0;
+
+		if (fileLimits !== null) {
+			return fileAdapter(fileLimits, count, api);
+		}
+
+		return limits === null ? undefined : attachmentAdapter(limits, count);
+	}, [api, limits, fileLimits]);
 
 	const delivered =
 		pending?.submissionId !== undefined &&
@@ -129,12 +140,15 @@ const useThreadRuntime = (
 				!isSettled(conversation, pending.submissionId)));
 
 	const onNew = async (message: AppendMessage): Promise<void> => {
-		const { api, agent, context, document, refresh, onError } = session.current;
+		const { agent, context, document, refresh, onError } = session.current;
 		const text = message.content
 			.map((part) => (part.type === "text" ? part.text : ""))
 			.join("")
 			.trim();
-		const files = deliveredOf(message.attachments ?? []);
+		const sent = message.attachments ?? [];
+		const files = deliveredOf(sent);
+		const references = echoReferences(sent);
+		const ids = fileIdsOf(sent);
 		const item = aui.threadListItem.getState();
 		const created =
 			item.remoteId === undefined ? creations.start(item.id) : undefined;
@@ -143,13 +157,16 @@ const useThreadRuntime = (
 		 * An empty message, or one without an agent to go to, creates no
 		 * thread, so a thread list waiting for one is let go.
 		 */
-		if ((text === "" && files.length === 0) || agent === undefined) {
+		if (
+			(text === "" && files.length + ids.length === 0) ||
+			agent === undefined
+		) {
 			created?.reject(new Error("The message cannot be sent."));
 
 			return;
 		}
 
-		setPending({ text, attachments: files });
+		setPending({ text, attachments: files, references });
 
 		try {
 			await prepareTurn(document());
@@ -160,12 +177,14 @@ const useThreadRuntime = (
 				context: context(),
 				// The key goes only with files, as the endpoint refuses it while attachments are off.
 				...(files.length === 0 ? {} : { attachments: files }),
+				...(ids.length === 0 ? {} : { files: ids }),
 			});
 
 			created?.resolve(result.thread.id);
 			setPending({
 				text,
 				attachments: files,
+				references,
 				submissionId: result.submissionId,
 			});
 

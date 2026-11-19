@@ -61,6 +61,8 @@ describe("./agent module boundary", () => {
 				"agent/context.ts",
 				"agent/index.ts",
 				"agent/exchange.ts",
+				"agent/file-tools.ts",
+				"agent/files.ts",
 				"agent/settled.ts",
 				"agent/title.ts",
 				"agent/upload.ts",
@@ -68,6 +70,7 @@ describe("./agent module boundary", () => {
 				"protocol/context.ts",
 				"protocol/events.ts",
 				"protocol/exchange.ts",
+				"protocol/files.ts",
 				"protocol/paths.ts",
 			]),
 		);

@@ -34,7 +34,7 @@ yarn add @abinnovision/payloadcms-flue
 | Peer                            | Range               | Needed for                            |
 | ------------------------------- | ------------------- | ------------------------------------- |
 | `payload`                       | `>=4.0.0-beta.7 <5` | the plugin (`.`)                      |
-| `@abinnovision/payloadcms-mcpx` | `>=2.1.0 <3`        | the plugin (`.`)                      |
+| `@abinnovision/payloadcms-mcpx` | `>=2.1.0 <4`        | the plugin (`.`)                      |
 | `@payloadcms/ui`                | `>=4.0.0-beta.7 <5` | the admin chat panel (`./admin`)      |
 | `react`                         | `^19`               | the admin chat panel (`./admin`)      |
 | `@flue/runtime`                 | `^2.3.0`            | agent code in the sidecar (`./agent`) |
@@ -45,11 +45,11 @@ server does not install Flue. The package is ESM only, like Payload.
 
 ## Entry points
 
-| Entry     | Runs in            | Exports                                                                                                                                                                                   |
-| --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                                                          |
-| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                                              |
-| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `attachmentsOf`, `openDocumentGuidance`, `FlueExchangeError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
+| Entry     | Runs in            | Exports                                                                                                                                                                                                                                                              |
+| --------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                                                                                                                                     |
+| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                                                                                                                         |
+| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `useFileTools`, `reportSettlements`, `contextOf`, `attachmentsOf`, `filesOf`, `openDocumentGuidance`, `FILE_BUDGETS`, `FILE_LIMITS`, `FlueExchangeError`, `FlueFileError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
 
 `./admin` needs three browser packages: `@flue/sdk` to follow conversations,
 `@assistant-ui/react` for the chat UI and `@assistant-ui/react-markdown` for
@@ -160,19 +160,25 @@ export function Editor(): string {
 }
 ```
 
-### Attachments and uploads
+### Attachments, files and uploads
 
-Both are opt-in:
+All three are opt-in:
 
-| Feature          | Turned on by                                | Does                                                                                     |
-| ---------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Chat attachments | `attachments: true` in the plugin's options | users attach images, PDFs and Markdown, text or CSV files to a turn                      |
-| Agent uploads    | `usePayload().upload()` in a tool           | the agent saves a file to an upload collection through mcpx; the chat shows it as a card |
+| Feature          | Turned on by                                | Does                                                                                                                                  |
+| ---------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Chat attachments | `attachments: true` in the plugin's options | users attach images, PDFs and Markdown, text or CSV files to a turn                                                                   |
+| File workspace   | `files: true` in the plugin's options       | users upload files to a `flue-files` collection (20 MiB each at Payload's defaults); agents read them on demand. Excludes attachments |
+| Agent uploads    | `usePayload().upload()` in a tool           | the agent saves a file to an upload collection through mcpx; the chat shows it as a card                                              |
 
 Attachments raise the chat body cap to about 27 MiB at the defaults, and their
-files stay in the sidecar's store. Uploads need an upload collection with
+files stay in the sidecar's store. The file workspace keeps files in Payload and
+sends the model references; its size follows Payload's `upload.requestSizeLimit`,
+`upload.limits.fileSize` and `upload.useTempFiles`, which you raise for large
+files, and limits in front of Payload such as Next 16's
+`proxyClientMaxBodySize` (10 MB) apply too. Uploads need an upload collection with
 `upload.mimeTypes`, `read` and `write` granted on it, and mcpx leases. See
-[attachments](./docs/integration.md#attachments) and
+[attachments](./docs/integration.md#attachments),
+[files](./docs/integration.md#files) and
 [uploads](./docs/integration.md#uploads).
 
 [`docs/integration.md`](./docs/integration.md) covers every option, the
@@ -196,6 +202,9 @@ sidecar contract, the endpoints and jobs.
 - Chat attachments are served only through a Payload route that checks read
   access to the thread. The context preamble of a turn with files is not a
   trust boundary for the model.
+- Workspace files are readable by their owner only, through Payload's file
+  handler. The sidecar reads them with the shared secret and a thread's handle,
+  and file content reaches the model as data, never as instructions.
 
 Details: [`docs/security.md`](./docs/security.md).
 

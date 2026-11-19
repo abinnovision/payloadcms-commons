@@ -1,6 +1,8 @@
 import { base64ToText, isTextMimeType, textToBase64 } from "./attachments.js";
+import { isFileMimeType } from "./files.js";
 
 import type { DeliveredAttachment } from "./attachments.js";
+import type { WorkspaceFileRef } from "./files.js";
 
 /**
  * The Flue signal type that carries the per-turn context. On a user's turn
@@ -117,33 +119,39 @@ const ESCAPES: Record<string, string> = {
 	"<": "&lt;",
 	">": "&gt;",
 	'"': "&quot;",
+	"\n": "&#10;",
+	"\r": "&#13;",
 };
 const UNESCAPES: Record<string, string> = Object.fromEntries(
 	Object.entries(ESCAPES).map(([raw, entity]) => [entity, raw]),
 );
 
 // Attributes whose values hold only escaped text.
-const ATTRIBUTES = '((?: [A-Za-z]+="(?:[^"<>&]|&(?:amp|lt|gt|quot);)*")*)';
+const ATTRIBUTES =
+	'((?: [A-Za-z]+="(?:[^"<>&]|&(?:amp|lt|gt|quot|#10|#13);)*")*)';
 
 // The preamble at the start of the body and its separator.
 const PREAMBLE = new RegExp(`^<${CONTEXT_SIGNAL_TYPE}${ATTRIBUTES}/>\\n\\n`);
 const ATTRIBUTE = /([A-Za-z]+)="([^"]*)"/g;
 
-// The tag that wraps a text file inlined into a user's turn.
-const TEXT_FILE_TAG = "payload-file";
+// The tag of a file of a user's turn: a workspace reference or an inlined text file.
+const FILE_TAG = "payload-file";
 
-// The attribute of the preamble that counts the text files after it.
+// The attribute of the preamble that counts the file tags after it.
 const FILES_ATTRIBUTE = "files";
 
+// A self-closing workspace reference at the start of the rest of the body.
+const FILE_REF = new RegExp(`^<${FILE_TAG}${ATTRIBUTES}/>\\n\\n`);
+
 // The opening tag of a text file at the start of the rest of the body.
-const FILE_OPEN = new RegExp(`^<${TEXT_FILE_TAG}${ATTRIBUTES}>\\n`);
-const FILE_CLOSE = `\n</${TEXT_FILE_TAG}>\n\n`;
+const FILE_OPEN = new RegExp(`^<${FILE_TAG}${ATTRIBUTES}>\\n`);
+const FILE_CLOSE = `\n</${FILE_TAG}>\n\n`;
 
 const writeAttributes = (attributes: Record<string, string>): string =>
 	Object.entries(attributes)
 		.map(
 			([name, value]) =>
-				` ${name}="${value.replace(/[&<>"]/g, (char) => ESCAPES[char] ?? char)}"`,
+				` ${name}="${value.replace(/[&<>"\n\r]/g, (char) => ESCAPES[char] ?? char)}"`,
 		)
 		.join("");
 
@@ -152,7 +160,7 @@ const readAttributes = (source: string): Record<string, string> => {
 
 	for (const [, name = "", value = ""] of source.matchAll(ATTRIBUTE)) {
 		attributes[name] = value.replace(
-			/&(?:amp|lt|gt|quot);/g,
+			/&(?:amp|lt|gt|quot|#10|#13);/g,
 			(entity) => UNESCAPES[entity] ?? entity,
 		);
 	}
@@ -161,22 +169,34 @@ const readAttributes = (source: string): Record<string, string> => {
 };
 
 /**
- * The body of a user's turn sent as a Flue `user` message: a self-closing
- * `payload-context` tag carrying the context and the user turn marker, a
- * blank line, the text files each in a `payload-file` tag, then the user's
- * text as typed. A file's `length` counts its text in UTF-16 code units, so
- * the text may hold anything, the closing tag included.
+ * The body of a user's turn: a self-closing `payload-context` tag carrying
+ * the context and the user turn marker, a blank line, a self-closing
+ * `payload-file` reference per workspace file, each text file in a
+ * `payload-file` tag, then the user's text as typed. A text file's `length`
+ * counts its text in UTF-16 code units, so the text may hold anything, the
+ * closing tag included.
  */
 export const userTurnBody = (
 	context: ChatContext,
 	text: string,
 	files: readonly DeliveredAttachment[] = [],
+	references: readonly WorkspaceFileRef[] = [],
 ): string => {
+	const count = references.length + files.length;
 	const preamble = writeAttributes({
 		...encodeContext(context),
 		[TURN_ATTRIBUTE]: USER_TURN,
-		...(files.length > 0 ? { [FILES_ATTRIBUTE]: String(files.length) } : {}),
+		...(count > 0 ? { [FILES_ATTRIBUTE]: String(count) } : {}),
 	});
+	const refs = references.map(
+		(file) =>
+			`<${FILE_TAG}${writeAttributes({
+				id: file.id,
+				name: file.name,
+				mimeType: file.mimeType,
+				size: String(file.size),
+			})}/>\n\n`,
+	);
 	const blocks = files.map((file) => {
 		const content = base64ToText(file.data) ?? "";
 		const attributes = writeAttributes({
@@ -185,24 +205,63 @@ export const userTurnBody = (
 			length: String(content.length),
 		});
 
-		return `<${TEXT_FILE_TAG}${attributes}>\n${content}${FILE_CLOSE}`;
+		return `<${FILE_TAG}${attributes}>\n${content}${FILE_CLOSE}`;
 	});
 
-	return `<${CONTEXT_SIGNAL_TYPE}${preamble}/>\n\n${blocks.join("")}${text}`;
+	return `<${CONTEXT_SIGNAL_TYPE}${preamble}/>\n\n${refs.join("")}${blocks.join("")}${text}`;
+};
+
+/** A user's turn as {@link readUserTurnBody} reads it. */
+export interface UserTurnBody {
+	context: ChatContext;
+	/** The workspace files the turn references. */
+	files: WorkspaceFileRef[];
+	/** The text files inlined into the turn, as base64 UTF-8 text. */
+	inline: DeliveredAttachment[];
+	text: string;
+}
+
+// The reference of a self-closing tag's attributes, or `undefined` when one is missing.
+const readReference = (
+	attributes: Record<string, string>,
+): undefined | WorkspaceFileRef => {
+	const { id = "", name, mimeType = "", size = "" } = attributes;
+
+	return id === "" ||
+		name === undefined ||
+		!isFileMimeType(mimeType) ||
+		!/^\d+$/.test(size)
+		? undefined
+		: { id, name, mimeType, size: Number(size) };
 };
 
 /*
- * The text files at the start of the rest of a body and the text after
- * them, or `undefined` when the body does not hold `count` well-formed files.
+ * The file tags at the start of the rest of a body and the text after them,
+ * or `undefined` when the body does not hold `count` well-formed tags.
  */
-const readTextFiles = (
+const readFileTags = (
 	rest: string,
 	count: number,
-): { files: DeliveredAttachment[]; text: string } | undefined => {
-	const files: DeliveredAttachment[] = [];
+): Omit<UserTurnBody, "context"> | undefined => {
+	const files: WorkspaceFileRef[] = [];
+	const inline: DeliveredAttachment[] = [];
 	let remaining = rest;
 
-	while (files.length < count) {
+	while (files.length + inline.length < count) {
+		const ref = FILE_REF.exec(remaining);
+
+		if (ref) {
+			const reference = readReference(readAttributes(ref[1] ?? ""));
+
+			if (!reference) {
+				return undefined;
+			}
+
+			files.push(reference);
+			remaining = remaining.slice(ref[0].length);
+			continue;
+		}
+
 		const open = FILE_OPEN.exec(remaining);
 		const attributes = readAttributes(open?.[1] ?? "");
 		const { filename, mimeType = "", length = "" } = attributes;
@@ -218,7 +277,7 @@ const readTextFiles = (
 			return undefined;
 		}
 
-		files.push({
+		inline.push({
 			type: "document",
 			data: textToBase64(remaining.slice(start, end)),
 			mimeType,
@@ -227,20 +286,16 @@ const readTextFiles = (
 		remaining = remaining.slice(end + FILE_CLOSE.length);
 	}
 
-	return { files, text: remaining };
+	return { files, inline, text: remaining };
 };
 
 /**
- * The context, the text files and the user's text of a body written by
- * {@link userTurnBody}, or `undefined` when the body does not start with its
- * preamble or lacks a file the preamble counts. A tag anywhere else is the
- * user's text. The files come back as base64 UTF-8 text.
+ * The context, the file references, the text files and the user's text of a
+ * body written by {@link userTurnBody}, or `undefined` when the body does not
+ * start with its preamble or lacks a file the preamble counts. A tag
+ * anywhere else is the user's text.
  */
-export const readUserTurnBody = (
-	body: string,
-):
-	| { context: ChatContext; files: DeliveredAttachment[]; text: string }
-	| undefined => {
+export const readUserTurnBody = (body: string): undefined | UserTurnBody => {
 	const match = PREAMBLE.exec(body);
 
 	if (!match) {
@@ -250,7 +305,7 @@ export const readUserTurnBody = (
 	const attributes = readAttributes(match[1] ?? "");
 	const count = Number(attributes[FILES_ATTRIBUTE] ?? "0");
 	const read = Number.isSafeInteger(count)
-		? readTextFiles(body.slice(match[0].length), count)
+		? readFileTags(body.slice(match[0].length), count)
 		: undefined;
 
 	return read === undefined

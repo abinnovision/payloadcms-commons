@@ -785,6 +785,17 @@ export const PANEL_CSS = `
 	white-space: nowrap;
 }
 
+.flue-attachment__status {
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+}
+
+.flue-attachment--removed {
+	color: var(--color-text-secondary);
+	padding-inline-end: var(--spacer-2);
+	text-decoration: line-through;
+}
+
 .flue-attachment__image {
 	display: block;
 	max-width: 100%;

@@ -8,7 +8,12 @@ import {
 	conversationHandler,
 } from "./endpoints/conversation.js";
 import { exchangeHandler } from "./endpoints/exchange.js";
+import { fileHandler, filesListHandler } from "./endpoints/files.js";
 import { settledHandler } from "./endpoints/settled.js";
+import {
+	assertFilesCollection,
+	createFilesCollection,
+} from "./files/collection.js";
 import { createDispatchTask } from "./jobs/dispatch.js";
 import { QUEUE_SETTINGS_KEY } from "./jobs/queue.js";
 import {
@@ -139,6 +144,19 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 		);
 
 		const threads = createThreadsCollection(settings);
+		const fileCollections: CollectionConfig[] = [];
+
+		if (settings.files) {
+			const files = createFilesCollection({
+				...settings,
+				files: settings.files,
+			});
+			const overridden = settings.files.overrideCollection?.(files) ?? files;
+
+			assertFilesCollection(overridden);
+			fileCollections.push(overridden);
+		}
+
 		const full: PluginSettings = { ...settings, capabilityMap };
 		const endpoint = (
 			route: keyof typeof FLUE_ROUTES,
@@ -155,6 +173,7 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 			collections: [
 				...collections,
 				options.threads?.overrideCollection?.(threads) ?? threads,
+				...fileCollections,
 			],
 			globals: (config.globals ?? []).map(withDocumentBridge),
 			endpoints: [
@@ -169,6 +188,20 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					conversationAttachmentHandler(full),
 				),
 				endpoint("exchange", "post", exchangeHandler(full)),
+				...(settings.files
+					? [
+							endpoint(
+								"filesList",
+								"post",
+								filesListHandler({ ...full, files: settings.files }),
+							),
+							endpoint(
+								"file",
+								"get",
+								fileHandler({ ...full, files: settings.files }),
+							),
+						]
+					: []),
 				endpoint("settled", "post", settledHandler(full)),
 			],
 			jobs: {
@@ -211,6 +244,14 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 
 				if (failure) {
 					throw failure;
+				}
+
+				// A storage adapter may change the upload config after flue ran.
+				const files =
+					settings.files && payload.collections[settings.files.slug];
+
+				if (files) {
+					assertFilesCollection(files.config);
 				}
 
 				for (const message of warnings) {

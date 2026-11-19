@@ -1,10 +1,12 @@
 import { InvalidConfiguration } from "payload";
 
 import { ATTACHMENT_MIME_TYPES, maxBytesOf } from "./protocol/attachments.js";
+import { FILE_LIMITS, FILE_MIME_TYPES } from "./protocol/files.js";
 
 import type { AttachmentLimits } from "./protocol/attachments.js";
+import type { FileMimeType } from "./protocol/files.js";
 import type { FlueAgentConfig, FluePluginOptions } from "./types.js";
-import type { Config, PayloadRequest, Plugin } from "payload";
+import type { CollectionConfig, Config, PayloadRequest, Plugin } from "payload";
 
 const MCPX_PLUGIN = "@abinnovision/payloadcms-mcpx";
 const AGENT_SLUG = /^[a-z][a-z0-9-]{0,62}$/;
@@ -39,6 +41,17 @@ const ATTACHMENTS = {
 	fileSlack: 2 * KIB,
 };
 
+/*
+ * Payload's default multipart request limit. A file must leave room in it
+ * for the form's other parts. Without temp files Payload holds an upload in
+ * memory, so the file cap stays low unless the install opts in.
+ */
+const REQUEST_SIZE_LIMIT = 50 * MIB;
+const REQUEST_SLACK = MIB;
+// Payload's default `upload.limits.fileSize`, which caps each file of a request.
+const FILE_SIZE_LIMIT = 20 * MIB;
+const IN_MEMORY_MAX = 32 * MIB;
+
 /** The subset of mcpx's options flue reads. */
 interface McpxOptions {
 	apiKeys?: { slug?: string };
@@ -70,7 +83,23 @@ export interface NormalizedOptions {
 	dispatch: { queue: string; wait: false | { maxWaitMs: number } };
 	/** `false` when chat attachments are off. */
 	attachments: false | NormalizedAttachments;
+	/** `false` when the file workspace is off. */
+	files: false | NormalizedFiles;
 	mcpx: McpxSettings;
+}
+
+/** The file workspace's settings after validation and defaulting. */
+export interface NormalizedFiles {
+	slug: string;
+	mimeTypes: FileMimeType[];
+	/** Largest file in bytes. */
+	maxBytes: number;
+	maxFilesPerTurn: number;
+	maxFilesPerThread: number;
+	/** Text bytes of a turn's files that also go into its text. */
+	inlineTextBytes: number;
+	overrideCollection:
+		((collection: CollectionConfig) => CollectionConfig) | undefined;
 }
 
 /** The attachment limits plus the chat body cap they imply. */
@@ -86,7 +115,7 @@ export interface StartupLogger {
 	fail: (error: InvalidConfiguration) => void;
 }
 
-type ConfigView = Pick<Config, "admin" | "collections" | "routes">;
+type ConfigView = Pick<Config, "admin" | "collections" | "routes" | "upload">;
 type PluginsView = Readonly<Record<string, Plugin | undefined>>;
 
 /** An option or config error, with the plugin's prefix. */
@@ -286,6 +315,121 @@ const normalizeAttachments = (
 	};
 };
 
+/*
+ * The largest file Payload's multipart settings take. An unset `maxBytes`
+ * follows them with a warning; an explicit one they cannot take fails.
+ */
+const normalizeMaxBytes = (
+	maxBytes: number | undefined,
+	upload: ConfigView["upload"],
+	logger: StartupLogger,
+): number => {
+	const fits = Math.min(
+		(upload?.requestSizeLimit ?? REQUEST_SIZE_LIMIT) - REQUEST_SLACK,
+		upload?.limits?.fileSize ?? FILE_SIZE_LIMIT,
+	);
+	const tempFiles = upload?.useTempFiles === true;
+	const settings =
+		"Raise upload.requestSizeLimit and upload.limits.fileSize, and turn on upload.useTempFiles with a upload.tempFileDir in the Payload config";
+
+	if (maxBytes === undefined) {
+		const value = Math.min(
+			FILE_LIMITS.maxBytes.default,
+			fits,
+			tempFiles ? Number.POSITIVE_INFINITY : IN_MEMORY_MAX,
+		);
+
+		if (value < 1) {
+			throw invalid(
+				`upload.requestSizeLimit and upload.limits.fileSize leave no room for files. ${settings}.`,
+			);
+		}
+
+		if (value < FILE_LIMITS.maxBytes.default) {
+			logger.warn(
+				`[payloadcms-flue] files.maxBytes defaults to ${String(value)} bytes. ${settings} to take files up to 150 MiB.`,
+			);
+		}
+
+		return value;
+	}
+
+	if (!isCount(maxBytes, 1, FILE_LIMITS.maxBytes.max)) {
+		throw invalid(
+			`files.maxBytes must be between 1 and ${String(FILE_LIMITS.maxBytes.max)} (1 GiB), got ${String(maxBytes)}.`,
+		);
+	}
+
+	if (maxBytes > fits || (maxBytes > IN_MEMORY_MAX && !tempFiles)) {
+		throw invalid(
+			`files.maxBytes ${String(maxBytes)} is more than the Payload config takes. ${settings}, or lower files.maxBytes.`,
+		);
+	}
+
+	return maxBytes;
+};
+
+const normalizeFiles = (
+	option: FluePluginOptions["files"],
+	upload: ConfigView["upload"],
+	logger: StartupLogger,
+): false | NormalizedFiles => {
+	if (option === undefined || option === false) {
+		return false;
+	}
+
+	const {
+		slug = "flue-files",
+		mimeTypes = [...FILE_MIME_TYPES],
+		maxBytes,
+		maxFilesPerTurn = FILE_LIMITS.maxFilesPerTurn.default,
+		maxFilesPerThread = FILE_LIMITS.maxFilesPerThread,
+		inlineTextBytes = FILE_LIMITS.inlineTextBytes.default,
+		overrideCollection,
+	} = option === true ? {} : option;
+
+	if (mimeTypes.length === 0) {
+		throw invalid("files.mimeTypes must name at least one type.");
+	}
+
+	for (const mimeType of mimeTypes) {
+		if (!(FILE_MIME_TYPES as readonly string[]).includes(mimeType)) {
+			throw invalid(
+				`files.mimeTypes may only hold ${FILE_MIME_TYPES.join(", ")}, got "${mimeType}".`,
+			);
+		}
+	}
+
+	if (!isCount(maxFilesPerTurn, 1, FILE_LIMITS.maxFilesPerTurn.max)) {
+		throw invalid(
+			`files.maxFilesPerTurn must be between 1 and ${String(FILE_LIMITS.maxFilesPerTurn.max)}, got ${String(maxFilesPerTurn)}.`,
+		);
+	}
+
+	// The file tools find a file in the thread's listing, which holds at most `listMax`.
+	if (!isCount(maxFilesPerThread, maxFilesPerTurn, FILE_LIMITS.listMax)) {
+		throw invalid(
+			`files.maxFilesPerThread must be between maxFilesPerTurn (${String(maxFilesPerTurn)}) and ${String(FILE_LIMITS.listMax)}, got ${String(maxFilesPerThread)}.`,
+		);
+	}
+
+	if (!isCount(inlineTextBytes, 0, FILE_LIMITS.inlineTextBytes.max)) {
+		throw invalid(
+			`files.inlineTextBytes must be between 0 and ${String(FILE_LIMITS.inlineTextBytes.max)} (64 KiB), got ${String(inlineTextBytes)}.`,
+		);
+	}
+
+	return {
+		slug,
+		mimeTypes: [...new Set(mimeTypes)],
+		maxBytes: normalizeMaxBytes(maxBytes, upload, logger),
+		maxFilesPerTurn,
+		maxFilesPerThread,
+		inlineTextBytes,
+		overrideCollection,
+	};
+};
+
 /**
  * Validates the options against the config at startup and fills in the
  * defaults. Expects mcpx to have run first, so its key collection is in
@@ -353,6 +497,20 @@ export const normalizeOptions = (
 		);
 	}
 
+	if (options.files && options.attachments) {
+		throw invalid(
+			"files and attachments cannot both be on. files sends a turn's files as references, attachments inline.",
+		);
+	}
+
+	const files = normalizeFiles(options.files, config.upload, logger);
+
+	if (files && (slugs.has(files.slug) || files.slug === threadsSlug)) {
+		throw invalid(
+			`files.slug "${files.slug}" is already taken by another collection.`,
+		);
+	}
+
 	return {
 		sidecar: { url: options.sidecar.url, secret: options.sidecar.secret },
 		agents: options.agents,
@@ -365,6 +523,7 @@ export const normalizeOptions = (
 		},
 		dispatch: { queue, wait },
 		attachments: normalizeAttachments(options.attachments),
+		files,
 		mcpx,
 	};
 };

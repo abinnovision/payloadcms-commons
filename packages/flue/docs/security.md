@@ -215,6 +215,47 @@ had typed it. Never treat the
 context, or anything the model concludes from it, as authorization; mcpx's key and Payload access
 control decide what a run may do.
 
+## Files
+
+The [file workspace](./integration.md#files) is off by default. Once `files` is on:
+
+- **Owner-only reads.** A file belongs to its uploader. The collection's `read` rule admits the
+  owner only, compared by collection and id, and nobody updates a file through the API. The owner
+  may delete a file only while it is pending. The panel reads files through Payload's own file
+  handler for the collection, so access control, storage adapters and `Range` apply. The plugin
+  rejects a collection with `disablePayloadAccessControl`, and the panel never links to a file's
+  `url`. It cannot detect a storage bucket with a public ACL or a custom `generateFileURL` that
+  serves files around Payload; keep the bucket private.
+- **Handle auth.** The sidecar reads files with the shared secret and the thread's handle, the
+  handle in a header rather than the URL. The plugin resolves the handle to a live thread of the
+  same agent and acts as the thread's owner, so a handle reaches only that thread's files. A
+  thread that is archived, or whose key is disabled or expired, answers 404 until the next turn
+  rolls the key. Reactive and ambient threads have no files.
+- **Stored names.** Payload stores each file under a random name, so the collection-wide unique
+  file name reveals nothing about other users' files. The uploader's name is data in `name`, at
+  most 255 characters, and the tools mark it untrusted.
+- **Content check.** The collection keeps `upload.mimeTypes`, so Payload checks each file's
+  content against its declared type. The plugin refuses a collection that drops it.
+- **No URL uploads.** The collection sets `upload.pasteURL: false` and every create must carry a
+  multipart file, so Payload never fetches a `url` from a request body past the plugin's checks.
+  The plugin refuses a collection that allows URL uploads.
+- **Caps.** A user's pending files are capped at 20 and 300 MiB together, and stale ones are swept
+  after 24 hours, so an upload that is never sent does not fill the store. A thread holds at most
+  `maxFilesPerThread` files.
+- **File content is data.** `useFileTools` wraps every text it returns in a `file_content` envelope
+  with a notice, and neutralizes tags inside it. A file is still text from a user, who may try to
+  steer the model with it. Never treat what a file says as authorization; mcpx's key and Payload
+  access control decide what a run may do.
+- **Vision calls.** `look_at_image` asks a child call of the harness, and the child keeps all of
+  the agent's tools. Flue stores the child call and its image in the sidecar, and the child
+  conversation persists, so an instruction injected by one image can stay in its context across
+  later `look_at_image` calls of the thread. A steered child call is bounded by the same thing as
+  the agent itself: the owner's mcpx grants.
+- **Archive and storage.** Archiving deletes the thread's files from Payload. The images of vision
+  calls stay in the sidecar's store (see [limitations](./limitations.md#files)).
+- **Host limits.** The plugin cannot see Next's `proxyClientMaxBodySize` or a reverse proxy's
+  limit, so a file over one is refused before Payload sees it.
+
 ### Upload grants
 
 `createDocument` returns a single-use upload grant, valid for five minutes, in the
@@ -244,6 +285,7 @@ headers. Payload's `cors` option applies to its endpoints as to any other.
 | attachment id (`:attachment`)                  | `^att_[\w-]{1,200}$`                                                                          |
 | message                                        | 1 to 16,000 characters                                                                        |
 | `POST /exchange` body                          | 4 KiB, counted in bytes                                                                       |
+| `GET /files/:file`, `POST /files/list`         | handle and agent in headers or a 4 KiB body; the sidecar secret                               |
 | `POST /settled` body                           | 4 KiB, counted in bytes; `conversation` and `submissionId` 1 to 256 characters                |
 | `offset` on `view=updates`                     | `^(?:-1\|\d{1,32}_\d{1,32})$`                                                                 |
 | `cursor`, `from`, `before`                     | `^[\w.~=+/-]{1,2048}$`                                                                        |

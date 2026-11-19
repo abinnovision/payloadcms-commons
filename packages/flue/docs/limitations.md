@@ -62,6 +62,37 @@ origin, `serverURL` or the request's, and only its path is used.
 The upload card's list lives in the sidecar's memory for the response. After a sidecar restart or
 a retried response it lists only uploads made afterwards.
 
+## Files
+
+These apply to the [file workspace](./integration.md#files).
+
+- Archiving deletes a thread's files from Payload, but Flue's own copies stay in the sidecar's
+  store: the images `look_at_image` sent to its child calls, and any inline attachments of the
+  thread. Flue has no API to delete them.
+- A thread that had inline attachments before `files` was turned on keeps them in its history and
+  keeps replaying them (see [attachments](#attachments)). The two options exclude each other for
+  new turns only.
+- The plugin cannot see limits in front of Payload: Next 16's `proxyClientMaxBodySize`, 10 MB by
+  default, a reverse proxy's body limit or a platform's. A file over one is refused before Payload
+  sees it.
+- `files.read` and `payload.download` take 32 MiB by default; read more by range with `files.fetch`
+  or pass `maxBytes`. A `Range` read goes through Payload's file handler. It is covered for the
+  local storage adapter and unverified on cloud adapters; `fetch` falls back to a whole-file read
+  and slices it when the handler answers 200.
+- Saving a file into an app collection with `payload.upload` goes through mcpx, which caps it at
+  25 MB. A larger save fails with `FlueUploadError`.
+- An expired or disabled key makes a thread's files unreadable until the next turn rolls it,
+  because the file endpoints answer only while the handle's key is live.
+- The pending caps count a user's files, then the upload inserts. Concurrent uploads of one user
+  can each pass the count, so the caps can be overshot by the number of uploads in flight.
+- A pending file older than 24 hours can be swept while it still sits in the composer, for example
+  in a tab left open overnight. Sending it then answers 404; attach it again.
+- Two tabs of the same user that send the same pending file at the same moment can both claim it.
+  Both turns may reference it and the loser's tools answer `not_found`. The file belongs to the
+  thread either way.
+- `useFileTools` reads text files and looks at images. PDFs and spreadsheets are accepted and
+  listed, but a tool of the agent has to read their bytes with `payload.files`.
+
 ## Known gaps
 
 The panel's approval of a confirmation is unverified against a real run. It reads `confirmation`

@@ -9,12 +9,10 @@ const SIDECAR_URL = "http://127.0.0.1:3101";
 
 // The fixture after its plugin functions ran in order, as buildConfig runs them.
 const applyPlugins = async (
-	sidecar: FluePluginOptions["sidecar"],
+	flue: Partial<FluePluginOptions>,
 	extend: (config: Config) => Config = (config) => config,
 ): Promise<Config> => {
-	let config = extend(
-		fixtureConfig({ sidecarUrl: SIDECAR_URL, flue: { sidecar } }),
-	);
+	let config = extend(fixtureConfig({ sidecarUrl: SIDECAR_URL, flue }));
 
 	for (const plugin of config.plugins ?? []) {
 		// eslint-disable-next-line no-await-in-loop
@@ -42,7 +40,7 @@ const controlsOf = (entity?: {
 
 describe("fluePlugin", () => {
 	it("mounts the document bridge in the edit view of every content entity", async () => {
-		const config = await applyPlugins(SIDECAR, (raw) => ({
+		const config = await applyPlugins({ sidecar: SIDECAR }, (raw) => ({
 			...raw,
 			globals: [
 				{
@@ -63,7 +61,7 @@ describe("fluePlugin", () => {
 	});
 
 	it("leaves the bridge out of the threads and mcpx key collections", async () => {
-		const config = await applyPlugins(SIDECAR);
+		const config = await applyPlugins({ sidecar: SIDECAR });
 		const own = config.collections?.filter((entry) =>
 			["flue-threads", "mcpx-api-keys"].includes(entry.slug),
 		);
@@ -75,17 +73,89 @@ describe("fluePlugin", () => {
 	});
 
 	it("builds without the sidecar secret and fails at startup", async () => {
-		const config = await applyPlugins({ url: SIDECAR_URL, secret: "" });
+		const config = await applyPlugins({
+			sidecar: { url: SIDECAR_URL, secret: "" },
+		});
 
 		await expect(config.onInit?.(payload)).rejects.toThrow(/sidecar\.secret/);
 	});
 
 	it("builds without the sidecar URL and fails at startup", async () => {
 		const config = await applyPlugins({
-			url: undefined as unknown as string,
-			secret: "s".repeat(32),
+			sidecar: { url: undefined as unknown as string, secret: "s".repeat(32) },
 		});
 
 		await expect(config.onInit?.(payload)).rejects.toThrow(/sidecar\.url/);
+	});
+
+	describe("files", () => {
+		const filesOf = (config: Config) =>
+			config.collections?.find((entry) => entry.slug === "flue-files");
+
+		it("adds the files collection, which makes Payload check each file's content", async () => {
+			const config = await applyPlugins({ sidecar: SIDECAR, files: true });
+
+			expect(filesOf(config)?.upload).toMatchObject({
+				mimeTypes: expect.arrayContaining(["application/pdf", "text/plain"]),
+			});
+		});
+
+		it("leaves the files collection out by default", async () => {
+			expect(filesOf(await applyPlugins({ sidecar: SIDECAR }))).toBeUndefined();
+		});
+
+		it("refuses an override that drops upload.mimeTypes", async () => {
+			await expect(
+				applyPlugins({
+					sidecar: SIDECAR,
+					files: {
+						overrideCollection: (collection) => ({
+							...collection,
+							upload: { staticDir: "/tmp/files" },
+						}),
+					},
+				}),
+			).rejects.toThrow(/upload\.mimeTypes/);
+		});
+
+		it("refuses an override that allows uploads from a URL", async () => {
+			await expect(
+				applyPlugins({
+					sidecar: SIDECAR,
+					files: {
+						overrideCollection: (collection) => ({
+							...collection,
+							upload: {
+								...(collection.upload as object),
+								pasteURL: { allowList: [] },
+							},
+						}),
+					},
+				}),
+			).rejects.toThrow(/upload\.pasteURL/);
+		});
+
+		it("fails at startup when the upload config turns off Payload's access control", async () => {
+			const config = await applyPlugins({ sidecar: SIDECAR, files: true });
+			const collection = filesOf(config)!;
+			const started = {
+				collections: {
+					"flue-files": {
+						config: {
+							...collection,
+							upload: {
+								...(collection.upload as object),
+								disablePayloadAccessControl: true,
+							},
+						},
+					},
+				},
+				logger: { warn: () => undefined },
+			} as unknown as Payload;
+
+			await expect(config.onInit?.(started)).rejects.toThrow(
+				/disablePayloadAccessControl/,
+			);
+		});
 	});
 });

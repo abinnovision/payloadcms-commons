@@ -4,8 +4,15 @@ import {
 	readUserTurnBody,
 } from "../protocol/context.js";
 
-import type { ChatContext } from "../protocol/context.js";
+import type { ChatContext, UserTurnBody } from "../protocol/context.js";
+import type { WorkspaceFileRef } from "../protocol/files.js";
 import type { DeliveredAttachment, DeliveredMessage } from "@flue/runtime";
+
+// The body of a user's turn, of either shape.
+const turnBodyOf = (delivery: DeliveredMessage): undefined | UserTurnBody =>
+	delivery.kind === "user" || delivery.type === CONTEXT_SIGNAL_TYPE
+		? readUserTurnBody(delivery.body)
+		: undefined;
 
 /**
  * The context Payload sent with a delivery, from either turn shape: the
@@ -34,10 +41,15 @@ export const contextOf = (
  */
 export const attachmentsOf = (
 	delivery: DeliveredMessage,
-): DeliveredAttachment[] =>
-	delivery.kind === "user"
-		? [
-				...(readUserTurnBody(delivery.body)?.files ?? []),
-				...(delivery.attachments ?? []),
-			]
-		: [];
+): DeliveredAttachment[] => [
+	...(turnBodyOf(delivery)?.inline ?? []),
+	...(delivery.kind === "user" ? (delivery.attachments ?? []) : []),
+];
+
+/**
+ * The workspace files a user's turn references, in the order the panel
+ * shows them. Read them with `payload.files`. Empty for any other delivery.
+ * `name` is the uploader's and untrusted.
+ */
+export const filesOf = (delivery: DeliveredMessage): WorkspaceFileRef[] =>
+	turnBodyOf(delivery)?.files ?? [];

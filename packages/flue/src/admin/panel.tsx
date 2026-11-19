@@ -25,9 +25,9 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import remarkGfm from "remark-gfm";
 
-import { dropHint } from "./attachments.js";
+import { dropHint, fileRefIdOf } from "./attachments.js";
 import { useConversation } from "./conversation.js";
-import { FileCard } from "./file-card.js";
+import { FileCard, WorkspaceFile } from "./file-card.js";
 import { PANEL_ID, PANEL_WIDTH, clampWidth } from "./layout.js";
 import { useReadOnly } from "./runtime.js";
 import { agentLabel, runMeta } from "./thread-row.js";
@@ -36,10 +36,10 @@ import { ConfirmableToolRow, DELETE_TOOL, ToolRow } from "./tools.js";
 import { FILE_PART } from "../protocol/events.js";
 
 import type { AgentSummary, FlueApi } from "./api.js";
+import type { Attachable } from "./attachments.js";
 import type { ConversationSnapshot } from "./conversation.js";
 import type { RunningRow } from "./stale-running.js";
 import type { ThreadCustom } from "./thread-list.js";
-import type { AttachmentLimits } from "../protocol/attachments.js";
 import type {
 	Attachment,
 	ReasoningMessagePartComponent,
@@ -135,6 +135,12 @@ const MessageAttachment: React.FC<{ attachment: Attachment }> = ({
 		return null;
 	}
 
+	const fileId = fileRefIdOf(part.data);
+
+	if (fileId !== undefined) {
+		return <WorkspaceFile id={fileId} name={attachment.name} />;
+	}
+
 	return LINKABLE.test(part.data) ? (
 		<a
 			className="flue-attachment flue-attachment__link"
@@ -160,20 +166,44 @@ const UserMessage: React.FC = () => (
 	</MessagePrimitive.Root>
 );
 
-// A file waiting in the composer, with its name and a remove button.
-const ComposerAttachment: React.FC = () => (
-	<AttachmentPrimitive.Root className="flue-attachment">
-		<span className="flue-attachment__name">
-			<AttachmentPrimitive.Name />
-		</span>
-		<AttachmentPrimitive.Remove
-			aria-label="Remove file"
-			className="flue-icon-button flue-attachment__remove"
-		>
-			<XIcon size={16} />
-		</AttachmentPrimitive.Remove>
-	</AttachmentPrimitive.Root>
-);
+// The upload's progress, or why it failed.
+const attachmentStatus = (status: {
+	type: string;
+	message?: string;
+	progress?: number;
+}): string | undefined => {
+	if (status.type === "running") {
+		return `${String(Math.round((status.progress ?? 0) * 100))}%`;
+	}
+
+	return status.type === "incomplete" ? "Failed" : undefined;
+};
+
+// A file waiting in the composer, with its name, upload progress and a remove button.
+const ComposerAttachment: React.FC = () => {
+	const status = attachmentStatus(
+		useAuiState((state) => state.attachment.status),
+	);
+
+	return (
+		<AttachmentPrimitive.Root className="flue-attachment">
+			<span className="flue-attachment__name">
+				<AttachmentPrimitive.Name />
+			</span>
+			{status === undefined ? null : (
+				<span className="flue-attachment__status" role="status">
+					{status}
+				</span>
+			)}
+			<AttachmentPrimitive.Remove
+				aria-label="Remove file"
+				className="flue-icon-button flue-attachment__remove"
+			>
+				<XIcon size={16} />
+			</AttachmentPrimitive.Remove>
+		</AttachmentPrimitive.Root>
+	);
+};
 
 const AssistantMessage: React.FC = () => (
 	<MessagePrimitive.Root className="flue-message flue-message--assistant">
@@ -298,8 +328,8 @@ export interface FluePanelProps {
 	agent: string | undefined;
 	/** Every agent, when the user may read agent runs. */
 	runAgents?: AgentSummary[] | undefined;
-	/** The limits of chat attachments; null or unset while they are off. */
-	attachments?: AttachmentLimits | null | undefined;
+	/** The limits of what a message takes; null or unset while attachments are off. */
+	attachments?: Attachable | null | undefined;
 	/** Switches the agent, which opens a new thread. */
 	onAgent: (slug: string) => void;
 	/** Opens a chat of any agent, switching the agent when it differs. */

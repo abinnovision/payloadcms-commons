@@ -24,7 +24,7 @@ import { DocumentRegistryContext, documentRegistry } from "./document.js";
 import { PANEL_ID, PANEL_WIDTH, clampWidth } from "./layout.js";
 import { PANEL_CSS } from "./styles.js";
 
-import type { AgentSummary } from "./api.js";
+import type { AgentSummary, FilesLimits } from "./api.js";
 import type { PanelView } from "./panel.js";
 import type { AttachmentLimits } from "../protocol/attachments.js";
 
@@ -120,6 +120,8 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 	const [runAgents, setRunAgents] = useState<AgentSummary[]>();
 	// The limits of chat attachments; null while they are off.
 	const [attachments, setAttachments] = useState<AttachmentLimits | null>(null);
+	// The limits of the file workspace; null while it is off.
+	const [files, setFiles] = useState<FilesLimits | null>(null);
 	const [agent, setAgent] = useState<string>();
 	const [threadId, setThreadId] = useState<string>();
 	// The user opened the thread, which a document's own thread then leaves open.
@@ -151,7 +153,7 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 				api.agents().catch((error: unknown) => {
 					toast.error(errorText(error, "The agents could not be listed."));
 
-					return { agents: [], runs: null, attachments: null };
+					return { agents: [], runs: null, attachments: null, files: null };
 				}),
 			]);
 			const kept = available.agents.some(
@@ -185,6 +187,7 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 			setAgents(available.agents);
 			setRunAgents(available.runs?.agents);
 			setAttachments(available.attachments);
+			setFiles(available.files);
 			setAgent(selected);
 			setThreadId(restored);
 
@@ -319,6 +322,7 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 							api={api}
 							attachments={attachments}
 							chosen={chosen}
+							files={files}
 							key={`${userKey}:${agent ?? ""}`}
 							onAgent={selectAgent}
 							onClose={close}

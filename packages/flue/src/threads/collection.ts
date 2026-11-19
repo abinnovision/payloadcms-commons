@@ -1,6 +1,7 @@
 import { ValidationError } from "payload";
 
 import { ownerWhere } from "./owner.js";
+import { deleteThreadFiles } from "../files/collection.js";
 import { setAgentKeyEnabled } from "../keys/manager.js";
 import { createSidecarClient, SidecarError } from "../sidecar/client.js";
 
@@ -65,9 +66,10 @@ interface StoredThread {
 /*
  * The run of an archived thread stops whatever the row's status says, which
  * may lag the run. Archiving a running thread also disables the key of its
- * user and agent. Both are best effort, as the key expires on its own; the
- * answer does not wait for the sidecar. The exchange refuses the handle of an
- * archived thread from the row itself.
+ * user and agent, and archiving deletes the thread's workspace files. All
+ * are best effort, as the key expires on its own; the answer does not wait
+ * for the sidecar. The exchange refuses the handle of an archived thread
+ * from the row itself.
  */
 const onArchive =
 	(settings: NormalizedOptions): CollectionAfterChangeHook<ThreadRow> =>
@@ -81,6 +83,9 @@ const onArchive =
 		}
 
 		const { payload } = req;
+
+		// Outside the archive's transaction, which a failed delete would end.
+		void deleteThreadFiles(payload, settings, previousDoc.id);
 
 		// `doc` and `previousDoc` of a REST update lack the hidden `conversationId`.
 		const stored = (await payload.findByID({

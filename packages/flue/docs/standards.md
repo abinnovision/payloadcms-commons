@@ -20,7 +20,7 @@ own layer and lower ones, type-only imports included:
 | ----- | -------------------------------------------- |
 | 0     | `protocol/`, which imports no package at all |
 | 1     | `types.ts`, `options.ts`                     |
-| 2     | `threads/`, `keys/`, `sidecar/`              |
+| 2     | `threads/`, `keys/`, `sidecar/`, `files/`    |
 | 3     | `turn.ts`                                    |
 | 4     | `endpoints/`, `jobs/`                        |
 | 5     | `plugin.ts`, `index.ts`                      |

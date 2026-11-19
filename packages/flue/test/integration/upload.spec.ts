@@ -15,10 +15,12 @@ import {
 	count,
 	keySettings,
 	login,
+	send,
 	shutdown,
 	THREADS_SLUG,
 } from "./helpers/payload.js";
 import { exchangeSession } from "../../src/agent/exchange.js";
+import { createFiles, downloadDocument } from "../../src/agent/files.js";
 import { FlueUploadError, uploadDocument } from "../../src/agent/upload.js";
 import { fluePlugin } from "../../src/index.js";
 import { ensureAgentKey } from "../../src/keys/manager.js";
@@ -27,7 +29,7 @@ import { SIDECAR_SECRET } from "../fixtures/config.js";
 
 import type { Booted } from "./helpers/payload.js";
 import type { UploadTarget } from "../../src/agent/upload.js";
-import type { FlueAgentConfig } from "../../src/index.js";
+import type { FlueAgentConfig, FluePluginOptions } from "../../src/index.js";
 import type { CollectionConfig, Config } from "payload";
 
 const PAYLOAD_URL = "http://localhost";
@@ -69,7 +71,11 @@ const uploadCollection = (
  * Localized, with a public `serverURL` the sidecar is not meant to reach, so
  * the handoff names another origin than the one the PUT goes to.
  */
-const uploadConfig = (staticDir: string, extra: Partial<Config> = {}) => ({
+const uploadConfig = (
+	staticDir: string,
+	extra: Partial<Config> = {},
+	flue: Partial<FluePluginOptions> = {},
+) => ({
 	serverURL: PUBLIC_URL,
 	localization: { locales: ["en", "de"], defaultLocale: "en" },
 	collections: [
@@ -82,6 +88,7 @@ const uploadConfig = (staticDir: string, extra: Partial<Config> = {}) => ({
 		fluePlugin({
 			sidecar: { url: "http://127.0.0.1:9", secret: SIDECAR_SECRET },
 			agents: [UPLOADER],
+			...flue,
 		}),
 	],
 	...extra,
@@ -116,7 +123,13 @@ const routedFetch =
 const startConversation = async (
 	booted: Booted,
 	requests: Recorded[] = [],
-): Promise<{ userId: number | string; target: UploadTarget }> => {
+): Promise<{
+	userId: number | string;
+	token: string;
+	handle: string;
+	thread: number | string;
+	target: UploadTarget;
+}> => {
 	const credentials = {
 		email: `${randomUUID()}@example.com`,
 		password: "upload-secret",
@@ -128,8 +141,8 @@ const startConversation = async (
 	});
 	const handle = randomUUID();
 
-	await login(booted.payload, "users", credentials);
-	await booted.payload.create({
+	const token = await login(booted.payload, "users", credentials);
+	const thread = await booted.payload.create({
 		collection: THREADS_SLUG,
 		data: {
 			agent: UPLOADER.slug,
@@ -150,6 +163,9 @@ const startConversation = async (
 
 	return {
 		userId: user.id,
+		token,
+		handle,
+		thread: thread.id,
 		target: {
 			session: exchangeSession({
 				payloadUrl: PAYLOAD_URL,
@@ -343,5 +359,154 @@ describe("uploadDocument without mcpx leases", () => {
 		expect(error).toBeInstanceOf(FlueUploadError);
 		expect(String(error)).toContain("createDocument not found");
 		expect(await count(booted, "files")).toBe(0);
+	});
+});
+
+describe("workspace files through ./agent", () => {
+	const WORKSPACE_SLUG = "flue-files";
+	const MIB = 1024 * 1024;
+	let booted: Booted;
+	let staticDir: string;
+
+	// A text file of `size` bytes, uploaded by the user and claimed by the thread.
+	const workspaceFile = async (
+		conversation: Awaited<ReturnType<typeof startConversation>>,
+		size: number,
+	): Promise<{ id: number | string; bytes: Uint8Array }> => {
+		const bytes = new TextEncoder().encode("a".repeat(size));
+		const form = new FormData();
+
+		form.append("file", new File([bytes], "notes.txt", { type: "text/plain" }));
+
+		const response = await send(booted, `/api/${WORKSPACE_SLUG}`, {
+			method: "POST",
+			token: conversation.token,
+			body: form,
+		});
+
+		expect(response.status).toBe(201);
+
+		const { doc } = (await response.json()) as {
+			doc: { id: number | string };
+		};
+
+		await booted.payload.update({
+			collection: WORKSPACE_SLUG,
+			id: doc.id,
+			data: { thread: conversation.thread },
+			overrideAccess: true,
+		});
+
+		return { id: doc.id, bytes };
+	};
+
+	const filesOf = (
+		conversation: Awaited<ReturnType<typeof startConversation>>,
+	) =>
+		createFiles({
+			payloadUrl: PAYLOAD_URL,
+			fluePath: "/api/flue",
+			secret: SIDECAR_SECRET,
+			handle: conversation.handle,
+			agent: UPLOADER.slug,
+			fetch: routedFetch(booted, []),
+		});
+
+	beforeAll(async () => {
+		staticDir = await mkdtemp(join(tmpdir(), "flue-agent-files-"));
+		booted = await bootPayload(
+			"flue-agent-files",
+			undefined,
+			uploadConfig(
+				staticDir,
+				// Payload's multipart parser takes 20 MiB per file by default.
+				{ upload: { limits: { fileSize: 32 * MIB } } },
+				{
+					files: {
+						overrideCollection: (collection) => ({
+							...collection,
+							upload: {
+								...(collection.upload as object),
+								staticDir: join(staticDir, "workspace"),
+							},
+						}),
+					},
+				},
+			),
+		);
+	});
+
+	afterAll(async () => {
+		await shutdown(booted);
+		await rm(staticDir, { recursive: true, force: true });
+	});
+
+	it("reads the bytes of a workspace file", async () => {
+		const conversation = await startConversation(booted);
+		const file = await workspaceFile(conversation, 300);
+		const files = filesOf(conversation);
+
+		expect(await files.read(file.id)).toEqual(file.bytes);
+		expect((await files.list()).map((listed) => listed.id)).toEqual([file.id]);
+	});
+
+	it("downloads an app collection's file through mcpx", async () => {
+		const { target } = await startConversation(booted);
+		const created = await uploadDocument(
+			{ ...target, locale: "en" },
+			{
+				collection: "files",
+				filename: "summary.txt",
+				mimeType: "text/plain",
+				data: TEXT,
+			},
+		);
+
+		expect(
+			await downloadDocument(target, { collection: "files", id: created.id }),
+		).toEqual({
+			filename: "summary.txt",
+			mimeType: "text/plain",
+			bytes: new TextEncoder().encode(TEXT),
+		});
+	});
+
+	it("saves a workspace file under 25 MB into an app collection", async () => {
+		const conversation = await startConversation(booted);
+		const file = await workspaceFile(conversation, 1000);
+		const saved = await uploadDocument(
+			{ ...conversation.target, locale: "en" },
+			{
+				collection: "files",
+				filename: "notes.txt",
+				mimeType: "text/plain",
+				data: await filesOf(conversation).read(file.id),
+			},
+		);
+		const doc = await booted.payload.findByID({
+			collection: "files",
+			id: saved.id,
+			overrideAccess: true,
+		});
+
+		expect(doc["filesize"]).toBe(1000);
+	});
+
+	it("refuses to save a workspace file above 25 MB and writes nothing", async () => {
+		const conversation = await startConversation(booted);
+		const file = await workspaceFile(conversation, 26 * MIB);
+		const before = await count(booted, "files");
+		const error: unknown = await uploadDocument(
+			{ ...conversation.target, locale: "en" },
+			{
+				collection: "files",
+				filename: "large.txt",
+				mimeType: "text/plain",
+				data: await filesOf(conversation).read(file.id),
+			},
+		).catch((caught: unknown) => caught);
+
+		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(await count(booted, "files")).toBe(before);
 	});
 });

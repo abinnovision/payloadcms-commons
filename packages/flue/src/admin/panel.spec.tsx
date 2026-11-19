@@ -7,8 +7,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { flueApi } from "./api.js";
 import { fixtureJson } from "../../test/builders/fixtures.js";
+import { userTurnBody } from "../protocol/context.js";
 
-import type { AgentSummary } from "./api.js";
+import type { AgentSummary, FilesLimits } from "./api.js";
 import type { PanelView } from "./panel.js";
 import type { ThreadsListProps } from "./threads-view.js";
 import type { AttachmentLimits } from "../protocol/attachments.js";
@@ -93,7 +94,15 @@ const Thread: React.FC<{
 	agent: string | undefined;
 	runAgents?: AgentSummary[] | undefined;
 	attachments?: AttachmentLimits | undefined;
-}> = ({ messages, view = "conversation", agent, runAgents, attachments }) => {
+	files?: FilesLimits | undefined;
+}> = ({
+	messages,
+	view = "conversation",
+	agent,
+	runAgents,
+	attachments,
+	files,
+}) => {
 	const runtime = useExternalStoreRuntime({
 		messages,
 		convertMessage: toThreadMessage,
@@ -114,7 +123,7 @@ const Thread: React.FC<{
 						agent === undefined ? [] : [{ slug: "editor", label: "Editor" }]
 					}
 					api={api}
-					attachments={attachments}
+					attachments={files ?? attachments}
 					loadMoreError={undefined}
 					onAgent={() => undefined}
 					onClose={() => undefined}
@@ -141,12 +150,14 @@ const render = (
 		agent?: string | undefined;
 		runAgents?: AgentSummary[];
 		attachments?: AttachmentLimits;
+		files?: FilesLimits;
 	} = {},
 ): string =>
 	renderToStaticMarkup(
 		<Thread
 			agent={"agent" in props ? props.agent : "editor"}
 			attachments={props.attachments}
+			files={props.files}
 			messages={messages}
 			runAgents={props.runAgents}
 			view={view}
@@ -312,6 +323,55 @@ describe("the FluePanel component", () => {
 		expect(html).toMatch(
 			/href="\/api\/flue\/c\/7\/attachments\/att_document_sub_1_1"[^>]*>brief.pdf<\/a>/,
 		);
+	});
+
+	it("offers an attachment button and names the types while the file workspace is on", () => {
+		const html = render([], "conversation", {
+			files: {
+				slug: "flue-files",
+				mimeTypes: ["application/pdf", "text/csv"],
+				maxBytes: 1024,
+				maxFiles: 10,
+			},
+		});
+
+		expect(html).toContain("Attach</button>");
+		expect(html).toContain("PDFs and text files, up to 10 per message");
+	});
+
+	it("shows a workspace file a turn references by name until its link resolves", () => {
+		const html = render([
+			{
+				id: "entry_user",
+				role: "user",
+				purpose: "user",
+				display: "visible",
+				parts: [
+					{
+						type: "text",
+						text: userTurnBody(
+							{ kind: "chat" },
+							"Summarize",
+							[],
+							[
+								{
+									id: "12",
+									name: "brief.pdf",
+									mimeType: "application/pdf",
+									size: 9,
+								},
+							],
+						),
+						state: "done",
+					},
+				],
+			},
+		]);
+
+		expect(html).toContain("Summarize");
+		expect(html).toContain('<span class="flue-attachment">brief.pdf</span>');
+		expect(html).not.toContain("flue-file:");
+		expect(html).not.toContain("payload-file");
 	});
 
 	it("shows a PDF that is still sending by name, without a link", () => {

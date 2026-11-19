@@ -173,6 +173,7 @@ describe("flueApi", () => {
 			agents: [{ slug: "editor" }],
 			runs: { agents: [{ slug: "editor" }, { slug: "auditor" }] },
 			attachments: null,
+			files: null,
 		});
 	});
 
@@ -192,6 +193,225 @@ describe("flueApi", () => {
 			agents: [{ slug: "editor" }],
 			runs: null,
 			attachments,
+			files: null,
+		});
+	});
+
+	it("reads the file workspace limits", async () => {
+		const files = {
+			slug: "flue-files",
+			mimeTypes: ["application/pdf"],
+			maxBytes: 1024,
+			maxFiles: 3,
+		};
+
+		answer(() =>
+			Response.json({ agents: [], runs: null, attachments: null, files }),
+		);
+
+		await expect(api.agents()).resolves.toMatchObject({ files });
+	});
+
+	it("deletes a pending file through the collection's REST API", async () => {
+		const sent = answer(() => Response.json({ doc: { id: 12 } }));
+
+		await api.deleteFile("flue-files", "12");
+
+		expect(sent).toMatchObject([
+			{ url: "https://cms.example.com/api/flue-files/12", method: "DELETE" },
+		]);
+	});
+
+	describe("fileLink", () => {
+		it("points at Payload's file route, never the document's url", async () => {
+			const sent = answer(() =>
+				Response.json({
+					id: 12,
+					filename: "a b.md",
+					url: "https://cdn.example.com/public/a b.md",
+				}),
+			);
+
+			await expect(api.fileLink("flue-files", "12")).resolves.toBe(
+				"https://cms.example.com/api/flue-files/file/a%20b.md",
+			);
+			expect(sent[0]!.url).toBe(
+				"https://cms.example.com/api/flue-files/12?depth=0",
+			);
+		});
+
+		it("carries the storage prefix of the document", async () => {
+			answer(() => Response.json({ filename: "a.md", prefix: "chat/7" }));
+
+			await expect(api.fileLink("flue-files", "12")).resolves.toBe(
+				"https://cms.example.com/api/flue-files/file/a.md?prefix=chat%2F7",
+			);
+		});
+
+		it("answers null for a file that is gone or out of reach", async () => {
+			answer(() => Response.json({ errors: [] }, { status: 404 }));
+			await expect(api.fileLink("flue-files", "12")).resolves.toBeNull();
+
+			answer(() => Response.json({ errors: [] }, { status: 403 }));
+			await expect(api.fileLink("flue-files", "12")).resolves.toBeNull();
+		});
+
+		it("rejects on any other failure", async () => {
+			answer(() => Response.json({ errors: [] }, { status: 500 }));
+
+			await expect(api.fileLink("flue-files", "12")).rejects.toThrow(
+				"The request failed with status 500.",
+			);
+		});
+	});
+
+	describe("uploadFile", () => {
+		interface Request {
+			method: string;
+			url: string;
+			credentials: boolean;
+			form: FormData | undefined;
+		}
+
+		interface FakeXhr {
+			status: number;
+			responseText: string;
+			withCredentials: boolean;
+			upload: {
+				onprogress?: (event: {
+					loaded: number;
+					total: number;
+					lengthComputable: boolean;
+				}) => void;
+			};
+			onload: () => void;
+			onerror: () => void;
+			open: (method: string, url: string) => void;
+			send: (form: FormData) => void;
+		}
+
+		// A stand-in for the browser's XHR that answers as `reply` tells it.
+		const xhr = (reply: (self: FakeXhr) => void): { requests: Request[] } => {
+			const requests: Request[] = [];
+
+			vi.stubGlobal("XMLHttpRequest", function Fake() {
+				let method = "";
+				let url = "";
+				const self: FakeXhr = {
+					status: 0,
+					responseText: "",
+					withCredentials: false,
+					upload: {},
+					onload: () => undefined,
+					onerror: () => undefined,
+					open: (verb, target) => {
+						method = verb;
+						url = target;
+					},
+					send: (form) => {
+						requests.push({
+							method,
+							url,
+							credentials: self.withCredentials,
+							form,
+						});
+						reply(self);
+					},
+				};
+
+				return self;
+			});
+
+			return { requests };
+		};
+
+		const file = new File(["# Notes"], "notes.md", { type: "text/markdown" });
+
+		it("posts the file and its name as multipart and resolves to the id", async () => {
+			const { requests } = xhr((self) => {
+				self.status = 201;
+				self.responseText = JSON.stringify({ doc: { id: 12 } });
+				self.onload();
+			});
+
+			await expect(
+				api.uploadFile("flue-files", file, () => undefined),
+			).resolves.toBe("12");
+
+			expect(requests).toHaveLength(1);
+			expect(requests[0]).toMatchObject({
+				method: "POST",
+				url: "https://cms.example.com/api/flue-files",
+				credentials: true,
+			});
+			expect((requests[0]!.form!.get("file") as File).name).toBe("notes.md");
+			expect(requests[0]!.form!.get("_payload")).toBe(
+				JSON.stringify({ name: "notes.md" }),
+			);
+		});
+
+		it("reports the share uploaded as the browser sends it", async () => {
+			const seen: number[] = [];
+
+			xhr((self) => {
+				self.upload.onprogress?.({
+					loaded: 25,
+					total: 100,
+					lengthComputable: true,
+				});
+				self.upload.onprogress?.({
+					loaded: 100,
+					total: 100,
+					lengthComputable: false,
+				});
+				self.status = 201;
+				self.responseText = JSON.stringify({ doc: { id: 1 } });
+				self.onload();
+			});
+
+			await api.uploadFile("flue-files", file, (fraction) => {
+				seen.push(fraction);
+			});
+
+			expect(seen).toEqual([0.25]);
+		});
+
+		it("names a 413 as the server taking no file this large", async () => {
+			xhr((self) => {
+				self.status = 413;
+				self.responseText = "<html>Request Entity Too Large</html>";
+				self.onload();
+			});
+
+			await expect(
+				api.uploadFile("flue-files", file, () => undefined),
+			).rejects.toThrow("notes.md is larger than the server takes.");
+		});
+
+		it("rejects with Payload's message for another refusal", async () => {
+			xhr((self) => {
+				self.status = 400;
+				self.responseText = JSON.stringify({
+					errors: [{ message: "The file type must be one of text/plain." }],
+				});
+				self.onload();
+			});
+
+			await expect(
+				api.uploadFile("flue-files", file, () => undefined),
+			).rejects.toThrow("The file type must be one of text/plain.");
+		});
+
+		it("rejects with the status when the answer has no message", async () => {
+			xhr((self) => {
+				self.status = 502;
+				self.responseText = "bad gateway";
+				self.onload();
+			});
+
+			await expect(
+				api.uploadFile("flue-files", file, () => undefined),
+			).rejects.toThrow("notes.md could not be uploaded (status 502).");
 		});
 	});
 

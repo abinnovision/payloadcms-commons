@@ -30,6 +30,8 @@ const FOLLOW_UP: Record<ConfirmationDecision, string> = {
 /** What the tool renderers need beyond their part. */
 export interface ToolsContextValue {
 	api: FlueApi;
+	/** The files collection's slug, while the file workspace is on. */
+	filesSlug?: string | undefined;
 	adminRoute: string;
 	/** The admin's origin, which resolves a relative confirmation URL. */
 	origin: string;

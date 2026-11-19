@@ -1,7 +1,7 @@
 "use client";
 
 import { PayloadLink } from "@payloadcms/ui";
-import { useContext } from "react";
+import { useContext, useEffect, useState } from "react";
 
 import { reviewPath } from "./confirmation.js";
 import { ToolsContext } from "./tools.js";
@@ -80,5 +80,60 @@ export const FileCard: DataMessagePartComponent = ({ data }) => {
 				})}
 			</ul>
 		</div>
+	);
+};
+
+/*
+ * A workspace file a user's message references. Its link is Payload's file
+ * route, read when the card shows; a file that is gone shows struck through.
+ * While the lookup runs or fails, only the name shows.
+ */
+export const WorkspaceFile: React.FC<{ id: string; name: string }> = ({
+	id,
+	name,
+}) => {
+	const tools = useContext(ToolsContext);
+	const [link, setLink] = useState<null | string>();
+
+	useEffect(() => {
+		if (tools?.filesSlug === undefined) {
+			return;
+		}
+
+		let active = true;
+
+		tools.api
+			.fileLink(tools.filesSlug, id)
+			.then((found) => {
+				if (active) {
+					setLink(found);
+				}
+			})
+			.catch(() => undefined);
+
+		return () => {
+			active = false;
+		};
+	}, [tools, id]);
+
+	if (link === null) {
+		return (
+			<span className="flue-attachment flue-attachment--removed">
+				{`${name} (removed)`}
+			</span>
+		);
+	}
+
+	return link === undefined ? (
+		<span className="flue-attachment">{name}</span>
+	) : (
+		<a
+			className="flue-attachment flue-attachment__link"
+			href={link}
+			rel="noopener noreferrer"
+			target="_blank"
+		>
+			{name}
+		</a>
 	);
 };

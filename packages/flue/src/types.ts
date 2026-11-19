@@ -1,5 +1,6 @@
 import type { AttachmentMimeType } from "./protocol/attachments.js";
 import type { ChatContext, RunKind } from "./protocol/context.js";
+import type { FileMimeType } from "./protocol/files.js";
 import type {
 	CollectionConfig,
 	DefaultDocumentIDType,
@@ -7,6 +8,7 @@ import type {
 } from "payload";
 
 export type { AttachmentMimeType } from "./protocol/attachments.js";
+export type { FileMimeType } from "./protocol/files.js";
 
 declare module "payload" {
 	interface RequestContext {
@@ -96,6 +98,38 @@ export interface FluePluginOptions {
 	 * takes the defaults. Raises the chat body cap to fit the files. Default off.
 	 */
 	attachments?: boolean | FlueAttachmentOptions;
+	/**
+	 * Lets chat users upload files to a plugin-owned upload collection and
+	 * send them with a turn as references; `true` takes the defaults. Agents
+	 * read them through the sidecar. Excludes `attachments`. Default off.
+	 */
+	files?: boolean | FlueFileOptions;
+}
+
+/** The chat's file workspace. */
+export interface FlueFileOptions {
+	/** Default `flue-files`. */
+	slug?: string;
+	/** Default: every type of `FILE_MIME_TYPES`. */
+	mimeTypes?: FileMimeType[];
+	/**
+	 * Largest file in bytes, at most 1 GiB. Default 150 MiB, lowered to what
+	 * Payload's `upload.requestSizeLimit` and `upload.limits.fileSize` take
+	 * and to 32 MiB unless `upload.useTempFiles` is on: 20 MiB at Payload's
+	 * defaults.
+	 */
+	maxBytes?: number;
+	/** Files per turn. Default 10, maximum 20. */
+	maxFilesPerTurn?: number;
+	/** Files per thread. Default 100, which is also the maximum. */
+	maxFilesPerThread?: number;
+	/**
+	 * Text files up to this many bytes, all of a turn together, also go into
+	 * the turn's text. Default 0, maximum 64 KiB.
+	 */
+	inlineTextBytes?: number;
+	/** Must keep `upload.mimeTypes`, which makes Payload check each file's content. */
+	overrideCollection?: (collection: CollectionConfig) => CollectionConfig;
 }
 
 /** Limits of chat attachments; each may only narrow the default. */

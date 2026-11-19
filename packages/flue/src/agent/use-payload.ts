@@ -9,6 +9,7 @@ import {
 
 import { contextOf } from "./context.js";
 import { exchangeSession } from "./exchange.js";
+import { createFiles, downloadDocument } from "./files.js";
 import {
 	addResponseFile,
 	filePartSchema,
@@ -20,6 +21,7 @@ import { FILE_PART } from "../protocol/events.js";
 import { INITIAL_DATA_KEY } from "../protocol/exchange.js";
 
 import type { ExchangeSession, ExchangeSessionArgs } from "./exchange.js";
+import type { Download, DownloadArgs, PayloadFiles } from "./files.js";
 import type { PayloadUploadArgs } from "./upload.js";
 import type { ChatContext } from "../protocol/context.js";
 import type { PayloadUpload } from "../protocol/events.js";
@@ -61,6 +63,19 @@ export interface PayloadRun {
 	 * locale defaults to the turn's. Call it from a tool's `run`.
 	 */
 	upload: (args: PayloadUploadArgs) => Promise<PayloadUpload>;
+	/** The files the user attached to the thread. Call them from a tool's `run`. */
+	files: PayloadFiles;
+	/**
+	 * Calls one mcpx tool as the run's user and resolves its structured
+	 * content or parsed text; throws when the tool reports an error.
+	 */
+	callTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+	/**
+	 * Downloads the file of an upload collection's document as the run's
+	 * user, through mcpx. Refuses with `too_large` past `maxBytes`, which
+	 * defaults to 32 MiB.
+	 */
+	download: (args: DownloadArgs) => Promise<Download>;
 }
 
 type InitialData =
@@ -68,6 +83,19 @@ type InitialData =
 
 const missing = (what: string): Error =>
 	new Error(`[payloadcms-flue] usePayload needs ${what}.`);
+
+/** The exchange handle of a conversation Payload created. */
+export const useHandle = (): string => {
+	const handle = useInitialData<InitialData>()?.[INITIAL_DATA_KEY]?.handle;
+
+	if (!handle) {
+		throw missing(
+			"a conversation created by Payload, whose initial data carries the exchange handle",
+		);
+	}
+
+	return handle;
+};
 
 const SESSIONS_MAX = 256;
 
@@ -108,7 +136,6 @@ const cachedSession = (args: ExchangeSessionArgs): ExchangeSession => {
  * connection first authenticates, and is held in memory only.
  */
 export const usePayload = (options: UsePayloadOptions): PayloadRun => {
-	const handle = useInitialData<InitialData>()?.[INITIAL_DATA_KEY]?.handle;
 	const delivery = useDelivery();
 	const payloadUrl = options.payloadUrl ?? process.env["PAYLOAD_URL"];
 	const secret = options.secret ?? process.env["FLUE_SIDECAR_SECRET"];
@@ -121,20 +148,16 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 		throw missing("secret or the FLUE_SIDECAR_SECRET environment variable");
 	}
 
-	if (!handle) {
-		throw missing(
-			"a conversation created by Payload, whose initial data carries the exchange handle",
-		);
-	}
-
+	const handle = useHandle();
 	const mcpPath = options.mcpPath ?? process.env["MCPX_PATH"] ?? "/api/mcpx";
+	const fluePath = options.fluePath ?? "/api/flue";
 	const session = cachedSession({
 		payloadUrl,
 		secret,
 		handle,
 		agent: options.agent,
 		mcpPath,
-		fluePath: options.fluePath ?? "/api/flue",
+		fluePath,
 	});
 	const writeFiles = useDataWriter(FILE_PART, { schema: filePartSchema });
 	const context = (): ChatContext | undefined => contextOf(delivery);
@@ -170,5 +193,15 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 
 			return file;
 		},
+		files: createFiles({
+			payloadUrl,
+			fluePath,
+			secret,
+			handle,
+			agent: options.agent,
+		}),
+		callTool: session.callTool,
+		download: async (args) =>
+			await downloadDocument({ session, payloadUrl, mcpPath }, args),
 	};
 };

@@ -22,6 +22,7 @@ import {
 } from "./helpers/payload.js";
 import {
 	CONTEXT_SIGNAL_TYPE,
+	readUserTurnBody,
 	userTurnBody,
 } from "../../src/protocol/context.js";
 import { INITIAL_DATA_KEY } from "../../src/protocol/exchange.js";
@@ -248,10 +249,12 @@ describe("the chat endpoints", () => {
 			expect(handle).not.toBe(row["conversationId"]);
 			expect(handleHash(handle ?? "")).toBe(row["handleHash"]);
 			expect(JSON.stringify(row)).not.toContain(handle);
+			expect(readUserTurnBody(posted?.body ?? "")?.text).toBe(
+				"What is this page about?",
+			);
 			expect(posted).toMatchObject({
 				kind: "signal",
 				type: CONTEXT_SIGNAL_TYPE,
-				body: "What is this page about?",
 				attributes: {
 					turn: "user",
 					kind: "chat",
@@ -303,7 +306,7 @@ describe("the chat endpoints", () => {
 			expect(posts).toHaveLength(2);
 			expect(posts[1]).not.toHaveProperty("initialData");
 			expect(posts[1]?.uid).toBe(before["flueUid"]);
-			expect(posts[1]?.body).toBe("Two");
+			expect(readUserTurnBody(posts[1]?.body ?? "")?.text).toBe("Two");
 			expect(after["handleHash"]).toBe(before["handleHash"]);
 			expect(after["lastSubmissionId"]).not.toBe(before["lastSubmissionId"]);
 		});
@@ -870,7 +873,7 @@ describe("the chat endpoint with attachments", () => {
 		expect(posted).toMatchObject({
 			kind: "signal",
 			type: CONTEXT_SIGNAL_TYPE,
-			body: "Hi",
+			body: userTurnBody({ route: "/admin", kind: "chat" }, "Hi"),
 			attributes: { route: "/admin", kind: "chat", turn: "user" },
 		});
 	});

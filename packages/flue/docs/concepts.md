@@ -64,13 +64,16 @@ Archiving is final from the API. The exchange refuses the handle of an archived 
 archive asks the sidecar to abort the conversation's run whatever the status, which can lag the
 run. The archive does not wait for the sidecar's answer, and a conversation Flue has not seen
 counts as stopped. Archiving a `running` thread also disables the key of the thread's user and
-agent until the next turn. Both are best effort and logged on failure.
+agent until the next turn. With `files` on, archiving also deletes the thread's files from Payload. Both are best effort and
+logged on failure.
 
 ## The turn
 
 Each message is one turn, and each turn is exactly one Flue submission: a signal of type
-`payload-context` (`CONTEXT_SIGNAL_TYPE`) whose body is the message and whose attributes carry the
-context. A turn with attachments takes another shape, described [below](#turns-with-attachments).
+`payload-context` (`CONTEXT_SIGNAL_TYPE`) whose attributes carry the context and whose body is the
+preamble described [below](#turns-with-attachments) followed by the message. The body always starts
+with the preamble, so text a user types cannot pass for one. A turn with attachments or files takes another shape, described [below](#turns-with-attachments)
+and [here](#turns-with-files).
 
 | Attribute    | Value                                                                                             |
 | ------------ | ------------------------------------------------------------------------------------------------- |
@@ -107,7 +110,7 @@ Describe this picture.
 ```
 
 Text-only turns and runs from jobs stay signals, so a thread can hold both shapes. Only a preamble
-at the very start of a `user` message is read; the same tag anywhere else is the user's text.
+at the very start of a body is read; the same tag anywhere else is the user's text.
 The panel hides the preamble and shows the files with the message.
 
 Flue takes only images and PDFs as files, so Markdown, text and CSV files go into the body: the
@@ -132,6 +135,40 @@ Flue keeps the images and PDFs in the sidecar's store and replays them to the mo
 later turn; text files are replayed as part of the message. The panel loads stored files through
 `GET /api/flue/c/:thread/attachments/:attachment`, never from the sidecar, and reads text files
 from the message. Payload stores none of them.
+
+### Turns with files
+
+The `files` option replaces inline attachments with a workspace in Payload (the two exclude each
+other). The composer uploads each file to the `flue-files` collection before the turn, and the
+turn sends only the ids. Until a turn sends it, a file is pending and belongs to its uploader.
+
+A turn that names files claims them for its thread. Its body is the preamble, whose `files` attribute counts the files, one self-closing `payload-file` reference
+per file, a blank line and the user's text:
+
+```
+<payload-context route="/admin" kind="chat" turn="user" files="2"/>
+
+<payload-file id="31" name="Q3 report.pdf" mimeType="application/pdf" size="2481920"/>
+
+<payload-file id="32" name="notes.md" mimeType="text/markdown" size="1204"/>
+
+Summarize the report.
+```
+
+That reference is all Flue stores. The model gets no bytes: it lists and reads files through the
+tools of `useFileTools`, or agent code reads them with `payload.files` (see
+[files in agent code](./integration.md#files-in-agent-code)). A later turn needs no re-attaching,
+because the thread's files stay readable for as long as the thread is not archived. `filesOf(delivery)`
+returns the references, with `name` untrusted.
+
+With `inlineTextBytes` above 0, the text files of a turn that fit within that many bytes together
+also follow the references as `payload-file` blocks, as in [attachments](#turns-with-attachments);
+`attachmentsOf` returns them. The default is 0.
+
+Reading goes through the plugin. The sidecar posts the handle to `POST /files/list`, or calls
+`GET /files/:file` with the handle in a header, and Payload serves the file as the thread's user
+through the collection's own file handler. A key that expired makes files unreadable until the
+next turn rolls it (see [the exchange handle](#the-exchange-handle-and-managed-keys)).
 
 A dispatch job that runs again finds its thread through `dispatchJob` and sends nothing. With
 `dispatch.wait` on, it waits on the thread's recorded submission (see
@@ -305,6 +342,11 @@ agent no longer has this conversation. Start a new thread."
   whole conversation takes dropped files, showing a drop target while a file is dragged over it.
   Both refuse a file over its type's limit. A turn's files show with the user's message: images as
   thumbnails, PDFs as links, text files by name. A failed send puts the text and the files back in the composer.
+- With files on, the add button and the conversation's drop target upload each file as soon as it
+  is added and show its progress in percent. Removing a file deletes the upload. A file that is
+  empty, over `maxBytes`, of another type or past the message's file count is refused before it
+  is uploaded. A sent message shows its files as cards, and the panel loads them through Payload's
+  file route for the collection, as the user.
 - Files an agent uploaded with `usePayload().upload()` show as one card per response, from the
   `data-payload-file` part, with each file's name, type and size and a link to its document.
   A link that does not lead into the admin's collections is left out, and the name shows alone.

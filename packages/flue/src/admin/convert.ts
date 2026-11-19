@@ -1,8 +1,10 @@
+import { fileRefIdOf, fileRefPart } from "./attachments.js";
 import { isUserTurn, readUserTurnBody } from "../protocol/context.js";
 import { TITLE_PART } from "../protocol/events.js";
 import { isRecord } from "../protocol/guards.js";
 
 import type { DeliveredAttachment } from "../protocol/attachments.js";
+import type { WorkspaceFileRef } from "../protocol/files.js";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import type {
 	FlueConversationMessage,
@@ -36,9 +38,23 @@ const isShown = (message: FlueConversationMessage): boolean =>
 const textOf = (message: FlueConversationMessage): string =>
 	message.parts.map((part) => (part.type === "text" ? part.text : "")).join("");
 
+// A workspace file a turn references, shown as a card the panel resolves.
+const fileCard = (
+	file: Pick<WorkspaceFileRef, "id" | "name"> & { mimeType: string },
+	id: string,
+): Attachment => ({
+	id,
+	type: "document",
+	name: file.name,
+	contentType: file.mimeType,
+	status: { type: "complete" },
+	content: [fileRefPart(file.id, file.name, file.mimeType)],
+});
+
 /*
  * A user's file as an attachment: an image shows from its URL, any other
  * file links to it. A file whose bytes cannot be resolved yet is left out.
+ * The optimistic echo of a workspace file carries its reference as the URL.
  */
 const attachmentsOf = (message: FlueConversationMessage): Attachment[] =>
 	message.parts.flatMap((part, index): Attachment[] => {
@@ -48,6 +64,16 @@ const attachmentsOf = (message: FlueConversationMessage): Attachment[] =>
 
 		const image = part.mediaType.startsWith("image/");
 		const name = part.filename ?? (image ? "Image" : "Document");
+		const fileId = fileRefIdOf(part.url);
+
+		if (fileId !== undefined) {
+			return [
+				fileCard(
+					{ id: fileId, name, mimeType: part.mediaType },
+					`${message.id}:file:${String(index)}`,
+				),
+			];
+		}
 
 		return [
 			{
@@ -165,6 +191,9 @@ export const toThreadMessage = (
 		const text = body?.text ?? raw;
 		const attachments = [
 			...(body?.files.map((file, index) =>
+				fileCard(file, `${message.id}:file:${String(index)}`),
+			) ?? []),
+			...(body?.inline.map((file, index) =>
 				textAttachment(file, `${message.id}:text:${String(index)}`),
 			) ?? []),
 			...attachmentsOf(message),

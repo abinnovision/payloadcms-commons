@@ -26,17 +26,20 @@ import { staleRunning } from "./stale-running.js";
 import { ToolsContext } from "./tools.js";
 import { isOwner } from "../protocol/owner.js";
 
-import type { SendContext, ThreadDoc } from "./api.js";
+import type { FilesLimits, SendContext, ThreadDoc } from "./api.js";
 import type { DocumentRegistry, OpenDocument } from "./document.js";
 import type { FluePanelProps } from "./panel.js";
 import type { ChatSession } from "./runtime.js";
 import type { RunningRow } from "./stale-running.js";
 import type { ToolsContextValue } from "./tools.js";
+import type { AttachmentLimits } from "../protocol/attachments.js";
 
 export type FlueChatProps = Omit<
 	FluePanelProps,
-	"loadMoreError" | "onOpenRun" | "onStale"
+	"attachments" | "loadMoreError" | "onOpenRun" | "onStale"
 > & {
+	/** The limits of chat attachments; null or unset while they are off. */
+	attachments?: AttachmentLimits | null | undefined;
 	/** The signed-in user, a member of `userCollection`. */
 	userId: number | string;
 	userCollection: string;
@@ -45,6 +48,8 @@ export type FlueChatProps = Omit<
 	chosen: boolean;
 	onThreadId: (threadId: string | undefined) => void;
 	onRunning: (running: boolean) => void;
+	/** The limits of the file workspace; null or unset while it is off. */
+	files?: FilesLimits | null | undefined;
 	/** Where the open edit view registers its document. */
 	registry: DocumentRegistry;
 };
@@ -73,9 +78,11 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 	onRunning,
 	onOpenThread,
 	registry,
+	files = null,
+	attachments = null,
 	...panel
 }) => {
-	const { api, agent, open, attachments = null } = panel;
+	const { api, agent, open } = panel;
 	const { config } = useConfig();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
@@ -136,6 +143,7 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 		document: openDocument,
 		subscribeDocument: (listener) => registry.subscribe(listener),
 		attachments,
+		files,
 		refresh: () => {
 			runtimeRef.current?.threads.reload().catch(() => undefined);
 		},
@@ -332,6 +340,7 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 	const tools = useMemo<ToolsContextValue>(
 		() => ({
 			api,
+			filesSlug: files?.slug,
 			adminRoute: config.routes.admin,
 			// A server render has no window, so the server URL stands in for it.
 			origin:
@@ -339,7 +348,7 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 					? config.serverURL
 					: window.location.origin,
 		}),
-		[api, config.routes.admin, config.serverURL],
+		[api, files?.slug, config.routes.admin, config.serverURL],
 	);
 
 	return (
@@ -347,6 +356,8 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 			<ToolsContext value={tools}>
 				<FluePanel
 					{...panel}
+					// The workspace replaces inline attachments; the panel shows either.
+					attachments={files ?? attachments}
 					loadMoreError={loadMoreError}
 					onOpenRun={openRun}
 					onOpenThread={openThread}

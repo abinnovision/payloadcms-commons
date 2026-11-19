@@ -281,6 +281,83 @@ describe("shownMessages and toThreadMessage", () => {
 		});
 	});
 
+	it("shows the workspace files a turn references as file cards and not as text", () => {
+		const turn = message({
+			id: "entry_ref",
+			role: "user",
+			purpose: "user",
+			parts: [
+				{
+					type: "text",
+					text: userTurnBody(
+						{ kind: "chat" },
+						"Summarize",
+						[],
+						[
+							{
+								id: "12",
+								name: 'q3 "final".pdf',
+								mimeType: "application/pdf",
+								size: 2048,
+							},
+						],
+					),
+					state: "done",
+				},
+			],
+		});
+
+		expect(toThreadMessage(turn)).toEqual({
+			id: "entry_ref",
+			role: "user",
+			content: [{ type: "text", text: "Summarize" }],
+			attachments: [
+				{
+					id: "entry_ref:file:0",
+					type: "document",
+					name: 'q3 "final".pdf',
+					contentType: "application/pdf",
+					status: { type: "complete" },
+					content: [
+						{
+							type: "file",
+							data: "flue-file:12",
+							mimeType: "application/pdf",
+							filename: 'q3 "final".pdf',
+						},
+					],
+				},
+			],
+		});
+	});
+
+	it("shows the echo of a workspace file as a file card", () => {
+		const echo = message({
+			id: "pending:sub_1",
+			role: "user",
+			purpose: "user",
+			metadata: { isOptimistic: true },
+			parts: [
+				{
+					type: "file",
+					mediaType: "image/png",
+					url: "flue-file:31",
+					filename: "chart.png",
+				},
+			],
+		});
+
+		expect(toThreadMessage(echo)).toMatchObject({
+			attachments: [
+				{
+					type: "document",
+					name: "chart.png",
+					content: [{ type: "file", data: "flue-file:31" }],
+				},
+			],
+		});
+	});
+
 	it("shows a user message holding only files without a text part", () => {
 		const turn = message({
 			role: "user",

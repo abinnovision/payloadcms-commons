@@ -12,6 +12,8 @@ export type {
 	FlueAgentConfig,
 	FlueAttachmentOptions,
 	FlueCapabilities,
+	FileMimeType,
+	FlueFileOptions,
 	FlueCollectionGrant,
 	FlueGlobalGrant,
 	FluePluginOptions,

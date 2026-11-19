@@ -123,7 +123,8 @@ export const seed = async (payload: Payload): Promise<Seeded> => {
 /**
  * Sends one request through Payload's router, the path a Next.js route
  * handler takes. A `token` signs it in; a `body` is sent as JSON unless it
- * is a string; `headers` come last; `signal` stands for the client going away.
+ * is a string or form data; `headers` come last; `signal` stands for the
+ * client going away.
  */
 export const send = (
 	booted: Booted,
@@ -142,7 +143,7 @@ export const send = (
 		request: new Request(`http://localhost${path}`, {
 			method: args.method ?? "GET",
 			headers: {
-				...(args.body === undefined
+				...(args.body === undefined || args.body instanceof FormData
 					? {}
 					: { "content-type": "application/json" }),
 				...(args.token === undefined
@@ -155,7 +156,7 @@ export const send = (
 				? {}
 				: {
 						body:
-							typeof args.body === "string"
+							typeof args.body === "string" || args.body instanceof FormData
 								? args.body
 								: JSON.stringify(args.body),
 					}),

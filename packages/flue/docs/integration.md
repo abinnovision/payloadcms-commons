@@ -16,6 +16,7 @@
 | `dispatch.queue`             | `flue`              | The jobs queue `queueFlueRun` queues on.                                                                                                         |
 | `dispatch.wait`              | `false`             | `true` or `{ maxWaitMs }`. Keeps a `flue-dispatch` job open until its run settles. `true` waits 10 minutes. See [waiting](#waiting-for-the-run). |
 | `attachments`                | off                 | `true` or an object. Lets chat users attach images, PDFs and text files to a turn. See [attachments](#attachments).                              |
+| `files`                      | off                 | `true` or an object. Gives each thread a file workspace in Payload that agents read on demand. Excludes `attachments`. See [files](#files).      |
 
 The plugin reads mcpx's key collection slug, user collection and endpoint path from mcpx's
 options, with mcpx's defaults: `mcpx-api-keys`, `config.admin.user` then `users`, and `/mcpx`.
@@ -89,6 +90,99 @@ With attachments on, the body cap of `POST /chat/:agent` rises from 64 KiB to
 rises for every chat user (see [security.md](./security.md#attachments)). Lower `maxFiles` or the
 sizes to lower it.
 
+### Files
+
+`files: true` takes the defaults. An object sets each field. It excludes `attachments`: a config
+that sets both fails at startup.
+
+| Field                | Default                                                    | Maximum    |
+| -------------------- | ---------------------------------------------------------- | ---------- |
+| `slug`               | `flue-files`                                               |            |
+| `mimeTypes`          | PNG, JPEG, GIF, WebP, PDF, Markdown, plain text, CSV, XLSX | those nine |
+| `maxBytes`           | 150 MiB, lowered to what Payload's upload settings take    | 1 GiB      |
+| `maxFilesPerTurn`    | 10                                                         | 20         |
+| `maxFilesPerThread`  | 100                                                        | 100        |
+| `inlineTextBytes`    | 0                                                          | 64 KiB     |
+| `overrideCollection` | none                                                       |            |
+
+With `files` on, a file never travels in the chat request. The composer uploads each file to the
+`flue-files` collection through Payload's own upload route, with progress, and the turn sends only
+the ids. The turn references the files in the user's message and the agent reads them on demand
+(see [files in agent code](#files-in-agent-code)). Because the model sees references rather than
+bytes, nothing is replayed on every later turn, and a file may be far larger than an inline
+attachment.
+
+`overrideCollection` receives the collection and returns it. It must keep `upload.mimeTypes`,
+which makes Payload check each file's content, and must not set `disablePayloadAccessControl`;
+the plugin refuses a config that does either. A storage adapter that sets
+`disablePayloadAccessControl` on the collection fails the same check when Payload starts.
+
+By default only the references go into the turn. `inlineTextBytes` also puts the text of text
+files into the turn's text, all files of a turn together up to that many bytes, so a model sees
+small files without a tool call. Leave it at 0 unless the files are small; inlined text counts
+against the model's context on every later turn.
+
+#### Payload's upload settings
+
+Payload's multipart parser decides what reaches the plugin, and its defaults are low. Set them in
+the Payload config:
+
+| Setting                   | Payload default | Needed for                                                                    |
+| ------------------------- | --------------- | ----------------------------------------------------------------------------- |
+| `upload.requestSizeLimit` | 50 MiB          | the whole request; a file needs room in it for the form's other parts (1 MiB) |
+| `upload.limits.fileSize`  | 20 MiB          | each single file; a larger file is cut off by the parser                      |
+| `upload.useTempFiles`     | `false`         | files above 32 MiB; otherwise Payload holds each upload in memory             |
+| `upload.tempFileDir`      | `tmp`           | where temp files go; use a directory the process may write                    |
+
+```ts
+buildConfig({
+  upload: {
+    requestSizeLimit: 160 * 1024 * 1024,
+    limits: { fileSize: 150 * 1024 * 1024 },
+    useTempFiles: true,
+    tempFileDir: "/tmp/payload-uploads",
+  },
+  // ...
+});
+```
+
+An unset `maxBytes` follows these settings: the smallest of 150 MiB, `requestSizeLimit` minus
+1 MiB and `limits.fileSize`, and 32 MiB without `useTempFiles`. When that is below 150 MiB the
+plugin logs a warning that names the settings. With Payload's defaults the limit is 20 MiB. An
+explicit `maxBytes` the settings cannot take fails at startup, and the error names
+`upload.requestSizeLimit` or `upload.limits.fileSize`.
+
+The plugin sees only Payload's config. A limit in front of Payload still applies and the plugin
+cannot check it:
+
+- Next.js 16 buffers the body of a request that passes through a proxy or middleware and cuts it
+  at `proxyClientMaxBodySize`, 10 MB by default. Raise it when the app configures a proxy or
+  middleware that matches the upload route.
+- A reverse proxy or a platform has its own body limit and timeout, for example nginx's
+  `client_max_body_size`. Raise them to the largest file.
+
+The composer reports a 413 as "larger than the server takes".
+
+#### Storage model
+
+- Files live in the `flue-files` collection, not in the sidecar. The stored name is random and the
+  uploader's name sits in `name`, so one user's names reveal nothing to another.
+- A file has an owner (Payload's `createdBy`) and, once a turn sends it, a thread. Until then it is
+  pending: only its owner reads or deletes it.
+- A user may have 20 pending files, 300 MiB together. Pending files older than 24 hours are
+  removed when their owner uploads or sends next.
+- A turn claims its pending files for the thread, at most `maxFilesPerTurn`, and a thread holds at
+  most `maxFilesPerThread`. A file is claimed once; a turn that names a file another turn took, or
+  one that does not exist, is refused with 404.
+- Archiving a thread deletes its files. The deletion is best effort and logged on failure.
+- Reading a file goes through Payload's file handler for the collection as the owner, so access
+  control, storage adapters and `Range` apply. The panel never links to a file's `url`.
+
+What the history keeps: the turn's text starts with a `payload-context` preamble and one
+self-closing `payload-file` reference per file (`id`, `name`, `mimeType`, `size`), then the user's
+text. With `inlineTextBytes` set, the text files that fit also follow as `payload-file` blocks.
+Flue stores only that text. See [turns with files](./concepts.md#turns-with-files).
+
 ## Startup validation
 
 The plugin throws `InvalidConfiguration` when Payload builds the config for any of these:
@@ -105,6 +199,12 @@ The plugin throws `InvalidConfiguration` when Payload builds the config for any 
 - `threads.slug` is taken by another collection;
 - `attachments.mimeTypes` is empty or names another type, a size (`maxImageBytes`,
   `maxDocumentBytes`, `maxTextBytes`) is not a whole number between 1 and its maximum, or `maxFiles` is not a whole number between 1 and 20;
+- `files` is set together with `attachments`, `files.mimeTypes` is empty or names another type,
+  `files.slug` is taken by another collection, `maxBytes` is not between 1 and 1 GiB,
+  `maxFilesPerTurn` is not between 1 and 20, or `inlineTextBytes` is above 64 KiB;
+- an explicit `files.maxBytes` is above what `upload.requestSizeLimit`, `upload.limits.fileSize` or
+  `upload.useTempFiles` take (the error names them), or the files collection drops
+  `upload.mimeTypes` or sets `disablePayloadAccessControl`;
 - mcpx's key collection has no `apiKey`, `user` or `capabilities` field, `apiKey` is not a text
   field, or it already defines `managedBy` as anything but a text field;
 - a grant names a checkbox mcpx does not offer, lacks the grant it requires, or names a tool that
@@ -121,7 +221,8 @@ agent user can approve its deletes.
 ## What the plugin adds
 
 - The `flue-threads` collection. See [concepts.md](./concepts.md#threads).
-- Seven endpoints below `{routes.api}{endpointPath}`. See [endpoints](#endpoints).
+- Seven endpoints below `{routes.api}{endpointPath}`, nine with `files`. See [endpoints](#endpoints).
+- With `files`: the `flue-files` upload collection (see [files](#files)).
 - The `flue-dispatch` job task, with one schedule per ambient agent.
 - On mcpx's key collection: a `managedBy` text field, hidden in the admin, and the locks described
   in [security.md](./security.md#managed-key-locks).
@@ -244,6 +345,12 @@ It returns:
 - `upload(args)`: creates a document with a file in an upload collection as the run's user, lists
   it in the response's file card and resolves `{ collection, id, filename, mimeType, size,
 adminUrl }`. See [uploads](#uploads).
+- `files`: `list()`, `read(file, { maxBytes, signal })` and `fetch(file, { range, signal })` for the
+  files of the thread. See [files in agent code](#files-in-agent-code).
+- `callTool(name, args)`: calls one mcpx tool as the run's user and resolves its structured content
+  or parsed text.
+- `download({ collection, id, maxBytes, signal })`: downloads the file of an upload collection's
+  document as the run's user.
 
 Agent code that reads `useDelivery()` itself gets the context of either turn shape with
 `contextOf(delivery)`, which `context()` uses, and the files of a user's turn with
@@ -262,6 +369,99 @@ work in a subagent's render either, where Flue's `useMcpConnection` and `useData
 An exchange that fails rejects with `FlueExchangeError`, whose `status` is 401 for a wrong secret,
 404 for a handle that is not live and `undefined` when Payload was not reached. Its message never
 carries the secret or the handle.
+
+### Files in agent code
+
+With `files` on, an agent reads the files of its thread through `payload.files`, which acts as the
+thread's owner. `filesOf(delivery)` returns the files a turn references, `{ id, name, mimeType,
+size }`, in the panel's order. `name` is the uploader's and untrusted.
+
+| Call                      | Does                                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `files.list()`            | the thread's files, oldest first, at most 100; empty outside a chat thread                            |
+| `files.read(file, opts)`  | the whole file as `Uint8Array`; `too_large` past `maxBytes`, default 32 MiB (`FILE_LIMITS.readBytes`) |
+| `files.fetch(file, opts)` | the response; with `range: { start, end }` bytes `start` to `end` inclusive as a 206                  |
+
+`file` is an id or any object with one, such as an entry of `list()` or `filesOf`. Every call
+fails with `FlueFileError`, whose `code` is `not_found`, `refused`, `too_large`, `unavailable` or
+`budget_exhausted`, and whose `status` is the one Payload answered, if any. Its message never
+carries the secret, the handle or a download grant.
+
+`useFileTools(payload, { vision })` mounts three tools for a model:
+
+| Tool            | Does                                                                                           |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `list_files`    | id, name, type and size of each file; names are marked untrusted                               |
+| `read_file`     | a page of a text file's characters, `offset` and `limit`, with `nextOffset` while more follows |
+| `look_at_image` | asks a vision model a question about an image; off with `vision: false`                        |
+
+The tools wrap file content in a `file_content` envelope with a notice that it is data and never
+instructions. `FILE_BUDGETS` holds what one response may spend (80 reads, 12 vision calls, page
+sizes and the like) and `FILE_LIMITS` the workspace limits; both are fixed and exported.
+
+```ts
+"use agent";
+
+import {
+  filesOf,
+  useFileTools,
+  usePayload,
+} from "@abinnovision/payloadcms-flue/agent";
+import { useDelivery, useModel } from "@flue/runtime";
+
+export function Editor(): string {
+  useModel(process.env.FLUE_MODEL!);
+  const payload = usePayload({ agent: "editor" });
+
+  useFileTools(payload);
+
+  const files = filesOf(useDelivery());
+
+  return files.length > 0
+    ? "The user attached files. Call list_files, then read what you need."
+    : "You help editors work on the content of this site.";
+}
+```
+
+`look_at_image` runs a child call of the harness with the image, and Flue stores that call and its
+image (see [security.md](./security.md#files)).
+
+#### Reading app collections
+
+`payload.callTool(name, args)` replaces a copy of the key exchange: code that called the exchange
+itself and then mcpx's `callTool` can call `payload.callTool` instead, which reuses the cached
+session. A document's file that such code downloaded through mcpx's handoff becomes
+`payload.download`:
+
+```ts
+const { filename, mimeType, bytes } = await payload.download({
+  collection: "media",
+  id: 12,
+  maxBytes: 100 * 1024 * 1024,
+});
+```
+
+`download` refuses with `too_large` past `maxBytes`, 32 MiB by default, and cancels the transfer.
+A tool that handles large app files passes `maxBytes` explicitly.
+
+#### Saving into an app collection
+
+To keep a workspace file, read it and hand it to `payload.upload`:
+
+```ts
+const [file] = filesOf(useDelivery());
+const bytes = await payload.files.read(file, { maxBytes: 25 * 1024 * 1024 });
+
+await payload.upload({
+  collection: "documents",
+  filename: file.name,
+  mimeType: file.mimeType,
+  data: bytes,
+});
+```
+
+`upload()` goes through mcpx, which caps a file at 25 MB, so a larger save fails with
+`FlueUploadError`. See [uploads](#uploads).
 
 ### Uploads
 
@@ -410,6 +610,8 @@ answers `{ error: string }`.
 | `GET /c/:thread?view=updates`            | session, and read access to the thread                           | query parameters as below                                                            |
 | `POST /c/:thread/abort`                  | session, and ownership of the thread                             | JSON content type; the body is not read                                              |
 | `POST /exchange`                         | `Authorization: Bearer <sidecar.secret>`; the session is ignored | JSON, body 4 KiB                                                                     |
+| `POST /files/list`                       | `Authorization: Bearer <sidecar.secret>`; the session is ignored | JSON, body 4 KiB; only with `files`                                                  |
+| `GET /files/:file`                       | `Authorization: Bearer <sidecar.secret>`, handle in a header     | `Range` honoured; only with `files`                                                  |
 | `POST /settled`                          | `Authorization: Bearer <sidecar.secret>`; the session is ignored | JSON, body 4 KiB                                                                     |
 
 Every session endpoint answers 401 without a signed-in user and 403 for a user outside mcpx's user
@@ -420,6 +622,14 @@ agents whose `access` admits the user. `runs` is `{ agents: [{ slug, label }] }`
 configured agent when `threads.readAgentRuns` admits the user, so the panel can label runs of any
 agent, and `null` otherwise. `attachments` is
 `{ mimeTypes, maxImageBytes, maxDocumentBytes, maxFiles }`, or `null` while attachments are off.
+`files` is `{ slug, mimeTypes, maxBytes, maxFiles }`, or `null` while the file workspace is off.
+
+`POST /files/list` takes `{ handle, agent }` and answers the thread's files as
+`[{ id, name, mimeType, size, createdAt }]`, read as the thread's user. `GET /files/:file` takes
+the handle and the agent in the `x-flue-handle` and `x-flue-agent` headers, which keeps the handle
+out of URLs, and serves the file through the collection's own file endpoint as the thread's user.
+Both answer 404 for a handle that is not live, an unknown agent, another thread's file or a user
+that no longer exists, and 401 for a wrong secret. Only the sidecar calls them.
 
 `POST /chat/:agent` takes `{ message, thread?, context }` and returns
 `{ thread: { id, title, status }, offset, submissionId, streamUrl }`. `offset` is where the
@@ -427,6 +637,11 @@ turn's updates start, and `streamUrl` is the thread's conversation route, such a
 `/api/flue/c/42`. `context` is
 `{ route, collection?, id?, global?, locale? }`: `collection` and `global` must exist, and
 `locale` must be one of the config's locales.
+
+With `files` on, the body may carry `files`: up to `maxFilesPerTurn` distinct ids of the user's
+pending files. The turn claims them for the thread and answers 404 for an id that is not a
+pending file of the user, and 400 when the thread would pass `maxFilesPerThread`. `message` may
+then be empty.
 
 With attachments on, the body may also carry `attachments`: up to `maxFiles` of
 `{ type, mimeType, data, filename? }` in Flue's shape, `type` `image` or `document` matching the

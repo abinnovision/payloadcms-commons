@@ -15,7 +15,7 @@ export const agentAdmits = async (
  * under `runs` every configured agent when `threads.readAgentRuns` lets the
  * user read agent runs, so the panel can label runs of any agent; otherwise
  * `runs` is null. `attachments` holds the chat attachment limits, or null
- * when attachments are off.
+ * when attachments are off; `files` the file workspace's, or null when it is off.
  */
 export const agentsHandler = (settings: PluginSettings): PayloadHandler =>
 	endpointHandler(async (req) => {
@@ -40,6 +40,14 @@ export const agentsHandler = (settings: PluginSettings): PayloadHandler =>
 						maxDocumentBytes: settings.attachments.maxDocumentBytes,
 						maxTextBytes: settings.attachments.maxTextBytes,
 						maxFiles: settings.attachments.maxFiles,
+					}
+				: null,
+			files: settings.files
+				? {
+						slug: settings.files.slug,
+						mimeTypes: settings.files.mimeTypes,
+						maxBytes: settings.files.maxBytes,
+						maxFiles: settings.files.maxFilesPerTurn,
 					}
 				: null,
 			runs: settings.threads.readAgentRuns(req)

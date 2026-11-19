@@ -6,6 +6,7 @@ import { mcpxSettings, normalizeOptions } from "./options.js";
 import type {
 	FlueAgentConfig,
 	FlueAttachmentOptions,
+	FlueFileOptions,
 	FluePluginOptions,
 } from "./types.js";
 import type { CollectionConfig, Config, PayloadRequest, Plugin } from "payload";
@@ -13,7 +14,7 @@ import type { CollectionConfig, Config, PayloadRequest, Plugin } from "payload";
 const SECRET = "s".repeat(32);
 const MINUTE = 60_000;
 
-type ConfigView = Pick<Config, "admin" | "collections" | "routes">;
+type ConfigView = Pick<Config, "admin" | "collections" | "routes" | "upload">;
 
 const collection = (slug: string): CollectionConfig => ({ slug, fields: [] });
 
@@ -411,6 +412,177 @@ describe("normalizeOptions", () => {
 					}),
 				),
 			).toThrow(message);
+		});
+	});
+	describe("files", () => {
+		const MIB = 1024 * 1024;
+		const TEMP_FILES = {
+			requestSizeLimit: 160 * MIB,
+			limits: { fileSize: 150 * MIB },
+			useTempFiles: true,
+		};
+		const SETTINGS = /requestSizeLimit.*useTempFiles.*tempFileDir/;
+
+		const files = (
+			option: NonNullable<FluePluginOptions["files"]>,
+			upload?: ConfigView["upload"],
+		) =>
+			normalize(
+				options({ files: option }),
+				config(upload === undefined ? {} : { upload }),
+			);
+
+		it("is off by default", () => {
+			expect(normalize().normalized.files).toBe(false);
+		});
+
+		it("boots Payload's default config with 20 MiB and a warning naming the settings", () => {
+			const { normalized, warnings } = files(true);
+
+			expect(normalized.files).toEqual({
+				slug: "flue-files",
+				mimeTypes: [
+					"image/png",
+					"image/jpeg",
+					"image/gif",
+					"image/webp",
+					"application/pdf",
+					"text/plain",
+					"text/markdown",
+					"text/csv",
+					"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				],
+				maxBytes: 20 * MIB,
+				maxFilesPerTurn: 10,
+				maxFilesPerThread: 100,
+				inlineTextBytes: 0,
+				overrideCollection: undefined,
+			});
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0]).toMatch(/upload\.requestSizeLimit/);
+			expect(warnings[0]).toMatch(/upload\.useTempFiles/);
+			expect(warnings[0]).toMatch(/upload\.limits\.fileSize/);
+		});
+
+		it("follows a request limit below 150 MiB with temp files on", () => {
+			const { normalized, warnings } = files(true, {
+				requestSizeLimit: 100 * MIB,
+				limits: { fileSize: 150 * MIB },
+				useTempFiles: true,
+			});
+
+			expect(normalized.files).toMatchObject({ maxBytes: 99 * MIB });
+			expect(warnings).toHaveLength(1);
+		});
+
+		it("follows a file size limit below the request limit with a warning naming it", () => {
+			const { normalized, warnings } = files(true, {
+				...TEMP_FILES,
+				limits: { fileSize: 60 * MIB },
+			});
+
+			expect(normalized.files).toMatchObject({ maxBytes: 60 * MIB });
+			expect(warnings[0]).toMatch(/upload\.limits\.fileSize/);
+		});
+
+		it("follows Payload's 20 MiB file size default", () => {
+			const { normalized } = files(true, {
+				requestSizeLimit: 160 * MIB,
+				useTempFiles: true,
+			});
+
+			expect(normalized.files).toMatchObject({ maxBytes: 20 * MIB });
+		});
+
+		it("defaults to 150 MiB without a warning when Payload takes it", () => {
+			const { normalized, warnings } = files(true, TEMP_FILES);
+
+			expect(normalized.files).toMatchObject({ maxBytes: 150 * MIB });
+			expect(warnings).toEqual([]);
+		});
+
+		it("takes an explicit maxBytes Payload takes", () => {
+			expect(
+				files({ maxBytes: 120 * MIB }, TEMP_FILES).normalized.files,
+			).toMatchObject({ maxBytes: 120 * MIB });
+			expect(files({ maxBytes: 8 * MIB }).normalized.files).toMatchObject({
+				maxBytes: 8 * MIB,
+			});
+		});
+
+		it("refuses an explicit maxBytes above the request limit", () => {
+			expect(() => files({ maxBytes: 160 * MIB }, TEMP_FILES)).toThrow(
+				SETTINGS,
+			);
+		});
+
+		it("refuses an explicit maxBytes above the file size limit", () => {
+			expect(() =>
+				files(
+					{ maxBytes: 100 * MIB },
+					{ ...TEMP_FILES, limits: { fileSize: 60 * MIB } },
+				),
+			).toThrow(/upload\.limits\.fileSize/);
+			expect(() => files({ maxBytes: 25 * MIB })).toThrow(
+				/upload\.limits\.fileSize/,
+			);
+		});
+
+		it("refuses an explicit maxBytes above 32 MiB without temp files", () => {
+			expect(() =>
+				files(
+					{ maxBytes: 40 * MIB },
+					{ requestSizeLimit: 160 * MIB, useTempFiles: false },
+				),
+			).toThrow(SETTINGS);
+		});
+
+		it("refuses files together with attachments", () => {
+			expect(() =>
+				normalize(options({ files: true, attachments: true })),
+			).toThrow(/files and attachments/);
+		});
+
+		it("refuses a slug another collection holds", () => {
+			expect(() => files({ slug: "users" })).toThrow(/files\.slug/);
+			expect(() => files({ slug: "flue-threads" })).toThrow(/files\.slug/);
+		});
+
+		it.each([
+			[
+				"a type outside the allowed ones",
+				{ mimeTypes: ["image/svg+xml"] },
+				/files\.mimeTypes/,
+			],
+			["an empty type list", { mimeTypes: [] }, /files\.mimeTypes/],
+			["more than 1 GiB", { maxBytes: 1024 * MIB + 1 }, /files\.maxBytes/],
+			["no bytes", { maxBytes: 0 }, /files\.maxBytes/],
+			["no files per turn", { maxFilesPerTurn: 0 }, /maxFilesPerTurn/],
+			[
+				"more than 20 files per turn",
+				{ maxFilesPerTurn: 21 },
+				/maxFilesPerTurn/,
+			],
+			[
+				"fewer files per thread than per turn",
+				{ maxFilesPerThread: 5 },
+				/maxFilesPerThread/,
+			],
+			[
+				"more files per thread than a listing holds",
+				{ maxFilesPerThread: 101 },
+				/maxFilesPerThread/,
+			],
+			[
+				"inlined text over 64 KiB",
+				{ inlineTextBytes: 64 * 1024 + 1 },
+				/inlineTextBytes/,
+			],
+			["negative inlined text", { inlineTextBytes: -1 }, /inlineTextBytes/],
+		])("refuses %s", (_label, option, message) => {
+			expect(() => files(option as FlueFileOptions, TEMP_FILES)).toThrow(
+				message,
+			);
 		});
 	});
 });

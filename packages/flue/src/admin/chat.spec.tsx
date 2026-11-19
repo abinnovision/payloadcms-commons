@@ -9,6 +9,7 @@ import { POLL_MS } from "./threads-view.js";
 
 import type {
 	ChatResult,
+	FilesLimits,
 	FlueApi,
 	ThreadDoc,
 	ThreadFilter,
@@ -763,6 +764,149 @@ describe("attachments in the FlueChat composer", () => {
 			)!.value,
 		).toBe("Summarize");
 		expect(toastError).toHaveBeenCalledWith("Too large.");
+		panel.unmount();
+	});
+});
+
+describe("the file workspace in the FlueChat composer", () => {
+	const FILES: FilesLimits = {
+		slug: "flue-files",
+		mimeTypes: ["application/pdf", "text/markdown"],
+		maxBytes: 1024,
+		maxFiles: 4,
+	};
+
+	const RESULT: ChatResult = {
+		thread: { id: 1001, status: "running", title: "notes.md" },
+		offset: "-1",
+		streamUrl: "/api/flue/c/1001",
+		submissionId: "sub_1",
+	};
+
+	// An upload the test settles itself.
+	const mountComposer = () => {
+		let progress: (fraction: number) => void = () => undefined;
+		let finish: (id: string) => void = () => undefined;
+		let fail: (error: Error) => void = () => undefined;
+		const uploadFile = vi.fn(
+			(_slug: string, _file: File, onProgress: (fraction: number) => void) =>
+				new Promise<string>((resolve, reject) => {
+					progress = onProgress;
+					finish = resolve;
+					fail = reject;
+				}),
+		);
+		const deleteFile = vi.fn(() => Promise.resolve());
+		const chat = vi.fn(() => Promise.resolve(RESULT));
+		const { api } = server([]);
+		const panel = mount(
+			{ ...api, chat, uploadFile, deleteFile },
+			{ files: FILES, view: "conversation" },
+		);
+
+		return {
+			...panel,
+			chat,
+			uploadFile,
+			deleteFile,
+			progress: (fraction: number) => {
+				act(() => {
+					progress(fraction);
+				});
+			},
+			finish: async (id: string) => {
+				await act(async () => {
+					finish(id);
+					await Promise.resolve();
+				});
+			},
+			fail: async (error: Error) => {
+				await act(async () => {
+					fail(error);
+					await Promise.resolve();
+				});
+			},
+			pick: (file: File): void => {
+				panel.click("Attach");
+
+				const input =
+					document.body.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+				Object.defineProperty(input, "files", { value: [file] });
+				act(() => {
+					input.dispatchEvent(new Event("change"));
+				});
+			},
+			status: () =>
+				panel.container.querySelector(".flue-composer .flue-attachment__status")
+					?.textContent,
+			attached: () =>
+				[
+					...panel.container.querySelectorAll(
+						".flue-composer .flue-attachment__name",
+					),
+				].map((name) => name.textContent),
+		};
+	};
+
+	it("shows the upload's progress and sends only the id with the message", async () => {
+		const panel = mountComposer();
+
+		// The browser reports no type for a .md file.
+		panel.pick(new File(["# Notes"], "notes.md", { type: "" }));
+		await until(() => panel.status() === "0%");
+		expect(panel.uploadFile.mock.calls[0]![1].type).toBe("text/markdown");
+
+		panel.progress(0.4);
+		await until(() => panel.status() === "40%");
+
+		await panel.finish("12");
+		await until(() => panel.status() === undefined);
+		expect(panel.attached()).toEqual(["notes.md"]);
+
+		panel.click("Send");
+		await until(() => panel.chat.mock.calls.length === 1);
+
+		expect(panel.chat).toHaveBeenCalledWith("editor", {
+			message: "",
+			thread: undefined,
+			context: { route: "/admin" },
+			files: ["12"],
+		});
+		panel.unmount();
+	});
+
+	it("tells the user the server refused a file as too large", async () => {
+		const panel = mountComposer();
+
+		panel.pick(new File(["# Notes"], "notes.md", { type: "text/markdown" }));
+		await until(() => panel.status() === "0%");
+		await panel.fail(new Error("notes.md is larger than the server takes."));
+		await until(() => toastError.mock.calls.length > 0);
+
+		expect(toastError).toHaveBeenCalledWith(
+			"notes.md is larger than the server takes.",
+		);
+		expect(panel.status()).toBe("Failed");
+		panel.unmount();
+	});
+
+	it("deletes the upload when the user removes it", async () => {
+		const panel = mountComposer();
+
+		panel.pick(new File(["%PDF-1"], "brief.pdf", { type: "application/pdf" }));
+		await until(() => panel.status() === "0%");
+		await panel.finish("12");
+		await until(() => panel.status() === undefined);
+
+		act(() => {
+			panel.container
+				.querySelector<HTMLButtonElement>('button[aria-label="Remove file"]')!
+				.click();
+		});
+		await until(() => panel.attached().length === 0);
+
+		expect(panel.deleteFile).toHaveBeenCalledWith("flue-files", "12");
 		panel.unmount();
 	});
 });
