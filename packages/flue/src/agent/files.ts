@@ -1,6 +1,7 @@
 import { codeOf, FluePayloadError, joinUrl } from "./exchange.js";
 import { handoffRequest } from "./handoff.js";
 import { readBytes } from "../protocol/body.js";
+import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 
 import type { ExchangeSession } from "./exchange.js";
@@ -88,13 +89,15 @@ export const downloadDocument = async (
 	const record = isRecord(doc) ? doc : {};
 	const { path, headers } = handoffRequest(
 		record["download"],
-		target,
+		target.mcpPath,
 		"file",
 		new FluePayloadError(
 			"not_found",
 			`Document ${what} has no file to download.`,
 		),
 	);
+
+	headers[FILE_HANDLE_HEADER] = target.handle;
 
 	if (range) {
 		headers["range"] =

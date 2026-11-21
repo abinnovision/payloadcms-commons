@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { fluePrivateUploads } from "./files/factory.js";
 import { fixtureConfig } from "../test/fixtures/config.js";
 
 import type { FluePluginOptions } from "./types.js";
@@ -164,30 +163,19 @@ describe("fluePlugin", () => {
 			fields: [{ name: "alt", type: "text" }],
 		};
 
-		const withUploads =
-			(
-				uploads: CollectionConfig = UPLOADS,
-				baseAccess?: Config["baseAccess"],
-			) =>
-			(config: Config): Config => ({
-				...config,
-				collections: [...(config.collections ?? []), uploads],
-				...(baseAccess ? { baseAccess } : {}),
-			});
-
-		const build = (
-			uploads?: CollectionConfig,
-			baseAccess?: Config["baseAccess"],
-		) =>
+		const build = (uploads: CollectionConfig = UPLOADS) =>
 			applyPlugins(
 				{ sidecar: SIDECAR, files: { collection: "uploads" } },
-				withUploads(uploads, baseAccess),
+				(config) => ({
+					...config,
+					collections: [...(config.collections ?? []), uploads],
+				}),
 			);
 
 		const uploadsOf = (config: Config) =>
 			config.collections?.find((entry) => entry.slug === "uploads");
 
-		it("adds the server-only thread field and the agent upload hook", async () => {
+		it("adds the server-only thread field", async () => {
 			const uploads = uploadsOf(await build());
 			const field = uploads?.fields.find(
 				(entry) => "name" in entry && entry.name === "flueThread",
@@ -198,33 +186,7 @@ describe("fluePlugin", () => {
 				relationTo: "flue-threads",
 				index: true,
 			});
-			expect(uploads?.hooks?.beforeChange).toHaveLength(1);
-		});
-
-		it("guards reads, updates and deletes through baseAccess and keeps an existing function", async () => {
-			const existing = () => false;
-			const config = await build(undefined, {
-				collections: { read: existing },
-			});
-			const read = config.baseAccess?.collections?.read;
-			const args = { req: {}, slug: "pages" } as unknown as Parameters<
-				NonNullable<typeof read>
-			>[0];
-
-			expect(read).not.toBe(existing);
-			expect(config.baseAccess?.collections).toEqual({
-				read: expect.any(Function),
-				readVersions: expect.any(Function),
-				update: expect.any(Function),
-				delete: expect.any(Function),
-			});
-			await expect(read?.(args)).resolves.toBe(false);
-		});
-
-		it("leaves baseAccess alone without files", async () => {
-			expect(
-				(await applyPlugins({ sidecar: SIDECAR })).baseAccess,
-			).toBeUndefined();
+			expect(uploads?.access).toBeUndefined();
 		});
 
 		it.each([
@@ -264,32 +226,5 @@ describe("fluePlugin", () => {
 				await expect(build(uploads)).rejects.toThrow(message);
 			},
 		);
-
-		it("refuses a fluePrivateUploads collection built for another user collection", async () => {
-			await expect(
-				build(
-					fluePrivateUploads({
-						slug: "uploads",
-						mimeTypes: ["application/pdf"],
-						userCollection: "admins",
-					}),
-				),
-			).rejects.toThrow(/built for users of "admins"/);
-		});
-
-		it("fails at startup when a later plugin replaced baseAccess", async () => {
-			const config = await build();
-			const started = {
-				collections: {
-					uploads: { config: { ...uploadsOf(config), flattenedFields: [] } },
-				},
-				config: { baseAccess: { collections: { read: () => true } } },
-				logger: { warn: () => undefined },
-			} as unknown as Payload;
-
-			await expect(config.onInit?.(started)).rejects.toThrow(
-				/replaced config\.baseAccess/,
-			);
-		});
 	});
 });

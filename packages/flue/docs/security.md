@@ -218,45 +218,47 @@ do.
   and writes the binding past access control on the same condition, so a user cannot bind a file
   of another user, even one they may read, or move a file from another thread. `flueThread` is
   writable by the plugin only: a value a client sends on create or update is dropped.
-- **Thread guard.** The plugin composes `baseAccess.collections.read`, `readVersions`, `update`
-  and `delete`, keeping a function already there, and acts on the files collection only. A request made with a
-  flue-managed mcpx key must carry the conversation's handle in `x-flue-handle`. The handle must
-  name a thread that is not archived, of the key's agent and user, whose user is the request's,
-  with the key enabled and unexpired; for a chat thread the agent's `access` must still admit the
-  user. The guard then narrows the request to that thread's files, as a query on `flueThread`, or
-  on `version.flueThread` for versions. Without a valid handle the request is refused. Each
-  request resolves the handle once.
-- **Every read path.** The guard is Payload access control, so it applies to `findDocuments`,
+- **Default scope.** The plugin changes no access on the files collection. An agent acts as its
+  user, so without `flueThreadScoped` it reads every file the collection lets the user read,
+  across all of the user's threads.
+- **Thread scope.** `flueThreadScoped(access?)` is opt-in access for the files collection. A
+  request made with a flue-managed mcpx key must carry the conversation's handle in
+  `x-flue-handle`. The handle must name a thread that is not archived, of the key's agent and
+  user, whose user is the request's, with the key enabled and unexpired; for a chat thread the
+  agent's `access` must still admit the user. The helper then narrows the wrapped result to that
+  thread's files, as a query on `flueThread`. Without a valid handle, or on any error, the request
+  is refused. Each request resolves the handle once. On another collection than
+  `files.collection` it refuses flue-managed keys. On `access.read` it also covers versions, which
+  inherit read access unless the collection sets its own `readVersions`; wrap that too.
+- **Every read path.** The helper is Payload access control, so it applies to `findDocuments`,
   `getDocument`, `findVersions` and the file route itself: Payload checks file access before any
   storage handler streams the file. A download grant fetched without the handle answers 403.
-- **Scope.** The guard narrows reads, updates and deletes, so an agent granted `write` or
-  `delete` on the collection still reaches only its thread's files; creates go through the
-  collection's access, and the agent upload hook binds them. The implied grant is `read` only. A
-  request without a flue-managed key, such as the admin's, the REST API's, another mcpx key's or
-  the in-process mcpx client's, is left to the collection's access alone. Every key-authenticated
-  mcpx request carries the key's id, so a flue key cannot pass as keyless.
-- **Agent uploads.** A file an agent creates in the collection is bound to its thread when the
-  request carries a valid handle, so the agent can read its own output; without one it stays
-  unbound and unreadable to the agent.
-- **Ordering.** A plugin that replaces `config.baseAccess` after flue would drop the guard; flue
-  refuses to start then. Register such a plugin before flue.
-- **File serving.** The guard applies only where Payload serves the file. A storage adapter
+- **Writes.** Put the helper on `update` and `delete` too where agents are granted `write` or
+  `delete` on the collection. It does not belong on `create`, which has no document to narrow. A request without a
+  flue-managed key, such as the admin's, the REST API's, another mcpx key's or the in-process mcpx
+  client's, gets the wrapped result unchanged. Every key-authenticated mcpx request carries the
+  key's id, so a flue key cannot pass as keyless.
+- **Agent uploads.** A file an agent creates is stored but belongs to no thread, so a
+  thread-scoped collection does not show it to the agent.
+- **File serving.** Access control applies only where Payload serves the file. A storage adapter
   configured to serve files straight from the bucket, a bucket with a public ACL or a custom
-  `generateFileURL` bypasses Payload's access control and the guard, and the plugin cannot detect
+  `generateFileURL` bypasses Payload's access control, and the plugin cannot detect
   them; never configure the chat collection that way and keep its bucket private. The panel never
   links to a file's `url`.
 - **Thread ids are visible.** `flueThread` is readable like any other field, so whoever may read a
   file also sees which thread it belongs to, but not the thread itself.
 - **Stored names.** Payload keeps file names unique per collection, so a collection that stores
-  the uploader's name can reveal that a name exists. `fluePrivateUploads` stores random names and
-  keeps the uploader's in `name`.
-- **Logs.** The handle travels in a header on every agent request. Redact `x-flue-handle` in proxy
+  the uploader's name can reveal that a name exists. The
+  [private collection recipe](./recipes.md#a-private-chat-uploads-collection) stores random names
+  and keeps the uploader's in `name`.
+- **Logs.** The handle travels in a header on the agent's MCP requests and downloads. Redact `x-flue-handle` in proxy
   and APM logs.
 - **File content is data.** A file is content from a user, who may try to steer the model with
   it. A tool that returns file content wraps it with `untrusted()` from `./agent`, and the agent's
   instructions add `UNTRUSTED_GUIDANCE`. The [recipes](./recipes.md) show the pattern, including
   the caveats of vision calls.
-- **Archive.** Archiving leaves files bound and stops the agent's reads. Copies Flue made, the
+- **Archive.** Archiving leaves files bound and, with `flueThreadScoped`, stops the agent's
+  reads. Copies Flue made, the
   attachments and images sent to a child call, stay in the sidecar's store (see
   [limitations](./limitations.md#files)).
 

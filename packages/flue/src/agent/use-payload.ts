@@ -177,7 +177,7 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 		context,
 		upload: async (args) => {
 			const file = await uploadDocument(
-				{ session, payloadUrl, mcpPath, handle, locale: context()?.locale },
+				{ session, payloadUrl, mcpPath, locale: context()?.locale },
 				args,
 			);
 

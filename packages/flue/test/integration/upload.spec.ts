@@ -127,7 +127,7 @@ const startConversation = async (
 	token: string;
 	handle: string;
 	thread: number | string;
-	target: UploadTarget;
+	target: UploadTarget & { handle: string };
 }> => {
 	const credentials = {
 		email: `${randomUUID()}@example.com`,

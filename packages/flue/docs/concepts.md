@@ -65,7 +65,8 @@ archive asks the sidecar to abort the conversation's run whatever the status, wh
 run. The archive does not wait for the sidecar's answer, and a conversation Flue has not seen
 counts as stopped. Archiving a `running` thread also disables the key of the thread's user and
 agent until the next turn. Both are best effort and logged on failure. Archiving leaves the
-thread's files bound to it; the agent can no longer read them, as the handle no longer resolves.
+thread's files bound to it; with `flueThreadScoped` on the files collection the agent can no
+longer read them, as the handle no longer resolves.
 
 ## The turn
 

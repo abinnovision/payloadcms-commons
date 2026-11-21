@@ -7,20 +7,87 @@ be copied. They live in `apps/example-v4-agents/src/tools/`.
 ## The files collection
 
 Payload's own seams apply to the files collection (see [files](./integration.md#files)).
-`overrides` merges over what `fluePrivateUploads` builds:
+
+### A private chat uploads collection
+
+A collection only the uploader reads and deletes and nobody updates, kept out of rich text
+pickers, with no uploads from a URL. Files are stored under random names, so the collection-wide
+unique filename reveals nothing about other users' files, and the uploader's name is kept in
+`name`, which the turn sends. `flueThreadScoped` keeps agents to the current thread's files;
+without it they read all of the user's files.
 
 ```ts
-const chatUploads = fluePrivateUploads({
+import { flueThreadScoped } from "@abinnovision/payloadcms-flue";
+import { randomUUID } from "node:crypto";
+
+import type {
+  Access,
+  CollectionBeforeOperationHook,
+  CollectionConfig,
+} from "payload";
+
+// The files the requesting user uploaded; "users" is mcpx's user collection.
+const ownFiles: Access = ({ req }) =>
+  req.user?.collection === "users"
+    ? {
+        and: [
+          { "createdBy.relationTo": { equals: "users" } },
+          { "createdBy.value": { equals: req.user.id } },
+        ],
+      }
+    : false;
+
+const randomName: CollectionBeforeOperationHook = (hook) => {
+  const { req } = hook;
+
+  if (hook.operation !== "create" || !req.file) {
+    return hook.args;
+  }
+
+  const { name } = req.file;
+  const extension = /\.[A-Za-z0-9]{1,8}$/.exec(name)?.[0].toLowerCase() ?? "";
+
+  req.file = { ...req.file, name: `${randomUUID()}${extension}` };
+
+  return {
+    ...hook.args,
+    data: { ...hook.args.data, name: name.slice(0, 255) },
+  };
+};
+
+export const chatUploads: CollectionConfig = {
   slug: "chat-uploads",
-  mimeTypes: ["image/png", "application/pdf", "text/csv"],
-  overrides: {
-    upload: { staticDir: "/var/data/chat-uploads" },
-    hooks: {
-      // Throw an APIError to refuse an upload with your message, such as a size cap.
-      beforeOperation: [scanUpload],
-    },
+  authorship: true,
+  versions: false,
+  admin: {
+    hidden: true,
+    useAsTitle: "name",
+    enableRichTextRelationship: false,
   },
-});
+  upload: {
+    mimeTypes: ["image/png", "application/pdf", "text/csv"],
+    pasteURL: false,
+  },
+  access: {
+    read: flueThreadScoped(ownFiles),
+    create: ({ req }) => req.user?.collection === "users",
+    update: () => false,
+    delete: flueThreadScoped(ownFiles),
+  },
+  hooks: {
+    // Add your own, such as a scanner that throws an APIError to refuse an upload.
+    beforeOperation: [randomName],
+  },
+  fields: [
+    {
+      name: "name",
+      type: "text",
+      maxLength: 255,
+      admin: { readOnly: true },
+      access: { update: () => false },
+    },
+  ],
+};
 ```
 
 A size cap per file is the collection's: Payload's `upload.limits` and a `beforeOperation` hook
@@ -28,8 +95,8 @@ that checks `req.file.size`.
 
 ### Cleaning up
 
-The plugin deletes nothing. For a collection that holds chat files only, such as one built with
-`fluePrivateUploads`, a Payload job can remove old uploads of users that nobody sent, and old
+The plugin deletes nothing. For a collection that holds chat files only, such as the one above,
+a Payload job can remove old uploads of users that nobody sent, and old
 files of archived threads:
 
 ```ts

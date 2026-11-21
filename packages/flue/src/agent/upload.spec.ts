@@ -82,14 +82,13 @@ const failure = (callTool: () => Promise<unknown>): Promise<unknown> =>
 			session: { callTool },
 			payloadUrl: "https://cms.example.com",
 			mcpPath: "/api/mcpx",
-			handle: "handle-1",
 			fetch: () => Promise.resolve(new Response(null, { status: 200 })),
 		},
 		TEXT_FILE,
 	).catch((caught: unknown) => caught);
 
 describe("uploadDocument", () => {
-	it("puts the bytes with the grant headers and the handle", async () => {
+	it("puts the bytes with the grant headers", async () => {
 		const sent: Headers[] = [];
 		const result = await uploadDocument(
 			{
@@ -104,7 +103,6 @@ describe("uploadDocument", () => {
 				},
 				payloadUrl: "https://cms.example.com",
 				mcpPath: "/api/mcpx",
-				handle: "handle-1",
 				fetch: (input, init) => {
 					sent.push(new Request(input, init).headers);
 
@@ -118,7 +116,6 @@ describe("uploadDocument", () => {
 
 		expect(result.id).toBe(7);
 		expect(sent[0]?.get("x-mcpx-grant")).toBe("grant-0123");
-		expect(sent[0]?.get("x-flue-handle")).toBe("handle-1");
 	});
 
 	it("refuses a result without an upload handoff", async () => {
@@ -164,7 +161,6 @@ describe("uploadDocument", () => {
 				},
 				payloadUrl: "https://cms.example.com",
 				mcpPath: "/api/mcpx",
-				handle: "handle-1",
 				fetch: (input) => {
 					sent.push(input instanceof Request ? input.url : input.toString());
 

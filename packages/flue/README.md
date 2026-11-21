@@ -59,7 +59,7 @@ The package is ESM only, like Payload.
 
 | Entry     | Runs in            | Exports                                                                                                                                                    |
 | --------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`       | the Payload server | `fluePlugin`, `fluePrivateUploads`, `defaultDeliver`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                   |
+| `.`       | the Payload server | `fluePlugin`, `flueThreadScoped`, `defaultDeliver`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                     |
 | `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                               |
 | `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `filesOf`, `openDocumentGuidance`, `untrusted`, `UNTRUSTED_GUIDANCE`, `FluePayloadError` |
 
@@ -180,10 +180,11 @@ Both are opt-in:
 | Chat files    | `files: { collection }` and `files: true` on an agent | users send files of an app upload collection; images and small PDFs reach the model, the rest as references |
 | Agent uploads | `usePayload().upload()` in a tool                     | the agent saves a file to an upload collection through mcpx; the chat shows it as a card                    |
 
-The collection must keep `authorship` and `upload.mimeTypes`, or be built with
-`fluePrivateUploads`. Agents read the files of their thread with
-`payload.download`, and Payload refuses them any other file of the collection. Size limits, storage and cleanup
-are the collection's. Uploads need an upload collection with
+The collection must keep `authorship` and `upload.mimeTypes`; its access stays
+the app's. Agents read files with `payload.download` and see what the
+collection lets their user see. Put `flueThreadScoped` on the collection's
+access to keep agents to the current thread's files. Size limits, storage and
+cleanup are the collection's. Uploads need an upload collection with
 `upload.mimeTypes`, `read` and `write` granted on it, and mcpx leases. See
 [files](./docs/integration.md#files) and [uploads](./docs/integration.md#uploads).
 
@@ -194,6 +195,8 @@ are the collection's. Uploads need an upload collection with
 - `files` names an app collection (`{ collection, maxFilesPerTurn?, deliver? }`)
   and each agent opts in with its own `files`. The plugin no longer creates a
   files collection of its own.
+  Agents see what that collection lets their user see; add `flueThreadScoped`
+  to its access to keep them to the current thread's files.
 - `GET /agents` answers each agent's `files` instead of top-level limits.
 - `./agent` throws one `FluePayloadError` with a `code` in place of its three
   error classes. The context decoder, the attachment reader, `payload.files`

@@ -65,6 +65,10 @@ These apply to [chat files](./integration.md#files).
 - The plugin removes no files. Uploads that were never sent and files of archived threads stay in
   the collection until the app deletes them (see [recipes](./recipes.md)).
 - A file belongs to one thread at a time; a file bound to one thread cannot be sent in another.
+- The plugin does not scope agents to a thread on its own. Without `flueThreadScoped` on the files
+  collection, an agent reads every file of it that its user may read.
+- A file an agent creates with `upload()` in a thread-scoped collection is stored but belongs to
+  no thread, so the agent cannot read it back. Save agent output to another collection.
 - The plugin cannot see limits in front of Payload: Next 16's `proxyClientMaxBodySize`, 10 MB by
   default, a reverse proxy's body limit or a platform's. A file over one is refused before Payload
   sees it.

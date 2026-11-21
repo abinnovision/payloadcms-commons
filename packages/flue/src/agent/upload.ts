@@ -74,8 +74,6 @@ export interface UploadTarget {
 	session: Pick<ExchangeSession, "callTool">;
 	payloadUrl: string;
 	mcpPath: string;
-	/** The conversation's handle, which binds the new document to its thread. */
-	handle: string;
 	/** The turn's locale, used when the call names none. */
 	locale?: string | undefined;
 	/** The fetch for the PUT. Defaults to the global one. */
@@ -149,7 +147,7 @@ export const uploadDocument = async (
 	const result = await requestHandoff(target, args, body.byteLength);
 	const { path, headers } = handoffRequest(
 		isRecord(result) ? result["upload"] : undefined,
-		target,
+		target.mcpPath,
 		"upload",
 		new FluePayloadError("refused", PREREQUISITES),
 	);

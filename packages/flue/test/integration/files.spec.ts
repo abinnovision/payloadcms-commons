@@ -28,7 +28,7 @@ import { contextOf, filesOf } from "../../src/agent/context.js";
 import { exchangeSession, FluePayloadError } from "../../src/agent/exchange.js";
 import { downloadDocument } from "../../src/agent/files.js";
 import { uploadDocument } from "../../src/agent/upload.js";
-import { fluePlugin, fluePrivateUploads } from "../../src/index.js";
+import { fluePlugin, flueThreadScoped } from "../../src/index.js";
 import { MANAGED_BY } from "../../src/keys/augment.js";
 import { INITIAL_DATA_KEY } from "../../src/protocol/exchange.js";
 import { SIDECAR_SECRET } from "../fixtures/config.js";
@@ -38,7 +38,12 @@ import type { ExchangeSession } from "../../src/agent/exchange.js";
 import type { FlueAgentConfig } from "../../src/index.js";
 import type { SendArgs } from "../../src/sidecar/client.js";
 import type { DeliveredMessage } from "@flue/runtime";
-import type { CollectionConfig, Config } from "payload";
+import type {
+	Access,
+	CollectionBeforeOperationHook,
+	CollectionConfig,
+	Config,
+} from "payload";
 
 // The arguments of every sidecar send, to read the deadline a turn gets.
 const sends = vi.hoisted((): SendArgs[] => []);
@@ -114,14 +119,17 @@ const pages: CollectionConfig = {
 	fields: [{ name: "title", type: "text" }],
 };
 
-// Readable by everyone, so only the thread guard keeps agents to their thread.
+const loggedIn: Access = ({ req }) => Boolean(req.user);
+
+// Readable by everyone, so only flueThreadScoped keeps agents to their thread.
 const uploads = (staticDir: string): CollectionConfig => ({
 	slug: UPLOADS,
 	versions: true,
 	access: {
-		read: () => true,
-		create: ({ req }) => Boolean(req.user),
-		update: ({ req }) => Boolean(req.user),
+		read: flueThreadScoped(() => true),
+		create: loggedIn,
+		update: flueThreadScoped(loggedIn),
+		delete: flueThreadScoped(loggedIn),
 	},
 	upload: {
 		staticDir,
@@ -331,7 +339,7 @@ describe("chat files", () => {
 		await rm(dir, { recursive: true, force: true });
 	});
 
-	describe("the thread guard", () => {
+	describe("flueThreadScoped", () => {
 		let owner: User;
 		let mine: Doc;
 		let other: Doc;
@@ -533,7 +541,7 @@ describe("chat files", () => {
 			});
 		};
 
-		it("narrows versions to the thread's files under version.flueThread", async () => {
+		it("narrows versions to the thread's files", async () => {
 			const versions = async (headers: Record<string, string>) =>
 				(
 					await booted.payload.findVersions({
@@ -702,9 +710,9 @@ describe("chat files", () => {
 	});
 
 	describe("agent uploads", () => {
-		it("binds a file the agent creates to its thread and reads it back", async () => {
+		it("creates a file in the thread-scoped collection, unbound and unreadable to the agent", async () => {
 			const user = await freshUser();
-			const { handle, thread } = await chatOk(user, { message: "Write" });
+			const { handle } = await chatOk(user, { message: "Write" });
 			const target = targetOf(handle!);
 			const created = await uploadDocument(target, {
 				collection: UPLOADS,
@@ -712,41 +720,6 @@ describe("chat files", () => {
 				mimeType: "text/plain",
 				data: "Summary.\n",
 			});
-
-			expect(String(await threadOf(created.id))).toBe(String(thread));
-			expect(
-				new TextDecoder().decode(
-					(
-						await downloadDocument(target, {
-							collection: UPLOADS,
-							id: created.id,
-						})
-					).bytes,
-				),
-			).toBe("Summary.\n");
-		});
-
-		it("leaves a file created without the handle header unbound and unreadable", async () => {
-			const user = await freshUser();
-			const { handle } = await chatOk(user, { message: "Write" });
-			const target = targetOf(handle!);
-			const headerless: typeof fetch = async (input, init) => {
-				const headers = new Headers(init?.headers);
-
-				headers.delete("x-flue-handle");
-
-				return await fetchThrough(input, { ...init, headers });
-			};
-
-			const created = await uploadDocument(
-				{ ...target, fetch: headerless },
-				{
-					collection: UPLOADS,
-					filename: "loose.txt",
-					mimeType: "text/plain",
-					data: "Loose.\n",
-				},
-			);
 
 			expect(await threadOf(created.id)).toBeNull();
 			await expect(
@@ -878,7 +851,66 @@ describe("chat files", () => {
 	});
 });
 
-describe("chat files in a fluePrivateUploads collection", () => {
+const ownFiles: Access = ({ req }) =>
+	req.user?.collection === "users"
+		? {
+				and: [
+					{ "createdBy.relationTo": { equals: "users" } },
+					{ "createdBy.value": { equals: req.user.id } },
+				],
+			}
+		: false;
+
+// Stores each file under a random name and keeps the uploader's in `name`.
+const randomName: CollectionBeforeOperationHook = (hook) => {
+	const { req } = hook;
+
+	// eslint-disable-next-line @typescript-eslint/no-deprecated
+	if (hook.operation !== "create" || !req.file) {
+		return hook.args;
+	}
+
+	const { name } = req.file;
+	const extension = /\.[A-Za-z0-9]{1,8}$/.exec(name)?.[0].toLowerCase() ?? "";
+
+	req.file = { ...req.file, name: `${randomUUID()}${extension}` };
+
+	return {
+		...hook.args,
+		data: { ...hook.args.data, name: name.slice(0, 255) },
+	};
+};
+
+// The private uploads collection of docs/recipes.md, without flueThreadScoped.
+const privateUploads = (staticDir: string): CollectionConfig => ({
+	slug: UPLOADS,
+	authorship: true,
+	versions: false,
+	admin: {
+		hidden: true,
+		useAsTitle: "name",
+		enableRichTextRelationship: false,
+	},
+	upload: { staticDir, mimeTypes: ["text/csv"], pasteURL: false },
+	access: {
+		read: ownFiles,
+		create: ({ req }) => req.user?.collection === "users",
+		update: () => false,
+		delete: ownFiles,
+	},
+	hooks: { beforeOperation: [randomName] },
+	fields: [
+		{
+			name: "name",
+			type: "text",
+			maxLength: 255,
+			admin: { readOnly: true },
+			access: { update: () => false },
+		},
+	],
+});
+
+describe("chat files in a private uploads collection", () => {
 	let dir: string;
 	let booted: Booted;
 
@@ -915,19 +947,27 @@ describe("chat files in a fluePrivateUploads collection", () => {
 		return ((await response.json()) as { doc: Doc }).doc;
 	};
 
+	const chatAs = async (
+		user: User,
+		body: Record<string, unknown>,
+	): Promise<{ response: Response; posted: Posted }> => {
+		const response = await send(booted, `/api/flue/chat/${FILER.slug}`, {
+			method: "POST",
+			token: user.token,
+			body: { context: CONTEXT, ...body },
+		});
+		const posted = JSON.parse(
+			booted.sidecar.sends().at(-1)?.body ?? "{}",
+		) as Posted;
+
+		return { response, posted };
+	};
+
 	beforeAll(async () => {
 		dir = await mkdtemp(join(tmpdir(), "flue-private-"));
 		booted = await bootPayload("flue-private-uploads", undefined, (url) => ({
 			...filesConfig(dir, url),
-			collections: [
-				users,
-				pages,
-				fluePrivateUploads({
-					slug: UPLOADS,
-					mimeTypes: ["text/csv"],
-					overrides: { upload: { staticDir: join(dir, "private") } },
-				}),
-			],
+			collections: [users, pages, privateUploads(join(dir, "private"))],
 		}));
 	});
 
@@ -955,18 +995,53 @@ describe("chat files in a fluePrivateUploads collection", () => {
 	it("sends the uploader's name with the turn", async () => {
 		const owner = await userOf();
 		const doc = await uploadAs(owner, "q3 numbers.csv");
-		const response = await send(booted, `/api/flue/chat/${FILER.slug}`, {
-			method: "POST",
-			token: owner.token,
-			body: { context: CONTEXT, message: "Sum", files: [doc.id] },
+		const { response, posted } = await chatAs(owner, {
+			message: "Sum",
+			files: [doc.id],
 		});
-		const posted = JSON.parse(
-			booted.sidecar.sends().at(-1)?.body ?? "{}",
-		) as Posted;
 
 		expect(response.status).toBe(200);
 		expect(filesOf(posted as DeliveredMessage)).toMatchObject([
 			{ id: String(doc.id), name: "q3 numbers.csv", mimeType: "text/csv" },
 		]);
+	});
+
+	it("lets the agent read the user's files across threads but no other user's", async () => {
+		const [owner, stranger] = [await userOf(), await userOf()];
+		const first = await uploadAs(owner, "first.csv");
+		const second = await uploadAs(owner, "second.csv");
+		const foreign = await uploadAs(stranger, "foreign.csv");
+		const { posted } = await chatAs(owner, {
+			message: "A",
+			files: [first.id],
+		});
+
+		await chatAs(owner, { message: "B", files: [second.id] });
+
+		const session = exchangeSession({
+			payloadUrl: PAYLOAD_URL,
+			fluePath: "/api/flue",
+			mcpPath: "/api/mcpx",
+			secret: SIDECAR_SECRET,
+			handle: posted.initialData![INITIAL_DATA_KEY]!.handle,
+			agent: FILER.slug,
+			fetch: async (input, init) =>
+				await handleEndpoints({
+					config: booted.config,
+					payloadInstanceCacheKey: booted.cacheKey,
+					request: new Request(input, init),
+				}),
+		});
+		const { docs } = (await session.callTool("findDocuments", {
+			collection: UPLOADS,
+			limit: 25,
+		})) as { docs: Doc[] };
+
+		expect(docs.map((doc) => String(doc.id)).sort()).toEqual(
+			[String(first.id), String(second.id)].sort(),
+		);
+		await expect(
+			session.callTool("getDocument", { collection: UPLOADS, id: foreign.id }),
+		).rejects.toBeInstanceOf(FluePayloadError);
 	});
 });

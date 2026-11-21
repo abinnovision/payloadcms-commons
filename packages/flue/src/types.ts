@@ -11,8 +11,8 @@ export type { FileDeliver, FileDelivery } from "./protocol/attachments.js";
 declare module "payload" {
 	interface RequestContext {
 		flue?: FlueRequestContext;
-		/** The thread an agent request may read files of, resolved once per request. */
-		flueGuard?: unknown;
+		/** The thread an agent request is scoped to, resolved once per request. */
+		flueScope?: unknown;
 	}
 }
 
@@ -58,7 +58,7 @@ export interface FlueAgentConfig {
 	/**
 	 * Lets chat users send the agent files of `files.collection`; `deliver`
 	 * replaces the plugin-wide policy for this agent. Implies the read grant
-	 * on the collection, which the thread guard narrows. Default off.
+	 * on the collection, which `flueThreadScoped` narrows. Default off.
 	 */
 	files?: boolean | { deliver?: FileDeliver };
 }

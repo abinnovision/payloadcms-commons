@@ -1,18 +1,17 @@
 import { FluePayloadError } from "./exchange.js";
-import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 
 const trimmed = (path: string): string => path.replace(/\/+$/, "");
 
 /**
- * The route below `mcpPath` and the headers, plus the handle, to send for a
+ * The route below `mcpPath` and the headers to send for a
  * transfer handoff mcpx returned. The handoff names Payload's public origin,
  * so only its path is read, and only `route` is accepted. Throws `missing`
  * for a value that is no handoff.
  */
 export const handoffRequest = (
 	handoff: unknown,
-	target: { mcpPath: string; handle: string },
+	mcpPath: string,
 	route: "file" | "upload",
 	missing: FluePayloadError,
 ): { path: string; headers: Record<string, string> } => {
@@ -24,7 +23,7 @@ export const handoffRequest = (
 		throw missing;
 	}
 
-	const path = `${trimmed(target.mcpPath)}/${route}`;
+	const path = `${trimmed(mcpPath)}/${route}`;
 	let handoffPath: string;
 
 	try {
@@ -47,13 +46,10 @@ export const handoffRequest = (
 
 	return {
 		path,
-		headers: {
-			...Object.fromEntries(
-				Object.entries(handoff["headers"]).filter(
-					(entry): entry is [string, string] => typeof entry[1] === "string",
-				),
+		headers: Object.fromEntries(
+			Object.entries(handoff["headers"]).filter(
+				(entry): entry is [string, string] => typeof entry[1] === "string",
 			),
-			[FILE_HANDLE_HEADER]: target.handle,
-		},
+		),
 	};
 };

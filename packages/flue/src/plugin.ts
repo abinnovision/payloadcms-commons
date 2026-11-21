@@ -9,12 +9,12 @@ import {
 } from "./endpoints/conversation.js";
 import { exchangeHandler } from "./endpoints/exchange.js";
 import { settledHandler } from "./endpoints/settled.js";
-import { assertFilesCollection, withThreadField } from "./files/collection.js";
 import {
-	assertFilesGuarded,
-	bindAgentUpload,
-	guardBaseAccess,
-} from "./files/guard.js";
+	assertFilesCollection,
+	assertFilesStarted,
+	withThreadField,
+} from "./files/collection.js";
+import { SCOPE_SETTINGS_KEY } from "./files/scope.js";
 import { createDispatchTask } from "./jobs/dispatch.js";
 import { QUEUE_SETTINGS_KEY } from "./jobs/queue.js";
 import {
@@ -27,6 +27,7 @@ import { normalizeOptions } from "./options.js";
 import { FLUE_ROUTES } from "./protocol/paths.js";
 import { createThreadsCollection } from "./threads/collection.js";
 
+import type { ScopeSettings } from "./files/scope.js";
 import type { QueueSettings } from "./jobs/queue.js";
 import type { CapabilityFieldMap } from "./keys/augment.js";
 import type { NormalizedOptions, StartupLogger } from "./options.js";
@@ -115,10 +116,7 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 			<T extends CollectionConfig | GlobalConfig>(entity: T): T =>
 				admin && admin.bridges(kind, entity.slug) ? withBridge(entity) : entity;
 		const withDocumentBridge = bridged("collections");
-		const guardSettings = settings.files && {
-			...settings,
-			files: settings.files,
-		};
+		const { files } = settings;
 		// normalizeOptions has checked that the key collection is in the config.
 		let capabilityMap: CapabilityFieldMap = {
 			collections: {},
@@ -137,18 +135,11 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					return keys;
 				}
 
-				if (
-					guardSettings &&
-					collection.slug === guardSettings.files.collection
-				) {
-					assertFilesCollection(collection, userCollection, logger);
+				if (files && collection.slug === files.collection) {
+					assertFilesCollection(collection, logger);
 
 					return withDocumentBridge(
-						withThreadField(
-							collection,
-							settings.threads.slug,
-							bindAgentUpload(guardSettings),
-						),
+						withThreadField(collection, settings.threads.slug),
 					);
 				}
 
@@ -188,17 +179,6 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				...collections,
 				options.threads?.overrideCollection?.(threads) ?? threads,
 			],
-			...(guardSettings
-				? {
-						baseAccess: {
-							...config.baseAccess,
-							collections: guardBaseAccess(
-								config.baseAccess?.collections,
-								guardSettings,
-							),
-						},
-					}
-				: {}),
 			globals: (config.globals ?? []).map(bridged("globals")),
 			endpoints: [
 				...(config.endpoints ?? []),
@@ -224,6 +204,12 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					queue: settings.dispatch.queue,
 					agents: settings.agents.map((agent) => agent.slug),
 				} satisfies QueueSettings,
+				[SCOPE_SETTINGS_KEY]: {
+					agents: settings.agents,
+					mcpx: settings.mcpx,
+					threads: settings.threads,
+					files: files && files.collection,
+				} satisfies ScopeSettings,
 			},
 			...(admin
 				? {
@@ -260,8 +246,8 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					throw failure;
 				}
 
-				if (guardSettings) {
-					await assertFilesGuarded(payload, guardSettings);
+				if (files) {
+					await assertFilesStarted(payload, files.collection, userCollection);
 				}
 
 				for (const message of warnings) {

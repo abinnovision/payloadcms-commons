@@ -25,8 +25,9 @@ const COLLECTION = "filesCollection";
 const ATTACHED = "attached";
 
 /**
- * The header the agent sends its handle in on every request to Payload, so
- * Payload scopes its file reads to the conversation's thread.
+ * The header the agent sends its handle in on its MCP requests and file
+ * downloads, so `flueThreadScoped` can scope them to the conversation's
+ * thread.
  */
 export const FILE_HANDLE_HEADER = "x-flue-handle";
 

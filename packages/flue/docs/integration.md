@@ -60,22 +60,20 @@ reads anything but `req.user` gives a different answer there. See
 ### Files
 
 Chat files live in an upload collection the app defines. The plugin binds each file a user sends
-to the thread and lets that thread's agent read it; everything else about the collection, such as
-its size limits, storage adapter, fields and hooks, stays the app's.
+to the thread; the collection's access, size limits, storage adapter, fields and hooks stay the
+app's. [recipes.md](./recipes.md#a-private-chat-uploads-collection) has a complete collection
+only the uploader reads, which this example uses.
 
 ```ts
-import { fluePlugin, fluePrivateUploads } from "@abinnovision/payloadcms-flue";
+import { fluePlugin } from "@abinnovision/payloadcms-flue";
 import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
 
-const chatUploads = fluePrivateUploads({
-  slug: "chat-uploads",
-  mimeTypes: ["image/png", "image/jpeg", "application/pdf", "text/csv"],
-});
+import { chatUploads } from "./collections/chat-uploads"; // From recipes.md.
 
 buildConfig({
   collections: [/* ... */ chatUploads],
   plugins: [
-    // The read checkbox the agents' keys need; flue narrows it to the thread.
+    // The read checkbox the agents' keys need.
     mcpxPlugin({ collections: { "chat-uploads": {} } }),
     fluePlugin({
       // ...
@@ -98,11 +96,7 @@ Setup has three parts:
    `type/*` wildcards, and keeps `authorship` (Payload's `createdBy`, on by default, writable by
    the server only). A collection that allows uploads from a URL (`upload.pasteURL` not `false`)
    logs a warning. Its files must be served through Payload: a storage adapter configured to serve
-   them straight from the bucket bypasses Payload's access control and the thread guard.
-   `fluePrivateUploads({ slug, mimeTypes, userCollection?, overrides? })` builds one that only the
-   uploader reads and deletes, nobody updates, with no URL uploads, random stored names and no
-   place in rich text pickers; the uploader's name goes in a `name` field. Its `userCollection`,
-   `users` by default, must be mcpx's user collection.
+   them straight from the bucket bypasses Payload's access control.
 2. **mcpx.** List the collection in mcpx's `collections`, so the keys have a read checkbox for it,
    and keep mcpx's leases: Payload's database KV, the default, and no mcpx `auth.resolve`. Agents
    read files through mcpx's download handoff.
@@ -110,9 +104,22 @@ Setup has three parts:
    The plugin adds `read` on the collection to those agents' keys.
 
 The plugin adds a `flueThread` field to the files collection, a relationship to the thread,
-indexed, read-only in the admin and writable only by the plugin, and composes
-`baseAccess.collections.read`, `readVersions`, `update` and `delete` so an agent's requests on the
-collection reach only its thread's files (see [security.md](./security.md#files)).
+indexed, read-only in the admin and writable only by the plugin. It changes nothing about the
+collection's access: an agent acts as its user, so without more it reads every file the user may
+read, across threads. Add `flueThreadScoped` to keep agents to the current thread's files:
+
+```ts
+flueThreadScoped(access?: Access): Access
+```
+
+It wraps the collection's own access function, Payload's default (any logged-in user) when none is
+given. Requests made with a flue-managed mcpx key get that result narrowed to the files of the
+thread their `x-flue-handle` names, and are refused without a valid handle; every other request,
+the admin's included, gets the result unchanged. Use it on `files.collection` only: on any other
+collection it refuses flue-managed keys. Put it on `access.read` and on `update` and `delete` where
+agents may write, not on `create`. Versions inherit `read`; a collection that sets its own
+`readVersions` wraps that too (see [security.md](./security.md#files)). The
+[recipe](./recipes.md#a-private-chat-uploads-collection) shows it in place.
 
 The composer uploads each file to the collection through Payload's own upload route, with
 progress, as the signed-in user, and the message sends only the ids. The collection's access,
@@ -164,8 +171,7 @@ The plugin throws `InvalidConfiguration` when Payload builds the config for any 
   1 and 20;
 - the files collection is no upload collection, has no `upload.mimeTypes`, turns `authorship` or
   `createdBy` off, already has a field named `flueThread`, has a top-level field named `download`,
-  which keeps mcpx from serving its files, or was built by `fluePrivateUploads` for another user
-  collection than mcpx's;
+  which keeps mcpx from serving its files;
 - an agent sets `files` without the plugin's `files` option, or takes files while mcpx offers no
   read checkbox for the files collection;
 - mcpx's key collection has no `apiKey`, `user` or `capabilities` field, `apiKey` is not a text
@@ -183,18 +189,14 @@ agent user can approve its deletes. A files collection that allows URL uploads l
 
 When Payload starts, the plugin checks the files collection again, as a storage adapter or a later
 plugin may change it: `createdBy` must still be Payload's authorship field for mcpx's user
-collection, writable by the server only, `flueThread` must still be writable by the server only
-and the agent upload hook must still be there. It also fails when another plugin replaced
-`config.baseAccess` after flue, which would drop the thread guard. Register such a plugin before
-flue.
+collection, writable by the server only, and `flueThread` must still be writable by the server
+only.
 
 ## What the plugin adds
 
 - The `flue-threads` collection. See [concepts.md](./concepts.md#threads).
 - Seven endpoints below `{routes.api}{endpointPath}`. See [endpoints](#endpoints).
-- With `files`: the `flueThread` field and an agent upload hook on the files collection, and the
-  thread guard in `baseAccess.collections.read`, `readVersions`, `update` and `delete` (see
-  [files](#files)).
+- With `files`: the `flueThread` field on the files collection (see [files](#files)).
 - The `flue-dispatch` job task, with one schedule per ambient agent.
 - On mcpx's key collection: a `managedBy` text field, hidden in the admin, and the locks described
   in [security.md](./security.md#managed-key-locks).
@@ -361,11 +363,11 @@ const listed = await payload.callTool("findDocuments", {
 });
 ```
 
-Every agent request carries the conversation's handle in `x-flue-handle`, so Payload answers only
-the files of the agent's thread, on every path: `findDocuments`, `getDocument`, `findVersions` and
-the download itself. A file the agent creates in the collection with `upload()` is bound to the
-thread and readable the same way; that needs `write` granted on the collection, since the implied
-grant is `read` only.
+Every MCP request and download of the agent carries the conversation's handle in `x-flue-handle`.
+With `flueThreadScoped` on the collection, Payload answers only the files of the agent's thread,
+on every path: `findDocuments`, `getDocument`, `findVersions` and the download itself. A file the
+agent creates with `upload()` in a thread-scoped collection is stored, but belongs to no thread,
+so the agent cannot read it back. Agent output belongs in another collection.
 
 `download` refuses with `too_large` past `maxBytes`, 32 MiB by default, and cancels the transfer.
 With `range: { start, end? }` it asks for bytes `start` to `end` inclusive, to the end without
@@ -807,8 +809,8 @@ database KV adapter, which is the default; an in-memory KV breaks them across se
 
 [`apps/example-v4`](../../apps/example-v4) mounts mcpx and flue with three agents (`editor`,
 `reviewer`, limited by `access`, and the read-only `summarizer`), an `editor` granted every
-collection and global mcpx exposes, chat files in a `chat-uploads` collection built with
-`fluePrivateUploads`, a `documents` upload collection the editor saves Markdown files to through a
+collection and global mcpx exposes, chat files in a private `chat-uploads` collection scoped
+with `flueThreadScoped`, a `documents` upload collection the editor saves Markdown files to through a
 `save_document` tool, a `save_file` tool that keeps files sent in the chat in `media` or
 `documents`, a hook that queues a reactive run
 of `summarizer` when an article is published, `threads.readAgentRuns` for every signed-in user,

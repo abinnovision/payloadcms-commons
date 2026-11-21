@@ -260,7 +260,7 @@ const normalizeAdmin = (
 
 /*
  * The agents with the read grant on the files collection added for each
- * agent that takes files; the thread guard narrows it to the thread's files.
+ * agent that takes files; `flueThreadScoped` narrows it to the thread's files.
  */
 const withFileGrants = (
 	agents: FlueAgentConfig[],

@@ -1,11 +1,10 @@
-import { FACTORY_USER_COLLECTION } from "./factory.js";
 import { invalid } from "../options.js";
 
 import type { StartupLogger } from "../options.js";
 import type {
-	CollectionBeforeChangeHook,
 	CollectionConfig,
 	DefaultDocumentIDType,
+	Payload,
 	PayloadRequest,
 } from "payload";
 
@@ -64,7 +63,6 @@ interface FilesCollectionView {
 	slug: string;
 	upload?: unknown;
 	authorship?: unknown;
-	custom?: Record<string, unknown> | undefined;
 	fields: readonly unknown[];
 }
 
@@ -80,14 +78,12 @@ const hasField = (fields: readonly unknown[], name: string): boolean =>
 /**
  * Refuses a files collection that is no upload collection, drops
  * `upload.mimeTypes`, which makes Payload check each file's content, drops
- * `createdBy`, which binding a file to a thread relies on, has a top-level
- * `download` field, which keeps mcpx from serving its files, or was built by
- * `fluePrivateUploads` for another user collection. Warns when files may
- * come from a URL.
+ * `createdBy`, which binding a file to a thread relies on, or has a
+ * top-level `download` field, which keeps mcpx from serving its files.
+ * Warns when files may come from a URL.
  */
 export const assertFilesCollection = (
 	collection: FilesCollectionView,
-	userCollection: string,
 	logger: Pick<StartupLogger, "warn">,
 ): void => {
 	const name = `The files collection "${collection.slug}"`;
@@ -95,7 +91,6 @@ export const assertFilesCollection = (
 		undefined | { mimeTypes?: unknown; pasteURL?: unknown };
 	const authorship = collection.authorship as
 		boolean | undefined | { createdBy?: unknown };
-	const factoryUsers = collection.custom?.[FACTORY_USER_COLLECTION];
 
 	if (typeof upload !== "object") {
 		throw invalid(`${name} must be an upload collection (files.collection).`);
@@ -122,12 +117,6 @@ export const assertFilesCollection = (
 		);
 	}
 
-	if (factoryUsers !== undefined && factoryUsers !== userCollection) {
-		throw invalid(
-			`${name} was built for users of ${JSON.stringify(factoryUsers)}, but mcpx's user collection is "${userCollection}". Pass userCollection to fluePrivateUploads.`,
-		);
-	}
-
 	if (upload.pasteURL !== false) {
 		logger.warn(
 			`[payloadcms-flue] ${name} allows uploads from a URL. Set upload.pasteURL: false unless users should paste URLs.`,
@@ -136,13 +125,12 @@ export const assertFilesCollection = (
 };
 
 /**
- * The files collection with the server-only `flueThread` field and `hook`
- * added. Refuses a collection that already has a field of that name.
+ * The files collection with the server-only `flueThread` field added.
+ * Refuses a collection that already has a field of that name.
  */
 export const withThreadField = (
 	collection: CollectionConfig,
 	threadsSlug: string,
-	hook: CollectionBeforeChangeHook,
 ): CollectionConfig => {
 	if (hasField(collection.fields, FILE_THREAD_FIELD)) {
 		throw invalid(
@@ -152,10 +140,6 @@ export const withThreadField = (
 
 	return {
 		...collection,
-		hooks: {
-			...collection.hooks,
-			beforeChange: [...(collection.hooks?.beforeChange ?? []), hook],
-		},
 		fields: [
 			...collection.fields,
 			{
@@ -235,4 +219,27 @@ export const assertStartedFilesCollection = async (
 			`${name} must keep the "${FILE_THREAD_FIELD}" field the plugin adds, writable by the server only.`,
 		);
 	}
+};
+
+/**
+ * Re-checks the started files collection, since a storage adapter or a
+ * later plugin may change it after flue ran: it must still pass
+ * {@link assertFilesCollection} and {@link assertStartedFilesCollection}.
+ */
+export const assertFilesStarted = async (
+	payload: Payload,
+	slug: string,
+	userCollection: string,
+): Promise<void> => {
+	const files = payload.collections[slug]?.config;
+
+	if (!files) {
+		throw invalid(`files.collection "${slug}" is not in the config.`);
+	}
+
+	assertFilesCollection(
+		{ ...files, fields: files.flattenedFields },
+		{ warn: () => undefined },
+	);
+	await assertStartedFilesCollection(files, userCollection);
 };

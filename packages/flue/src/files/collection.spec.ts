@@ -15,7 +15,6 @@ describe("assertFilesCollection", () => {
 				upload: { mimeTypes: ["application/pdf"] },
 				fields: [],
 			},
-			"users",
 			{ warn: (message) => warnings.push(message) },
 		);
 
@@ -33,7 +32,6 @@ describe("assertFilesCollection", () => {
 				upload: { mimeTypes: ["application/pdf"], pasteURL: false },
 				fields: [],
 			},
-			"users",
 			{ warn: (message) => warnings.push(message) },
 		);
 
