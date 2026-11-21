@@ -67,8 +67,7 @@ a retried response it lists only uploads made afterwards.
 These apply to the [file workspace](./integration.md#files).
 
 - Archiving deletes a thread's files from Payload, but Flue's own copies stay in the sidecar's
-  store: the images `look_at_image` sent to its child calls, and any inline attachments of the
-  thread. Flue has no API to delete them.
+  store: the images a tool sent to child calls, and any inline attachments of the thread. Flue has no API to delete them.
 - A thread that had inline attachments before `files` was turned on keeps them in its history and
   keeps replaying them (see [attachments](#attachments)). The two options exclude each other for
   new turns only.
@@ -90,8 +89,9 @@ These apply to the [file workspace](./integration.md#files).
 - Two tabs of the same user that send the same pending file at the same moment can both claim it.
   Both turns may reference it and the loser's tools answer `not_found`. The file belongs to the
   thread either way.
-- `useFileTools` reads text files and looks at images. PDFs and spreadsheets are accepted and
-  listed, but a tool of the agent has to read their bytes with `payload.files`.
+- The plugin ships no file tools. Any type the app lists in `files.mimeTypes` is stored and
+  listed, and a tool of the agent has to read its bytes with `payload.files` (see
+  [recipes](./recipes.md)).
 
 ## Known gaps
 

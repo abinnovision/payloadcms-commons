@@ -1,12 +1,14 @@
 const KIB = 1024;
 const MIB = 1024 * KIB;
 const HOUR = 60 * 60 * 1000;
+const GIB = 1024 * MIB;
 
 /**
- * The file types the chat's file workspace takes. The `files` option may
- * narrow the list. Payload checks each upload's content against it.
+ * The file types the chat's file workspace takes by default. `files.mimeTypes`
+ * replaces the list; spread this one to extend it. Payload checks each
+ * upload's content against the list.
  */
-export const FILE_MIME_TYPES = [
+export const DEFAULT_FILE_MIME_TYPES = [
 	"image/png",
 	"image/jpeg",
 	"image/gif",
@@ -18,8 +20,8 @@ export const FILE_MIME_TYPES = [
 	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ] as const;
 
-/** One of {@link FILE_MIME_TYPES}. */
-export type FileMimeType = (typeof FILE_MIME_TYPES)[number];
+/** What a whole-file read takes by default; larger files are read by range. */
+export const DEFAULT_READ_BYTES = 32 * MIB;
 
 /**
  * The limits of the file workspace. `default` and `max` bound an option;
@@ -30,31 +32,35 @@ export const FILE_LIMITS = {
 	maxFilesPerTurn: { default: 10, max: 20 },
 	maxFilesPerThread: 100,
 	inlineTextBytes: { default: 0, max: 64 * KIB },
-	pending: { files: 20, bytes: 300 * MIB, ttlMs: 24 * HOUR },
-	/** What a whole-file read takes by default; larger files are read by range. */
-	readBytes: 32 * MIB,
+	pending: {
+		files: { default: 20, max: 100 },
+		bytes: { default: 300 * MIB, max: 10 * GIB },
+		ttlMs: { default: 24 * HOUR, min: HOUR, max: 7 * 24 * HOUR },
+	},
 	/** The most files a thread's listing answers. */
 	listMax: 100,
 } as const;
 
-/** Whether the MIME type is one of {@link FILE_MIME_TYPES}. */
-export const isFileMimeType = (mimeType: string): mimeType is FileMimeType =>
-	(FILE_MIME_TYPES as readonly string[]).includes(mimeType);
+/** Whether the string reads as an exact `type/subtype` MIME type. */
+export const isMimeType = (mimeType: string): boolean =>
+	/^[\w.+-]+\/[\w.+-]+$/.test(mimeType);
 
 /**
  * A workspace file as a user's turn references it. `name` is the uploader's
  * file name and untrusted.
  */
 export interface WorkspaceFileRef {
+	/** The Payload id as text, as read from the turn body. */
 	id: string;
 	name: string;
-	mimeType: FileMimeType;
+	mimeType: string;
 	/** In bytes. */
 	size: number;
 }
 
 /** A workspace file of a thread, as the sidecar's listing answers it. */
 export interface WorkspaceFile {
+	/** The Payload id, as the collection's id type has it. */
 	id: number | string;
 	name: string;
 	mimeType: string;
@@ -76,14 +82,3 @@ export interface FilesListRequest {
  */
 export const FILE_HANDLE_HEADER = "x-flue-handle";
 export const FILE_AGENT_HEADER = "x-flue-agent";
-
-/**
- * What the file tools of one response may spend, shared by every entry that
- * mounts file tools. Fixed, not configurable.
- */
-export const FILE_BUDGETS = {
-	reads: 80,
-	vision: 12,
-	readChars: { default: 20_000, max: 50_000 },
-	visionImageBytes: 3.75 * MIB,
-} as const;

@@ -155,8 +155,8 @@ per file, a blank line and the user's text:
 Summarize the report.
 ```
 
-That reference is all Flue stores. The model gets no bytes: it lists and reads files through the
-tools of `useFileTools`, or agent code reads them with `payload.files` (see
+That reference is all Flue stores. The model gets no bytes: it lists and reads files through
+tools the agent mounts, or agent code reads them with `payload.files` (see
 [files in agent code](./integration.md#files-in-agent-code)). A later turn needs no re-attaching,
 because the thread's files stay readable for as long as the thread is not archived. `filesOf(delivery)`
 returns the references, with `name` untrusted.

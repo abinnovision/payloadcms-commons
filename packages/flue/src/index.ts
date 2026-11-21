@@ -1,6 +1,7 @@
 import type { FluePluginOptions } from "./types.js";
 
 export { fluePlugin } from "./plugin.js";
+export { DEFAULT_FILE_MIME_TYPES } from "./protocol/files.js";
 export { DISPATCH_TASK } from "./jobs/dispatch.js";
 export { flueQueues, queueFlueRun } from "./jobs/queue.js";
 
@@ -12,7 +13,6 @@ export type {
 	FlueAgentConfig,
 	FlueAttachmentOptions,
 	FlueCapabilities,
-	FileMimeType,
 	FlueFileOptions,
 	FlueCollectionGrant,
 	FlueGlobalGrant,

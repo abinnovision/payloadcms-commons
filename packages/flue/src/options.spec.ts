@@ -456,6 +456,7 @@ describe("normalizeOptions", () => {
 				maxFilesPerTurn: 10,
 				maxFilesPerThread: 100,
 				inlineTextBytes: 0,
+				pending: { maxFiles: 20, maxBytes: 300 * MIB, ttlMs: 24 * 3_600_000 },
 				overrideCollection: undefined,
 			});
 			expect(warnings).toHaveLength(1);
@@ -537,6 +538,49 @@ describe("normalizeOptions", () => {
 			).toThrow(SETTINGS);
 		});
 
+		it("takes a custom exact type", () => {
+			expect(
+				files({ mimeTypes: ["application/zip"] }, TEMP_FILES).normalized.files,
+			).toMatchObject({ mimeTypes: ["application/zip"] });
+		});
+
+		it("takes a null pending as the defaults", () => {
+			expect(
+				files({ pending: null } as unknown as FlueFileOptions, TEMP_FILES)
+					.normalized.files,
+			).toMatchObject({ pending: { maxFiles: 20 } });
+		});
+
+		it("takes the pending bounds at their edges", () => {
+			expect(
+				files(
+					{
+						pending: {
+							maxFiles: 100,
+							maxBytes: 10 * 1024 * MIB,
+							ttlMs: 3_600_000,
+						},
+					},
+					TEMP_FILES,
+				).normalized.files,
+			).toMatchObject({
+				pending: { maxFiles: 100, maxBytes: 10 * 1024 * MIB, ttlMs: 3_600_000 },
+			});
+		});
+
+		it("raises the default pending bytes to a larger maxBytes", () => {
+			expect(
+				files(
+					{ maxBytes: 500 * MIB },
+					{
+						requestSizeLimit: 510 * MIB,
+						limits: { fileSize: 500 * MIB },
+						useTempFiles: true,
+					},
+				).normalized.files,
+			).toMatchObject({ pending: { maxBytes: 500 * MIB } });
+		});
+
 		it("refuses files together with attachments", () => {
 			expect(() =>
 				normalize(options({ files: true, attachments: true })),
@@ -550,11 +594,43 @@ describe("normalizeOptions", () => {
 
 		it.each([
 			[
-				"a type outside the allowed ones",
-				{ mimeTypes: ["image/svg+xml"] },
-				/files\.mimeTypes/,
+				"a wildcard type",
+				{ mimeTypes: ["image/*"] },
+				/files\.mimeTypes entries must be exact MIME types, got "image\/\*"/,
 			],
+			["a malformed type", { mimeTypes: ["png"] }, /files\.mimeTypes/],
+			["an upper-case type", { mimeTypes: ["Image/PNG"] }, /exact MIME types/],
 			["an empty type list", { mimeTypes: [] }, /files\.mimeTypes/],
+			[
+				"pending files below the turn size",
+				{ maxFilesPerTurn: 10, pending: { maxFiles: 5 } },
+				/pending\.maxFiles/,
+			],
+			[
+				"more than 100 pending files",
+				{ pending: { maxFiles: 101 } },
+				/pending\.maxFiles/,
+			],
+			[
+				"pending bytes below the file size",
+				{ maxBytes: 10 * MIB, pending: { maxBytes: 9 * MIB } },
+				/pending\.maxBytes/,
+			],
+			[
+				"more than 10 GiB pending",
+				{ pending: { maxBytes: 10 * 1024 * MIB + 1 } },
+				/pending\.maxBytes/,
+			],
+			[
+				"a pending TTL under an hour",
+				{ pending: { ttlMs: 3_599_999 } },
+				/pending\.ttlMs/,
+			],
+			[
+				"a pending TTL over 7 days",
+				{ pending: { ttlMs: 7 * 24 * 3_600_000 + 1 } },
+				/pending\.ttlMs/,
+			],
 			["more than 1 GiB", { maxBytes: 1024 * MIB + 1 }, /files\.maxBytes/],
 			["no bytes", { maxBytes: 0 }, /files\.maxBytes/],
 			["no files per turn", { maxFilesPerTurn: 0 }, /maxFilesPerTurn/],

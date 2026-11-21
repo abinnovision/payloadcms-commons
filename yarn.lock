@@ -151,21 +151,33 @@ __metadata:
     vitest: "npm:^5.1.0"
   peerDependencies:
     "@abinnovision/payloadcms-mcpx": ">=2.1.0 <4"
+    "@assistant-ui/react": ~0.15.32
+    "@assistant-ui/react-markdown": ~0.14.24
     "@flue/runtime": ^2.3.0
+    "@flue/sdk": ^2.3.0
     "@payloadcms/ui": ">=4.0.0-beta.7 <5"
     payload: ">=4.0.0-beta.7 <5"
     react: ^19
+    remark-gfm: ^4.0.1
     valibot: ^1.1.0
   peerDependenciesMeta:
     "@abinnovision/payloadcms-mcpx":
       optional: true
+    "@assistant-ui/react":
+      optional: true
+    "@assistant-ui/react-markdown":
+      optional: true
     "@flue/runtime":
+      optional: true
+    "@flue/sdk":
       optional: true
     "@payloadcms/ui":
       optional: true
     payload:
       optional: true
     react:
+      optional: true
+    remark-gfm:
       optional: true
     valibot:
       optional: true
@@ -2948,10 +2960,14 @@ __metadata:
     "@flue/runtime": "npm:2.3.0"
     "@flue/vite": "npm:2.3.0"
     "@types/node": "npm:^26.6.6"
+    "@types/papaparse": "npm:^5.5.2"
     eslint: "npm:^10.14.0"
     hono: "npm:^4.13.16"
+    papaparse: "npm:5.7.1"
     prettier: "npm:^3.10.0"
+    read-excel-file: "npm:9.3.17"
     typescript: "npm:^6.0.3"
+    unpdf: "npm:2.2.1"
     valibot: "npm:^1.1.0"
     vite: "npm:^8.3.8"
   languageName: unknown
@@ -2970,6 +2986,9 @@ __metadata:
     "@abinnovision/payloadcms-oidc": "workspace:*"
     "@abinnovision/payloadcms-wayfinder": "workspace:*"
     "@abinnovision/prettier-config": "npm:^2.2.0"
+    "@assistant-ui/react": "npm:0.15.32"
+    "@assistant-ui/react-markdown": "npm:0.14.24"
+    "@flue/sdk": "npm:2.3.0"
     "@payloadcms/db-sqlite": "npm:4.0.0-beta.7"
     "@payloadcms/next": "npm:4.0.0-beta.7"
     "@payloadcms/richtext-lexical": "npm:4.0.0-beta.7"
@@ -2986,6 +3005,7 @@ __metadata:
     prettier: "npm:^3.10.0"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
+    remark-gfm: "npm:^4.0.1"
     typescript: "npm:^6.0.3"
   languageName: unknown
   linkType: soft
@@ -6897,6 +6917,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/papaparse@npm:^5.5.2":
+  version: 5.5.2
+  resolution: "@types/papaparse@npm:5.5.2"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/35c38d8c789a0512465665fa6472e8eda7a20413227aafc25b55955a0ced8a061dfbeb0c75658393ebe61670cb95064cc3753ce1a0bac93a12c53ff569d15170
+  languageName: node
+  linkType: hard
+
 "@types/parse-json@npm:^4.0.0":
   version: 4.0.2
   resolution: "@types/parse-json@npm:4.0.2"
@@ -9899,10 +9928,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"graceful-fs@npm:^4.2.6":
-  version: 4.2.11
-  resolution: "graceful-fs@npm:4.2.11"
-  checksum: 10/bf152d0ed1dc159239db1ba1f74fdbc40cb02f626770dcd5815c427ce0688c2635a06ed69af364396da4636d0408fcf7d4afdf7881724c3307e46aff30ca49e2
+"graceful-fs@npm:^4.2.2, graceful-fs@npm:^4.2.6":
+  version: 4.2.12
+  resolution: "graceful-fs@npm:4.2.12"
+  checksum: 10/80fdd8384a2bbc94cc32dca8b7fdf011c6bc11bb96c296c8329a3c3515010956921c5080c4bd2f1a1becdf7655e5fcc691afc63ebb0c1d3da5d6afe4a17d471f
   languageName: node
   linkType: hard
 
@@ -11930,6 +11959,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-int64@npm:^0.4.0":
+  version: 0.4.0
+  resolution: "node-int64@npm:0.4.0"
+  checksum: 10/b7afc2b65e56f7035b1a2eec57ae0fbdee7d742b1cdcd0f4387562b6527a011ab1cbe9f64cc8b3cca61e3297c9637c8bf61cec2e6b8d3a711d4b5267dfafbe02
+  languageName: node
+  linkType: hard
+
 "nopt@npm:^10.0.0":
   version: 10.0.1
   resolution: "nopt@npm:10.0.1"
@@ -12110,6 +12146,13 @@ __metadata:
   version: 1.8.0
   resolution: "package-manager-detector@npm:1.8.0"
   checksum: 10/5d79b8bf3d0d3da312ec08749c74a3b7e4d4139c259fe3561538772c65ece8ff733e002c67a4324b5c505d2ac625c121b94cf3d5135e1b4e43fed5bced148763
+  languageName: node
+  linkType: hard
+
+"papaparse@npm:5.7.1":
+  version: 5.7.1
+  resolution: "papaparse@npm:5.7.1"
+  checksum: 10/308f26a55fd965289fffe7ac278723df3a328aec1efeed6cc0f9b69da5f7b4edc82eeb1e3347c1b161d8c4c81f9bc614ba579118636e957d2f5ccdcadc2de8cb
   languageName: node
   linkType: hard
 
@@ -13036,6 +13079,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"read-excel-file@npm:9.3.17":
+  version: 9.3.17
+  resolution: "read-excel-file@npm:9.3.17"
+  dependencies:
+    fflate: "npm:^0.8.3"
+    saxen: "npm:^11.1.0"
+    unzipper-esm: "npm:^0.13.3"
+    worker-f: "npm:^0.1.12"
+  checksum: 10/5edf48e29bd42d2392d6a277d2266d94f18b0d3145f03c0bae68380d4d89fa6470c2577482c5be25ec709d199dbce9a9944a2c3b84167d392564591eeb4857d2
+  languageName: node
+  linkType: hard
+
 "readdirp@npm:~3.6.0":
   version: 3.6.0
   resolution: "readdirp@npm:3.6.0"
@@ -13435,6 +13490,13 @@ __metadata:
   version: 1.6.1
   resolution: "sax@npm:1.6.1"
   checksum: 10/bf7e7f8293903548bd663d71e9300b20ee04df178399b8f54029b6559225de422235c8fb0a63ba088fcb90c1dbaf9b475f57c7f32c901bfb78d0196dceb3cc7f
+  languageName: node
+  linkType: hard
+
+"saxen@npm:^11.1.0":
+  version: 11.2.0
+  resolution: "saxen@npm:11.2.0"
+  checksum: 10/11739134ec68c4386a2dda3a4c71cfe94826251339906d2a0f7797bed0f853d1d263e9ccaee8ab2aa99ea0fa9a193a118491af6004b60d367aeb972a763c109a
   languageName: node
   linkType: hard
 
@@ -14449,6 +14511,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"unpdf@npm:2.2.1":
+  version: 2.2.1
+  resolution: "unpdf@npm:2.2.1"
+  peerDependencies:
+    "@napi-rs/canvas": ^0.1.69 || ^1.0.0
+    pdfjs-dist: "*"
+  peerDependenciesMeta:
+    "@napi-rs/canvas":
+      optional: true
+    pdfjs-dist:
+      optional: true
+  checksum: 10/f5cf8efe357357843efa5ee0335348f552ca708016aadecc89b1e336b0b401af8bbc6f5d1b6c86eb738daa95e7305e72737d97e4830eff950934596d931bcbfd
+  languageName: node
+  linkType: hard
+
 "unpipe@npm:~1.0.0":
   version: 1.0.0
   resolution: "unpipe@npm:1.0.0"
@@ -14582,6 +14659,16 @@ __metadata:
     "@unrs/resolver-binding-win32-x64-msvc":
       optional: true
   checksum: 10/ef2fc38e7a7c5e0cad9a5fb3a70abead3c8073955b444908f35a55f54ced1c08433324220810b04d9ef5adeff62982ade136793dcde8297505ca3556ee0bbb82
+  languageName: node
+  linkType: hard
+
+"unzipper-esm@npm:^0.13.3":
+  version: 0.13.3
+  resolution: "unzipper-esm@npm:0.13.3"
+  dependencies:
+    graceful-fs: "npm:^4.2.2"
+    node-int64: "npm:^0.4.0"
+  checksum: 10/3790fba54f0c3126e8bbf48646cb87e5066d82d8a22681daca0aa108127315cc39dcf3194034443755d4d6783434c6365e3866df782d597884cc1ff99052b3b3
   languageName: node
   linkType: hard
 
@@ -14925,6 +15012,13 @@ __metadata:
   version: 1.2.5
   resolution: "word-wrap@npm:1.2.5"
   checksum: 10/1ec6f6089f205f83037be10d0c4b34c9183b0b63fca0834a5b3cee55dd321429d73d40bb44c8fc8471b5203d6e8f8275717f49a8ff4b2b0ab41d7e1b563e0854
+  languageName: node
+  linkType: hard
+
+"worker-f@npm:^0.1.12":
+  version: 0.1.25
+  resolution: "worker-f@npm:0.1.25"
+  checksum: 10/e7ba23a876f55a1f8724ddf340b402e9e907989caf30ac1f87046382bf553fc9bfc051f706e73cf794cf695181266de78d2c71546f922016e578108199afc01b
   languageName: node
   linkType: hard
 

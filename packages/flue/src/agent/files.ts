@@ -2,7 +2,7 @@ import { FlueExchangeError, joinUrl } from "./exchange.js";
 import {
 	FILE_AGENT_HEADER,
 	FILE_HANDLE_HEADER,
-	FILE_LIMITS,
+	DEFAULT_READ_BYTES,
 } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
@@ -16,12 +16,11 @@ import type {
 
 /** Why a file could not be read. */
 export type FlueFileErrorCode =
-	"budget_exhausted" | "not_found" | "refused" | "too_large" | "unavailable";
+	"not_found" | "refused" | "too_large" | "unavailable";
 
 /**
- * Thrown when a file cannot be listed, read or downloaded, or a file tool's
- * budget is spent. Its message never carries the secret, the handle or a
- * download grant.
+ * Thrown when a file cannot be listed, read or downloaded. Its message never
+ * carries the secret, the handle or a download grant.
  */
 export class FlueFileError extends Error {
 	public override readonly name = "FlueFileError";
@@ -53,7 +52,7 @@ export interface PayloadFiles {
 	list: () => Promise<WorkspaceFile[]>;
 	/**
 	 * A file's bytes. Refuses with `too_large` past `maxBytes`, which
-	 * defaults to `FILE_LIMITS.readBytes`; read larger files by range.
+	 * defaults to `DEFAULT_READ_BYTES`; read larger files by range.
 	 */
 	read: (
 		file: FileArg,
@@ -315,10 +314,7 @@ export const createFiles = (target: FilesTarget): PayloadFiles => {
 				options.signal ? { signal: options.signal } : {},
 			);
 
-			return await readCapped(
-				response,
-				options.maxBytes ?? FILE_LIMITS.readBytes,
-			);
+			return await readCapped(response, options.maxBytes ?? DEFAULT_READ_BYTES);
 		},
 		fetch: fetchFile,
 	};
@@ -327,7 +323,7 @@ export const createFiles = (target: FilesTarget): PayloadFiles => {
 export interface DownloadArgs {
 	collection: string;
 	id: number | string;
-	/** Defaults to `FILE_LIMITS.readBytes`; past it the download is cancelled. */
+	/** Defaults to `DEFAULT_READ_BYTES`; past it the download is cancelled. */
 	maxBytes?: number;
 	signal?: AbortSignal;
 }
@@ -437,10 +433,7 @@ export const downloadDocument = async (
 		throw failure(response.status, `the download of ${what}`);
 	}
 
-	const bytes = await readCapped(
-		response,
-		args.maxBytes ?? FILE_LIMITS.readBytes,
-	);
+	const bytes = await readCapped(response, args.maxBytes ?? DEFAULT_READ_BYTES);
 
 	return {
 		filename:

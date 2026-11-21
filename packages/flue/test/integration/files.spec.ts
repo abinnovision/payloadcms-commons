@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { APIError } from "payload";
 import {
 	afterAll,
 	beforeAll,
@@ -900,5 +901,136 @@ describe("the file workspace with inlined text", () => {
 				filename: "agenda.md",
 			},
 		]);
+	});
+});
+
+describe("the file workspace with configured policy", () => {
+	let dir: string;
+	let booted: Booted;
+	let seeded: Seeded;
+
+	// The 22 bytes of an empty zip archive.
+	const ZIP = Buffer.concat([
+		Buffer.from([0x50, 0x4b, 0x05, 0x06]),
+		Buffer.alloc(18),
+	]);
+
+	const upload = (
+		user: SeededUser,
+		name: string,
+		bytes: BlobPart,
+		type: string,
+	) => {
+		const form = new FormData();
+
+		form.append("file", new File([bytes], name, { type }));
+
+		return send(booted, `/api/${FILES_SLUG}`, {
+			method: "POST",
+			token: user.token,
+			body: form,
+		});
+	};
+
+	const uploaded = async (
+		user: SeededUser,
+		name: string,
+		bytes: BlobPart,
+		type: string,
+	) =>
+		((await (await upload(user, name, bytes, type)).json()) as { doc: Doc })
+			.doc;
+
+	beforeAll(async () => {
+		dir = await mkdtemp(join(tmpdir(), "flue-files-policy-"));
+		booted = await bootWithFiles("flue-files-policy", dir, {
+			mimeTypes: ["application/zip", "text/plain"],
+			maxFilesPerTurn: 2,
+			pending: { maxFiles: 2, ttlMs: 60 * 60 * 1000 },
+			overrideCollection: (collection) => {
+				const stored = withTestStorage(dir)(collection);
+
+				return {
+					...stored,
+					hooks: {
+						...stored.hooks,
+						beforeOperation: [
+							({ req }) => {
+								if (req.file?.name === "blocked.txt") {
+									throw new APIError("Blocked by the app.", 400);
+								}
+							},
+							...(stored.hooks?.beforeOperation ?? []),
+						],
+					},
+				};
+			},
+		});
+		seeded = await seed(booted.payload);
+	});
+
+	afterAll(async () => {
+		await shutdown(booted);
+		await rm(dir, { recursive: true, force: true });
+	});
+
+	it("claims an upload of a configured type with a turn", async () => {
+		const doc = await uploaded(seeded.first, "a.zip", ZIP, "application/zip");
+
+		await send(booted, "/api/flue/chat/editor", {
+			method: "POST",
+			token: seeded.first.token,
+			body: { message: "Open", files: [doc.id], context: CONTEXT },
+		});
+
+		const posted = JSON.parse(booted.sidecar.sends().at(-1)?.body ?? "{}") as {
+			body: string;
+		};
+
+		expect(readUserTurnBody(posted.body)?.files).toEqual([
+			{
+				id: String(doc.id),
+				name: "a.zip",
+				mimeType: "application/zip",
+				size: ZIP.length,
+			},
+		]);
+	});
+
+	it("lets a beforeOperation hook of the override refuse an upload with its message", async () => {
+		const response = await upload(
+			seeded.second,
+			"blocked.txt",
+			"x",
+			"text/plain",
+		);
+
+		expect(response.status).not.toBe(201);
+		expect(await response.text()).toContain("Blocked by the app.");
+	});
+
+	it("refuses a third pending upload with pending.maxFiles 2", async () => {
+		await uploaded(seeded.second, "one.txt", "1", "text/plain");
+		await uploaded(seeded.second, "two.txt", "2", "text/plain");
+
+		expect(
+			(await upload(seeded.second, "three.txt", "3", "text/plain")).status,
+		).toBe(400);
+	});
+
+	it("sweeps a file past pending.ttlMs on the next upload", async () => {
+		const user = seeded.first;
+		const old = await uploaded(user, "old.txt", "old", "text/plain");
+
+		await booted.payload.db.updateOne({
+			collection: FILES_SLUG,
+			id: old.id,
+			data: { createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+		});
+		await uploaded(user, "new.txt", "new", "text/plain");
+
+		expect(
+			await count(booted, FILES_SLUG, { name: { equals: "old.txt" } }),
+		).toBe(0);
 	});
 });

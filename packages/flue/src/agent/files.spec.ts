@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { FlueExchangeError } from "./exchange.js";
 import { createFiles, downloadDocument, FlueFileError } from "./files.js";
-import { FILE_LIMITS } from "../protocol/files.js";
+import { DEFAULT_READ_BYTES } from "../protocol/files.js";
 
 const MIB = 1024 * 1024;
 const BYTES = new TextEncoder().encode("0123456789");
@@ -98,10 +98,9 @@ describe("createFiles", () => {
 		expect(seen.cancelled).toBe(true);
 	});
 
-	it("caps a read at FILE_LIMITS.readBytes by default", async () => {
+	it("caps a read at DEFAULT_READ_BYTES by default", async () => {
 		const { fetch, seen } = fixed(
-			(state) =>
-				new Response(largeBody(FILE_LIMITS.readBytes + 4 * MIB, state)),
+			(state) => new Response(largeBody(DEFAULT_READ_BYTES + 4 * MIB, state)),
 		);
 
 		expect(await rejection(filesWith(fetch).read(1))).toMatchObject({

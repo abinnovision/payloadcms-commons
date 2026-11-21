@@ -1,10 +1,13 @@
 import { InvalidConfiguration } from "payload";
 
 import { ATTACHMENT_MIME_TYPES, maxBytesOf } from "./protocol/attachments.js";
-import { FILE_LIMITS, FILE_MIME_TYPES } from "./protocol/files.js";
+import {
+	DEFAULT_FILE_MIME_TYPES,
+	FILE_LIMITS,
+	isMimeType,
+} from "./protocol/files.js";
 
 import type { AttachmentLimits } from "./protocol/attachments.js";
-import type { FileMimeType } from "./protocol/files.js";
 import type { FlueAgentConfig, FluePluginOptions } from "./types.js";
 import type { CollectionConfig, Config, PayloadRequest, Plugin } from "payload";
 
@@ -91,13 +94,15 @@ export interface NormalizedOptions {
 /** The file workspace's settings after validation and defaulting. */
 export interface NormalizedFiles {
 	slug: string;
-	mimeTypes: FileMimeType[];
+	mimeTypes: string[];
 	/** Largest file in bytes. */
 	maxBytes: number;
 	maxFilesPerTurn: number;
 	maxFilesPerThread: number;
 	/** Text bytes of a turn's files that also go into its text. */
 	inlineTextBytes: number;
+	/** Limits of the files no turn has claimed yet. */
+	pending: { maxFiles: number; maxBytes: number; ttlMs: number };
 	overrideCollection:
 		((collection: CollectionConfig) => CollectionConfig) | undefined;
 }
@@ -380,11 +385,12 @@ const normalizeFiles = (
 
 	const {
 		slug = "flue-files",
-		mimeTypes = [...FILE_MIME_TYPES],
+		mimeTypes = [...DEFAULT_FILE_MIME_TYPES],
 		maxBytes,
 		maxFilesPerTurn = FILE_LIMITS.maxFilesPerTurn.default,
 		maxFilesPerThread = FILE_LIMITS.maxFilesPerThread,
 		inlineTextBytes = FILE_LIMITS.inlineTextBytes.default,
+		pending: pendingOption,
 		overrideCollection,
 	} = option === true ? {} : option;
 
@@ -393,9 +399,9 @@ const normalizeFiles = (
 	}
 
 	for (const mimeType of mimeTypes) {
-		if (!(FILE_MIME_TYPES as readonly string[]).includes(mimeType)) {
+		if (!isMimeType(mimeType) || mimeType !== mimeType.toLowerCase()) {
 			throw invalid(
-				`files.mimeTypes may only hold ${FILE_MIME_TYPES.join(", ")}, got "${mimeType}".`,
+				`files.mimeTypes entries must be exact MIME types, got "${mimeType}".`,
 			);
 		}
 	}
@@ -406,7 +412,7 @@ const normalizeFiles = (
 		);
 	}
 
-	// The file tools find a file in the thread's listing, which holds at most `listMax`.
+	// The thread's file listing is unpaginated and holds at most `listMax` files.
 	if (!isCount(maxFilesPerThread, maxFilesPerTurn, FILE_LIMITS.listMax)) {
 		throw invalid(
 			`files.maxFilesPerThread must be between maxFilesPerTurn (${String(maxFilesPerTurn)}) and ${String(FILE_LIMITS.listMax)}, got ${String(maxFilesPerThread)}.`,
@@ -419,13 +425,42 @@ const normalizeFiles = (
 		);
 	}
 
+	const fileBytes = normalizeMaxBytes(maxBytes, upload, logger);
+	const limits = FILE_LIMITS.pending;
+	const pending = pendingOption ?? {};
+	const {
+		maxFiles: pendingFiles = Math.max(limits.files.default, maxFilesPerTurn),
+		maxBytes: pendingBytes = Math.max(limits.bytes.default, fileBytes),
+		ttlMs = limits.ttlMs.default,
+	} = pending;
+
+	// A turn's worth of files must always fit among the pending ones.
+	if (!isCount(pendingFiles, maxFilesPerTurn, limits.files.max)) {
+		throw invalid(
+			`files.pending.maxFiles must be between maxFilesPerTurn (${String(maxFilesPerTurn)}) and ${String(limits.files.max)}, got ${String(pendingFiles)}.`,
+		);
+	}
+
+	if (!isCount(pendingBytes, fileBytes, limits.bytes.max)) {
+		throw invalid(
+			`files.pending.maxBytes must be between files.maxBytes (${String(fileBytes)}) and ${String(limits.bytes.max)} (10 GiB), got ${String(pendingBytes)}.`,
+		);
+	}
+
+	if (!isCount(ttlMs, limits.ttlMs.min, limits.ttlMs.max)) {
+		throw invalid(
+			`files.pending.ttlMs must be between ${String(limits.ttlMs.min)} (1 hour) and ${String(limits.ttlMs.max)} (7 days), got ${String(ttlMs)}.`,
+		);
+	}
+
 	return {
 		slug,
 		mimeTypes: [...new Set(mimeTypes)],
-		maxBytes: normalizeMaxBytes(maxBytes, upload, logger),
+		maxBytes: fileBytes,
 		maxFilesPerTurn,
 		maxFilesPerThread,
 		inlineTextBytes,
+		pending: { maxFiles: pendingFiles, maxBytes: pendingBytes, ttlMs },
 		overrideCollection,
 	};
 };

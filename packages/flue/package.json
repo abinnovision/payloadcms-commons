@@ -62,18 +62,17 @@
 	},
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
-		"@assistant-ui/react": "0.15.32",
-		"@assistant-ui/react-markdown": "0.14.24",
-		"@flue/sdk": "2.3.0",
-		"eventsource-parser": "^4.1.3",
-		"remark-gfm": "^4.0.1"
+		"eventsource-parser": "^4.1.3"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/payloadcms-mcpx": "workspace:*",
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@arethetypeswrong/core": "^0.18.5",
+		"@assistant-ui/react": "0.15.32",
+		"@assistant-ui/react-markdown": "0.14.24",
 		"@flue/runtime": "2.3.0",
+		"@flue/sdk": "2.3.0",
 		"@internal/test-utils": "workspace:*",
 		"@payloadcms/db-sqlite": "4.0.0-beta.7",
 		"@payloadcms/ui": "4.0.0-beta.7",
@@ -88,6 +87,7 @@
 		"publint": "^0.3.25",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
+		"remark-gfm": "^4.0.1",
 		"tsdown": "^0.23.7",
 		"typescript": "^6.0.3",
 		"unplugin-swc": "^2.0.0",
@@ -96,17 +96,30 @@
 	},
 	"peerDependencies": {
 		"@abinnovision/payloadcms-mcpx": ">=2.1.0 <4",
+		"@assistant-ui/react": "~0.15.32",
+		"@assistant-ui/react-markdown": "~0.14.24",
 		"@flue/runtime": "^2.3.0",
+		"@flue/sdk": "^2.3.0",
 		"@payloadcms/ui": ">=4.0.0-beta.7 <5",
 		"payload": ">=4.0.0-beta.7 <5",
 		"react": "^19",
+		"remark-gfm": "^4.0.1",
 		"valibot": "^1.1.0"
 	},
 	"peerDependenciesMeta": {
 		"@abinnovision/payloadcms-mcpx": {
 			"optional": true
 		},
+		"@assistant-ui/react": {
+			"optional": true
+		},
+		"@assistant-ui/react-markdown": {
+			"optional": true
+		},
 		"@flue/runtime": {
+			"optional": true
+		},
+		"@flue/sdk": {
 			"optional": true
 		},
 		"@payloadcms/ui": {
@@ -116,6 +129,9 @@
 			"optional": true
 		},
 		"react": {
+			"optional": true
+		},
+		"remark-gfm": {
 			"optional": true
 		},
 		"valibot": {

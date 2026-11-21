@@ -30,7 +30,7 @@ export const fluePluginOptions: FluePluginOptions = {
 					posts: { read: true, write: true, publish: true, delete: true },
 					sections: { read: true, write: true, delete: true },
 					tags: { read: true, write: true, delete: true },
-					// Where `save_attachment` and `save_document` upload.
+					// Where `save_file` and `save_document` upload.
 					media: { read: true, write: true, delete: true },
 					documents: { read: true, write: true, delete: true },
 				},
@@ -70,8 +70,8 @@ export const fluePluginOptions: FluePluginOptions = {
 	agentUser: { email: AGENT_EMAIL },
 	// Every signed-in user reads agent runs, so a publisher sees the run their publish queued.
 	threads: { readAgentRuns: (req) => Boolean(req.user) },
-	// Images and PDFs in the chat, with the default limits.
-	attachments: true,
+	// Files in the chat go to a plugin-owned upload collection; agents read them through tools.
+	files: true,
 };
 
 /**

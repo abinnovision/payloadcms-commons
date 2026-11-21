@@ -233,26 +233,23 @@ The [file workspace](./integration.md#files) is off by default. Once `files` is 
   rolls the key. Reactive and ambient threads have no files.
 - **Stored names.** Payload stores each file under a random name, so the collection-wide unique
   file name reveals nothing about other users' files. The uploader's name is data in `name`, at
-  most 255 characters, and the tools mark it untrusted.
+  most 255 characters, and a tool marks it untrusted.
 - **Content check.** The collection keeps `upload.mimeTypes`, so Payload checks each file's
   content against its declared type. The plugin refuses a collection that drops it.
 - **No URL uploads.** The collection sets `upload.pasteURL: false` and every create must carry a
   multipart file, so Payload never fetches a `url` from a request body past the plugin's checks.
   The plugin refuses a collection that allows URL uploads.
-- **Caps.** A user's pending files are capped at 20 and 300 MiB together, and stale ones are swept
-  after 24 hours, so an upload that is never sent does not fill the store. A thread holds at most
-  `maxFilesPerThread` files.
-- **File content is data.** `useFileTools` wraps every text it returns in a `file_content` envelope
-  with a notice, and neutralizes tags inside it. A file is still text from a user, who may try to
-  steer the model with it. Never treat what a file says as authorization; mcpx's key and Payload
-  access control decide what a run may do.
-- **Vision calls.** `look_at_image` asks a child call of the harness, and the child keeps all of
-  the agent's tools. Flue stores the child call and its image in the sidecar, and the child
-  conversation persists, so an instruction injected by one image can stay in its context across
-  later `look_at_image` calls of the thread. A steered child call is bounded by the same thing as
-  the agent itself: the owner's mcpx grants.
-- **Archive and storage.** Archiving deletes the thread's files from Payload. The images of vision
-  calls stay in the sidecar's store (see [limitations](./limitations.md#files)).
+- **Caps.** A user's pending files are capped by `pending.maxFiles` (20) and `pending.maxBytes`
+  (300 MiB) together, and stale ones are swept after `pending.ttlMs` (24 hours), so an upload that
+  is never sent does not fill the store. A thread holds at most `maxFilesPerThread` files.
+- **File content is data.** A file is text from a user, who may try to steer the model with it.
+  A tool that returns file content wraps it with `untrusted()` from `./agent`, which marks it as
+  data and escapes tags inside it, and the agent's instructions add `UNTRUSTED_GUIDANCE`. Never
+  treat what a file says as authorization; mcpx's key and Payload access control decide what a run
+  may do. The [recipes](./recipes.md) show the pattern, including the caveats of vision calls.
+- **Archive and storage.** Archiving deletes the thread's files from Payload. Copies Flue made,
+  such as images sent to a child call, stay in the sidecar's store (see
+  [limitations](./limitations.md#files)).
 - **Host limits.** The plugin cannot see Next's `proxyClientMaxBodySize` or a reverse proxy's
   limit, so a file over one is refused before Payload sees it.
 

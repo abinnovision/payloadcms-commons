@@ -9,7 +9,6 @@ import type {
 } from "../protocol/attachments.js";
 import type { ChatContext, RunKind } from "../protocol/context.js";
 import type { ThreadStatus } from "../protocol/events.js";
-import type { FileMimeType } from "../protocol/files.js";
 import type { RelationValue } from "../protocol/owner.js";
 
 export type ThreadId = number | string;
@@ -25,7 +24,7 @@ export interface AgentSummary {
 export interface FilesLimits {
 	/** The slug of the files collection. */
 	slug: string;
-	mimeTypes: FileMimeType[];
+	mimeTypes: string[];
 	/** Largest file in bytes. */
 	maxBytes: number;
 	/** Most files a message takes. */

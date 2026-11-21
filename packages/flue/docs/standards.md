@@ -7,11 +7,11 @@ These rules apply to code in this package.
 The package has three entries, and each runs somewhere else. A boundary spec per entry walks its
 module graph:
 
-| Entry     | Spec                                | Must not reach                                                                                         |
-| --------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `.`       | `src/module-boundary.spec.ts`       | a `.tsx` file, `react`, `@payloadcms/ui`, `@assistant-ui/*`, `@flue/*`, `valibot` (type-only included) |
-| `./admin` | `src/admin/module-boundary.spec.ts` | a runtime import of `payload`, `node:*`, `next/*`, `@flue/*` except `@flue/sdk`, `valibot`             |
-| `./agent` | `src/agent/module-boundary.spec.ts` | `payload` (type-only included), `@payloadcms/*`, `react`, `node:*`; only `@flue/runtime` and `valibot` |
+| Entry     | Spec                                | Must not reach                                                                                                       |
+| --------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `.`       | `src/module-boundary.spec.ts`       | a `.tsx` file, `react`, `@payloadcms/ui`, `@assistant-ui/*`, `@flue/*`, `remark-gfm`, `valibot` (type-only included) |
+| `./admin` | `src/admin/module-boundary.spec.ts` | a runtime import of `payload`, `node:*`, `next/*`, `@flue/*` except `@flue/sdk`, `valibot`                           |
+| `./agent` | `src/agent/module-boundary.spec.ts` | `payload` (type-only included), `@payloadcms/*`, `react`, `node:*`; only `@flue/runtime` and `valibot`               |
 
 Inside the server entry, `src/layering.spec.ts` holds each file to its layer. A file imports its
 own layer and lower ones, type-only imports included:

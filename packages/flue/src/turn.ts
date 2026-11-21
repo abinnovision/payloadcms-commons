@@ -16,7 +16,6 @@ import {
 	userTurnBody,
 } from "./protocol/context.js";
 import { INITIAL_DATA_KEY } from "./protocol/exchange.js";
-import { isFileMimeType } from "./protocol/files.js";
 import { isOwner } from "./protocol/owner.js";
 import { createSidecarClient, SidecarError } from "./sidecar/client.js";
 import { handleHash } from "./threads/handle.js";
@@ -439,7 +438,7 @@ const claimTurnFiles = async (
 
 	return {
 		references: docs.flatMap((doc): WorkspaceFileRef[] =>
-			doc.mimeType && isFileMimeType(doc.mimeType)
+			doc.mimeType
 				? [
 						{
 							id: String(doc.id),

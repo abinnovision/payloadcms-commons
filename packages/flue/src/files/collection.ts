@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { APIError } from "payload";
 
 import { invalid } from "../options.js";
-import { FILE_LIMITS } from "../protocol/files.js";
 import { ownerWhere } from "../threads/owner.js";
 
 import type { NormalizedFiles, NormalizedOptions } from "../options.js";
@@ -70,7 +69,7 @@ export const sweepPending = async (
 		return;
 	}
 
-	const cutoff = new Date(Date.now() - FILE_LIMITS.pending.ttlMs);
+	const cutoff = new Date(Date.now() - settings.files.pending.ttlMs);
 	const { docs } = await req.payload.delete({
 		collection: settings.files.slug,
 		where: {
@@ -188,7 +187,7 @@ const prepareUpload =
 
 		const { files } = settings;
 
-		if (!(files.mimeTypes as string[]).includes(file.mimetype)) {
+		if (!files.mimeTypes.includes(file.mimetype)) {
 			throw refuse(
 				`The file type must be one of ${files.mimeTypes.join(", ")}.`,
 				400,
@@ -221,16 +220,16 @@ const prepareUpload =
 				file.size,
 			);
 
-			if (docs.length >= FILE_LIMITS.pending.files) {
+			if (docs.length >= files.pending.maxFiles) {
 				throw refuse(
-					`At most ${String(FILE_LIMITS.pending.files)} files may wait for a message. Send or remove some first.`,
+					`At most ${String(files.pending.maxFiles)} files may wait for a message. Send or remove some first.`,
 					400,
 				);
 			}
 
-			if (bytes > FILE_LIMITS.pending.bytes) {
+			if (bytes > files.pending.maxBytes) {
 				throw refuse(
-					`The files waiting for a message may hold at most ${String(FILE_LIMITS.pending.bytes)} bytes together. Send or remove some first.`,
+					`The files waiting for a message may hold at most ${String(files.pending.maxBytes)} bytes together. Send or remove some first.`,
 					400,
 				);
 			}

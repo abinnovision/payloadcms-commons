@@ -1,6 +1,5 @@
 import type { AttachmentMimeType } from "./protocol/attachments.js";
 import type { ChatContext, RunKind } from "./protocol/context.js";
-import type { FileMimeType } from "./protocol/files.js";
 import type {
 	CollectionConfig,
 	DefaultDocumentIDType,
@@ -8,7 +7,6 @@ import type {
 } from "payload";
 
 export type { AttachmentMimeType } from "./protocol/attachments.js";
-export type { FileMimeType } from "./protocol/files.js";
 
 declare module "payload" {
 	interface RequestContext {
@@ -110,8 +108,11 @@ export interface FluePluginOptions {
 export interface FlueFileOptions {
 	/** Default `flue-files`. */
 	slug?: string;
-	/** Default: every type of `FILE_MIME_TYPES`. */
-	mimeTypes?: FileMimeType[];
+	/**
+	 * Exact `type/subtype` MIME types the chat takes; wildcards are refused.
+	 * Default: `DEFAULT_FILE_MIME_TYPES`.
+	 */
+	mimeTypes?: string[];
 	/**
 	 * Largest file in bytes, at most 1 GiB. Default 150 MiB, lowered to what
 	 * Payload's `upload.requestSizeLimit` and `upload.limits.fileSize` take
@@ -128,6 +129,18 @@ export interface FlueFileOptions {
 	 * the turn's text. Default 0, maximum 64 KiB.
 	 */
 	inlineTextBytes?: number;
+	/** Limits of the files a user uploaded that no turn has claimed yet. */
+	pending?: {
+		/** Default 20, between `maxFilesPerTurn` and 100. */
+		maxFiles?: number;
+		/**
+		 * In bytes. Default 300 MiB or `maxBytes` if larger, at most 10 GiB and
+		 * at least `maxBytes`.
+		 */
+		maxBytes?: number;
+		/** How long a pending file lives. Default 24 hours, from 1 hour to 7 days. */
+		ttlMs?: number;
+	};
 	/** Must keep `upload.mimeTypes`, which makes Payload check each file's content. */
 	overrideCollection?: (collection: CollectionConfig) => CollectionConfig;
 }

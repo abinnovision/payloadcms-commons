@@ -267,6 +267,14 @@ describe("workspace file references in a user's turn", () => {
 		});
 	});
 
+	it("round-trips a reference of a type outside the defaults", () => {
+		const zip = { ...PDF, mimeType: "application/zip" };
+
+		expect(
+			readUserTurnBody(userTurnBody({ id: "1" }, "Hi", [], [zip])),
+		).toMatchObject({ files: [zip] });
+	});
+
 	it("round-trips references next to an inlined text file", () => {
 		const note: DeliveredAttachment = {
 			type: "document",
@@ -333,8 +341,8 @@ describe("workspace file references in a user's turn", () => {
 			'<payload-context files="1"/>\n\n<payload-file name="x" mimeType="application/pdf" size="1"/>\n\nHi',
 		],
 		[
-			"a reference of another type",
-			'<payload-context files="1"/>\n\n<payload-file id="1" name="x" mimeType="image/svg+xml" size="1"/>\n\nHi',
+			"a reference with a malformed type",
+			'<payload-context files="1"/>\n\n<payload-file id="1" name="x" mimeType="image/*" size="1"/>\n\nHi',
 		],
 		[
 			"a reference without a size",

@@ -95,15 +95,25 @@ sizes to lower it.
 `files: true` takes the defaults. An object sets each field. It excludes `attachments`: a config
 that sets both fails at startup.
 
-| Field                | Default                                                    | Maximum    |
-| -------------------- | ---------------------------------------------------------- | ---------- |
-| `slug`               | `flue-files`                                               |            |
-| `mimeTypes`          | PNG, JPEG, GIF, WebP, PDF, Markdown, plain text, CSV, XLSX | those nine |
-| `maxBytes`           | 150 MiB, lowered to what Payload's upload settings take    | 1 GiB      |
-| `maxFilesPerTurn`    | 10                                                         | 20         |
-| `maxFilesPerThread`  | 100                                                        | 100        |
-| `inlineTextBytes`    | 0                                                          | 64 KiB     |
-| `overrideCollection` | none                                                       |            |
+| Field                | Default                                                                               | Maximum     |
+| -------------------- | ------------------------------------------------------------------------------------- | ----------- |
+| `slug`               | `flue-files`                                                                          |             |
+| `mimeTypes`          | `DEFAULT_FILE_MIME_TYPES`: PNG, JPEG, GIF, WebP, PDF, Markdown, plain text, CSV, XLSX | exact types |
+| `maxBytes`           | 150 MiB, lowered to what Payload's upload settings take                               | 1 GiB       |
+| `maxFilesPerTurn`    | 10                                                                                    | 20          |
+| `maxFilesPerThread`  | 100                                                                                   | 100         |
+| `inlineTextBytes`    | 0                                                                                     | 64 KiB      |
+| `pending.maxFiles`   | 20                                                                                    | 100         |
+| `pending.maxBytes`   | 300 MiB, or `maxBytes` if larger                                                      | 10 GiB      |
+| `pending.ttlMs`      | 24 hours                                                                              | 7 days      |
+| `overrideCollection` | none                                                                                  |             |
+
+`mimeTypes` takes exact `type/subtype` strings and replaces the default list; spread
+`DEFAULT_FILE_MIME_TYPES` to extend it. A wildcard such as `image/*` fails at startup. The pending
+limits cover the files a user uploaded that no turn has claimed yet: `pending.maxFiles` is at least
+`maxFilesPerTurn` and `pending.maxBytes` at least `maxBytes`, so a turn's worth of files always
+fits. A pending file older than `pending.ttlMs`, at least one hour, is swept on the next upload or
+chat of its user.
 
 With `files` on, a file never travels in the chat request. The composer uploads each file to the
 `flue-files` collection through Payload's own upload route, with progress, and the turn sends only
@@ -199,7 +209,8 @@ The plugin throws `InvalidConfiguration` when Payload builds the config for any 
 - `threads.slug` is taken by another collection;
 - `attachments.mimeTypes` is empty or names another type, a size (`maxImageBytes`,
   `maxDocumentBytes`, `maxTextBytes`) is not a whole number between 1 and its maximum, or `maxFiles` is not a whole number between 1 and 20;
-- `files` is set together with `attachments`, `files.mimeTypes` is empty or names another type,
+- `files` is set together with `attachments`, `files.mimeTypes` is empty or holds a wildcard or
+  malformed type, a `files.pending` limit is outside its bounds,
   `files.slug` is taken by another collection, `maxBytes` is not between 1 and 1 GiB,
   `maxFilesPerTurn` is not between 1 and 20, or `inlineTextBytes` is above 64 KiB;
 - an explicit `files.maxBytes` is above what `upload.requestSizeLimit`, `upload.limits.fileSize` or
@@ -376,55 +387,55 @@ With `files` on, an agent reads the files of its thread through `payload.files`,
 thread's owner. `filesOf(delivery)` returns the files a turn references, `{ id, name, mimeType,
 size }`, in the panel's order. `name` is the uploader's and untrusted.
 
-| Call                      | Does                                                                                                  |
-| ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `files.list()`            | the thread's files, oldest first, at most 100; empty outside a chat thread                            |
-| `files.read(file, opts)`  | the whole file as `Uint8Array`; `too_large` past `maxBytes`, default 32 MiB (`FILE_LIMITS.readBytes`) |
-| `files.fetch(file, opts)` | the response; with `range: { start, end }` bytes `start` to `end` inclusive as a 206                  |
+| Call                      | Does                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `files.list()`            | the thread's files, oldest first, at most 100; empty outside a chat thread                         |
+| `files.read(file, opts)`  | the whole file as `Uint8Array`; `too_large` past `maxBytes`, default 32 MiB (`DEFAULT_READ_BYTES`) |
+| `files.fetch(file, opts)` | the response; with `range: { start, end }` bytes `start` to `end` inclusive as a 206               |
 
 `file` is an id or any object with one, such as an entry of `list()` or `filesOf`. Every call
-fails with `FlueFileError`, whose `code` is `not_found`, `refused`, `too_large`, `unavailable` or
-`budget_exhausted`, and whose `status` is the one Payload answered, if any. Its message never
-carries the secret, the handle or a download grant.
+fails with `FlueFileError`, whose `code` is `not_found`, `refused`, `too_large` or `unavailable`
+and whose `status` is the one Payload answered, if any. Its message never carries the secret, the
+handle or a download grant.
 
-`useFileTools(payload, { vision })` mounts three tools for a model:
-
-| Tool            | Does                                                                                           |
-| --------------- | ---------------------------------------------------------------------------------------------- |
-| `list_files`    | id, name, type and size of each file; names are marked untrusted                               |
-| `read_file`     | a page of a text file's characters, `offset` and `limit`, with `nextOffset` while more follows |
-| `look_at_image` | asks a vision model a question about an image; off with `vision: false`                        |
-
-The tools wrap file content in a `file_content` envelope with a notice that it is data and never
-instructions. `FILE_BUDGETS` holds what one response may spend (80 reads, 12 vision calls, page
-sizes and the like) and `FILE_LIMITS` the workspace limits; both are fixed and exported.
+The plugin ships no file tools for a model. What a tool reads, how much of it and what it costs are
+the app's policy, so the example sidecar keeps its tools as [recipes](./recipes.md) to copy:
+`list_files`, `read_file`, `read_sheet` and `read_pdf_page`. They build on `payload.files` and wrap
+what they return with `untrusted()`, which marks text as data:
 
 ```ts
 "use agent";
 
 import {
   filesOf,
-  useFileTools,
+  UNTRUSTED_GUIDANCE,
   usePayload,
 } from "@abinnovision/payloadcms-flue/agent";
 import { useDelivery, useModel } from "@flue/runtime";
+
+import { useFileReadTools } from "../tools/files.js";
 
 export function Editor(): string {
   useModel(process.env.FLUE_MODEL!);
   const payload = usePayload({ agent: "editor" });
 
-  useFileTools(payload);
+  useFileReadTools(payload);
 
   const files = filesOf(useDelivery());
 
-  return files.length > 0
-    ? "The user attached files. Call list_files, then read what you need."
-    : "You help editors work on the content of this site.";
+  return [
+    files.length > 0
+      ? "The user attached files. Call list_files, then read what you need."
+      : "You help editors work on the content of this site.",
+    UNTRUSTED_GUIDANCE,
+  ].join(" ");
 }
 ```
 
-`look_at_image` runs a child call of the harness with the image, and Flue stores that call and its
-image (see [security.md](./security.md#files)).
+`untrusted(text, attributes?)` wraps text in `<payload-untrusted ...>` and escapes any
+`payload-untrusted` or `payload-file` tag inside it, so a file cannot close the wrapper. Attribute
+values are escaped; a name outside `/^[a-z][a-z0-9-]*$/` throws. `UNTRUSTED_GUIDANCE` is a sentence
+for the agent's instructions that tells the model such text is data.
 
 #### Reading app collections
 
@@ -878,8 +889,8 @@ database KV adapter, which is the default; an in-memory KV breaks them across se
 
 [`apps/example-v4`](../../apps/example-v4) mounts mcpx and flue with three agents (`editor`,
 `reviewer`, limited by `access`, and the read-only `summarizer`), an `editor` granted every
-collection and global mcpx exposes, chat attachments, a `documents` upload collection the editor
-saves Markdown files to through a `save_document` tool, a `save_attachment` tool that keeps files
+collection and global mcpx exposes, the file workspace, a `documents` upload collection the editor
+saves Markdown files to through a `save_document` tool, a `save_file` tool that keeps files
 attached to the chat in `media` or `documents`, a hook that queues a reactive run
 of `summarizer` when an article is published, `threads.readAgentRuns` for every signed-in user,
 and `jobs.autoRun` from `flueQueues`. [`apps/example-v4-agents`](../../apps/example-v4-agents) is

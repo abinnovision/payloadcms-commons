@@ -27,6 +27,9 @@
 		"@abinnovision/payloadcms-flue": "workspace:*",
 		"@flue/runtime": "2.3.0",
 		"hono": "^4.13.16",
+		"papaparse": "5.7.1",
+		"read-excel-file": "9.3.17",
+		"unpdf": "2.2.1",
 		"valibot": "^1.1.0"
 	},
 	"devDependencies": {
@@ -34,6 +37,7 @@
 		"@abinnovision/prettier-config": "^2.2.0",
 		"@flue/vite": "2.3.0",
 		"@types/node": "^26.6.6",
+		"@types/papaparse": "^5.5.2",
 		"eslint": "^10.14.0",
 		"prettier": "^3.10.0",
 		"typescript": "^6.0.3",

@@ -39,24 +39,35 @@ yarn add @abinnovision/payloadcms-flue
 | `react`                         | `^19`               | the admin chat panel (`./admin`)      |
 | `@flue/runtime`                 | `^2.3.0`            | agent code in the sidecar (`./agent`) |
 | `valibot`                       | `^1.1.0`            | agent code in the sidecar (`./agent`) |
+| `@flue/sdk`                     | `^2.3.0`            | the admin chat panel (`./admin`)      |
+| `@assistant-ui/react`           | `~0.15.32`          | the admin chat panel (`./admin`)      |
+| `@assistant-ui/react-markdown`  | `~0.14.24`          | the admin chat panel (`./admin`)      |
+| `remark-gfm`                    | `^4.0.1`            | the admin chat panel (`./admin`)      |
 
-Every peer is optional, so the sidecar does not install Payload and the Payload
-server does not install Flue. The package is ESM only, like Payload.
+Every peer is optional, so the sidecar does not install Payload or the admin UI
+and the Payload server does not install Flue. The Payload app installs the four
+admin packages itself:
+
+```sh
+yarn add @flue/sdk @assistant-ui/react @assistant-ui/react-markdown remark-gfm
+```
+
+A missing one fails the admin build with a module-not-found error naming it.
+The package is ESM only, like Payload.
 
 ## Entry points
 
-| Entry     | Runs in            | Exports                                                                                                                                                                                                                                                              |
-| --------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                                                                                                                                     |
-| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                                                                                                                         |
-| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `useFileTools`, `reportSettlements`, `contextOf`, `attachmentsOf`, `filesOf`, `openDocumentGuidance`, `FILE_BUDGETS`, `FILE_LIMITS`, `FlueExchangeError`, `FlueFileError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
+| Entry     | Runs in            | Exports                                                                                                                                                                                                                                                                        |
+| --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK`, `DEFAULT_FILE_MIME_TYPES` and the option types                                                                                                                                                                    |
+| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                                                                                                                                   |
+| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `attachmentsOf`, `filesOf`, `openDocumentGuidance`, `untrusted`, `UNTRUSTED_GUIDANCE`, `DEFAULT_READ_BYTES`, `FlueExchangeError`, `FlueFileError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
 
-`./admin` needs three browser packages: `@flue/sdk` to follow conversations,
-`@assistant-ui/react` for the chat UI and `@assistant-ui/react-markdown` for
-the agent's replies. They are regular dependencies, so every install of the
-package gets them, but only `./admin` imports them, and the admin loads the
-chat's code on its own once a user who can chat is signed in. The sidecar
-installs them too, for `./agent`, and never loads them.
+`./admin` needs four browser packages: `@flue/sdk` to follow conversations,
+`@assistant-ui/react` for the chat UI, `@assistant-ui/react-markdown` for the
+agent's replies and `remark-gfm` for tables. They are optional peers, and only
+`./admin` imports them. The admin loads the chat's code on its own once a user
+who can chat is signed in.
 
 ## Setup
 
@@ -215,6 +226,8 @@ Details: [`docs/security.md`](./docs/security.md).
 - [`docs/integration.md`](./docs/integration.md): options, startup
   validation, the sidecar contract, endpoints, jobs, the database, the
   example apps.
+- [`docs/recipes.md`](./docs/recipes.md): storage adapters, upload hooks and
+  file tools to copy into an agent.
 - [`docs/security.md`](./docs/security.md): the trust chain, key locks,
   revocation and the risks an integrator owns.
 - [`docs/limitations.md`](./docs/limitations.md): what the plugin does not do

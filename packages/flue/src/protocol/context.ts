@@ -1,5 +1,5 @@
 import { base64ToText, isTextMimeType, textToBase64 } from "./attachments.js";
-import { isFileMimeType } from "./files.js";
+import { isMimeType } from "./files.js";
 
 import type { DeliveredAttachment } from "./attachments.js";
 import type { WorkspaceFileRef } from "./files.js";
@@ -147,7 +147,7 @@ const FILE_REF = new RegExp(`^<${FILE_TAG}${ATTRIBUTES}/>\\n\\n`);
 const FILE_OPEN = new RegExp(`^<${FILE_TAG}${ATTRIBUTES}>\\n`);
 const FILE_CLOSE = `\n</${FILE_TAG}>\n\n`;
 
-const writeAttributes = (attributes: Record<string, string>): string =>
+export const writeAttributes = (attributes: Record<string, string>): string =>
 	Object.entries(attributes)
 		.map(
 			([name, value]) =>
@@ -229,7 +229,7 @@ const readReference = (
 
 	return id === "" ||
 		name === undefined ||
-		!isFileMimeType(mimeType) ||
+		!isMimeType(mimeType) ||
 		!/^\d+$/.test(size)
 		? undefined
 		: { id, name, mimeType, size: Number(size) };
