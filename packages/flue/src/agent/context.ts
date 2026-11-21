@@ -3,8 +3,10 @@ import {
 	decodeContext,
 	readUserTurnBody,
 } from "../protocol/context.js";
+import { readFileAttributes } from "../protocol/files.js";
 
 import type { ChatContext } from "../protocol/context.js";
+import type { FileRef } from "../protocol/files.js";
 import type { DeliveredMessage } from "@flue/runtime";
 
 /**
@@ -23,4 +25,21 @@ export const contextOf = (
 		delivery.attributes !== undefined
 		? decodeContext(delivery.attributes)
 		: undefined;
+};
+
+/**
+ * The files a user's turn carries, in the order the user sent them, from
+ * either turn shape. `attached` marks the ones that also reached the model
+ * as Flue attachments; read any of them with `payload.download`. Empty for
+ * any other delivery. `name` is the uploader's and untrusted.
+ */
+export const filesOf = (delivery: DeliveredMessage): FileRef[] => {
+	if (delivery.kind === "user") {
+		return readUserTurnBody(delivery.body)?.files ?? [];
+	}
+
+	return delivery.type === CONTEXT_SIGNAL_TYPE &&
+		delivery.attributes !== undefined
+		? readFileAttributes(delivery.attributes)
+		: [];
 };

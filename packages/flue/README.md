@@ -34,29 +34,40 @@ yarn add @abinnovision/payloadcms-flue
 | Peer                            | Range               | Needed for                            |
 | ------------------------------- | ------------------- | ------------------------------------- |
 | `payload`                       | `>=4.0.0-beta.7 <5` | the plugin (`.`)                      |
-| `@abinnovision/payloadcms-mcpx` | `>=2.1.0 <3`        | the plugin (`.`)                      |
+| `@abinnovision/payloadcms-mcpx` | `>=2.1.0 <4`        | the plugin (`.`)                      |
 | `@payloadcms/ui`                | `>=4.0.0-beta.7 <5` | the admin chat panel (`./admin`)      |
 | `react`                         | `^19`               | the admin chat panel (`./admin`)      |
 | `@flue/runtime`                 | `^2.3.0`            | agent code in the sidecar (`./agent`) |
 | `valibot`                       | `^1.1.0`            | agent code in the sidecar (`./agent`) |
+| `@flue/sdk`                     | `^2.3.0`            | the admin chat panel (`./admin`)      |
+| `@assistant-ui/react`           | `~0.15.32`          | the admin chat panel (`./admin`)      |
+| `@assistant-ui/react-markdown`  | `~0.14.24`          | the admin chat panel (`./admin`)      |
+| `remark-gfm`                    | `^4.0.1`            | the admin chat panel (`./admin`)      |
 
-Every peer is optional, so the sidecar does not install Payload and the Payload
-server does not install Flue. The package is ESM only, like Payload.
+Every peer is optional, so the sidecar does not install Payload or the admin UI
+and the Payload server does not install Flue. The Payload app installs the four
+admin packages itself:
+
+```sh
+yarn add @flue/sdk @assistant-ui/react @assistant-ui/react-markdown remark-gfm
+```
+
+A missing one fails the admin build with a module-not-found error naming it.
+The package is ESM only, like Payload.
 
 ## Entry points
 
-| Entry     | Runs in            | Exports                                                                                                                                                                  |
-| --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                                                                         |
-| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                             |
-| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `openDocumentGuidance`, `FlueExchangeError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
+| Entry     | Runs in            | Exports                                                                                                                                                    |
+| --------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`       | the Payload server | `fluePlugin`, `fluePrivateUploads`, `defaultDeliver`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                   |
+| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                               |
+| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `filesOf`, `openDocumentGuidance`, `untrusted`, `UNTRUSTED_GUIDANCE`, `FluePayloadError` |
 
-`./admin` needs three browser packages: `@flue/sdk` to follow conversations,
-`@assistant-ui/react` for the chat UI and `@assistant-ui/react-markdown` for
-the agent's replies. They are regular dependencies, so every install of the
-package gets them, but only `./admin` imports them, and the admin loads the
-chat's code on its own once a user who can chat is signed in. The sidecar
-installs them too, for `./agent`, and never loads them.
+`./admin` needs four browser packages: `@flue/sdk` to follow conversations,
+`@assistant-ui/react` for the chat UI, `@assistant-ui/react-markdown` for the
+agent's replies and `remark-gfm` for tables. They are optional peers, and only
+`./admin` imports them. The admin loads the chat's code on its own once a user
+who can chat is signed in.
 
 ## Setup
 
@@ -160,20 +171,35 @@ export function Editor(): string {
 }
 ```
 
-### Attachments and uploads
+### Files and uploads
 
 Both are opt-in:
 
-| Feature          | Turned on by                                | Does                                                                                     |
-| ---------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Chat attachments | `attachments: true` in the plugin's options | users attach PNG, JPEG, GIF, WebP and PDF files to a turn; the model gets them natively  |
-| Agent uploads    | `usePayload().upload()` in a tool           | the agent saves a file to an upload collection through mcpx; the chat shows it as a card |
+| Feature       | Turned on by                                          | Does                                                                                                        |
+| ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Chat files    | `files: { collection }` and `files: true` on an agent | users send files of an app upload collection; images and small PDFs reach the model, the rest as references |
+| Agent uploads | `usePayload().upload()` in a tool                     | the agent saves a file to an upload collection through mcpx; the chat shows it as a card                    |
 
-Attachments raise the chat body cap to about 27 MiB at the defaults, and their
-files stay in the sidecar's store. Uploads need an upload collection with
+The collection must keep `authorship` and `upload.mimeTypes`, or be built with
+`fluePrivateUploads`. Agents read the files of their thread with
+`payload.download`, and Payload refuses them any other file of the collection. Size limits, storage and cleanup
+are the collection's. Uploads need an upload collection with
 `upload.mimeTypes`, `read` and `write` granted on it, and mcpx leases. See
-[attachments](./docs/integration.md#attachments) and
-[uploads](./docs/integration.md#uploads).
+[files](./docs/integration.md#files) and [uploads](./docs/integration.md#uploads).
+
+#### Breaking for 0.1.0 betas
+
+- The `attachments` option is gone; send files through `files` instead. The
+  chat endpoint takes `files: ids[]` and no longer takes base64 attachments.
+- `files` names an app collection (`{ collection, maxFilesPerTurn?, deliver? }`)
+  and each agent opts in with its own `files`. The plugin no longer creates a
+  files collection of its own.
+- `GET /agents` answers each agent's `files` instead of top-level limits.
+- `./agent` throws one `FluePayloadError` with a `code` in place of its three
+  error classes. The context decoder, the attachment reader, `payload.files`
+  and the default read size are gone; read files with `filesOf` and
+  `payload.download`.
+- A signal turn's body is the typed text; its files are in attributes.
 
 [`docs/integration.md`](./docs/integration.md) covers every option, the
 sidecar contract, the endpoints and jobs.
@@ -196,6 +222,10 @@ sidecar contract, the endpoints and jobs.
 - Chat attachments are served only through a Payload route that checks read
   access to the thread. The context preamble of a turn with files is not a
   trust boundary for the model.
+- A user sends only files they uploaded. An agent reads only the files of its
+  current thread: every agent request carries the thread's handle, and Payload
+  access control narrows the files collection to that thread on every read
+  path. File content reaches the model as data, never as instructions.
 
 Details: [`docs/security.md`](./docs/security.md).
 
@@ -206,6 +236,8 @@ Details: [`docs/security.md`](./docs/security.md).
 - [`docs/integration.md`](./docs/integration.md): options, startup
   validation, the sidecar contract, endpoints, jobs, the database, the
   example apps.
+- [`docs/recipes.md`](./docs/recipes.md): the files collection, cleanup and
+  file tools to copy into an agent.
 - [`docs/security.md`](./docs/security.md): the trust chain, key locks,
   revocation and the risks an integrator owns.
 - [`docs/limitations.md`](./docs/limitations.md): what the plugin does not do

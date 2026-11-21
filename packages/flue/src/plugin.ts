@@ -9,6 +9,12 @@ import {
 } from "./endpoints/conversation.js";
 import { exchangeHandler } from "./endpoints/exchange.js";
 import { settledHandler } from "./endpoints/settled.js";
+import { assertFilesCollection, withThreadField } from "./files/collection.js";
+import {
+	assertFilesGuarded,
+	bindAgentUpload,
+	guardBaseAccess,
+} from "./files/guard.js";
 import { createDispatchTask } from "./jobs/dispatch.js";
 import { QUEUE_SETTINGS_KEY } from "./jobs/queue.js";
 import {
@@ -40,7 +46,7 @@ const ADMIN_ENTRY = "@abinnovision/payloadcms-flue/admin";
  * Keeps the open edit view in step with the agent's writes. Rendered inside
  * the document's form, which the chat's provider sits above.
  */
-const withDocumentBridge = <T extends CollectionConfig | GlobalConfig>(
+const withBridge = <T extends CollectionConfig | GlobalConfig>(
 	entity: T,
 ): T => ({
 	...entity,
@@ -103,6 +109,16 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 
 		const settings = normalizeOptions(config, options, plugins, logger);
 		const { apiKeysSlug, userCollection } = settings.mcpx;
+		const { admin } = settings;
+		const bridged =
+			(kind: "collections" | "globals") =>
+			<T extends CollectionConfig | GlobalConfig>(entity: T): T =>
+				admin && admin.bridges(kind, entity.slug) ? withBridge(entity) : entity;
+		const withDocumentBridge = bridged("collections");
+		const guardSettings = settings.files && {
+			...settings,
+			files: settings.files,
+		};
 		// normalizeOptions has checked that the key collection is in the config.
 		let capabilityMap: CapabilityFieldMap = {
 			collections: {},
@@ -116,9 +132,24 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					const keys = augmentKeyCollection(collection);
 
 					capabilityMap = capabilityFields(keys);
-					validateGrants(capabilityMap, settings.agents, logger);
+					validateGrants(capabilityMap, settings, logger);
 
 					return keys;
+				}
+
+				if (
+					guardSettings &&
+					collection.slug === guardSettings.files.collection
+				) {
+					assertFilesCollection(collection, userCollection, logger);
+
+					return withDocumentBridge(
+						withThreadField(
+							collection,
+							settings.threads.slug,
+							bindAgentUpload(guardSettings),
+						),
+					);
 				}
 
 				if (collection.slug === userCollection) {
@@ -139,6 +170,7 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 		);
 
 		const threads = createThreadsCollection(settings);
+
 		const full: PluginSettings = { ...settings, capabilityMap };
 		const endpoint = (
 			route: keyof typeof FLUE_ROUTES,
@@ -156,7 +188,18 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				...collections,
 				options.threads?.overrideCollection?.(threads) ?? threads,
 			],
-			globals: (config.globals ?? []).map(withDocumentBridge),
+			...(guardSettings
+				? {
+						baseAccess: {
+							...config.baseAccess,
+							collections: guardBaseAccess(
+								config.baseAccess?.collections,
+								guardSettings,
+							),
+						},
+					}
+				: {}),
+			globals: (config.globals ?? []).map(bridged("globals")),
 			endpoints: [
 				...(config.endpoints ?? []),
 				endpoint("agents", "get", agentsHandler(full)),
@@ -182,35 +225,43 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					agents: settings.agents.map((agent) => agent.slug),
 				} satisfies QueueSettings,
 			},
-			admin: {
-				...config.admin,
-				components: {
-					...config.admin?.components,
-					// A provider stays mounted across admin navigation, and so does the chat.
-					providers: [
-						...(config.admin?.components?.providers ?? []),
-						{
-							path: ADMIN_ENTRY,
-							exportName: "FlueProvider",
-							clientProps: {
-								endpointPath: settings.endpointPath,
-								threadsSlug: settings.threads.slug,
-								userCollection: settings.mcpx.userCollection,
-								mcpxEndpointPath: settings.mcpx.endpointPath,
+			...(admin
+				? {
+						admin: {
+							...config.admin,
+							components: {
+								...config.admin?.components,
+								// A provider stays mounted across admin navigation, and so does the chat.
+								providers: [
+									...(config.admin?.components?.providers ?? []),
+									{
+										path: ADMIN_ENTRY,
+										exportName: "FlueProvider",
+										clientProps: {
+											endpointPath: settings.endpointPath,
+											threadsSlug: settings.threads.slug,
+											userCollection: settings.mcpx.userCollection,
+											mcpxEndpointPath: settings.mcpx.endpointPath,
+										},
+									},
+								],
+								actions: [
+									...(config.admin?.components?.actions ?? []),
+									{ path: ADMIN_ENTRY, exportName: "FlueToggle" },
+								],
 							},
 						},
-					],
-					actions: [
-						...(config.admin?.components?.actions ?? []),
-						{ path: ADMIN_ENTRY, exportName: "FlueToggle" },
-					],
-				},
-			},
+					}
+				: {}),
 			onInit: async (payload) => {
 				const [failure] = failures;
 
 				if (failure) {
 					throw failure;
+				}
+
+				if (guardSettings) {
+					await assertFilesGuarded(payload, guardSettings);
 				}
 
 				for (const message of warnings) {

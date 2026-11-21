@@ -7,11 +7,11 @@ These rules apply to code in this package.
 The package has three entries, and each runs somewhere else. A boundary spec per entry walks its
 module graph:
 
-| Entry     | Spec                                | Must not reach                                                                                         |
-| --------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `.`       | `src/module-boundary.spec.ts`       | a `.tsx` file, `react`, `@payloadcms/ui`, `@assistant-ui/*`, `@flue/*`, `valibot` (type-only included) |
-| `./admin` | `src/admin/module-boundary.spec.ts` | a runtime import of `payload`, `node:*`, `next/*`, `@flue/*` except `@flue/sdk`, `valibot`             |
-| `./agent` | `src/agent/module-boundary.spec.ts` | `payload` (type-only included), `@payloadcms/*`, `react`, `node:*`; only `@flue/runtime` and `valibot` |
+| Entry     | Spec                                | Must not reach                                                                                                       |
+| --------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `.`       | `src/module-boundary.spec.ts`       | a `.tsx` file, `react`, `@payloadcms/ui`, `@assistant-ui/*`, `@flue/*`, `remark-gfm`, `valibot` (type-only included) |
+| `./admin` | `src/admin/module-boundary.spec.ts` | a runtime import of `payload`, `node:*`, `next/*`, `@flue/*` except `@flue/sdk`, `valibot`                           |
+| `./agent` | `src/agent/module-boundary.spec.ts` | `payload` (type-only included), `@payloadcms/*`, `react`, `node:*`; only `@flue/runtime` and `valibot`               |
 
 Inside the server entry, `src/layering.spec.ts` holds each file to its layer. A file imports its
 own layer and lower ones, type-only imports included:
@@ -20,7 +20,7 @@ own layer and lower ones, type-only imports included:
 | ----- | -------------------------------------------- |
 | 0     | `protocol/`, which imports no package at all |
 | 1     | `types.ts`, `options.ts`                     |
-| 2     | `threads/`, `keys/`, `sidecar/`              |
+| 2     | `threads/`, `keys/`, `sidecar/`, `files/`    |
 | 3     | `turn.ts`                                    |
 | 4     | `endpoints/`, `jobs/`                        |
 | 5     | `plugin.ts`, `index.ts`                      |
@@ -98,8 +98,8 @@ Longer rationale goes in `docs/`. Do not use em-dashes.
 - Shared code such as `turn.ts` throws a public `APIError`; `endpointHandler` answers it as a
   refusal with its status and message.
 - Option and config checks throw `InvalidConfiguration` with the prefix `[payloadcms-flue]`.
-- Sidecar failures become `SidecarError`, and exchange failures in the sidecar
-  `FlueExchangeError`, each with the status that was answered.
+- Sidecar failures become `SidecarError`, and failed calls to Payload from the sidecar
+  `FluePayloadError`, each with the status that was answered.
 
 Anything else reaches Payload's error handler. No message or log line carries the sidecar secret,
 a handle, an mcpx key or a sidecar response body.

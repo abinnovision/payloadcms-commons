@@ -1,11 +1,8 @@
 import { InvalidConfiguration } from "payload";
 
-import {
-	ATTACHMENT_MIME_TYPES,
-	attachmentKind,
-} from "./protocol/attachments.js";
+import { defaultDeliver } from "./protocol/attachments.js";
 
-import type { AttachmentLimits } from "./protocol/attachments.js";
+import type { FileDeliver } from "./protocol/attachments.js";
 import type { FlueAgentConfig, FluePluginOptions } from "./types.js";
 import type { Config, PayloadRequest, Plugin } from "payload";
 
@@ -22,23 +19,10 @@ const DISPATCH_MAX_WAIT = 10 * MINUTE;
 /** The jobs queue flue runs go to unless `dispatch.queue` names another. */
 export const DISPATCH_QUEUE = "flue";
 
-const KIB = 1024;
-const MIB = 1024 * KIB;
+/** The chat body cap. */
+export const CHAT_BODY_MAX = 64 * 1024;
 
-/** The chat body cap without attachments. */
-export const CHAT_BODY_MAX = 64 * KIB;
-
-/*
- * Images stay within Anthropic's 5 MiB base64 image limit. PDFs stay under
- * Flue's 14 MiB base64 cap. Each file adds room for its JSON keys and a
- * file name of 255 characters escaped as `\uXXXX`.
- */
-const ATTACHMENTS = {
-	maxImageBytes: 3.75 * MIB,
-	maxDocumentBytes: { default: 5 * MIB, max: 10 * MIB },
-	maxFiles: { default: 4, max: 20 },
-	fileSlack: 2 * KIB,
-};
+const MAX_FILES_PER_TURN = { default: 10, max: 20 };
 
 /** The subset of mcpx's options flue reads. */
 interface McpxOptions {
@@ -69,15 +53,21 @@ export interface NormalizedOptions {
 	threads: { slug: string; readAgentRuns: (req: PayloadRequest) => boolean };
 	/** `wait` is `false` when dispatch jobs return on admission. */
 	dispatch: { queue: string; wait: false | { maxWaitMs: number } };
-	/** `false` when chat attachments are off. */
-	attachments: false | NormalizedAttachments;
+	/** `false` when chat files are off. */
+	files: false | NormalizedFiles;
+	/** Whether the admin mounts the document bridge on an entity; `false` without the admin chat. */
+	admin:
+		| false
+		| { bridges: (kind: "collections" | "globals", slug: string) => boolean };
 	mcpx: McpxSettings;
 }
 
-/** The attachment limits plus the chat body cap they imply. */
-export interface NormalizedAttachments extends AttachmentLimits {
-	/** The chat body cap in bytes. */
-	bodyMax: number;
+/** The chat files' settings after validation and defaulting. */
+export interface NormalizedFiles {
+	/** The app's upload collection. */
+	collection: string;
+	maxFilesPerTurn: number;
+	deliver: FileDeliver;
 }
 
 /** Receives what normalizing finds that is reported only at startup. */
@@ -221,66 +211,88 @@ const normalizeWait = (
 const isCount = (value: number, min: number, max: number): boolean =>
 	Number.isInteger(value) && value >= min && value <= max;
 
-const normalizeAttachments = (
-	option: FluePluginOptions["attachments"],
-): false | NormalizedAttachments => {
-	if (option === undefined || option === false) {
+const normalizeFiles = (
+	option: FluePluginOptions["files"],
+	slugs: ReadonlySet<string>,
+	threadsSlug: string,
+): false | NormalizedFiles => {
+	if (option === undefined) {
 		return false;
 	}
 
 	const {
-		mimeTypes = [...ATTACHMENT_MIME_TYPES],
-		maxImageBytes = ATTACHMENTS.maxImageBytes,
-		maxDocumentBytes = ATTACHMENTS.maxDocumentBytes.default,
-		maxFiles = ATTACHMENTS.maxFiles.default,
-	} = option === true ? {} : option;
+		collection,
+		maxFilesPerTurn = MAX_FILES_PER_TURN.default,
+		deliver = defaultDeliver,
+	} = option;
 
-	if (mimeTypes.length === 0) {
-		throw invalid("attachments.mimeTypes must name at least one type.");
-	}
-
-	for (const mimeType of mimeTypes) {
-		if (!(ATTACHMENT_MIME_TYPES as readonly string[]).includes(mimeType)) {
-			throw invalid(
-				`attachments.mimeTypes may only hold ${ATTACHMENT_MIME_TYPES.join(", ")}, got "${mimeType}".`,
-			);
-		}
-	}
-
-	if (!isCount(maxImageBytes, 1, ATTACHMENTS.maxImageBytes)) {
+	if (!slugs.has(collection) || collection === threadsSlug) {
 		throw invalid(
-			`attachments.maxImageBytes must be between 1 and ${String(ATTACHMENTS.maxImageBytes)} (3.75 MiB), got ${String(maxImageBytes)}.`,
+			`files.collection "${collection}" must name an upload collection of the config.`,
 		);
 	}
 
-	if (!isCount(maxDocumentBytes, 1, ATTACHMENTS.maxDocumentBytes.max)) {
+	if (!isCount(maxFilesPerTurn, 1, MAX_FILES_PER_TURN.max)) {
 		throw invalid(
-			`attachments.maxDocumentBytes must be between 1 and ${String(ATTACHMENTS.maxDocumentBytes.max)} (10 MiB), got ${String(maxDocumentBytes)}.`,
+			`files.maxFilesPerTurn must be between 1 and ${String(MAX_FILES_PER_TURN.max)}, got ${String(maxFilesPerTurn)}.`,
 		);
 	}
 
-	if (!isCount(maxFiles, 1, ATTACHMENTS.maxFiles.max)) {
-		throw invalid(
-			`attachments.maxFiles must be between 1 and ${String(ATTACHMENTS.maxFiles.max)}, got ${String(maxFiles)}.`,
-		);
+	return { collection, maxFilesPerTurn, deliver };
+};
+
+const normalizeAdmin = (
+	option: FluePluginOptions["admin"],
+): NormalizedOptions["admin"] => {
+	if (option === false) {
+		return false;
 	}
 
-	const largest = Math.max(
-		...mimeTypes.map((mimeType) =>
-			attachmentKind(mimeType) === "image" ? maxImageBytes : maxDocumentBytes,
-		),
-	);
+	const { documentBridge = true } = option ?? {};
 
 	return {
-		mimeTypes: [...new Set(mimeTypes)],
-		maxImageBytes,
-		maxDocumentBytes,
-		maxFiles,
-		bodyMax:
-			CHAT_BODY_MAX +
-			maxFiles * (Math.ceil((largest * 4) / 3) + ATTACHMENTS.fileSlack),
+		bridges: (kind, slug) =>
+			typeof documentBridge === "boolean"
+				? documentBridge
+				: (documentBridge[kind]?.includes(slug) ?? false),
 	};
 };
+
+/*
+ * The agents with the read grant on the files collection added for each
+ * agent that takes files; the thread guard narrows it to the thread's files.
+ */
+const withFileGrants = (
+	agents: FlueAgentConfig[],
+	files: false | NormalizedFiles,
+): FlueAgentConfig[] =>
+	agents.map((agent, index) => {
+		if (!agent.files) {
+			return agent;
+		}
+
+		if (!files) {
+			throw invalid(
+				`agents[${String(index)}].files needs the plugin's files option.`,
+			);
+		}
+
+		const collections = agent.capabilities.collections ?? {};
+
+		return {
+			...agent,
+			capabilities: {
+				...agent.capabilities,
+				collections: {
+					...collections,
+					[files.collection]: {
+						...collections[files.collection],
+						read: true,
+					},
+				},
+			},
+		};
+	});
 
 /**
  * Validates the options against the config at startup and fills in the
@@ -349,9 +361,11 @@ export const normalizeOptions = (
 		);
 	}
 
+	const files = normalizeFiles(options.files, slugs, threadsSlug);
+
 	return {
 		sidecar: { url: options.sidecar.url, secret: options.sidecar.secret },
-		agents: options.agents,
+		agents: withFileGrants(options.agents, files),
 		agentUser: options.agentUser,
 		keyTtlMs,
 		endpointPath,
@@ -360,7 +374,8 @@ export const normalizeOptions = (
 			readAgentRuns: options.threads?.readAgentRuns ?? (() => false),
 		},
 		dispatch: { queue, wait },
-		attachments: normalizeAttachments(options.attachments),
+		files,
+		admin: normalizeAdmin(options.admin),
 		mcpx,
 	};
 };

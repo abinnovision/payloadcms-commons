@@ -1,11 +1,11 @@
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
+import { FluePayloadError } from "./exchange.js";
 import {
 	addResponseFile,
 	filePartSchema,
 	finishResponseFiles,
-	FlueUploadError,
 	startResponseFiles,
 	uploadDocument,
 } from "./upload.js";
@@ -82,16 +82,49 @@ const failure = (callTool: () => Promise<unknown>): Promise<unknown> =>
 			session: { callTool },
 			payloadUrl: "https://cms.example.com",
 			mcpPath: "/api/mcpx",
+			handle: "handle-1",
 			fetch: () => Promise.resolve(new Response(null, { status: 200 })),
 		},
 		TEXT_FILE,
 	).catch((caught: unknown) => caught);
 
 describe("uploadDocument", () => {
+	it("puts the bytes with the grant headers and the handle", async () => {
+		const sent: Headers[] = [];
+		const result = await uploadDocument(
+			{
+				session: {
+					callTool: () =>
+						Promise.resolve({
+							upload: {
+								url: "https://cms.example.com/api/mcpx/upload",
+								headers: { "x-mcpx-grant": "grant-0123" },
+							},
+						}),
+				},
+				payloadUrl: "https://cms.example.com",
+				mcpPath: "/api/mcpx",
+				handle: "handle-1",
+				fetch: (input, init) => {
+					sent.push(new Request(input, init).headers);
+
+					return Promise.resolve(
+						Response.json({ id: 7, adminUrl: "https://cms.example.com/a" }),
+					);
+				},
+			},
+			TEXT_FILE,
+		);
+
+		expect(result.id).toBe(7);
+		expect(sent[0]?.get("x-mcpx-grant")).toBe("grant-0123");
+		expect(sent[0]?.get("x-flue-handle")).toBe("handle-1");
+	});
+
 	it("refuses a result without an upload handoff", async () => {
 		const error = await failure(() => Promise.resolve({ id: 7 }));
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(String(error)).toContain("mcpx returned no upload handoff.");
 	});
 
@@ -100,7 +133,7 @@ describe("uploadDocument", () => {
 			Promise.resolve({ upload: { url: "not a url", headers: {} } }),
 		);
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(String(error)).toContain("unparsable handoff URL");
 	});
 
@@ -109,7 +142,7 @@ describe("uploadDocument", () => {
 			Promise.reject(new Error("[payloadcms-flue] mcpx refused.")),
 		);
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect((error as Error).message).toBe(
 			"[payloadcms-flue] Payload refused the upload. mcpx refused.",
 		);
@@ -131,6 +164,7 @@ describe("uploadDocument", () => {
 				},
 				payloadUrl: "https://cms.example.com",
 				mcpPath: "/api/mcpx",
+				handle: "handle-1",
 				fetch: (input) => {
 					sent.push(input instanceof Request ? input.url : input.toString());
 
@@ -145,7 +179,7 @@ describe("uploadDocument", () => {
 			},
 		).catch((caught: unknown) => caught);
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(String(error)).toContain('outside "/api/mcpx/upload"');
 		expect(String(error)).not.toContain("grant-0123");
 		expect(sent).toEqual([]);

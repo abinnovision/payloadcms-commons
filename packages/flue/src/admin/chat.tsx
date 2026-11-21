@@ -35,7 +35,7 @@ import type { ToolsContextValue } from "./tools.js";
 
 export type FlueChatProps = Omit<
 	FluePanelProps,
-	"loadMoreError" | "onOpenRun" | "onStale"
+	"attachments" | "loadMoreError" | "onOpenRun" | "onStale"
 > & {
 	/** The signed-in user, a member of `userCollection`. */
 	userId: number | string;
@@ -75,7 +75,10 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 	registry,
 	...panel
 }) => {
-	const { api, agent, open, attachments = null } = panel;
+	const { api, agent, agents, open } = panel;
+	// What the agent takes as files; null when it takes none.
+	const files =
+		agents.find((candidate) => candidate.slug === agent)?.files ?? null;
 	const { config } = useConfig();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
@@ -135,7 +138,7 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 		},
 		document: openDocument,
 		subscribeDocument: (listener) => registry.subscribe(listener),
-		attachments,
+		files,
 		refresh: () => {
 			runtimeRef.current?.threads.reload().catch(() => undefined);
 		},
@@ -347,6 +350,7 @@ export const FlueChat: React.FC<FlueChatProps> = ({
 			<ToolsContext value={tools}>
 				<FluePanel
 					{...panel}
+					attachments={files}
 					loadMoreError={loadMoreError}
 					onOpenRun={openRun}
 					onOpenThread={openThread}

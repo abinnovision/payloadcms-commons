@@ -18,6 +18,7 @@ import { heroBlock } from "./blocks/hero";
 import { recentPostsBlock } from "./blocks/recent-posts";
 import { richTextBlock } from "./blocks/rich-text";
 import { articles } from "./collections/articles";
+import { chatUploads } from "./collections/chat-uploads";
 import { documents } from "./collections/documents";
 import { media } from "./collections/media";
 import { pages } from "./collections/pages";
@@ -70,6 +71,7 @@ export default buildConfig({
 		tags,
 		media,
 		documents,
+		chatUploads,
 	],
 	globals: [siteSettings],
 	/*
@@ -124,6 +126,8 @@ export default buildConfig({
 				tags: { delete: "unattended" },
 				media: { delete: "unattended" },
 				documents: { delete: "unattended" },
+				// Readable by the editor agent, which flue narrows to the current thread.
+				"chat-uploads": {},
 			},
 			globals: { "site-settings": true },
 			limits: { maxLimit: 25, maxDepth: 1 },

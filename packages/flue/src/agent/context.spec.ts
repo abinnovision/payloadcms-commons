@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { contextOf } from "./context.js";
+import { contextOf, filesOf } from "./context.js";
 import {
 	CONTEXT_SIGNAL_TYPE,
 	encodeContext,
 	userTurnBody,
 } from "../protocol/context.js";
+import { fileAttributes } from "../protocol/files.js";
 
 import type { ChatContext } from "../protocol/context.js";
+import type { FileRef } from "../protocol/files.js";
 
 const CONTEXT: ChatContext = {
 	route: "/admin/collections/posts/12",
@@ -58,5 +60,60 @@ describe("contextOf", () => {
 				attributes: { locale: "de" },
 			}),
 		).toBeUndefined();
+	});
+});
+
+describe("filesOf", () => {
+	const REFS: FileRef[] = [
+		{
+			collection: "uploads",
+			id: "42",
+			name: "briefing spring.pdf",
+			mimeType: "application/pdf",
+			size: 104_857_600,
+			attached: false,
+		},
+		{
+			collection: "uploads",
+			id: "7",
+			name: "chart.png",
+			mimeType: "image/png",
+			size: 9,
+			attached: true,
+		},
+	];
+	const files = fileAttributes("uploads", REFS);
+
+	it("reads the files of a signal turn from its attributes", () => {
+		expect(
+			filesOf({
+				kind: "signal",
+				type: CONTEXT_SIGNAL_TYPE,
+				body: "Read these",
+				attributes: { ...encodeContext(CONTEXT), turn: "user", ...files },
+			}),
+		).toEqual(REFS);
+	});
+
+	it("reads the same files from the preamble of a user turn", () => {
+		expect(
+			filesOf({
+				kind: "user",
+				body: userTurnBody(CONTEXT, "Hi", files),
+				attachments: [{ type: "image", data: "AA==", mimeType: "image/png" }],
+			}),
+		).toEqual(REFS);
+	});
+
+	it("answers no files for a plain message or another signal", () => {
+		expect(filesOf({ kind: "user", body: "Hi" })).toEqual([]);
+		expect(
+			filesOf({
+				kind: "signal",
+				type: "other",
+				body: "Hi",
+				attributes: files,
+			}),
+		).toEqual([]);
 	});
 });

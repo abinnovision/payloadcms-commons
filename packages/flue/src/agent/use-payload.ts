@@ -9,6 +9,7 @@ import {
 
 import { contextOf } from "./context.js";
 import { exchangeSession } from "./exchange.js";
+import { downloadDocument } from "./files.js";
 import {
 	addResponseFile,
 	filePartSchema,
@@ -20,6 +21,7 @@ import { FILE_PART } from "../protocol/events.js";
 import { INITIAL_DATA_KEY } from "../protocol/exchange.js";
 
 import type { ExchangeSession, ExchangeSessionArgs } from "./exchange.js";
+import type { Download, DownloadArgs } from "./files.js";
 import type { PayloadUploadArgs } from "./upload.js";
 import type { ChatContext } from "../protocol/context.js";
 import type { PayloadUpload } from "../protocol/events.js";
@@ -61,6 +63,19 @@ export interface PayloadRun {
 	 * locale defaults to the turn's. Call it from a tool's `run`.
 	 */
 	upload: (args: PayloadUploadArgs) => Promise<PayloadUpload>;
+	/**
+	 * Calls one mcpx tool as the run's user and resolves its structured
+	 * content or parsed text; throws when the tool reports an error.
+	 */
+	callTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+	/**
+	 * Downloads the file of an upload collection's document as the run's
+	 * user, through mcpx. A file of the chat's files collection is readable
+	 * only while it belongs to the run's thread. With `range`, only those
+	 * bytes. Refuses with `too_large` past `maxBytes`, which defaults to
+	 * 32 MiB.
+	 */
+	download: (args: DownloadArgs) => Promise<Download>;
 }
 
 type InitialData =
@@ -162,7 +177,7 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 		context,
 		upload: async (args) => {
 			const file = await uploadDocument(
-				{ session, payloadUrl, mcpPath, locale: context()?.locale },
+				{ session, payloadUrl, mcpPath, handle, locale: context()?.locale },
 				args,
 			);
 
@@ -170,5 +185,8 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 
 			return file;
 		},
+		callTool: session.callTool,
+		download: async (args) =>
+			await downloadDocument({ session, payloadUrl, mcpPath, handle }, args),
 	};
 };

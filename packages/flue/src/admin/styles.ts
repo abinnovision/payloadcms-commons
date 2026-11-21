@@ -785,6 +785,17 @@ export const PANEL_CSS = `
 	white-space: nowrap;
 }
 
+.flue-attachment__status {
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+}
+
+.flue-attachment--removed {
+	color: var(--color-text-secondary);
+	padding-inline-end: var(--spacer-2);
+	text-decoration: line-through;
+}
+
 .flue-attachment__image {
 	display: block;
 	max-width: 100%;
@@ -1267,6 +1278,49 @@ a.flue-files__name {
 
 .flue-composer__attach {
 	margin-inline-end: auto;
+}
+
+/* The conversation takes dropped files; an outlined overlay shows while a file is dragged over it. */
+.flue-dropzone {
+	position: relative;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.flue-dropzone__overlay {
+	position: absolute;
+	inset: var(--spacer-2);
+	z-index: 1;
+	display: none;
+	flex-direction: column;
+	gap: var(--spacer-1);
+	align-items: center;
+	justify-content: center;
+	padding: var(--spacer-3);
+	border: var(--stroke-width-medium) dashed var(--color-border-selected-strong);
+	border-radius: var(--radius-large);
+	background: var(--color-bg);
+	text-align: center;
+	pointer-events: none;
+}
+
+.flue-dropzone[data-dragging] .flue-dropzone__overlay {
+	display: flex;
+}
+
+.flue-dropzone__title {
+	margin: 0;
+	color: var(--color-text);
+	font-size: var(--text-heading-small-font-size);
+	font-weight: var(--text-heading-small-font-weight);
+}
+
+.flue-dropzone__hint {
+	margin: 0;
+	color: var(--color-text-secondary);
+	font-size: var(--text-body-small-font-size);
 }
 
 @media (prefers-reduced-motion: reduce) {

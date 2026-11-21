@@ -7,6 +7,8 @@ import {
 	toThreadMessage,
 } from "./convert.js";
 import { fixtureJson } from "../../test/builders/fixtures.js";
+import { userTurnBody } from "../protocol/context.js";
+import { fileAttributes } from "../protocol/files.js";
 
 import type { FlueConversationMessage, FlueConversationState } from "@flue/sdk";
 
@@ -82,6 +84,40 @@ describe("shownMessages and toThreadMessage", () => {
 				content: [{ type: "text", text: "Publish the page." }],
 			},
 		]);
+	});
+
+	it("shows the files of a signal turn as file cards and a main-era turn without any", () => {
+		const files = fileAttributes("uploads", [
+			{
+				id: "12",
+				name: "data.csv",
+				mimeType: "text/csv",
+				size: 8,
+				attached: false,
+			},
+		]);
+		const turn = (id: string, attributes: Record<string, string>) =>
+			message({
+				id,
+				role: "system",
+				purpose: "dispatch",
+				display: "hidden",
+				signal: { attributes: { turn: "user", ...attributes } },
+				parts: [{ type: "text", text: "Sum it.", state: "done" }],
+			});
+
+		const [shown, old] = convert(
+			conversationOf([turn("entry_new", files), turn("entry_old", {})]),
+		);
+
+		expect(shown).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "Sum it." }],
+			attachments: [
+				{ name: "data.csv", content: [{ data: "flue-file:uploads/12" }] },
+			],
+		});
+		expect(old).not.toHaveProperty("attachments");
 	});
 
 	it("drops other signals, plain advisories and hidden answers", () => {
@@ -233,6 +269,71 @@ describe("shownMessages and toThreadMessage", () => {
 				],
 			},
 		]);
+	});
+
+	it("shows the files a user turn sent as file cards and not as text", () => {
+		const turn = message({
+			id: "entry_ref",
+			role: "user",
+			purpose: "user",
+			parts: [
+				{
+					type: "text",
+					text: userTurnBody(
+						{ kind: "chat" },
+						"Summarize",
+						fileAttributes("uploads", [
+							{
+								id: "12",
+								name: "q3 final.pdf",
+								mimeType: "application/pdf",
+								size: 2048,
+								attached: true,
+							},
+						]),
+					),
+					state: "done",
+				},
+			],
+		});
+
+		expect(toThreadMessage(turn)).toMatchObject({
+			content: [{ type: "text", text: "Summarize" }],
+			attachments: [
+				{
+					id: "entry_ref:file:0",
+					name: "q3 final.pdf",
+					content: [{ type: "file", data: "flue-file:uploads/12" }],
+				},
+			],
+		});
+	});
+
+	it("shows the echo of an uploaded file as a file card", () => {
+		const echo = message({
+			id: "pending:sub_1",
+			role: "user",
+			purpose: "user",
+			metadata: { isOptimistic: true },
+			parts: [
+				{
+					type: "file",
+					mediaType: "image/png",
+					url: "flue-file:uploads/31",
+					filename: "chart.png",
+				},
+			],
+		});
+
+		expect(toThreadMessage(echo)).toMatchObject({
+			attachments: [
+				{
+					type: "document",
+					name: "chart.png",
+					content: [{ type: "file", data: "flue-file:uploads/31" }],
+				},
+			],
+		});
 	});
 
 	it("shows a user message holding only files without a text part", () => {

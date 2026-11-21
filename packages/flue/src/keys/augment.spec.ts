@@ -12,6 +12,7 @@ import {
 	RESTRICTED,
 } from "../../test/fixtures/config.js";
 
+import type { NormalizedFiles } from "../options.js";
 import type { FlueAgentConfig } from "../types.js";
 import type {
 	CollectionConfig,
@@ -246,17 +247,51 @@ describe("capabilityFields", () => {
 });
 
 describe("validateGrants", () => {
-	const validate = async (agent: FlueAgentConfig): Promise<string[]> => {
+	const validate = async (
+		agent: FlueAgentConfig,
+		files: false | NormalizedFiles = false,
+	): Promise<string[]> => {
 		const warnings: string[] = [];
 
-		validateGrants(capabilityFields(keysOf(await applyPlugins())), [agent], {
-			warn: (message) => {
-				warnings.push(message);
+		validateGrants(
+			capabilityFields(keysOf(await applyPlugins())),
+			{ agents: [agent], files },
+			{
+				warn: (message) => {
+					warnings.push(message);
+				},
 			},
-		});
+		);
 
 		return warnings;
 	};
+
+	const files = (collection: string): NormalizedFiles => ({
+		collection,
+		maxFilesPerTurn: 10,
+		deliver: () => "reference",
+	});
+
+	it("accepts an agent taking files of a collection mcpx offers read for", async () => {
+		expect(
+			await validate(
+				{
+					...RESTRICTED,
+					files: true,
+					capabilities: { collections: { pages: { read: true } } },
+				},
+				files("pages"),
+			),
+		).toEqual([]);
+	});
+
+	it("refuses an agent taking files when mcpx offers no read checkbox for the collection", async () => {
+		await expect(
+			validate({ ...RESTRICTED, files: true }, files("uploads")),
+		).rejects.toThrow(
+			/Agent "restricted" takes files, but the mcpx API keys have no read checkbox for "uploads"\. Expose it in mcpx's collections\./,
+		);
+	});
 
 	it("accepts the fixture agents without warnings", async () => {
 		expect(await validate(EDITOR)).toEqual([]);

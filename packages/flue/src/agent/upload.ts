@@ -1,26 +1,11 @@
 import * as v from "valibot";
 
-import { FlueExchangeError, joinUrl } from "./exchange.js";
+import { codeOf, FluePayloadError, joinUrl } from "./exchange.js";
+import { handoffRequest } from "./handoff.js";
 import { isRecord } from "../protocol/guards.js";
 
 import type { ExchangeSession } from "./exchange.js";
 import type { FilePartData, PayloadUpload } from "../protocol/events.js";
-
-/**
- * Thrown when an upload cannot be completed. Its message never carries the
- * upload grant.
- */
-export class FlueUploadError extends Error {
-	public override readonly name = "FlueUploadError";
-
-	/** The status of the PUT that failed, `undefined` before the PUT. */
-	public readonly status: number | undefined;
-
-	public constructor(message: string, status?: number, options?: ErrorOptions) {
-		super(`[payloadcms-flue] ${message}`, options);
-		this.status = status;
-	}
-}
 
 export interface PayloadUploadArgs {
 	/** An upload collection the agent may write, which sets `upload.mimeTypes`. */
@@ -89,6 +74,8 @@ export interface UploadTarget {
 	session: Pick<ExchangeSession, "callTool">;
 	payloadUrl: string;
 	mcpPath: string;
+	/** The conversation's handle, which binds the new document to its thread. */
+	handle: string;
 	/** The turn's locale, used when the call names none. */
 	locale?: string | undefined;
 	/** The fetch for the PUT. Defaults to the global one. */
@@ -97,8 +84,6 @@ export interface UploadTarget {
 
 const PREREQUISITES =
 	"mcpx returned no upload handoff. Uploads need an upload collection the agent may write that sets upload.mimeTypes, and mcpx leases: Payload's database KV and no auth.resolve.";
-
-const trimmed = (path: string): string => path.replace(/\/+$/, "");
 
 const errorText = (body: unknown): string =>
 	isRecord(body) && typeof body["error"] === "string" ? body["error"] : "";
@@ -119,7 +104,8 @@ const requestHandoff = async (
 			file: { filename: args.filename, mimeType: args.mimeType, size },
 		});
 	} catch (error) {
-		if (error instanceof FlueExchangeError) {
+		// Failures of the exchange or the transport pass through.
+		if (error instanceof FluePayloadError && error.code !== "refused") {
 			throw error;
 		}
 
@@ -128,14 +114,16 @@ const requestHandoff = async (
 		).replace(/^\[payloadcms-flue\] /, "");
 
 		if (locale === undefined && /\blocale\b/.test(message)) {
-			throw new FlueUploadError(
+			throw new FluePayloadError(
+				"refused",
 				"The upload needs a locale: Payload is localized, and neither the turn nor the call names one.",
 				undefined,
 				{ cause: error },
 			);
 		}
 
-		throw new FlueUploadError(
+		throw new FluePayloadError(
+			"refused",
 			`Payload refused the upload. ${message}`,
 			undefined,
 			{ cause: error },
@@ -159,59 +147,34 @@ export const uploadDocument = async (
 			: args.data
 	) as Uint8Array<ArrayBuffer>;
 	const result = await requestHandoff(target, args, body.byteLength);
-	const upload = isRecord(result) ? result["upload"] : undefined;
-
-	if (
-		!isRecord(upload) ||
-		typeof upload["url"] !== "string" ||
-		!isRecord(upload["headers"])
-	) {
-		throw new FlueUploadError(PREREQUISITES);
-	}
-
-	const uploadPath = `${trimmed(target.mcpPath)}/upload`;
-	let handoffPath: string;
-
-	try {
-		handoffPath = trimmed(new URL(upload["url"]).pathname);
-	} catch (error) {
-		throw new FlueUploadError(
-			"mcpx returned an unparsable handoff URL.",
-			undefined,
-			{
-				cause: error,
-			},
-		);
-	}
-
-	if (!handoffPath.endsWith(uploadPath)) {
-		throw new FlueUploadError(
-			`mcpx returned a handoff outside "${uploadPath}", so the file was not sent.`,
-		);
-	}
-
-	const headers = Object.fromEntries(
-		Object.entries(upload["headers"]).filter(
-			(entry): entry is [string, string] => typeof entry[1] === "string",
-		),
+	const { path, headers } = handoffRequest(
+		isRecord(result) ? result["upload"] : undefined,
+		target,
+		"upload",
+		new FluePayloadError("refused", PREREQUISITES),
 	);
 	let response: Response;
 
 	try {
-		response = await (target.fetch ?? fetch)(
-			joinUrl(target.payloadUrl, uploadPath),
-			{ method: "PUT", headers, body },
-		);
-	} catch (error) {
-		throw new FlueUploadError("The upload did not reach Payload.", undefined, {
-			cause: error,
+		response = await (target.fetch ?? fetch)(joinUrl(target.payloadUrl, path), {
+			method: "PUT",
+			headers,
+			body,
 		});
+	} catch (error) {
+		throw new FluePayloadError(
+			"unreachable",
+			"The upload did not reach Payload.",
+			undefined,
+			{ cause: error },
+		);
 	}
 
 	const written: unknown = await response.json().catch(() => undefined);
 
 	if (response.status !== 200) {
-		throw new FlueUploadError(
+		throw new FluePayloadError(
+			codeOf(response.status),
 			`Payload answered the upload with status ${String(response.status)}. ${errorText(written)}`.trim(),
 			response.status,
 		);
@@ -222,7 +185,8 @@ export const uploadDocument = async (
 		(typeof written["id"] !== "string" && typeof written["id"] !== "number") ||
 		typeof written["adminUrl"] !== "string"
 	) {
-		throw new FlueUploadError(
+		throw new FluePayloadError(
+			"refused",
 			"Payload answered the upload without the document.",
 			response.status,
 		);

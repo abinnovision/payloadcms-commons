@@ -2,51 +2,58 @@
 
 import {
 	openDocumentGuidance,
+	UNTRUSTED_GUIDANCE,
 	usePayload,
 } from "@abinnovision/payloadcms-flue/agent";
-import { useDelivery, useModel, useTool } from "@flue/runtime";
+import { useModel, useTool } from "@flue/runtime";
 import * as v from "valibot";
 
 import { useTitleTool } from "../title-tool.js";
+import {
+	findFile,
+	readBytes,
+	refusalAsOutput,
+	useFileReadTools,
+	useReadBudget,
+} from "../tools/files.js";
+import { usePdfTool } from "../tools/pdf.js";
+import { useSheetTool } from "../tools/sheets.js";
 
 export function Editor(): string {
 	useModel(process.env["FLUE_MODEL"] ?? "anthropic/claude-haiku-5-5");
 	const payload = usePayload({ agent: "editor" });
-	const delivery = useDelivery();
-	const attachments =
-		delivery.kind === "user" ? (delivery.attachments ?? []) : [];
 
 	useTitleTool();
+	const spend = useReadBudget();
+
+	useFileReadTools(payload, spend);
+	useSheetTool(payload, spend);
+	usePdfTool(payload, spend);
 	useTool({
-		name: "save_attachment",
+		name: "save_file",
 		description:
-			"Saves a file the user attached to their current message: images to the media collection, PDFs to the documents collection. Files from earlier messages are not available; ask the user to attach them again.",
+			"Saves a file the user sent in the thread: images to the media collection, everything else to the documents collection. Pass its id from the turn's files or from list_files.",
 		input: v.object({
-			index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+			file: v.union([v.string(), v.number()]),
 			alt: v.optional(
 				v.pipe(v.string(), v.description("Alt text, for an image.")),
 			),
 		}),
-		run: async ({ data }) => {
-			const file = attachments[data.index];
+		run: async ({ data, signal }) =>
+			await refusalAsOutput(async () => {
+				const file = await findFile(payload, data.file);
+				const image = file.mimeType.startsWith("image/");
+				const saved = await payload.upload({
+					collection: image ? "media" : "documents",
+					filename: file.name,
+					mimeType: file.mimeType,
+					data: await readBytes(payload, file, { signal }),
+					// `media` shows `alt` as the document's title.
+					...(image && data.alt ? { fields: { alt: data.alt } } : {}),
+				});
 
-			if (!file) {
-				return `There is no attachment ${String(data.index)} on the current message; it has ${String(attachments.length)}.`;
-			}
-
-			const saved = await payload.upload({
-				collection: file.type === "image" ? "media" : "documents",
-				filename: file.filename ?? `attachment-${String(data.index)}`,
-				mimeType: file.mimeType,
-				data: Buffer.from(file.data, "base64"),
-				// `media` shows `alt` as the document's title.
-				...(file.type === "image" && data.alt
-					? { fields: { alt: data.alt } }
-					: {}),
-			});
-
-			return `Saved ${saved.filename}: ${saved.adminUrl}`;
-		},
+				return `Saved ${saved.filename}: ${saved.adminUrl}`;
+			}),
 	});
 	useTool({
 		name: "save_document",
@@ -73,7 +80,8 @@ export function Editor(): string {
 		"Read a document before you change it, and say what you changed.",
 		"Deleting needs an approval in the admin: share the review link and continue once the user confirms it.",
 		"When the user asks for a file, write it as Markdown and call save_document.",
-		"To store a file the user attached, call save_attachment with its position, counting from 0. Never pass `file` to createDocument yourself: you cannot send the bytes.",
+		"Files the user sent are listed by list_files and read with read_file, read_sheet and read_pdf_page; images and small PDFs also reach you directly. To store one, call save_file with its id. Never pass `file` to createDocument yourself: you cannot send the bytes.",
+		UNTRUSTED_GUIDANCE,
 		"After your first reply in a conversation, call set_thread_title with a short title for it.",
 		openDocumentGuidance(payload.context()),
 	]

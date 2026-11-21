@@ -26,7 +26,6 @@ import { PANEL_CSS } from "./styles.js";
 
 import type { AgentSummary } from "./api.js";
 import type { PanelView } from "./panel.js";
-import type { AttachmentLimits } from "../protocol/attachments.js";
 
 export interface FlueProviderProps {
 	children?: React.ReactNode;
@@ -118,8 +117,6 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 	const [agents, setAgents] = useState<AgentSummary[]>([]);
 	// Every agent, when the user may read agent runs.
 	const [runAgents, setRunAgents] = useState<AgentSummary[]>();
-	// The limits of chat attachments; null while they are off.
-	const [attachments, setAttachments] = useState<AttachmentLimits | null>(null);
 	const [agent, setAgent] = useState<string>();
 	const [threadId, setThreadId] = useState<string>();
 	// The user opened the thread, which a document's own thread then leaves open.
@@ -151,7 +148,7 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 				api.agents().catch((error: unknown) => {
 					toast.error(errorText(error, "The agents could not be listed."));
 
-					return { agents: [], runs: null, attachments: null };
+					return { agents: [], runs: null };
 				}),
 			]);
 			const kept = available.agents.some(
@@ -184,7 +181,6 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 			storedPreference.current = stored;
 			setAgents(available.agents);
 			setRunAgents(available.runs?.agents);
-			setAttachments(available.attachments);
 			setAgent(selected);
 			setThreadId(restored);
 
@@ -317,7 +313,6 @@ export const FlueProvider: React.FC<FlueProviderProps> = ({
 							agent={agent}
 							agents={agents}
 							api={api}
-							attachments={attachments}
 							chosen={chosen}
 							key={`${userKey}:${agent ?? ""}`}
 							onAgent={selectAgent}

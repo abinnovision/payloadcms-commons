@@ -9,24 +9,18 @@ import {
 	requireUser,
 } from "./http.js";
 import { CHAT_BODY_MAX } from "../options.js";
-import { attachmentKind } from "../protocol/attachments.js";
+import { isRefId } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 import { startTurn } from "../turn.js";
 
-import type { NormalizedAttachments } from "../options.js";
-import type {
-	AttachmentMimeType,
-	DeliveredAttachment,
-} from "../protocol/attachments.js";
+import type { NormalizedFiles } from "../options.js";
 import type { PluginSettings, TurnContext } from "../turn.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
 const MESSAGE_MAX = 16_000;
-const FILENAME_MAX = 255;
 const FOCUS_MAX = 256;
 const FOCUS_PATH = /^[\w.-]+$/;
-const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 type SendContext = Pick<
 	TurnContext,
@@ -35,7 +29,8 @@ type SendContext = Pick<
 
 interface ChatBody {
 	message: string;
-	attachments: DeliveredAttachment[];
+	/** Ids of the user's files in the files collection. */
+	files: string[];
 	thread?: number | string | undefined;
 	context: SendContext;
 }
@@ -62,108 +57,36 @@ const parseFocus = (value: unknown): string | undefined | false => {
 		: focus;
 };
 
-// The decoded size of valid base64.
-const decodedSize = (data: string): number =>
-	(data.length / 4) * 3 -
-	(data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0);
-
-// The leading bytes of each type, by offset, as latin1 text.
-const SIGNATURES: Record<
-	AttachmentMimeType,
-	ReadonlyArray<readonly [number, string]>
-> = {
-	"image/png": [[0, "\x89PNG"]],
-	"image/jpeg": [[0, "\xff\xd8\xff"]],
-	"image/gif": [[0, "GIF8"]],
-	"image/webp": [
-		[0, "RIFF"],
-		[8, "WEBP"],
-	],
-	"application/pdf": [[0, "%PDF-"]],
-};
-
-// Whether the base64 bytes start like a file of the type.
-const hasSignature = (data: string, mimeType: AttachmentMimeType): boolean => {
-	const head = Buffer.from(data.slice(0, 16), "base64").toString("latin1");
-
-	return SIGNATURES[mimeType].every(([offset, signature]) =>
-		head.startsWith(signature, offset),
-	);
-};
-
-// The attachments, or the reason they are refused.
-const parseAttachments = (
+// The ids of the turn's files, or the reason they are refused.
+const parseFiles = (
+	req: PayloadRequest,
 	value: unknown,
-	limits: false | NormalizedAttachments,
-): DeliveredAttachment[] | string => {
+	files: false | NormalizedFiles,
+): string | string[] => {
 	if (value === undefined) {
 		return [];
 	}
 
-	if (!limits) {
-		return "attachments are not enabled.";
+	if (!files) {
+		return "This agent takes no files.";
 	}
 
-	if (!Array.isArray(value) || value.length > limits.maxFiles) {
-		return `attachments must be a list of at most ${String(limits.maxFiles)} files.`;
+	const ids = Array.isArray(value)
+		? (value as unknown[]).map((id) =>
+				typeof id === "number" ? String(id) : id,
+			)
+		: [];
+
+	if (
+		!Array.isArray(value) ||
+		ids.length > files.maxFilesPerTurn ||
+		!ids.every((id): id is string => isDocumentId(req, id) && isRefId(id)) ||
+		new Set(ids).size !== ids.length
+	) {
+		return `files must be a list of at most ${String(files.maxFilesPerTurn)} distinct file ids.`;
 	}
 
-	const attachments: DeliveredAttachment[] = [];
-
-	for (const [index, item] of (value as unknown[]).entries()) {
-		const at = `attachments[${String(index)}]`;
-
-		if (!isRecord(item)) {
-			return `${at} must be an object.`;
-		}
-
-		const { type, mimeType, data, filename } = item;
-
-		if (
-			typeof mimeType !== "string" ||
-			!(limits.mimeTypes as string[]).includes(mimeType)
-		) {
-			return `${at}.mimeType must be one of ${limits.mimeTypes.join(", ")}.`;
-		}
-
-		const kind = attachmentKind(mimeType as AttachmentMimeType);
-
-		if (type !== kind) {
-			return `${at}.type must be "${kind}" for ${mimeType}.`;
-		}
-
-		const max =
-			kind === "image" ? limits.maxImageBytes : limits.maxDocumentBytes;
-
-		if (
-			typeof data !== "string" ||
-			data.length % 4 !== 0 ||
-			!BASE64.test(data) ||
-			decodedSize(data) > max
-		) {
-			return `${at}.data must be base64 of at most ${String(max)} bytes.`;
-		}
-
-		if (!hasSignature(data, mimeType as AttachmentMimeType)) {
-			return `${at}.data is not a ${mimeType} file.`;
-		}
-
-		if (
-			filename !== undefined &&
-			(typeof filename !== "string" || filename.length > FILENAME_MAX)
-		) {
-			return `${at}.filename must be a string of at most ${String(FILENAME_MAX)} characters.`;
-		}
-
-		attachments.push({
-			type: kind,
-			data,
-			mimeType: mimeType as AttachmentMimeType,
-			...(filename === undefined ? {} : { filename }),
-		});
-	}
-
-	return attachments;
+	return ids;
 };
 
 // The message, or the reason it is refused. A turn with files may come without text.
@@ -184,20 +107,20 @@ const parseMessage = (
 const parseBody = (
 	req: PayloadRequest,
 	body: unknown,
-	limits: false | NormalizedAttachments,
+	fileLimits: false | NormalizedFiles,
 ): ChatBody | string => {
 	if (!isRecord(body)) {
 		return "The body must be a JSON object.";
 	}
 
 	const { message, thread, context } = body;
-	const attachments = parseAttachments(body["attachments"], limits);
+	const files = parseFiles(req, body["files"], fileLimits);
 
-	if (typeof attachments === "string") {
-		return attachments;
+	if (typeof files === "string") {
+		return files;
 	}
 
-	const parsed = parseMessage(message, attachments.length > 0);
+	const parsed = parseMessage(message, files.length > 0);
 
 	if (typeof parsed === "string") {
 		return parsed;
@@ -260,7 +183,7 @@ const parseBody = (
 
 	return {
 		message: parsed.text,
-		attachments,
+		files,
 		thread: thread ?? undefined,
 		context: { route: context["route"], collection, id, global, locale, focus },
 	};
@@ -354,16 +277,13 @@ export const chatHandler = (settings: PluginSettings): PayloadHandler =>
 			return notJson;
 		}
 
-		const raw = await readJson(
-			req,
-			settings.attachments ? settings.attachments.bodyMax : CHAT_BODY_MAX,
-		);
+		const raw = await readJson(req, CHAT_BODY_MAX);
 
 		if (raw instanceof Response) {
 			return raw;
 		}
 
-		const body = parseBody(req, raw, settings.attachments);
+		const body = parseBody(req, raw, agent.files ? settings.files : false);
 
 		if (typeof body === "string") {
 			return refusal(400, body);
@@ -374,7 +294,7 @@ export const chatHandler = (settings: PluginSettings): PayloadHandler =>
 			user,
 			threadId: body.thread,
 			message: body.message,
-			attachments: body.attachments,
+			files: body.files,
 			context: {
 				...body.context,
 				updatedAt: await updatedAtOf(req, body.context),
