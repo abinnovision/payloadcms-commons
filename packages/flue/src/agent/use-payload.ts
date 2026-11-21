@@ -84,19 +84,6 @@ type InitialData =
 const missing = (what: string): Error =>
 	new Error(`[payloadcms-flue] usePayload needs ${what}.`);
 
-/** The exchange handle of a conversation Payload created. */
-export const useHandle = (): string => {
-	const handle = useInitialData<InitialData>()?.[INITIAL_DATA_KEY]?.handle;
-
-	if (!handle) {
-		throw missing(
-			"a conversation created by Payload, whose initial data carries the exchange handle",
-		);
-	}
-
-	return handle;
-};
-
 const SESSIONS_MAX = 256;
 
 /*
@@ -136,6 +123,7 @@ const cachedSession = (args: ExchangeSessionArgs): ExchangeSession => {
  * connection first authenticates, and is held in memory only.
  */
 export const usePayload = (options: UsePayloadOptions): PayloadRun => {
+	const handle = useInitialData<InitialData>()?.[INITIAL_DATA_KEY]?.handle;
 	const delivery = useDelivery();
 	const payloadUrl = options.payloadUrl ?? process.env["PAYLOAD_URL"];
 	const secret = options.secret ?? process.env["FLUE_SIDECAR_SECRET"];
@@ -148,16 +136,20 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 		throw missing("secret or the FLUE_SIDECAR_SECRET environment variable");
 	}
 
-	const handle = useHandle();
+	if (!handle) {
+		throw missing(
+			"a conversation created by Payload, whose initial data carries the exchange handle",
+		);
+	}
+
 	const mcpPath = options.mcpPath ?? process.env["MCPX_PATH"] ?? "/api/mcpx";
-	const fluePath = options.fluePath ?? "/api/flue";
 	const session = cachedSession({
 		payloadUrl,
 		secret,
 		handle,
 		agent: options.agent,
 		mcpPath,
-		fluePath,
+		fluePath: options.fluePath ?? "/api/flue",
 	});
 	const writeFiles = useDataWriter(FILE_PART, { schema: filePartSchema });
 	const context = (): ChatContext | undefined => contextOf(delivery);

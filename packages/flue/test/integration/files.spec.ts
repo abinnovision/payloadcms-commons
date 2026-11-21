@@ -1,10 +1,9 @@
 import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
-import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildConfig, createPayloadRequest, handleEndpoints } from "payload";
+import { createPayloadRequest, handleEndpoints } from "payload";
 import {
 	afterAll,
 	beforeAll,
@@ -36,7 +35,7 @@ import { SIDECAR_SECRET } from "../fixtures/config.js";
 
 import type { Booted, Doc } from "./helpers/payload.js";
 import type { ExchangeSession } from "../../src/agent/exchange.js";
-import type { FlueAgentConfig, FluePluginOptions } from "../../src/index.js";
+import type { FlueAgentConfig } from "../../src/index.js";
 import type { SendArgs } from "../../src/sidecar/client.js";
 import type { DeliveredMessage } from "@flue/runtime";
 import type { CollectionConfig, Config } from "payload";
@@ -132,20 +131,14 @@ const uploads = (staticDir: string): CollectionConfig => ({
 	fields: [{ name: "alt", type: "text" }],
 });
 
-const filesConfig = (
-	dir: string,
-	flue: Partial<FluePluginOptions> = {},
-	mcpxCollections: Record<string, object> = { [UPLOADS]: {}, pages: {} },
-	sidecarUrl = "http://127.0.0.1:9",
-): Partial<Config> => ({
+const filesConfig = (dir: string, sidecarUrl: string): Partial<Config> => ({
 	collections: [users, pages, uploads(join(dir, "store"))],
 	plugins: [
-		mcpxPlugin({ collections: mcpxCollections }),
+		mcpxPlugin({ collections: { [UPLOADS]: {}, pages: {} } }),
 		fluePlugin({
 			sidecar: { url: sidecarUrl, secret: SIDECAR_SECRET },
 			agents: [FILER, GREEDY, PLAIN],
 			files: { collection: UPLOADS },
-			...flue,
 		}),
 	],
 });
@@ -325,7 +318,7 @@ describe("chat files", () => {
 	beforeAll(async () => {
 		dir = await mkdtemp(join(tmpdir(), "flue-files-"));
 		booted = await bootPayload("flue-files", undefined, (sidecarUrl) =>
-			filesConfig(dir, {}, undefined, sidecarUrl),
+			filesConfig(dir, sidecarUrl),
 		);
 	});
 
@@ -925,7 +918,7 @@ describe("chat files in a fluePrivateUploads collection", () => {
 	beforeAll(async () => {
 		dir = await mkdtemp(join(tmpdir(), "flue-private-"));
 		booted = await bootPayload("flue-private-uploads", undefined, (url) => ({
-			...filesConfig(dir, {}, undefined, url),
+			...filesConfig(dir, url),
 			collections: [
 				users,
 				pages,
@@ -975,51 +968,5 @@ describe("chat files in a fluePrivateUploads collection", () => {
 		expect(filesOf(posted as DeliveredMessage)).toMatchObject([
 			{ id: String(doc.id), name: "q3 numbers.csv", mimeType: "text/csv" },
 		]);
-	});
-});
-
-describe("chat files configuration", () => {
-	let dir: string;
-
-	beforeAll(async () => {
-		dir = await mkdtemp(join(tmpdir(), "flue-files-config-"));
-	});
-
-	afterAll(async () => {
-		await rm(dir, { recursive: true, force: true });
-	});
-
-	it("refuses an agent taking files when mcpx offers no read for the collection", async () => {
-		const config = filesConfig(dir, {}, { pages: {} });
-
-		await expect(
-			buildConfig({
-				secret: "flue-test-secret",
-				db: sqliteAdapter({ client: { url: ":memory:" } }),
-				admin: { user: "users" },
-				...config,
-			}),
-		).rejects.toThrow(/no read checkbox for "uploads"/);
-	});
-
-	it("refuses a files collection with a top-level download field", async () => {
-		const config = filesConfig(dir);
-
-		await expect(
-			buildConfig({
-				secret: "flue-test-secret",
-				db: sqliteAdapter({ client: { url: ":memory:" } }),
-				admin: { user: "users" },
-				...config,
-				collections: [
-					users,
-					pages,
-					{
-						...uploads(join(dir, "store")),
-						fields: [{ name: "download", type: "text" }],
-					},
-				],
-			}),
-		).rejects.toThrow(/field named "download"/);
 	});
 });

@@ -74,7 +74,7 @@ const refuse = (message: string): Promise<never> =>
 const REF_SCHEME = "flue-file:";
 
 /** A file of an upload collection, as an attachment's content names it. */
-export interface UploadRef {
+interface UploadRef {
 	collection: string;
 	id: string;
 }
@@ -151,35 +151,38 @@ export const fileAdapter = (
 				contentType: mimeType,
 				file,
 			};
-			const progress: number[] = [];
+			// The latest progress not yet shown, and whether the upload finished.
+			const state: { progress?: number | undefined; settled?: true } = {};
 			let wake = (): void => undefined;
-			const outcome: { id?: string; error?: unknown; failed?: true } = {};
 
 			// The browser reports an empty type for some files, so the mapped one is sent.
-			api
+			const upload = api
 				.uploadFile(
 					limits.collection,
 					new File([file], file.name, { type: mimeType }),
 					(fraction) => {
-						progress.push(fraction);
+						state.progress = fraction;
 						wake();
 					},
 				)
 				.then(
 					(id) => {
-						outcome.id = id;
-
 						if (removed.delete(base.id)) {
 							void api.deleteFile(limits.collection, id).catch(() => undefined);
 						}
+
+						return id;
 					},
 					(error: unknown) => {
 						removed.delete(base.id);
-						outcome.error = error;
-						outcome.failed = true;
+						throw error;
 					},
-				)
+				);
+
+			void upload
+				.catch(() => undefined)
 				.finally(() => {
+					state.settled = true;
 					wake();
 				});
 
@@ -188,44 +191,39 @@ export const fileAdapter = (
 				status: { type: "running", reason: "uploading", progress: 0 },
 			};
 
-			const settled = (): boolean =>
-				outcome.id !== undefined || outcome.failed !== undefined;
-
-			while (!settled()) {
+			for (;;) {
 				// eslint-disable-next-line no-await-in-loop
 				await new Promise<void>((resolve) => {
 					wake = resolve;
 
-					if (progress.length > 0 || settled()) {
+					if (state.progress !== undefined || state.settled) {
 						resolve();
 					}
 				});
 
-				const fraction = progress.pop();
+				if (state.settled) {
+					break;
+				}
 
-				progress.length = 0;
+				const { progress } = state;
 
-				if (fraction !== undefined && !settled()) {
+				state.progress = undefined;
+
+				if (progress !== undefined) {
 					yield {
 						...base,
-						status: {
-							type: "running",
-							reason: "uploading",
-							progress: fraction,
-						},
+						status: { type: "running", reason: "uploading", progress },
 					};
 				}
 			}
 
-			if (outcome.id === undefined) {
-				throw outcome.error;
-			}
+			const id = await upload;
 
 			yield {
 				...base,
 				content: [
 					fileRefPart(
-						{ collection: limits.collection, id: outcome.id },
+						{ collection: limits.collection, id },
 						file.name,
 						mimeType,
 					),

@@ -1,4 +1,3 @@
-import { handleNotFound, resolveHandle } from "./handle.js";
 import {
 	endpointHandler,
 	json,
@@ -7,7 +6,9 @@ import {
 	requireJson,
 	secretMatches,
 } from "./http.js";
+import { findAgentKey } from "../keys/manager.js";
 import { isRecord } from "../protocol/guards.js";
+import { resolveHandle } from "../threads/resolve.js";
 
 import type { ExchangeResponse } from "../protocol/exchange.js";
 import type { PluginSettings } from "../turn.js";
@@ -49,20 +50,30 @@ export const exchangeHandler = (settings: PluginSettings): PayloadHandler =>
 			return refusal(400, "The body must carry a handle and an agent.");
 		}
 
+		const { payload } = req;
+		const agent = body["agent"];
 		const resolved = await resolveHandle(
-			req,
+			payload,
 			settings,
 			body["handle"],
-			body["agent"],
+			agent,
+			async (user) =>
+				await findAgentKey(payload, settings, { userId: user.id, agent }),
 		);
 
-		if (!resolved) {
-			return handleNotFound();
+		const apiKey = resolved?.key.apiKey;
+
+		// One answer for every refusal, so a caller learns nothing about which check failed.
+		if (!resolved || !apiKey) {
+			return refusal(
+				404,
+				"No live conversation matches this handle and agent.",
+			);
 		}
 
 		const { thread, user, key } = resolved;
 		const response: ExchangeResponse = {
-			key: key.apiKey,
+			key: apiKey,
 			mcpPath: settings.mcpx.mcpPath,
 			expiresAt: key.expiresAt,
 			user,

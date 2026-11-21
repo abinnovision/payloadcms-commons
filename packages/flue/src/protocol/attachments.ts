@@ -38,8 +38,7 @@ export const attachmentKind = (
 ): DeliveredAttachment["type"] =>
 	mimeType.startsWith("image/") ? "image" : "document";
 
-const KIB = 1024;
-const MIB = 1024 * KIB;
+const MIB = 1024 * 1024;
 
 /**
  * The largest file Flue takes as one attachment: its cap of 14,680,064

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FluePayloadError } from "./exchange.js";
-import { downloadDocument, sliceOf } from "./files.js";
+import { downloadDocument } from "./files.js";
 
 const MIB = 1024 * 1024;
 const BYTES = new TextEncoder().encode("0123456789");
@@ -239,26 +239,5 @@ describe("downloadDocument", () => {
 				),
 			),
 		).toBe(exchangeError);
-	});
-});
-
-describe("sliceOf", () => {
-	it("discards the bytes before start and stops after end", async () => {
-		const seen: Seen = { url: "", headers: new Headers(), cancelled: false };
-		const slice = await sliceOf(new Response(largeBody(4 * MIB, seen)), {
-			start: MIB + 1,
-			end: MIB + 3,
-		});
-
-		expect(slice.byteLength).toBe(3);
-		expect(seen.cancelled).toBe(true);
-	});
-
-	it("reads to the end without end", async () => {
-		expect(
-			new TextDecoder().decode(
-				await sliceOf(new Response(BYTES), { start: 7 }),
-			),
-		).toBe("789");
 	});
 });

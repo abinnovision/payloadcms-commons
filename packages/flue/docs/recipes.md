@@ -6,9 +6,8 @@ be copied. They live in `apps/example-v4-agents/src/tools/`.
 
 ## The files collection
 
-Chat files live in an upload collection the app defines, so Payload's own seams apply: its
-`upload` options, a storage adapter, fields and hooks. `fluePrivateUploads` builds a private one;
-`overrides` merges over it:
+Payload's own seams apply to the files collection (see [files](./integration.md#files)).
+`overrides` merges over what `fluePrivateUploads` builds:
 
 ```ts
 const chatUploads = fluePrivateUploads({
@@ -24,9 +23,8 @@ const chatUploads = fluePrivateUploads({
 });
 ```
 
-Keep `upload.mimeTypes`, `authorship` and Payload's access control for files; the plugin refuses a
-collection without them. A size cap per file is the collection's: Payload's `upload.limits` and a
-`beforeOperation` hook that checks `req.file.size`.
+A size cap per file is the collection's: Payload's `upload.limits` and a `beforeOperation` hook
+that checks `req.file.size`.
 
 ### Cleaning up
 
@@ -71,31 +69,18 @@ agent's instructions. Payload scopes every one of these reads to the thread.
 | `pdf.ts`    | `read_pdf_page`           | the text of one page of a PDF (`unpdf`, no rendering)                  |
 
 A refusal by Payload (`FluePayloadError`, for example `not_found` or `too_large`) comes back as the
-tool's output, so the model can act on it. Anything else fails the call.
-
-To read a large file in parts, pass `range`:
-
-```ts
-const { bytes } = await payload.download({
-  collection: file.collection,
-  id: file.id,
-  range: { start: 0, end: 4 * 1024 * 1024 - 1 },
-});
-```
-
-Each read takes one grant, so read large chunks.
+tool's output, so the model can act on it. Anything else fails the call. Large files are read by
+`range` (see [files in agent code](./integration.md#files-in-agent-code)).
 
 ### Tool state
 
-A budget that spans several tool calls needs state. The recipes keep it in Flue's
-`usePersistentState`, which is scoped to the agent instance and writable from a tool's `run`. A
-render closure does not span a response, because Flue renders before every model call. The files
-recipe counts reads per user turn. `useAgentStart` bumps a turn counter for each delivered message,
-and the budget starts over when the counter changes. The limit check runs inside the state updater,
-which sees the current value, so parallel tool calls cannot overspend. A state name may be used once
-per render, so the agent calls the budget hook once and passes `spend` to the tool hooks.
-`usePersistentState` throws in subagents, so budgeted tools belong on a root agent. Each write is a
-durable record, so write once per tool call.
+A budget that spans several tool calls needs state that outlives a render, since Flue renders
+before every model call. The files recipe keeps a read count per user turn in Flue's
+`usePersistentState`: `useAgentStart` bumps a turn counter per delivered message, and the limit
+check runs inside the state updater, so parallel tool calls cannot overspend. A state name may be
+used once per render, so the agent calls the budget hook once and passes `spend` to the tool hooks.
+`usePersistentState` throws in subagents, and each write is a durable record, so keep budgeted
+tools on a root agent and write once per tool call.
 
 ### Spreadsheets
 
@@ -134,8 +119,3 @@ Two caveats apply. The child call keeps all of the agent's tools, and Flue store
 image in the sidecar. The child conversation persists, so an instruction injected by one image can
 stay in its context across later calls of the thread. A steered child call is bounded by the same
 thing as the agent itself: the owner's mcpx grants. Keep the budget of such calls low.
-
-## Saving a file into a collection
-
-`save_file` in the example editor reads a thread file with `payload.download` and stores it in an
-app collection with `payload.upload`. mcpx caps that save at 25 MB.

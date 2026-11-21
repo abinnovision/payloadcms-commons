@@ -1,3 +1,4 @@
+import { FACTORY_USER_COLLECTION } from "./factory.js";
 import { invalid } from "../options.js";
 
 import type { StartupLogger } from "../options.js";
@@ -63,10 +64,11 @@ interface FilesCollectionView {
 	slug: string;
 	upload?: unknown;
 	authorship?: unknown;
-	fields?: readonly unknown[];
+	custom?: Record<string, unknown> | undefined;
+	fields: readonly unknown[];
 }
 
-const namedField = (fields: readonly unknown[], name: string): boolean =>
+const hasField = (fields: readonly unknown[], name: string): boolean =>
 	fields.some(
 		(field) =>
 			typeof field === "object" &&
@@ -77,12 +79,15 @@ const namedField = (fields: readonly unknown[], name: string): boolean =>
 
 /**
  * Refuses a files collection that is no upload collection, drops
- * `upload.mimeTypes`, which makes Payload check each file's content, or
- * drops `createdBy`, which binding a file to a thread relies on. Warns when
- * files may come from a URL.
+ * `upload.mimeTypes`, which makes Payload check each file's content, drops
+ * `createdBy`, which binding a file to a thread relies on, has a top-level
+ * `download` field, which keeps mcpx from serving its files, or was built by
+ * `fluePrivateUploads` for another user collection. Warns when files may
+ * come from a URL.
  */
 export const assertFilesCollection = (
 	collection: FilesCollectionView,
+	userCollection: string,
 	logger: Pick<StartupLogger, "warn">,
 ): void => {
 	const name = `The files collection "${collection.slug}"`;
@@ -90,6 +95,7 @@ export const assertFilesCollection = (
 		undefined | { mimeTypes?: unknown; pasteURL?: unknown };
 	const authorship = collection.authorship as
 		boolean | undefined | { createdBy?: unknown };
+	const factoryUsers = collection.custom?.[FACTORY_USER_COLLECTION];
 
 	if (typeof upload !== "object") {
 		throw invalid(`${name} must be an upload collection (files.collection).`);
@@ -110,6 +116,18 @@ export const assertFilesCollection = (
 		);
 	}
 
+	if (hasField(collection.fields, "download")) {
+		throw invalid(
+			`${name} must not have a top-level field named "download": mcpx serves no files of such a collection.`,
+		);
+	}
+
+	if (factoryUsers !== undefined && factoryUsers !== userCollection) {
+		throw invalid(
+			`${name} was built for users of ${JSON.stringify(factoryUsers)}, but mcpx's user collection is "${userCollection}". Pass userCollection to fluePrivateUploads.`,
+		);
+	}
+
 	if (upload.pasteURL !== false) {
 		logger.warn(
 			`[payloadcms-flue] ${name} allows uploads from a URL. Set upload.pasteURL: false unless users should paste URLs.`,
@@ -119,25 +137,16 @@ export const assertFilesCollection = (
 
 /**
  * The files collection with the server-only `flueThread` field and `hook`
- * added. Refuses a collection that already has a field of that name, or a
- * top-level `download` field, which keeps mcpx from serving its files.
+ * added. Refuses a collection that already has a field of that name.
  */
 export const withThreadField = (
 	collection: CollectionConfig,
 	threadsSlug: string,
 	hook: CollectionBeforeChangeHook,
 ): CollectionConfig => {
-	const name = `The files collection "${collection.slug}"`;
-
-	if (namedField(collection.fields, FILE_THREAD_FIELD)) {
+	if (hasField(collection.fields, FILE_THREAD_FIELD)) {
 		throw invalid(
-			`${name} already has a field named "${FILE_THREAD_FIELD}", which the plugin adds.`,
-		);
-	}
-
-	if (namedField(collection.fields, "download")) {
-		throw invalid(
-			`${name} must not have a top-level field named "download": mcpx serves no files of such a collection.`,
+			`The files collection "${collection.slug}" already has a field named "${FILE_THREAD_FIELD}", which the plugin adds.`,
 		);
 	}
 

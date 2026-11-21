@@ -180,16 +180,12 @@ Both are opt-in:
 | Chat files    | `files: { collection }` and `files: true` on an agent | users send files of an app upload collection; images and small PDFs reach the model, the rest as references |
 | Agent uploads | `usePayload().upload()` in a tool                     | the agent saves a file to an upload collection through mcpx; the chat shows it as a card                    |
 
-Chat files take three steps: an upload collection that keeps `authorship` and
-`upload.mimeTypes`, or one built with `fluePrivateUploads`; the collection in
-mcpx's `collections`, with mcpx's leases; and `files.collection` plus `files`
-on each agent that takes them. Agents read the files of their thread with
-`payload.download`, and Payload refuses them any other file of the collection.
-Size limits, storage and cleanup are the collection's, and limits in front of
-Payload such as Next 16's `proxyClientMaxBodySize` (10 MB) apply too. Uploads
-need an upload collection with `upload.mimeTypes`, `read` and `write` granted
-on it, and mcpx leases. See [files](./docs/integration.md#files) and
-[uploads](./docs/integration.md#uploads).
+The collection must keep `authorship` and `upload.mimeTypes`, or be built with
+`fluePrivateUploads`. Agents read the files of their thread with
+`payload.download`, and Payload refuses them any other file of the collection. Size limits, storage and cleanup
+are the collection's. Uploads need an upload collection with
+`upload.mimeTypes`, `read` and `write` granted on it, and mcpx leases. See
+[files](./docs/integration.md#files) and [uploads](./docs/integration.md#uploads).
 
 #### Breaking for 0.1.0 betas
 

@@ -10,7 +10,12 @@ describe("assertFilesCollection", () => {
 		const warnings: string[] = [];
 
 		assertFilesCollection(
-			{ slug: "uploads", upload: { mimeTypes: ["application/pdf"] } },
+			{
+				slug: "uploads",
+				upload: { mimeTypes: ["application/pdf"] },
+				fields: [],
+			},
+			"users",
 			{ warn: (message) => warnings.push(message) },
 		);
 
@@ -26,7 +31,9 @@ describe("assertFilesCollection", () => {
 			{
 				slug: "uploads",
 				upload: { mimeTypes: ["application/pdf"], pasteURL: false },
+				fields: [],
 			},
+			"users",
 			{ warn: (message) => warnings.push(message) },
 		);
 

@@ -64,7 +64,7 @@ These apply to [chat files](./integration.md#files).
 
 - The plugin removes no files. Uploads that were never sent and files of archived threads stay in
   the collection until the app deletes them (see [recipes](./recipes.md)).
-- A file belongs to one thread at a time.
+- A file belongs to one thread at a time; a file bound to one thread cannot be sent in another.
 - The plugin cannot see limits in front of Payload: Next 16's `proxyClientMaxBodySize`, 10 MB by
   default, a reverse proxy's body limit or a platform's. A file over one is refused before Payload
   sees it.
@@ -72,13 +72,9 @@ These apply to [chat files](./integration.md#files).
   or not, takes one mcpx download grant, a few database round trips, and a key holds at most 10
   outstanding grants. A storage adapter that ignores `Range` streams the whole file to the sidecar,
   which keeps only the slice.
-- Saving a file into an app collection with `payload.upload` goes through mcpx, which caps it at
-  25 MB.
 - An expired or disabled key makes a thread's files unreadable until the next turn rolls it.
 - Two tabs of the same user that send the same unbound file at the same moment may both bind it;
   one wins, and the other turn references only what its thread holds.
-- The plugin ships no file tools. A tool of the agent reads bytes with `payload.download` (see
-  [recipes](./recipes.md)).
 
 ## Known gaps
 

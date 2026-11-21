@@ -250,8 +250,6 @@ do.
 - **Stored names.** Payload keeps file names unique per collection, so a collection that stores
   the uploader's name can reveal that a name exists. `fluePrivateUploads` stores random names and
   keeps the uploader's in `name`.
-- **One thread per file.** A row of a shared collection belongs to one thread at a time; a file
-  bound to one thread cannot be sent in another.
 - **Logs.** The handle travels in a header on every agent request. Redact `x-flue-handle` in proxy
   and APM logs.
 - **File content is data.** A file is content from a user, who may try to steer the model with

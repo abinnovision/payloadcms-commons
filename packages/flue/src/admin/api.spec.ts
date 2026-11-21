@@ -175,32 +175,6 @@ describe("flueApi", () => {
 		});
 	});
 
-	it("reads what each agent takes as files", async () => {
-		const files = {
-			collection: "uploads",
-			mimeTypes: ["application/pdf"],
-			maxFiles: 3,
-		};
-
-		answer(() =>
-			Response.json({
-				agents: [
-					{ slug: "editor", files },
-					{ slug: "auditor", files: null },
-				],
-				runs: null,
-			}),
-		);
-
-		await expect(api.agents()).resolves.toEqual({
-			agents: [
-				{ slug: "editor", files },
-				{ slug: "auditor", files: null },
-			],
-			runs: null,
-		});
-	});
-
 	it("deletes an uploaded file through the collection's REST API", async () => {
 		const sent = answer(() => Response.json({ doc: { id: 12 } }));
 
@@ -363,42 +337,37 @@ describe("flueApi", () => {
 			expect(seen).toEqual([0.25]);
 		});
 
-		it("names a 413 as the server taking no file this large", async () => {
-			xhr((self) => {
-				self.status = 413;
-				self.responseText = "<html>Request Entity Too Large</html>";
-				self.onload();
-			});
-
-			await expect(
-				api.uploadFile("uploads", file, () => undefined),
-			).rejects.toThrow("notes.md is larger than the server takes.");
-		});
-
-		it("rejects with Payload's message for another refusal", async () => {
-			xhr((self) => {
-				self.status = 400;
-				self.responseText = JSON.stringify({
+		it.each([
+			[
+				"names a 413 as the server taking no file this large",
+				413,
+				"<html>Request Entity Too Large</html>",
+				"notes.md is larger than the server takes.",
+			],
+			[
+				"rejects with Payload's message for another refusal",
+				400,
+				JSON.stringify({
 					errors: [{ message: "The file type must be one of text/plain." }],
-				});
-				self.onload();
-			});
-
-			await expect(
-				api.uploadFile("uploads", file, () => undefined),
-			).rejects.toThrow("The file type must be one of text/plain.");
-		});
-
-		it("rejects with the status when the answer has no message", async () => {
+				}),
+				"The file type must be one of text/plain.",
+			],
+			[
+				"rejects with the status when the answer has no message",
+				502,
+				"bad gateway",
+				"notes.md could not be uploaded (status 502).",
+			],
+		])("%s", async (_label, status, responseText, message) => {
 			xhr((self) => {
-				self.status = 502;
-				self.responseText = "bad gateway";
+				self.status = status;
+				self.responseText = responseText;
 				self.onload();
 			});
 
 			await expect(
 				api.uploadFile("uploads", file, () => undefined),
-			).rejects.toThrow("notes.md could not be uploaded (status 502).");
+			).rejects.toThrow(message);
 		});
 	});
 

@@ -129,9 +129,8 @@ the types Flue takes natively (PNG, JPEG, GIF, WebP and PDF), only up to Flue's 
 10.5 MiB per file, and only while a turn's attachments stay within 16 MiB together; the rest is
 referenced. Attached bytes are read as the user through the collection's own file route.
 
-Archiving a thread leaves its files bound. The agent's reads stop with the thread, since an
-archived thread's handle no longer resolves, and the owner still sees the files in the thread's
-history. Deleting files is the app's: see [recipes](./recipes.md).
+Archiving a thread leaves its files bound and stops the agent's reads, since the handle no longer
+resolves. Deleting files is the app's: see [recipes](./recipes.md).
 
 Payload's multipart parser takes 20 MiB per file and 50 MiB per request by default. Raise
 `upload.limits.fileSize` and `upload.requestSizeLimit`, and turn on `upload.useTempFiles` with an

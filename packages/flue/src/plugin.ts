@@ -9,17 +9,11 @@ import {
 } from "./endpoints/conversation.js";
 import { exchangeHandler } from "./endpoints/exchange.js";
 import { settledHandler } from "./endpoints/settled.js";
+import { assertFilesCollection, withThreadField } from "./files/collection.js";
 import {
-	assertFilesCollection,
-	assertStartedFilesCollection,
-	withThreadField,
-} from "./files/collection.js";
-import { FACTORY_USER_COLLECTION } from "./files/factory.js";
-import {
+	assertFilesGuarded,
 	bindAgentUpload,
-	guardFiles,
-	isBindHook,
-	isFileGuard,
+	guardBaseAccess,
 } from "./files/guard.js";
 import { createDispatchTask } from "./jobs/dispatch.js";
 import { QUEUE_SETTINGS_KEY } from "./jobs/queue.js";
@@ -29,7 +23,7 @@ import {
 	validateGrants,
 } from "./keys/augment.js";
 import { disableUserKeys } from "./keys/manager.js";
-import { invalid, normalizeOptions } from "./options.js";
+import { normalizeOptions } from "./options.js";
 import { FLUE_ROUTES } from "./protocol/paths.js";
 import { createThreadsCollection } from "./threads/collection.js";
 
@@ -47,9 +41,6 @@ import type {
 } from "payload";
 
 const ADMIN_ENTRY = "@abinnovision/payloadcms-flue/admin";
-
-// The operations the thread guard narrows on the files collection.
-const GUARDED = ["read", "readVersions", "update", "delete"] as const;
 
 /*
  * Keeps the open edit view in step with the agent's writes. Rendered inside
@@ -150,16 +141,7 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					guardSettings &&
 					collection.slug === guardSettings.files.collection
 				) {
-					assertFilesCollection(collection, logger);
-
-					const factoryUsers: unknown =
-						collection.custom?.[FACTORY_USER_COLLECTION];
-
-					if (factoryUsers !== undefined && factoryUsers !== userCollection) {
-						throw invalid(
-							`The files collection "${collection.slug}" was built for users of ${JSON.stringify(factoryUsers)}, but mcpx's user collection is "${userCollection}". Pass userCollection to fluePrivateUploads.`,
-						);
-					}
+					assertFilesCollection(collection, userCollection, logger);
 
 					return withDocumentBridge(
 						withThreadField(
@@ -188,7 +170,6 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 		);
 
 		const threads = createThreadsCollection(settings);
-		const baseAccess = config.baseAccess?.collections;
 
 		const full: PluginSettings = { ...settings, capabilityMap };
 		const endpoint = (
@@ -211,19 +192,10 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				? {
 						baseAccess: {
 							...config.baseAccess,
-							collections: {
-								...baseAccess,
-								...Object.fromEntries(
-									GUARDED.map((operation) => [
-										operation,
-										guardFiles(
-											baseAccess?.[operation],
-											guardSettings,
-											operation,
-										),
-									]),
-								),
-							},
+							collections: guardBaseAccess(
+								config.baseAccess?.collections,
+								guardSettings,
+							),
 						},
 					}
 				: {}),
@@ -288,46 +260,8 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					throw failure;
 				}
 
-				if (settings.files) {
-					const files = payload.collections[settings.files.collection]?.config;
-
-					// A storage adapter or a later plugin may change the collection after flue ran.
-					if (!files) {
-						throw invalid(
-							`files.collection "${settings.files.collection}" is not in the config.`,
-						);
-					}
-
-					assertFilesCollection(files, { warn: () => undefined });
-
-					if (
-						files.flattenedFields.some((field) => field.name === "download")
-					) {
-						throw invalid(
-							`The files collection "${files.slug}" must not have a top-level field named "download": mcpx serves no files of such a collection.`,
-						);
-					}
-
-					const guarded = payload.config.baseAccess?.collections;
-
-					if (
-						!GUARDED.every((operation) => isFileGuard(guarded?.[operation]))
-					) {
-						throw invalid(
-							"Another plugin replaced config.baseAccess after flue, which drops the thread guard on the files collection. Register it before flue.",
-						);
-					}
-
-					await assertStartedFilesCollection(
-						files,
-						settings.mcpx.userCollection,
-					);
-
-					if (!files.hooks.beforeChange.some(isBindHook)) {
-						throw invalid(
-							`Another plugin removed flue's hook from the files collection "${files.slug}", which binds agent uploads to their thread.`,
-						);
-					}
+				if (guardSettings) {
+					await assertFilesGuarded(payload, guardSettings);
 				}
 
 				for (const message of warnings) {

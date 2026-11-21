@@ -1,27 +1,31 @@
-import { FILE_THREAD_FIELD } from "./collection.js";
+import {
+	assertFilesCollection,
+	assertStartedFilesCollection,
+	FILE_THREAD_FIELD,
+} from "./collection.js";
 import { MANAGED_BY } from "../keys/augment.js";
+import { managedMarker, toAgentKey } from "../keys/manager.js";
+import { invalid } from "../options.js";
 import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 import { isId } from "../protocol/owner.js";
-import {
-	findLiveThread,
-	isLiveKey,
-	stillAdmitted,
-} from "../threads/resolve.js";
+import { resolveHandle } from "../threads/resolve.js";
 
-import type { NormalizedFiles, NormalizedOptions } from "../options.js";
+import type { KeyDoc } from "../keys/manager.js";
+import type { NormalizedFiles } from "../options.js";
 import type { ResolveSettings } from "../threads/resolve.js";
 import type {
 	Access,
 	CollectionBeforeChangeHook,
+	Config,
 	DefaultDocumentIDType,
+	Payload,
 	PayloadRequest,
 	Where,
 } from "payload";
 
 /** What the thread guard reads from the plugin's settings, with files on. */
-export type GuardSettings = ResolveSettings &
-	Pick<NormalizedOptions, "mcpx"> & { files: NormalizedFiles };
+export type GuardSettings = ResolveSettings & { files: NormalizedFiles };
 
 /*
  * What an agent request may read of the files collection: `true` leaves it
@@ -36,27 +40,23 @@ interface Memo {
 	scope: Promise<Scope>;
 }
 
-const MANAGED_PREFIX = "flue:";
+const MANAGED_PREFIX = managedMarker("");
+
+type CollectionsAccess = NonNullable<
+	NonNullable<Config["baseAccess"]>["collections"]
+>;
+
+// The operations the thread guard narrows on the files collection.
+const GUARDED = ["read", "readVersions", "update", "delete"] as const;
 
 const guards = new WeakSet<Access>();
 const bindHooks = new WeakSet<CollectionBeforeChangeHook>();
 
-/** Whether `access` is the thread guard {@link guardFiles} composed. */
-export const isFileGuard = (access: unknown): boolean =>
-	typeof access === "function" && guards.has(access as Access);
-
-/** Whether `hook` is the agent upload hook {@link bindAgentUpload} made. */
-export const isBindHook = (hook: unknown): boolean =>
-	typeof hook === "function" &&
-	bindHooks.has(hook as CollectionBeforeChangeHook);
-
-const optionalString = (value: unknown): string | undefined =>
-	typeof value === "string" ? value : undefined;
-
 /*
  * The scope of a request made with a flue-managed mcpx key: the key's
  * thread when the handle header names a live thread of the key's user and
- * agent, else `false`. Any other key is left alone.
+ * agent, and the request acts as that user, else `false`. Any other key is
+ * left alone.
  */
 const resolveScope = async (
 	req: PayloadRequest,
@@ -64,60 +64,49 @@ const resolveScope = async (
 	apiKeyId: number | string,
 	handle: null | string,
 ): Promise<Scope> => {
-	const { payload } = req;
-	const key = (await payload.findByID({
+	const { payload, user } = req;
+	const doc = (await payload.findByID({
 		collection: settings.mcpx.apiKeysSlug,
 		id: apiKeyId,
 		depth: 0,
 		overrideAccess: true,
 		disableErrors: true,
 		select: { [MANAGED_BY]: true, user: true, enabled: true, expiresAt: true },
-	})) as null | Record<string, unknown>;
+	})) as KeyDoc | null;
 
-	if (!key) {
+	if (!doc) {
 		return false;
 	}
 
-	const managedBy = optionalString(key[MANAGED_BY]);
+	const key = toAgentKey(doc);
+	const { managedBy } = key;
 
 	if (!managedBy?.startsWith(MANAGED_PREFIX)) {
 		return true;
 	}
 
-	if (!handle) {
-		return false;
-	}
-
-	const agent = managedBy.slice(MANAGED_PREFIX.length);
-	const live = await findLiveThread(payload, settings, handle, agent);
-	const { user } = req;
-
+	// The request must act as the key's user; checked before any thread lookup.
 	if (
-		!live ||
-		!isLiveKey(
-			{
-				enabled: key["enabled"] === true,
-				expiresAt: optionalString(key["expiresAt"]),
-				user: isId(key["user"]) ? key["user"] : undefined,
-				managedBy,
-			},
-			live.user,
-			agent,
-		) ||
-		user?.collection !== live.user.collection ||
-		String(user.id) !== String(live.user.id)
+		!handle ||
+		user?.collection !== settings.mcpx.userCollection ||
+		String(user.id) !== String(key.user)
 	) {
 		return false;
 	}
 
-	if (
-		live.thread.kind === "chat" &&
-		!(await stillAdmitted(payload, settings, agent, live.user))
-	) {
-		return false;
-	}
+	const live = await resolveHandle(
+		payload,
+		settings,
+		handle,
+		managedBy.slice(MANAGED_PREFIX.length),
+		() => Promise.resolve(key),
+	);
 
-	return live.thread.id;
+	return live &&
+		user.collection === live.user.collection &&
+		String(user.id) === String(live.user.id)
+		? live.thread.id
+		: false;
 };
 
 /*
@@ -225,4 +214,63 @@ export const bindAgentUpload = (
 	bindHooks.add(hook);
 
 	return hook;
+};
+
+/** `baseAccess.collections` with each guarded operation wrapped by {@link guardFiles}. */
+export const guardBaseAccess = (
+	collections: CollectionsAccess | undefined,
+	settings: GuardSettings,
+): CollectionsAccess => ({
+	...collections,
+	...Object.fromEntries(
+		GUARDED.map((operation) => [
+			operation,
+			guardFiles(collections?.[operation], settings, operation),
+		]),
+	),
+});
+
+/**
+ * Re-checks the started files collection, since a storage adapter or a
+ * later plugin may change it after flue ran: it must still pass
+ * {@link assertFilesCollection}, keep the thread guard in `baseAccess`,
+ * keep a server-only `createdBy` and `flueThread`, and keep the agent
+ * upload hook.
+ */
+export const assertFilesGuarded = async (
+	payload: Payload,
+	settings: GuardSettings,
+): Promise<void> => {
+	const files = payload.collections[settings.files.collection]?.config;
+	const { userCollection } = settings.mcpx;
+
+	if (!files) {
+		throw invalid(
+			`files.collection "${settings.files.collection}" is not in the config.`,
+		);
+	}
+
+	assertFilesCollection(
+		{ ...files, fields: files.flattenedFields },
+		userCollection,
+		{ warn: () => undefined },
+	);
+
+	const guarded = payload.config.baseAccess?.collections;
+
+	if (
+		!GUARDED.every((operation) => guards.has(guarded?.[operation] as Access))
+	) {
+		throw invalid(
+			"Another plugin replaced config.baseAccess after flue, which drops the thread guard on the files collection. Register it before flue.",
+		);
+	}
+
+	await assertStartedFilesCollection(files, userCollection);
+
+	if (!files.hooks.beforeChange.some((hook) => bindHooks.has(hook))) {
+		throw invalid(
+			`Another plugin removed flue's hook from the files collection "${files.slug}", which binds agent uploads to their thread.`,
+		);
+	}
 };

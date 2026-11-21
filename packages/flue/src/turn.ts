@@ -10,7 +10,7 @@ import {
 	bytesToBase64,
 	isAttachmentMimeType,
 } from "./protocol/attachments.js";
-import { readCapped } from "./protocol/body.js";
+import { readBytes } from "./protocol/body.js";
 import {
 	CONTEXT_SIGNAL_TYPE,
 	encodeContext,
@@ -27,7 +27,7 @@ import { ownerWhere } from "./threads/owner.js";
 
 import type { FileDoc } from "./files/collection.js";
 import type { KeySettings } from "./keys/manager.js";
-import type { NormalizedFiles, NormalizedOptions } from "./options.js";
+import type { NormalizedOptions } from "./options.js";
 import type { DeliveredAttachment } from "./protocol/attachments.js";
 import type { ChatContext, RunKind } from "./protocol/context.js";
 import type { ThreadStatus } from "./protocol/events.js";
@@ -221,33 +221,6 @@ const ownThread = async (
 	return existing;
 };
 
-// The user's files among `ids`, or `false` outside the mcpx user collection.
-const ownFiles = (
-	internal: PayloadRequest,
-	settings: Pick<NormalizedOptions, "mcpx">,
-	ids: DefaultDocumentIDType[],
-	thread: DefaultDocumentIDType | undefined,
-): false | Where => {
-	const owned = ownerWhere(internal, settings.mcpx.userCollection);
-
-	return (
-		owned && {
-			and: [
-				{ id: { in: ids } },
-				owned,
-				thread === undefined
-					? { [FILE_THREAD_FIELD]: { exists: false } }
-					: {
-							or: [
-								{ [FILE_THREAD_FIELD]: { exists: false } },
-								{ [FILE_THREAD_FIELD]: { equals: thread } },
-							],
-						},
-			],
-		}
-	);
-};
-
 // The files in the order of `ids`.
 const inOrder = (docs: FileDoc[], ids: DefaultDocumentIDType[]): FileDoc[] => {
 	const order = ids.map(String);
@@ -272,15 +245,24 @@ const checkFiles = async (
 		return [];
 	}
 
-	const where = settings.files && ownFiles(internal, settings, ids, thread);
+	const owned = ownerWhere(internal, settings.mcpx.userCollection);
 
-	if (!settings.files || !where) {
+	if (!settings.files || !owned) {
 		throw refuse(NO_FILE, 404);
 	}
 
+	const unbound: Where = { [FILE_THREAD_FIELD]: { exists: false } };
 	const { docs } = await internal.payload.find({
 		collection: settings.files.collection,
-		where,
+		where: {
+			and: [
+				{ id: { in: ids } },
+				owned,
+				thread === undefined
+					? unbound
+					: { or: [unbound, { [FILE_THREAD_FIELD]: { equals: thread } }] },
+			],
+		},
 		depth: 0,
 		pagination: false,
 		overrideAccess: false,
@@ -295,8 +277,8 @@ const checkFiles = async (
 };
 
 /*
- * Binds the user's unbound files among `ids` to the thread and answers the
- * ones it holds, in the order of `ids`. Each row is claimed with one
+ * Binds the unbound files among `ids` to the thread and answers the user's
+ * files it holds, in the order of `ids`. Each row is claimed with one
  * conditional write, so of two turns binding the same file only one wins;
  * `checkFiles` already proved the user created them, which nobody can
  * change. A claimed row is then updated through Payload, so versions and
@@ -304,17 +286,12 @@ const checkFiles = async (
  */
 const bindFiles = async (
 	internal: PayloadRequest,
-	settings: Pick<NormalizedOptions, "mcpx"> & { files: NormalizedFiles },
+	collection: string,
+	owned: Where,
 	ids: DefaultDocumentIDType[],
 	thread: DefaultDocumentIDType,
 ): Promise<FileDoc[]> => {
 	const { payload } = internal;
-	const { collection } = settings.files;
-	const owned = ownerWhere(internal, settings.mcpx.userCollection);
-
-	if (!owned) {
-		return [];
-	}
 
 	for (const id of ids) {
 		// eslint-disable-next-line no-await-in-loop
@@ -344,22 +321,25 @@ const bindFiles = async (
 		}
 	}
 
-	const { docs } = await payload.find({
-		collection,
-		where: {
-			and: [
-				{ id: { in: ids } },
-				owned,
-				{ [FILE_THREAD_FIELD]: { equals: thread } },
-			],
-		},
-		depth: 0,
-		pagination: false,
-		overrideAccess: true,
-		req: internal,
-	});
-
-	return inOrder(docs, ids);
+	return inOrder(
+		(
+			await payload.find({
+				collection,
+				where: {
+					and: [
+						{ id: { in: ids } },
+						owned,
+						{ [FILE_THREAD_FIELD]: { equals: thread } },
+					],
+				},
+				depth: 0,
+				pagination: false,
+				overrideAccess: true,
+				req: internal,
+			})
+		).docs,
+		ids,
+	);
 };
 
 // The uploader's name where the collection keeps one, else the stored name.
@@ -389,7 +369,7 @@ const readAsUser = async (
 			return undefined;
 		}
 
-		return await readCapped(response, maxBytes);
+		return await readBytes(response, maxBytes);
 	} catch (error) {
 		payload.logger.warn({
 			err: error,
@@ -399,11 +379,6 @@ const readAsUser = async (
 		return undefined;
 	}
 };
-
-interface TurnFiles {
-	attributes: Record<string, string>;
-	attachments: DeliveredAttachment[];
-}
 
 /*
  * Binds the turn's files to the thread and answers what the turn carries:
@@ -417,7 +392,10 @@ const deliverFiles = async (
 	args: Pick<TurnArgs, "agent" | "files" | "message" | "user"> & {
 		thread: DefaultDocumentIDType;
 	},
-): Promise<TurnFiles> => {
+): Promise<{
+	attributes: Record<string, string>;
+	attachments: DeliveredAttachment[];
+}> => {
 	const { files } = settings;
 	const ids = args.files ?? [];
 
@@ -426,12 +404,15 @@ const deliverFiles = async (
 	}
 
 	const { payload } = internal;
-	const docs = await bindFiles(
-		internal,
-		{ ...settings, files },
-		ids,
-		args.thread,
-	);
+	const { collection } = files;
+	const { thread } = args;
+	const owned = ownerWhere(internal, settings.mcpx.userCollection);
+
+	if (!owned) {
+		throw refuse(NO_FILE, 404);
+	}
+
+	const docs = await bindFiles(internal, collection, owned, ids, thread);
 
 	if (docs.length < ids.length) {
 		payload.logger.warn(
@@ -463,7 +444,7 @@ const deliverFiles = async (
 			size <= cap &&
 			deliver({ mimeType, size, agent: args.agent.slug }) === "attach"
 				? // eslint-disable-next-line no-await-in-loop
-					await readAsUser(payload, user, files.collection, doc, cap)
+					await readAsUser(payload, user, collection, doc, cap)
 				: undefined;
 		const filename = refName(name);
 
@@ -487,29 +468,9 @@ const deliverFiles = async (
 	}
 
 	return {
-		attributes: fileAttributes(files.collection, refs),
+		attributes: fileAttributes(collection, refs),
 		attachments,
 	};
-};
-
-// Unbinds the files of a thread Flue never created, so they may be sent again.
-const unbindFiles = async (
-	internal: PayloadRequest,
-	files: false | NormalizedFiles,
-	thread: DefaultDocumentIDType,
-): Promise<void> => {
-	if (!files) {
-		return;
-	}
-
-	await internal.payload.update({
-		collection: files.collection,
-		where: { [FILE_THREAD_FIELD]: { equals: thread } },
-		data: { [FILE_THREAD_FIELD]: null },
-		depth: 0,
-		overrideAccess: true,
-		req: internal,
-	});
 };
 
 /**
@@ -628,15 +589,24 @@ export const startTurn = async (
 		throw refuse(GONE, 409);
 	}
 
-	// Undoes a first turn Flue never took, unbinding its files first.
+	// Undoes a first turn Flue never took, unbinding its files first so they may be sent again.
 	const discard = async (): Promise<void> => {
-		try {
-			await unbindFiles(internal, settings.files, thread.id);
-		} catch (error) {
-			payload.logger.error({
-				err: error,
-				msg: "[payloadcms-flue] Could not unbind the files of a discarded thread.",
-			});
+		if (settings.files) {
+			await payload
+				.update({
+					collection: settings.files.collection,
+					where: { [FILE_THREAD_FIELD]: { equals: thread.id } },
+					data: { [FILE_THREAD_FIELD]: null },
+					depth: 0,
+					overrideAccess: true,
+					req: internal,
+				})
+				.catch((error: unknown) => {
+					payload.logger.error({
+						err: error,
+						msg: "[payloadcms-flue] Could not unbind the files of a discarded thread.",
+					});
+				});
 		}
 
 		await payload.delete({

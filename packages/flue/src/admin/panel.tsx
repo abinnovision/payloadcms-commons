@@ -16,7 +16,6 @@ import {
 	CheckIcon,
 	ChevronIcon,
 	CopyIcon,
-	DocumentIcon,
 	PlusIcon,
 	SpinnerIcon,
 	toast,
@@ -608,9 +607,6 @@ export const FluePanel: React.FC<FluePanelProps> = ({
 					</ThreadPrimitive.Root>
 					{attachments && !readOnly ? (
 						<div aria-hidden="true" className="flue-dropzone__overlay">
-							<span className="flue-dropzone__icon">
-								<DocumentIcon size={24} />
-							</span>
 							<p className="flue-dropzone__title">Drop to attach</p>
 							<p className="flue-dropzone__hint">{dropHint(attachments)}</p>
 						</div>

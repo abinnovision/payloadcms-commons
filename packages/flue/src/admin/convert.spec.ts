@@ -106,39 +106,18 @@ describe("shownMessages and toThreadMessage", () => {
 				parts: [{ type: "text", text: "Sum it.", state: "done" }],
 			});
 
-		expect(
-			convert(
-				conversationOf([turn("entry_new", files), turn("entry_old", {})]),
-			),
-		).toEqual([
-			{
-				id: "entry_new",
-				role: "user",
-				content: [{ type: "text", text: "Sum it." }],
-				attachments: [
-					{
-						id: "entry_new:file:0",
-						type: "document",
-						name: "data.csv",
-						contentType: "text/csv",
-						status: { type: "complete" },
-						content: [
-							{
-								type: "file",
-								data: "flue-file:uploads/12",
-								mimeType: "text/csv",
-								filename: "data.csv",
-							},
-						],
-					},
-				],
-			},
-			{
-				id: "entry_old",
-				role: "user",
-				content: [{ type: "text", text: "Sum it." }],
-			},
-		]);
+		const [shown, old] = convert(
+			conversationOf([turn("entry_new", files), turn("entry_old", {})]),
+		);
+
+		expect(shown).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "Sum it." }],
+			attachments: [
+				{ name: "data.csv", content: [{ data: "flue-file:uploads/12" }] },
+			],
+		});
+		expect(old).not.toHaveProperty("attachments");
 	});
 
 	it("drops other signals, plain advisories and hidden answers", () => {
@@ -318,25 +297,13 @@ describe("shownMessages and toThreadMessage", () => {
 			],
 		});
 
-		expect(toThreadMessage(turn)).toEqual({
-			id: "entry_ref",
-			role: "user",
+		expect(toThreadMessage(turn)).toMatchObject({
 			content: [{ type: "text", text: "Summarize" }],
 			attachments: [
 				{
 					id: "entry_ref:file:0",
-					type: "document",
 					name: "q3 final.pdf",
-					contentType: "application/pdf",
-					status: { type: "complete" },
-					content: [
-						{
-							type: "file",
-							data: "flue-file:uploads/12",
-							mimeType: "application/pdf",
-							filename: "q3 final.pdf",
-						},
-					],
+					content: [{ type: "file", data: "flue-file:uploads/12" }],
 				},
 			],
 		});

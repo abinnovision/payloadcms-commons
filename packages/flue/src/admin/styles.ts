@@ -1280,10 +1280,7 @@ a.flue-files__name {
 	margin-inline-end: auto;
 }
 
-/*
- * The conversation takes dropped files. While a file is dragged over it, an
- * overlay dims the thread behind an outline in the selected color.
- */
+/* The conversation takes dropped files; an outlined overlay shows while a file is dragged over it. */
 .flue-dropzone {
 	position: relative;
 	display: flex;
@@ -1296,7 +1293,7 @@ a.flue-files__name {
 	position: absolute;
 	inset: var(--spacer-2);
 	z-index: 1;
-	display: flex;
+	display: none;
 	flex-direction: column;
 	gap: var(--spacer-1);
 	align-items: center;
@@ -1304,37 +1301,13 @@ a.flue-files__name {
 	padding: var(--spacer-3);
 	border: var(--stroke-width-medium) dashed var(--color-border-selected-strong);
 	border-radius: var(--radius-large);
-	background: color-mix(in srgb, var(--color-bg) 86%, transparent);
-	backdrop-filter: blur(3px);
+	background: var(--color-bg);
 	text-align: center;
 	pointer-events: none;
-	opacity: 0;
-	transform: scale(0.98);
-	visibility: hidden;
-	transition:
-		opacity 160ms cubic-bezier(0.16, 1, 0.3, 1),
-		transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
-		visibility 0s linear 160ms;
 }
 
 .flue-dropzone[data-dragging] .flue-dropzone__overlay {
-	opacity: 1;
-	transform: none;
-	visibility: visible;
-	transition:
-		opacity 160ms cubic-bezier(0.16, 1, 0.3, 1),
-		transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.flue-dropzone__icon {
-	display: grid;
-	place-items: center;
-	width: calc(var(--button-height) * 2);
-	height: calc(var(--button-height) * 2);
-	margin-bottom: var(--spacer-1);
-	border-radius: var(--radius-full);
-	background: var(--color-bg-selected);
-	color: var(--color-icon-selected);
+	display: flex;
 }
 
 .flue-dropzone__title {
@@ -1342,30 +1315,17 @@ a.flue-files__name {
 	color: var(--color-text);
 	font-size: var(--text-heading-small-font-size);
 	font-weight: var(--text-heading-small-font-weight);
-	line-height: var(--text-heading-small-line-height);
 }
 
 .flue-dropzone__hint {
-	max-width: 40ch;
 	margin: 0;
 	color: var(--color-text-secondary);
 	font-size: var(--text-body-small-font-size);
-	text-wrap: balance;
-}
-
-.flue-dropzone[data-dragging] .flue-composer {
-	border-color: var(--field-color-border-focus);
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.flue-panel {
 		animation: none;
-	}
-
-	.flue-dropzone__overlay,
-	.flue-dropzone[data-dragging] .flue-dropzone__overlay {
-		transform: none;
-		transition: none;
 	}
 
 	.flue-panel__resize::after,

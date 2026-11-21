@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { guardFiles, isFileGuard } from "./guard.js";
+import { guardFiles } from "./guard.js";
 
 import type { GuardSettings } from "./guard.js";
 import type { PayloadRequest } from "payload";
@@ -34,11 +34,6 @@ const requestOf = (context: Record<string, unknown>): PayloadRequest =>
 const guard = guardFiles(undefined, settings, "read");
 
 describe("guardFiles", () => {
-	it("is marked as the thread guard", () => {
-		expect(isFileGuard(guard)).toBe(true);
-		expect(isFileGuard(() => true)).toBe(false);
-	});
-
 	it("leaves a request without mcpx alone", async () => {
 		await expect(guard({ req: requestOf({}), slug: "uploads" })).resolves.toBe(
 			true,

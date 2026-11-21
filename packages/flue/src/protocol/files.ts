@@ -15,14 +15,14 @@ export interface FileRef {
 	attached: boolean;
 }
 
-/** The turn attribute listing the files, `id|mimeType|size|name` joined by `; `. */
-export const FILES_ATTRIBUTE = "files";
-
-/** The turn attribute naming the files' upload collection. */
-export const FILES_COLLECTION_ATTRIBUTE = "filesCollection";
-
-/** The turn attribute listing the ids of the attached files, joined by `;`. */
-export const ATTACHED_ATTRIBUTE = "attached";
+/*
+ * The turn attributes: `files` lists `id|mimeType|size|name` joined by `; `,
+ * `filesCollection` names the upload collection, and `attached` lists the
+ * ids of the attached files joined by `;`.
+ */
+const FILES = "files";
+const COLLECTION = "filesCollection";
+const ATTACHED = "attached";
 
 /**
  * The header the agent sends its handle in on every request to Payload, so
@@ -32,8 +32,8 @@ export const FILE_HANDLE_HEADER = "x-flue-handle";
 
 const NAME_MAX = 120;
 
-/** Whether the string reads as an exact `type/subtype` MIME type. */
-export const isMimeType = (mimeType: string): boolean =>
+// Whether the string reads as an exact `type/subtype` MIME type.
+const isMimeType = (mimeType: string): boolean =>
 	/^[\w.+-]+\/[\w.+-]+$/.test(mimeType);
 
 /** Whether an id can be written into a turn's refs. */
@@ -76,15 +76,15 @@ export const fileAttributes = (
 	const attached = files.filter((file) => file.attached);
 
 	return {
-		[FILES_ATTRIBUTE]: files
+		[FILES]: files
 			.map(
 				(file) =>
 					`${file.id}|${refMimeType(file.mimeType)}|${String(Math.max(0, Math.floor(file.size)))}|${refName(file.name)}`,
 			)
 			.join("; "),
-		[FILES_COLLECTION_ATTRIBUTE]: collection,
+		[COLLECTION]: collection,
 		...(attached.length > 0
-			? { [ATTACHED_ATTRIBUTE]: attached.map((file) => file.id).join(";") }
+			? { [ATTACHED]: attached.map((file) => file.id).join(";") }
 			: {}),
 	};
 };
@@ -93,9 +93,9 @@ export const fileAttributes = (
 export const readFileAttributes = (
 	attributes: Readonly<Record<string, unknown>>,
 ): FileRef[] => {
-	const value = attributes[FILES_ATTRIBUTE];
-	const collection = attributes[FILES_COLLECTION_ATTRIBUTE];
-	const attachedValue = attributes[ATTACHED_ATTRIBUTE];
+	const value = attributes[FILES];
+	const collection = attributes[COLLECTION];
+	const attachedValue = attributes[ATTACHED];
 
 	if (typeof value !== "string" || typeof collection !== "string") {
 		return [];

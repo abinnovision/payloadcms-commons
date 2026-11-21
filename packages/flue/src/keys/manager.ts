@@ -30,13 +30,23 @@ export interface AgentKey {
 	managedBy: string | undefined;
 }
 
-type KeyDoc = Record<string, unknown> & { id: DefaultDocumentIDType };
+export type KeyDoc = Record<string, unknown> & { id: DefaultDocumentIDType };
 
 /** The `managedBy` value of the key flue manages for `agent`. */
 export const managedMarker = (agent: string): string => `flue:${agent}`;
 
 const optionalString = (value: unknown): string | undefined =>
 	typeof value === "string" ? value : undefined;
+
+/** A key row as {@link AgentKey}; fields left out of the row read as unset. */
+export const toAgentKey = (doc: KeyDoc): AgentKey => ({
+	id: doc.id,
+	apiKey: optionalString(doc["apiKey"]),
+	enabled: doc["enabled"] === true,
+	expiresAt: optionalString(doc["expiresAt"]),
+	user: isId(doc["user"]) ? doc["user"] : undefined,
+	managedBy: optionalString(doc[MANAGED_BY]),
+});
 
 /*
  * Every checkbox mcpx offers, ticked only where granted, so the key carries
@@ -237,18 +247,7 @@ export const findAgentKey = async (
 	});
 	const doc = docs[0] as KeyDoc | undefined;
 
-	if (!doc) {
-		return undefined;
-	}
-
-	return {
-		id: doc.id,
-		apiKey: optionalString(doc["apiKey"]),
-		enabled: doc["enabled"] === true,
-		expiresAt: optionalString(doc["expiresAt"]),
-		user: isId(doc["user"]) ? doc["user"] : undefined,
-		managedBy: optionalString(doc[MANAGED_BY]),
-	};
+	return doc && toAgentKey(doc);
 };
 
 /** Enables or disables the key of (`userId`, `agent`). */

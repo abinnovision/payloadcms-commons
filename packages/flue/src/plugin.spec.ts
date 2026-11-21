@@ -201,7 +201,7 @@ describe("fluePlugin", () => {
 			expect(uploads?.hooks?.beforeChange).toHaveLength(1);
 		});
 
-		it("guards reads through baseAccess and keeps an existing function", async () => {
+		it("guards reads, updates and deletes through baseAccess and keeps an existing function", async () => {
 			const existing = () => false;
 			const config = await build(undefined, {
 				collections: { read: existing },
@@ -212,9 +212,12 @@ describe("fluePlugin", () => {
 			>[0];
 
 			expect(read).not.toBe(existing);
-			expect(config.baseAccess?.collections?.readVersions).toEqual(
-				expect.any(Function),
-			);
+			expect(config.baseAccess?.collections).toEqual({
+				read: expect.any(Function),
+				readVersions: expect.any(Function),
+				update: expect.any(Function),
+				delete: expect.any(Function),
+			});
 			await expect(read?.(args)).resolves.toBe(false);
 		});
 
@@ -261,14 +264,6 @@ describe("fluePlugin", () => {
 				await expect(build(uploads)).rejects.toThrow(message);
 			},
 		);
-
-		it("guards updates and deletes as well as reads", async () => {
-			const access = (await build()).baseAccess?.collections;
-
-			expect(access?.update).toEqual(expect.any(Function));
-			expect(access?.delete).toEqual(expect.any(Function));
-			expect(access?.create).toBeUndefined();
-		});
 
 		it("refuses a fluePrivateUploads collection built for another user collection", async () => {
 			await expect(

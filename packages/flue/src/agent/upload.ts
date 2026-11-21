@@ -1,7 +1,7 @@
 import * as v from "valibot";
 
 import { codeOf, FluePayloadError, joinUrl } from "./exchange.js";
-import { FILE_HANDLE_HEADER } from "../protocol/files.js";
+import { handoffRequest } from "./handoff.js";
 import { isRecord } from "../protocol/guards.js";
 
 import type { ExchangeSession } from "./exchange.js";
@@ -85,8 +85,6 @@ export interface UploadTarget {
 const PREREQUISITES =
 	"mcpx returned no upload handoff. Uploads need an upload collection the agent may write that sets upload.mimeTypes, and mcpx leases: Payload's database KV and no auth.resolve.";
 
-const trimmed = (path: string): string => path.replace(/\/+$/, "");
-
 const errorText = (body: unknown): string =>
 	isRecord(body) && typeof body["error"] === "string" ? body["error"] : "";
 
@@ -149,52 +147,20 @@ export const uploadDocument = async (
 			: args.data
 	) as Uint8Array<ArrayBuffer>;
 	const result = await requestHandoff(target, args, body.byteLength);
-	const upload = isRecord(result) ? result["upload"] : undefined;
-
-	if (
-		!isRecord(upload) ||
-		typeof upload["url"] !== "string" ||
-		!isRecord(upload["headers"])
-	) {
-		throw new FluePayloadError("refused", PREREQUISITES);
-	}
-
-	const uploadPath = `${trimmed(target.mcpPath)}/upload`;
-	let handoffPath: string;
-
-	try {
-		handoffPath = trimmed(new URL(upload["url"]).pathname);
-	} catch (error) {
-		throw new FluePayloadError(
-			"refused",
-			"mcpx returned an unparsable handoff URL.",
-			undefined,
-			{ cause: error },
-		);
-	}
-
-	if (!handoffPath.endsWith(uploadPath)) {
-		throw new FluePayloadError(
-			"refused",
-			`mcpx returned a handoff outside "${uploadPath}", so the file was not sent.`,
-		);
-	}
-
-	const headers: Record<string, string> = {
-		...Object.fromEntries(
-			Object.entries(upload["headers"]).filter(
-				(entry): entry is [string, string] => typeof entry[1] === "string",
-			),
-		),
-		[FILE_HANDLE_HEADER]: target.handle,
-	};
+	const { path, headers } = handoffRequest(
+		isRecord(result) ? result["upload"] : undefined,
+		target,
+		"upload",
+		new FluePayloadError("refused", PREREQUISITES),
+	);
 	let response: Response;
 
 	try {
-		response = await (target.fetch ?? fetch)(
-			joinUrl(target.payloadUrl, uploadPath),
-			{ method: "PUT", headers, body },
-		);
+		response = await (target.fetch ?? fetch)(joinUrl(target.payloadUrl, path), {
+			method: "PUT",
+			headers,
+			body,
+		});
 	} catch (error) {
 		throw new FluePayloadError(
 			"unreachable",
