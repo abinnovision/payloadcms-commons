@@ -11,87 +11,47 @@ Payload's own seams apply to the files collection (see [files](./integration.md#
 ### A private chat uploads collection
 
 A collection only the uploader reads and deletes and nobody updates, kept out of rich text
-pickers, with no uploads from a URL. Files are stored under random names, so the collection-wide
-unique filename reveals nothing about other users' files, and the uploader's name is kept in
-`name`, which the turn sends. `flueThreadScoped` keeps agents to the current thread's files;
-without it they read all of the user's files.
+pickers, with no uploads from a URL. `flueThreadScoped()` without arguments admits the files the
+requesting user created, for users of mcpx's user collection, and keeps agents to the current
+thread's files. The turn sends each file's `filename`.
 
 ```ts
 import { flueThreadScoped } from "@abinnovision/payloadcms-flue";
-import { randomUUID } from "node:crypto";
 
-import type {
-  Access,
-  CollectionBeforeOperationHook,
-  CollectionConfig,
-} from "payload";
-
-// The files the requesting user uploaded; "users" is mcpx's user collection.
-const ownFiles: Access = ({ req }) =>
-  req.user?.collection === "users"
-    ? {
-        and: [
-          { "createdBy.relationTo": { equals: "users" } },
-          { "createdBy.value": { equals: req.user.id } },
-        ],
-      }
-    : false;
-
-const randomName: CollectionBeforeOperationHook = (hook) => {
-  const { req } = hook;
-
-  if (hook.operation !== "create" || !req.file) {
-    return hook.args;
-  }
-
-  const { name } = req.file;
-  const extension = /\.[A-Za-z0-9]{1,8}$/.exec(name)?.[0].toLowerCase() ?? "";
-
-  req.file = { ...req.file, name: `${randomUUID()}${extension}` };
-
-  return {
-    ...hook.args,
-    data: { ...hook.args.data, name: name.slice(0, 255) },
-  };
-};
+import type { CollectionConfig } from "payload";
 
 export const chatUploads: CollectionConfig = {
   slug: "chat-uploads",
   authorship: true,
   versions: false,
-  admin: {
-    hidden: true,
-    useAsTitle: "name",
-    enableRichTextRelationship: false,
-  },
+  admin: { hidden: true, enableRichTextRelationship: false },
   upload: {
     mimeTypes: ["image/png", "application/pdf", "text/csv"],
     pasteURL: false,
+    crop: false,
+    focalPoint: false,
   },
   access: {
-    read: flueThreadScoped(ownFiles),
+    read: flueThreadScoped(),
+    // "users" is mcpx's user collection.
     create: ({ req }) => req.user?.collection === "users",
     update: () => false,
-    delete: flueThreadScoped(ownFiles),
+    delete: flueThreadScoped(),
   },
-  hooks: {
-    // Add your own, such as a scanner that throws an APIError to refuse an upload.
-    beforeOperation: [randomName],
-  },
-  fields: [
-    {
-      name: "name",
-      type: "text",
-      maxLength: 255,
-      admin: { readOnly: true },
-      access: { update: () => false },
-    },
-  ],
+  fields: [],
 };
 ```
 
 A size cap per file is the collection's: Payload's `upload.limits` and a `beforeOperation` hook
-that checks `req.file.size`.
+that checks `req.file.size`. The same hook can refuse an upload, for example after a scan, by
+throwing an `APIError`.
+
+#### Hardening: random stored names
+
+Payload keeps filenames unique per collection and renames a clash to `name-1.ext`, so an uploader
+can tell that a file of that name already exists. The content stays protected. To hide even that,
+store each file under a random name in a `beforeOperation` hook (`req.file.name`) and keep the
+uploader's name in a read-only text field such as `name`; the turn sends `name` when it is set.
 
 ### Cleaning up
 

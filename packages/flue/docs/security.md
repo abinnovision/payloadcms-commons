@@ -221,7 +221,10 @@ do.
 - **Default scope.** The plugin changes no access on the files collection. An agent acts as its
   user, so without `flueThreadScoped` it reads every file the collection lets the user read,
   across all of the user's threads.
-- **Thread scope.** `flueThreadScoped(access?)` is opt-in access for the files collection. A
+- **Thread scope.** `flueThreadScoped(access?)` is opt-in access for the files collection.
+  Without `access` it admits the files the requesting user created, compared by collection and
+  id, for users of mcpx's user collection only, and refuses everything when the plugin is not
+  installed. A
   request made with a flue-managed mcpx key must carry the conversation's handle in
   `x-flue-handle`. The handle must name a thread that is not archived, of the key's agent and
   user, whose user is the request's, with the key enabled and unexpired; for a chat thread the
@@ -247,10 +250,9 @@ do.
   links to a file's `url`.
 - **Thread ids are visible.** `flueThread` is readable like any other field, so whoever may read a
   file also sees which thread it belongs to, but not the thread itself.
-- **Stored names.** Payload keeps file names unique per collection, so a collection that stores
-  the uploader's name can reveal that a name exists. The
-  [private collection recipe](./recipes.md#a-private-chat-uploads-collection) stores random names
-  and keeps the uploader's in `name`.
+- **Stored names.** Payload keeps filenames unique per collection and renames a clash to
+  `name-1.ext`, so an uploader can tell that a file of that name exists, not read it. See
+  [random stored names](./recipes.md#hardening-random-stored-names) to hide that too.
 - **Logs.** The handle travels in a header on the agent's MCP requests and downloads. Redact `x-flue-handle` in proxy
   and APM logs.
 - **File content is data.** A file is content from a user, who may try to steer the model with

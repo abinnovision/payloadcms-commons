@@ -16,7 +16,7 @@ const text = (value: unknown): string =>
 
 const fileOf = (doc: Record<string, unknown>): ThreadFile => ({
 	id: doc["id"] as number | string,
-	name: text(doc["name"]) || text(doc["filename"]),
+	name: text(doc["filename"]),
 	mimeType: text(doc["mimeType"]),
 	size: Number(doc["filesize"] ?? 0),
 });
@@ -55,7 +55,7 @@ export const listFiles = async (
 		collection: FILES_COLLECTION,
 		sort: "-createdAt",
 		limit: LIST_LIMIT,
-		select: { name: true, filename: true, mimeType: true, filesize: true },
+		select: { filename: true, mimeType: true, filesize: true },
 	})) as { docs?: Record<string, unknown>[] };
 
 	return (result.docs ?? []).map(fileOf);

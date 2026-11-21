@@ -62,21 +62,20 @@ export type SupportedTimezones =
 	| "Pacific/Fiji";
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_BD0A041D".
+ * via the `definition` "LexicalNodes_E096DA1C".
  */
-export type LexicalNodes_BD0A041D =
+export type LexicalNodes_E096DA1C =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_BD0A041D>
-	| SerializedAutoLinkNode<LexicalNodes_BD0A041D, LexicalLinkFields_E469DC16>
-	| SerializedLinkNode<LexicalNodes_BD0A041D, LexicalLinkFields_E469DC16>
+	| SerializedParagraphNode<LexicalNodes_E096DA1C>
+	| SerializedAutoLinkNode<LexicalNodes_E096DA1C, LexicalLinkFields_E469DC16>
+	| SerializedLinkNode<LexicalNodes_E096DA1C, LexicalLinkFields_E469DC16>
 	| SerializedBlockNode<CalloutBlock>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
 	| SerializedUploadNode<"documents">
-	| SerializedUploadNode<"chat-uploads">
-	| SerializedQuoteNode<LexicalNodes_BD0A041D>
+	| SerializedQuoteNode<LexicalNodes_E096DA1C>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -91,23 +90,22 @@ export type LexicalNodes_BD0A041D =
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedListNode<LexicalNodes_BD0A041D>
-	| SerializedListItemNode<LexicalNodes_BD0A041D>
-	| SerializedHeadingNode<LexicalNodes_BD0A041D>;
+	| SerializedListNode<LexicalNodes_E096DA1C>
+	| SerializedListItemNode<LexicalNodes_E096DA1C>
+	| SerializedHeadingNode<LexicalNodes_E096DA1C>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_74B6E2B1".
+ * via the `definition` "LexicalNodes_CB00AB58".
  */
-export type LexicalNodes_74B6E2B1 =
+export type LexicalNodes_CB00AB58 =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_74B6E2B1>
+	| SerializedParagraphNode<LexicalNodes_CB00AB58>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
 	| SerializedUploadNode<"documents">
-	| SerializedUploadNode<"chat-uploads">
-	| SerializedQuoteNode<LexicalNodes_74B6E2B1>
+	| SerializedQuoteNode<LexicalNodes_CB00AB58>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -122,11 +120,11 @@ export type LexicalNodes_74B6E2B1 =
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedAutoLinkNode<LexicalNodes_74B6E2B1, LexicalLinkFields>
-	| SerializedLinkNode<LexicalNodes_74B6E2B1, LexicalLinkFields>
-	| SerializedListNode<LexicalNodes_74B6E2B1>
-	| SerializedListItemNode<LexicalNodes_74B6E2B1>
-	| SerializedHeadingNode<LexicalNodes_74B6E2B1>;
+	| SerializedAutoLinkNode<LexicalNodes_CB00AB58, LexicalLinkFields>
+	| SerializedLinkNode<LexicalNodes_CB00AB58, LexicalLinkFields>
+	| SerializedListNode<LexicalNodes_CB00AB58>
+	| SerializedListItemNode<LexicalNodes_CB00AB58>
+	| SerializedHeadingNode<LexicalNodes_CB00AB58>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
@@ -270,7 +268,7 @@ export interface HeroModuleBlock {
  * via the `definition` "RichTextModuleBlock".
  */
 export interface RichTextModuleBlock {
-	content?: LexicalRichText<LexicalNodes_BD0A041D> | null;
+	content?: LexicalRichText<LexicalNodes_E096DA1C> | null;
 	id?: string | null;
 	blockName?: string | null;
 	blockType: "rich-text-module";
@@ -467,7 +465,7 @@ export interface Post {
 	id: number;
 	title: string;
 	excerpt?: string | null;
-	content?: LexicalRichText<LexicalNodes_74B6E2B1> | null;
+	content?: LexicalRichText<LexicalNodes_CB00AB58> | null;
 	image?: (number | null) | Media;
 	tags?: (number | Tag)[] | null;
 	createdBy?: {
@@ -583,7 +581,6 @@ export interface Document {
  */
 export interface ChatUpload {
 	id: number;
-	name?: string | null;
 	flueThread?: (number | null) | FlueThread;
 	createdBy?: {
 		relationTo: "users";
@@ -1293,7 +1290,6 @@ export interface DocumentsSelect<T extends boolean = true> {
  * via the `definition` "chat-uploads_select".
  */
 export interface ChatUploadsSelect<T extends boolean = true> {
-	name?: T;
 	flueThread?: T;
 	createdBy?: T;
 	updatedBy?: T;

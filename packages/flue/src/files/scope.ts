@@ -4,6 +4,7 @@ import { managedMarker, toAgentKey } from "../keys/manager.js";
 import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 import { isId } from "../protocol/owner.js";
+import { ownerWhere } from "../threads/owner.js";
 import { resolveHandle } from "../threads/resolve.js";
 
 import type { KeyDoc } from "../keys/manager.js";
@@ -42,8 +43,12 @@ const MANAGED_PREFIX = managedMarker("");
 const settingsOf = (req: PayloadRequest): ScopeSettings | undefined =>
 	req.payload.config.custom[SCOPE_SETTINGS_KEY] as ScopeSettings | undefined;
 
-// Payload's default access.
-const loggedIn: Access = ({ req }) => Boolean(req.user);
+// The files `req.user` created; refuses everything without the plugin's settings.
+const ownFiles: Access = ({ req }) => {
+	const settings = settingsOf(req);
+
+	return settings ? ownerWhere(req, settings.mcpx.userCollection) : false;
+};
 
 /*
  * The scope of a request made with a flue-managed mcpx key: the key's
@@ -159,10 +164,11 @@ const scopeOf = (req: PayloadRequest): Promise<Scope> => {
  * mcpx key get `access`'s result narrowed to the thread the `x-flue-handle`
  * header names, and nothing without a valid handle or on another
  * collection; every other request gets `access`'s result unchanged.
- * `access` defaults to Payload's: any logged-in user.
+ * `access` defaults to the files the requesting user created, for users
+ * of mcpx's user collection only.
  */
 export const flueThreadScoped =
-	(access: Access = loggedIn): Access =>
+	(access: Access = ownFiles): Access =>
 	async (args) => {
 		const base = await access(args);
 

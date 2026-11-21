@@ -38,12 +38,7 @@ import type { ExchangeSession } from "../../src/agent/exchange.js";
 import type { FlueAgentConfig } from "../../src/index.js";
 import type { SendArgs } from "../../src/sidecar/client.js";
 import type { DeliveredMessage } from "@flue/runtime";
-import type {
-	Access,
-	CollectionBeforeOperationHook,
-	CollectionConfig,
-	Config,
-} from "payload";
+import type { Access, CollectionConfig, Config } from "payload";
 
 // The arguments of every sidecar send, to read the deadline a turn gets.
 const sends = vi.hoisted((): SendArgs[] => []);
@@ -861,36 +856,12 @@ const ownFiles: Access = ({ req }) =>
 			}
 		: false;
 
-// Stores each file under a random name and keeps the uploader's in `name`.
-const randomName: CollectionBeforeOperationHook = (hook) => {
-	const { req } = hook;
-
-	// eslint-disable-next-line @typescript-eslint/no-deprecated
-	if (hook.operation !== "create" || !req.file) {
-		return hook.args;
-	}
-
-	const { name } = req.file;
-	const extension = /\.[A-Za-z0-9]{1,8}$/.exec(name)?.[0].toLowerCase() ?? "";
-
-	req.file = { ...req.file, name: `${randomUUID()}${extension}` };
-
-	return {
-		...hook.args,
-		data: { ...hook.args.data, name: name.slice(0, 255) },
-	};
-};
-
 // The private uploads collection of docs/recipes.md, without flueThreadScoped.
 const privateUploads = (staticDir: string): CollectionConfig => ({
 	slug: UPLOADS,
 	authorship: true,
 	versions: false,
-	admin: {
-		hidden: true,
-		useAsTitle: "name",
-		enableRichTextRelationship: false,
-	},
+	admin: { hidden: true, enableRichTextRelationship: false },
 	upload: { staticDir, mimeTypes: ["text/csv"], pasteURL: false },
 	access: {
 		read: ownFiles,
@@ -898,16 +869,7 @@ const privateUploads = (staticDir: string): CollectionConfig => ({
 		update: () => false,
 		delete: ownFiles,
 	},
-	hooks: { beforeOperation: [randomName] },
-	fields: [
-		{
-			name: "name",
-			type: "text",
-			maxLength: 255,
-			admin: { readOnly: true },
-			access: { update: () => false },
-		},
-	],
+	fields: [],
 });
 
 describe("chat files in a private uploads collection", () => {
@@ -980,21 +942,20 @@ describe("chat files in a private uploads collection", () => {
 		await rm(dir, { recursive: true, force: true });
 	});
 
-	it("stores a file under a random name, keeps the uploader's, and shows it to the uploader only", async () => {
+	it("shows a file to the uploader only", async () => {
 		const [owner, stranger] = [await userOf(), await userOf()];
-		const doc = await uploadAs(owner, "q3 numbers.csv");
+		const doc = await uploadAs(owner, "q3-numbers.csv");
 		const read = (user: User) =>
 			send(booted, `/api/${UPLOADS}/${String(doc.id)}`, { token: user.token });
 
-		expect(doc["name"]).toBe("q3 numbers.csv");
-		expect(doc["filename"]).toMatch(/^[0-9a-f-]{36}\.csv$/);
+		expect(doc["filename"]).toBe("q3-numbers.csv");
 		expect((await read(owner)).status).toBe(200);
 		expect((await read(stranger)).status).toBe(404);
 	});
 
-	it("sends the uploader's name with the turn", async () => {
+	it("sends the file name with the turn", async () => {
 		const owner = await userOf();
-		const doc = await uploadAs(owner, "q3 numbers.csv");
+		const doc = await uploadAs(owner, "q4-numbers.csv");
 		const { response, posted } = await chatAs(owner, {
 			message: "Sum",
 			files: [doc.id],
@@ -1002,7 +963,7 @@ describe("chat files in a private uploads collection", () => {
 
 		expect(response.status).toBe(200);
 		expect(filesOf(posted as DeliveredMessage)).toMatchObject([
-			{ id: String(doc.id), name: "q3 numbers.csv", mimeType: "text/csv" },
+			{ id: String(doc.id), name: "q4-numbers.csv", mimeType: "text/csv" },
 		]);
 	});
 

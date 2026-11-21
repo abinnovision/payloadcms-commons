@@ -62,14 +62,34 @@ const agent = () => ({ mcpx: { apiKeyId: 1 } });
 const scoped = flueThreadScoped(() => true);
 
 describe("flueThreadScoped", () => {
-	it("defaults to Payload's access: logged-in users only", async () => {
+	it("defaults to the files the requesting user created", async () => {
+		await expect(
+			flueThreadScoped()({ req: requestOf({}), slug: "uploads" }),
+		).resolves.toEqual({
+			and: [
+				{ "createdBy.relationTo": { equals: "users" } },
+				{ "createdBy.value": { equals: 1 } },
+			],
+		});
+	});
+
+	it("refuses by default without a user, from another collection or without the plugin", async () => {
 		const req = requestOf({});
 
-		await expect(flueThreadScoped()({ req, slug: "uploads" })).resolves.toBe(
-			true,
-		);
 		await expect(
 			flueThreadScoped()({ req: { ...req, user: null }, slug: "uploads" }),
+		).resolves.toBe(false);
+		await expect(
+			flueThreadScoped()({
+				req: { ...req, user: { id: 1, collection: "admins" } },
+				slug: "uploads",
+			}),
+		).resolves.toBe(false);
+		await expect(
+			flueThreadScoped()({
+				req: requestOf({}, { installed: false }),
+				slug: "uploads",
+			}),
 		).resolves.toBe(false);
 	});
 

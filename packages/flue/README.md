@@ -182,8 +182,9 @@ Both are opt-in:
 
 The collection must keep `authorship` and `upload.mimeTypes`; its access stays
 the app's. Agents read files with `payload.download` and see what the
-collection lets their user see. Put `flueThreadScoped` on the collection's
-access to keep agents to the current thread's files. Size limits, storage and
+collection lets their user see. Put `flueThreadScoped()` on the collection's
+`read` and `delete` access: users see their own uploads and agents only the
+current thread's files. Size limits, storage and
 cleanup are the collection's. Uploads need an upload collection with
 `upload.mimeTypes`, `read` and `write` granted on it, and mcpx leases. See
 [files](./docs/integration.md#files) and [uploads](./docs/integration.md#uploads).

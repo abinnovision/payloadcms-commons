@@ -289,7 +289,7 @@ describe("validateGrants", () => {
 		await expect(
 			validate({ ...RESTRICTED, files: true }, files("uploads")),
 		).rejects.toThrow(
-			/Agent "restricted" takes files, but the mcpx API keys have no read checkbox for "uploads"\. Expose it in mcpx's collections\./,
+			/Agent "restricted" takes files, but mcpx does not expose "uploads"\. Add "uploads": \{\} to mcpxPlugin\(\{ collections \}\) so agents with files can read it\./,
 		);
 	});
 

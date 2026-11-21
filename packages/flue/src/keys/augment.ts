@@ -383,7 +383,7 @@ export const validateGrants = (
 			!map.collections[files.collection]?.operations.includes("read")
 		) {
 			throw invalid(
-				`Agent "${agent.slug}" takes files, but the mcpx API keys have no read checkbox for "${files.collection}". Expose it in mcpx's collections.`,
+				`Agent "${agent.slug}" takes files, but mcpx does not expose "${files.collection}". Add "${files.collection}": {} to mcpxPlugin({ collections }) so agents with files can read it.`,
 			);
 		}
 

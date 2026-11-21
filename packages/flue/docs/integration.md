@@ -112,8 +112,8 @@ read, across threads. Add `flueThreadScoped` to keep agents to the current threa
 flueThreadScoped(access?: Access): Access
 ```
 
-It wraps the collection's own access function, Payload's default (any logged-in user) when none is
-given. Requests made with a flue-managed mcpx key get that result narrowed to the files of the
+It wraps the collection's own access function. Without one it admits the files the requesting
+user created (Payload's `createdBy`), for users of mcpx's user collection only. Requests made with a flue-managed mcpx key get that result narrowed to the files of the
 thread their `x-flue-handle` names, and are refused without a valid handle; every other request,
 the admin's included, gets the result unchanged. Use it on `files.collection` only: on any other
 collection it refuses flue-managed keys. Put it on `access.read` and on `update` and `delete` where
