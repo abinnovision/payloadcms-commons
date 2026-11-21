@@ -1,8 +1,10 @@
+import { mcpxPlugin } from "@abinnovision/payloadcms-mcpx";
+import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { APIError } from "payload";
+import { buildConfig, createPayloadRequest, handleEndpoints } from "payload";
 import {
 	afterAll,
 	beforeAll,
@@ -16,31 +18,58 @@ import {
 import {
 	API_KEYS_SLUG,
 	bootPayload,
-	count,
-	enableEditorKey,
 	login,
-	seed,
+	mcpRpc,
 	send,
 	shutdown,
 	stored,
 	THREADS_SLUG,
 } from "./helpers/payload.js";
-import { readUserTurnBody } from "../../src/protocol/context.js";
+import { contextOf, filesOf } from "../../src/agent/context.js";
+import { exchangeSession, FluePayloadError } from "../../src/agent/exchange.js";
+import { downloadDocument } from "../../src/agent/files.js";
+import { uploadDocument } from "../../src/agent/upload.js";
+import { fluePlugin, fluePrivateUploads } from "../../src/index.js";
+import { MANAGED_BY } from "../../src/keys/augment.js";
 import { INITIAL_DATA_KEY } from "../../src/protocol/exchange.js";
-import { handleHash } from "../../src/threads/handle.js";
 import { SIDECAR_SECRET } from "../fixtures/config.js";
 
-import type { Booted, Doc, Seeded, SeededUser } from "./helpers/payload.js";
-import type { FlueFileOptions } from "../../src/index.js";
-import type { WorkspaceFile } from "../../src/protocol/files.js";
-import type { CollectionConfig } from "payload";
+import type { Booted, Doc } from "./helpers/payload.js";
+import type { ExchangeSession } from "../../src/agent/exchange.js";
+import type { FlueAgentConfig, FluePluginOptions } from "../../src/index.js";
+import type { SendArgs } from "../../src/sidecar/client.js";
+import type { DeliveredMessage } from "@flue/runtime";
+import type { CollectionConfig, Config } from "payload";
 
-const FILES_SLUG = "flue-files";
+// The arguments of every sidecar send, to read the deadline a turn gets.
+const sends = vi.hoisted((): SendArgs[] => []);
+
+vi.mock(import("../../src/sidecar/client.js"), async (importOriginal) => {
+	const actual = await importOriginal();
+
+	return {
+		...actual,
+		createSidecarClient: (
+			...args: Parameters<typeof actual.createSidecarClient>
+		) => {
+			const client = actual.createSidecarClient(...args);
+
+			return {
+				...client,
+				send: (...sendArgs: Parameters<typeof client.send>) => {
+					sends.push(sendArgs[2]);
+
+					return client.send(...sendArgs);
+				},
+			};
+		},
+	};
+});
+
+const UPLOADS = "uploads";
+const PAYLOAD_URL = "http://localhost";
 const CONTEXT = { route: "/admin" };
 const MIB = 1024 * 1024;
-
-// A text file long enough for a range read, with a marker no turn body may hold.
-const NOTE = `MARKER-${"x".repeat(200)}\n`;
 
 // A valid one-pixel PNG.
 const PNG = Buffer.from(
@@ -48,115 +77,115 @@ const PNG = Buffer.from(
 	"base64",
 );
 
+// A PDF of `size` bytes with the header and trailer Payload checks.
+const pdfOf = (size: number): Uint8Array<ArrayBuffer> => {
+	const bytes = new Uint8Array(size).fill(0x20);
+	const trailer = new TextEncoder().encode("xref\n%%EOF\n");
+
+	bytes.set(new TextEncoder().encode("%PDF-1.4\n"));
+	bytes.set(trailer, size - trailer.byteLength);
+
+	return bytes;
+};
+
+const FILER: FlueAgentConfig = {
+	slug: "filer",
+	files: true,
+	capabilities: {
+		collections: { [UPLOADS]: { write: true }, pages: { read: true } },
+	},
+};
+
+// Takes files and attaches whatever Flue takes natively.
+const GREEDY: FlueAgentConfig = {
+	slug: "greedy",
+	files: { deliver: () => "attach" },
+	capabilities: {},
+};
+
+const PLAIN: FlueAgentConfig = {
+	slug: "plain",
+	capabilities: { collections: { pages: { read: true } } },
+};
+
+const users: CollectionConfig = { slug: "users", auth: true, fields: [] };
+
+const pages: CollectionConfig = {
+	slug: "pages",
+	fields: [{ name: "title", type: "text" }],
+};
+
+// Readable by everyone, so only the thread guard keeps agents to their thread.
+const uploads = (staticDir: string): CollectionConfig => ({
+	slug: UPLOADS,
+	versions: true,
+	access: {
+		read: () => true,
+		create: ({ req }) => Boolean(req.user),
+		update: ({ req }) => Boolean(req.user),
+	},
+	upload: {
+		staticDir,
+		mimeTypes: ["image/png", "application/pdf", "text/plain", "text/csv"],
+		pasteURL: false,
+	},
+	fields: [{ name: "alt", type: "text" }],
+});
+
+const filesConfig = (
+	dir: string,
+	flue: Partial<FluePluginOptions> = {},
+	mcpxCollections: Record<string, object> = { [UPLOADS]: {}, pages: {} },
+	sidecarUrl = "http://127.0.0.1:9",
+): Partial<Config> => ({
+	collections: [users, pages, uploads(join(dir, "store"))],
+	plugins: [
+		mcpxPlugin({ collections: mcpxCollections }),
+		fluePlugin({
+			sidecar: { url: sidecarUrl, secret: SIDECAR_SECRET },
+			agents: [FILER, GREEDY, PLAIN],
+			files: { collection: UPLOADS },
+			...flue,
+		}),
+	],
+});
+
+interface User {
+	id: number | string;
+	token: string;
+}
+
 interface Posted {
-	kind: string;
-	type: string;
+	kind: "signal" | "user";
+	type?: string;
 	body: string;
+	attributes?: Record<string, string>;
+	attachments?: { type: string; data: string; mimeType: string }[];
 	initialData?: Record<string, { handle: string }>;
 }
 
 interface Chat {
 	thread: number | string;
-	conversationId: string;
 	posted: Posted;
 	/** Set on a thread's first turn. */
 	handle: string | undefined;
 }
 
-// Set by a test that needs the files collection's deletes to fail.
-let failDeletes = false;
-
-/*
- * Stores files below a temporary directory and fails deletes on demand, as
- * a storage outage would.
- */
-const withTestStorage =
-	(dir: string) =>
-	(collection: CollectionConfig): CollectionConfig => ({
-		...collection,
-		upload: {
-			...(collection.upload as object),
-			staticDir: join(dir, "store"),
-		},
-		hooks: {
-			...collection.hooks,
-			beforeDelete: [
-				() => {
-					if (failDeletes) {
-						throw new Error("The storage is unavailable.");
-					}
-				},
-			],
-		},
-	});
-
-const bootWithFiles = async (
-	cacheKey: string,
-	dir: string,
-	files: FlueFileOptions = {},
-): Promise<Booted> =>
-	await bootPayload(
-		cacheKey,
-		{ files: { overrideCollection: withTestStorage(dir), ...files } },
-		{ upload: { useTempFiles: true, tempFileDir: join(dir, "tmp") } },
-	);
-
-describe("the file workspace", () => {
+describe("chat files", () => {
 	let dir: string;
 	let booted: Booted;
-	let seeded: Seeded;
 
-	const upload = (
-		user: SeededUser,
-		name: string,
-		bytes: BlobPart,
-		type = "text/plain",
-		data?: Record<string, unknown>,
-	): Promise<Response> => {
-		const form = new FormData();
-
-		form.append("file", new File([bytes], name, { type }));
-
-		if (data) {
-			form.append("_payload", JSON.stringify(data));
-		}
-
-		return send(booted, `/api/${FILES_SLUG}`, {
-			method: "POST",
-			token: user.token,
-			body: form,
-		});
-	};
-
-	const uploaded = async (
-		user: SeededUser,
-		name = "note.txt",
-		bytes: BlobPart = NOTE,
-		type = "text/plain",
-	): Promise<Doc> => {
-		const response = await upload(user, name, bytes, type);
-
-		expect(response.status).toBe(201);
-
-		return ((await response.json()) as { doc: Doc }).doc;
-	};
-
-	const fileRow = async (id: number | string): Promise<Doc | null> =>
-		await booted.payload.findByID({
-			collection: FILES_SLUG,
-			id,
-			depth: 0,
-			overrideAccess: true,
-			disableErrors: true,
+	const fetchThrough: typeof fetch = async (input, init) =>
+		await handleEndpoints({
+			config: booted.config,
+			payloadInstanceCacheKey: booted.cacheKey,
+			request: new Request(input, init),
 		});
 
-	const threadOf = async (id: number | string): Promise<unknown> =>
-		(await fileRow(id))?.["thread"] ?? null;
-
-	const freshUser = async (): Promise<SeededUser> => {
+	const freshUser = async (): Promise<User> => {
 		const credentials = {
 			email: `${randomUUID()}@example.com`,
-			password: "fresh-secret",
+			password: "files-secret",
 		};
 		const user = await booted.payload.create({
 			collection: "users",
@@ -170,39 +199,68 @@ describe("the file workspace", () => {
 		};
 	};
 
-	// A pending file row of `user` without bytes, to fill the pending caps.
-	const pendingRow = async (user: SeededUser, filesize: number) =>
-		await booted.payload.db.create({
-			collection: FILES_SLUG,
-			data: {
-				name: "seeded.txt",
-				filename: `${randomUUID()}.txt`,
-				mimeType: "text/plain",
-				filesize,
-				createdBy: { relationTo: "users", value: user.id },
-			},
-		});
+	const upload = async (
+		user: User,
+		name: string,
+		bytes: BlobPart,
+		type: string,
+		data?: Record<string, unknown>,
+	): Promise<Response> => {
+		const form = new FormData();
 
-	const makeStale = async (id: number | string): Promise<void> => {
-		await booted.payload.db.updateOne({
-			collection: FILES_SLUG,
-			id,
-			data: { createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+		form.append("file", new File([bytes], name, { type }));
+
+		if (data) {
+			form.append("_payload", JSON.stringify(data));
+		}
+
+		return await send(booted, `/api/${UPLOADS}`, {
+			method: "POST",
+			token: user.token,
+			body: form,
 		});
 	};
 
-	const chat = (user: SeededUser, body: Record<string, unknown>) =>
-		send(booted, "/api/flue/chat/editor", {
+	const uploaded = async (
+		user: User,
+		name = "notes.txt",
+		bytes: BlobPart = "Some notes.\n",
+		type = "text/plain",
+	): Promise<Doc> => {
+		const response = await upload(user, name, bytes, type);
+
+		expect(response.status).toBe(201);
+
+		return ((await response.json()) as { doc: Doc }).doc;
+	};
+
+	const threadOf = async (id: number | string): Promise<unknown> =>
+		(
+			await booted.payload.findByID({
+				collection: UPLOADS,
+				id,
+				depth: 0,
+				overrideAccess: true,
+			})
+		)["flueThread"] ?? null;
+
+	const chat = (
+		user: User,
+		body: Record<string, unknown>,
+		agent = FILER.slug,
+	): Promise<Response> =>
+		send(booted, `/api/flue/chat/${agent}`, {
 			method: "POST",
 			token: user.token,
 			body: { context: CONTEXT, ...body },
 		});
 
 	const chatOk = async (
-		user: SeededUser,
+		user: User,
 		body: Record<string, unknown>,
+		agent = FILER.slug,
 	): Promise<Chat> => {
-		const response = await chat(user, body);
+		const response = await chat(user, body, agent);
 
 		expect(response.status).toBe(200);
 
@@ -219,33 +277,60 @@ describe("the file workspace", () => {
 
 		return {
 			thread: thread.id,
-			conversationId,
 			posted,
 			handle: posted.initialData?.[INITIAL_DATA_KEY]?.handle,
 		};
 	};
 
-	const archive = (user: SeededUser, thread: number | string) =>
-		send(booted, `/api/${THREADS_SLUG}/${String(thread)}`, {
-			method: "PATCH",
-			token: user.token,
-			body: { status: "archived" },
+	// The delivery as the agent sees it.
+	const deliveryOf = (posted: Posted): DeliveredMessage =>
+		(posted.kind === "user"
+			? { kind: "user", body: posted.body, attachments: posted.attachments }
+			: {
+					kind: "signal",
+					type: posted.type,
+					body: posted.body,
+					attributes: posted.attributes,
+				}) as DeliveredMessage;
+
+	// The agent's session for a thread's handle.
+	const sessionOf = (handle: string, agent = FILER.slug): ExchangeSession =>
+		exchangeSession({
+			payloadUrl: PAYLOAD_URL,
+			fluePath: "/api/flue",
+			mcpPath: "/api/mcpx",
+			secret: SIDECAR_SECRET,
+			handle,
+			agent,
+			fetch: fetchThrough,
 		});
+
+	const targetOf = (handle: string) => ({
+		session: sessionOf(handle),
+		payloadUrl: PAYLOAD_URL,
+		mcpPath: "/api/mcpx",
+		handle,
+		fetch: fetchThrough,
+	});
+
+	const idsFound = async (session: ExchangeSession): Promise<string[]> => {
+		const result = (await session.callTool("findDocuments", {
+			collection: UPLOADS,
+			limit: 25,
+		})) as { docs: Doc[] };
+
+		return result.docs.map((doc) => String(doc.id)).sort();
+	};
 
 	beforeAll(async () => {
 		dir = await mkdtemp(join(tmpdir(), "flue-files-"));
-		booted = await bootWithFiles("flue-files", dir, {
-			// PNG is left out, so a PNG named .pdf meets Payload's content check.
-			mimeTypes: ["application/pdf", "text/plain", "text/markdown"],
-			maxFilesPerTurn: 2,
-			maxFilesPerThread: 3,
-		});
-		seeded = await seed(booted.payload);
+		booted = await bootPayload("flue-files", undefined, (sidecarUrl) =>
+			filesConfig(dir, {}, undefined, sidecarUrl),
+		);
 	});
 
 	beforeEach(() => {
 		booted.sidecar.reset();
-		failDeletes = false;
 	});
 
 	afterAll(async () => {
@@ -253,720 +338,608 @@ describe("the file workspace", () => {
 		await rm(dir, { recursive: true, force: true });
 	});
 
-	describe("gET /api/flue/agents", () => {
-		it("answers the file workspace limits for the panel", async () => {
-			const response = await send(booted, "/api/flue/agents", {
-				token: seeded.first.token,
+	describe("the thread guard", () => {
+		let owner: User;
+		let mine: Doc;
+		let other: Doc;
+		let unbound: Doc;
+		let handle: string;
+		let otherHandle: string;
+
+		beforeAll(async () => {
+			owner = await freshUser();
+			mine = await uploaded(owner, "mine.txt", "Mine.\n");
+			other = await uploaded(owner, "other.txt", "Other.\n");
+			unbound = await uploaded(owner, "unbound.txt", "Unbound.\n");
+			handle = (await chatOk(owner, { message: "A", files: [mine.id] }))
+				.handle!;
+			otherHandle = (await chatOk(owner, { message: "B", files: [other.id] }))
+				.handle!;
+		});
+
+		it("lets the agent read its thread's file and find only its thread's files", async () => {
+			const session = sessionOf(handle);
+
+			await expect(
+				session.callTool("getDocument", { collection: UPLOADS, id: mine.id }),
+			).resolves.toMatchObject({ id: mine.id });
+			expect(await idsFound(session)).toEqual([String(mine.id)]);
+			expect(await idsFound(sessionOf(otherHandle))).toEqual([
+				String(other.id),
+			]);
+		});
+
+		it("refuses another thread's file and an unbound one on getDocument and download", async () => {
+			const target = targetOf(handle);
+
+			for (const doc of [other, unbound]) {
+				// eslint-disable-next-line no-await-in-loop
+				await expect(
+					target.session.callTool("getDocument", {
+						collection: UPLOADS,
+						id: doc.id,
+					}),
+				).rejects.toBeInstanceOf(FluePayloadError);
+				// eslint-disable-next-line no-await-in-loop
+				await expect(
+					downloadDocument(target, { collection: UPLOADS, id: doc.id }),
+				).rejects.toBeInstanceOf(FluePayloadError);
+			}
+		});
+
+		it("downloads the thread's file and a range of it", async () => {
+			const target = targetOf(handle);
+
+			expect(
+				new TextDecoder().decode(
+					(await downloadDocument(target, { collection: UPLOADS, id: mine.id }))
+						.bytes,
+				),
+			).toBe("Mine.\n");
+			expect(
+				new TextDecoder().decode(
+					(
+						await downloadDocument(target, {
+							collection: UPLOADS,
+							id: mine.id,
+							range: { start: 1, end: 3 },
+						})
+					).bytes,
+				),
+			).toBe("ine");
+		});
+
+		it("refuses every file to the managed key without the handle header", async () => {
+			const { key } = await sessionOf(handle).exchange();
+			const { body } = await mcpRpc(booted, key, "tools/call", {
+				name: "findDocuments",
+				arguments: { collection: UPLOADS },
 			});
 
-			expect(await response.json()).toMatchObject({
-				files: {
-					slug: FILES_SLUG,
-					mimeTypes: ["application/pdf", "text/plain", "text/markdown"],
-					maxFiles: 2,
-				},
+			expect(body).toMatchObject({ result: { isError: true } });
+		});
+
+		it("refuses a headerless fetch of a valid download grant", async () => {
+			const doc = (await sessionOf(handle).callTool("getDocument", {
+				collection: UPLOADS,
+				id: mine.id,
+				download: true,
+			})) as { download: { headers: Record<string, string> } };
+			const response = await fetchThrough(`${PAYLOAD_URL}/api/mcpx/file`, {
+				headers: doc.download.headers,
 			});
+
+			expect(response.status).toBe(403);
+		});
+
+		it("refuses the handle of an archived thread", async () => {
+			const user = await freshUser();
+			const doc = await uploaded(user);
+			const { thread, handle: archivedHandle } = await chatOk(user, {
+				message: "Read",
+				files: [doc.id],
+			});
+			const session = sessionOf(archivedHandle!);
+
+			// Exchanged while live; the key stays valid after the archive.
+			await session.exchange();
+
+			const archived = await send(
+				booted,
+				`/api/${THREADS_SLUG}/${String(thread)}`,
+				{ method: "PATCH", token: user.token, body: { status: "archived" } },
+			);
+
+			expect(archived.status).toBe(200);
+			await expect(
+				session.callTool("getDocument", { collection: UPLOADS, id: doc.id }),
+			).rejects.toBeInstanceOf(FluePayloadError);
+			// Archiving leaves the file bound.
+			expect(String(await threadOf(doc.id))).toBe(String(thread));
+		});
+
+		it("leaves a key flue does not manage alone", async () => {
+			const created = await booted.payload.create({
+				collection: API_KEYS_SLUG,
+				data: {
+					label: "Own key",
+					user: owner.id,
+					enabled: true,
+					capabilities: { collections: { [UPLOADS]: { read: true } } },
+				},
+				overrideAccess: true,
+			});
+			const { apiKey } = await booted.payload.findByID({
+				collection: API_KEYS_SLUG,
+				id: created.id,
+				depth: 0,
+				overrideAccess: true,
+				showHiddenFields: true,
+			});
+			const { body } = await mcpRpc(booted, String(apiKey), "tools/call", {
+				name: "findDocuments",
+				arguments: { collection: UPLOADS, limit: 25 },
+			});
+			const result = body["result"] as {
+				content: { text: string }[];
+			};
+			const found = (JSON.parse(result.content[0]!.text) as { docs: Doc[] })
+				.docs;
+
+			expect(found.map((doc) => String(doc.id))).toEqual(
+				expect.arrayContaining([
+					String(mine.id),
+					String(other.id),
+					String(unbound.id),
+				]),
+			);
+		});
+
+		it("leaves the admin's REST reads alone", async () => {
+			const response = await send(booted, `/api/${UPLOADS}?limit=100`, {
+				token: owner.token,
+			});
+			const { docs } = (await response.json()) as { docs: Doc[] };
+
+			expect(docs.map((doc) => String(doc.id))).toEqual(
+				expect.arrayContaining([String(mine.id), String(other.id)]),
+			);
+		});
+
+		// A request as the owner's managed key, the way mcpx makes one, with `headers`.
+		const agentRequest = async (headers: Record<string, string>) => {
+			const apiKey = (
+				await booted.payload.find({
+					collection: API_KEYS_SLUG,
+					where: {
+						and: [
+							{ user: { equals: owner.id } },
+							{ [MANAGED_BY]: { equals: `flue:${FILER.slug}` } },
+						],
+					},
+					overrideAccess: true,
+					limit: 1,
+				})
+			).docs[0]!;
+			const user = await booted.payload.findByID({
+				collection: "users",
+				id: owner.id,
+				overrideAccess: true,
+			});
+
+			return await createPayloadRequest({
+				payload: booted.payload,
+				user: { ...user, collection: "users" },
+				context: {
+					mcpx: {
+						apiKeyId: apiKey.id,
+						capabilities: { collections: {}, globals: {}, tools: {} },
+					},
+				},
+				req: { headers: new Headers(headers) },
+			});
+		};
+
+		it("narrows versions to the thread's files under version.flueThread", async () => {
+			const versions = async (headers: Record<string, string>) =>
+				(
+					await booted.payload.findVersions({
+						collection: UPLOADS,
+						limit: 100,
+						overrideAccess: false,
+						req: await agentRequest(headers),
+					})
+				).docs.map((doc) => String(doc.parent));
+
+			const scoped = await versions({ "x-flue-handle": handle });
+
+			expect(scoped.length).toBeGreaterThan(0);
+			expect(new Set(scoped)).toEqual(new Set([String(mine.id)]));
+			await expect(versions({})).rejects.toThrow(/not allowed/);
+		});
+
+		it("lets the agent patch its thread's file and no other", async () => {
+			const session = sessionOf(handle);
+			const patch = (id: number | string) =>
+				session.callTool("patchDocument", {
+					collection: UPLOADS,
+					id,
+					patches: [{ op: "replace", path: "/alt", value: "Patched" }],
+				});
+
+			await expect(patch(mine.id)).resolves.toBeDefined();
+			await expect(patch(other.id)).rejects.toBeInstanceOf(FluePayloadError);
+			expect(
+				(
+					await booted.payload.findByID({
+						collection: UPLOADS,
+						id: other.id,
+						overrideAccess: true,
+					})
+				)["alt"],
+			).not.toBe("Patched");
+		});
+
+		it("refuses the agent's update and delete of another thread's file", async () => {
+			const headers = { "x-flue-handle": handle };
+
+			await expect(
+				booted.payload.update({
+					collection: UPLOADS,
+					id: other.id,
+					data: { alt: "Changed" },
+					overrideAccess: false,
+					req: await agentRequest(headers),
+				}),
+			).rejects.toThrow();
+			await expect(
+				booted.payload.delete({
+					collection: UPLOADS,
+					id: other.id,
+					overrideAccess: false,
+					req: await agentRequest(headers),
+				}),
+			).rejects.toThrow();
+			expect(
+				await booted.payload.findByID({
+					collection: UPLOADS,
+					id: other.id,
+					overrideAccess: true,
+				}),
+			).toMatchObject({ id: other.id });
 		});
 	});
 
-	describe(`POST /api/${FILES_SLUG}`, () => {
-		it("stores the file under a random name and keeps the uploader's name", async () => {
-			const doc = await uploaded(seeded.first, "Briefing Spring.txt");
+	describe("binding at send", () => {
+		it("refuses another user's readable file and sends nothing", async () => {
+			const [user, stranger] = [await freshUser(), await freshUser()];
+			const doc = await uploaded(stranger);
+			const sends = booted.sidecar.sends().length;
 
-			expect(doc["filename"]).toMatch(/^[\da-f-]{36}\.txt$/);
-			expect(doc["name"]).toBe("Briefing Spring.txt");
-		});
-
-		it("gives two users uploading the same name no trace of each other", async () => {
-			const first = await uploaded(seeded.first, "a.txt");
-			const second = await uploaded(seeded.second, "a.txt");
-
-			expect(first["name"]).toBe("a.txt");
-			expect(second["name"]).toBe("a.txt");
-			expect(second["filename"]).not.toMatch(/^a(-\d+)?\.txt$/);
-			expect(second["filename"]).not.toBe(first["filename"]);
-		});
-
-		it("ignores a thread the uploader sets", async () => {
-			const { thread } = await chatOk(seeded.first, { message: "Hello" });
-			const response = await upload(seeded.first, "x.txt", NOTE, "text/plain", {
-				thread,
-			});
-			const { doc } = (await response.json()) as { doc: Doc };
-
-			expect(response.status).toBe(201);
+			expect(
+				(await chat(user, { message: "Hi", files: [doc.id] })).status,
+			).toBe(404);
+			expect(booted.sidecar.sends()).toHaveLength(sends);
 			expect(await threadOf(doc.id)).toBeNull();
 		});
 
-		it("refuses a PNG named .pdf with temp files on and stores nothing", async () => {
-			const before = await count(booted, FILES_SLUG);
-			const response = await upload(
-				seeded.first,
-				"diagram.pdf",
-				PNG,
-				"application/pdf",
-			);
-
-			expect(response.status).toBe(400);
-			expect(await count(booted, FILES_SLUG)).toBe(before);
-		});
-
-		it("refuses a file from a URL and fetches nothing", async () => {
-			const before = await count(booted, FILES_SLUG);
-			const requests = booted.sidecar.requests.length;
-			const response = await send(booted, `/api/${FILES_SLUG}`, {
-				method: "POST",
-				token: seeded.first.token,
-				body: {
-					filename: "remote.txt",
-					url: `${booted.sidecar.url}/remote.txt`,
-					name: "remote.txt",
-				},
+		it("refuses a file bound to another thread and keeps it there", async () => {
+			const user = await freshUser();
+			const doc = await uploaded(user);
+			const { thread } = await chatOk(user, {
+				message: "One",
+				files: [doc.id],
 			});
 
-			expect(response.status).toBe(400);
-			expect(await count(booted, FILES_SLUG)).toBe(before);
-			expect(booted.sidecar.requests).toHaveLength(requests);
-		});
-
-		it("refuses a declared type outside the allowed ones", async () => {
-			const before = await count(booted, FILES_SLUG);
-
 			expect(
-				(await upload(seeded.first, "a.png", PNG, "image/png")).status,
-			).toBe(400);
-			expect(await count(booted, FILES_SLUG)).toBe(before);
-		});
-
-		it("refuses the 21st pending file of a user", async () => {
-			const user = await freshUser();
-
-			for (let index = 0; index < 20; index++) {
-				// eslint-disable-next-line no-await-in-loop
-				await pendingRow(user, 10);
-			}
-
-			const response = await upload(user, "one-more.txt", NOTE);
-
-			expect(response.status).toBe(400);
-			expect(
-				await count(booted, FILES_SLUG, { name: { equals: "one-more.txt" } }),
-			).toBe(0);
-		});
-
-		it("refuses a file past the pending bytes of a user", async () => {
-			const user = await freshUser();
-
-			await pendingRow(user, 300 * MIB - 10);
-
-			const response = await upload(user, "overflow.txt", NOTE);
-
-			expect(response.status).toBe(400);
-			expect(
-				await count(booted, FILES_SLUG, { name: { equals: "overflow.txt" } }),
-			).toBe(0);
-		});
-
-		it("removes the uploader's stale pending files and not another user's", async () => {
-			const own = await uploaded(seeded.first);
-			const other = await uploaded(seeded.second);
-
-			await makeStale(own.id);
-			await makeStale(other.id);
-			await uploaded(seeded.first);
-
-			expect(await fileRow(own.id)).toBeNull();
-			expect(await fileRow(other.id)).not.toBeNull();
-		});
-	});
-
-	describe(`reading and deleting ${FILES_SLUG}`, () => {
-		it("lets the owner read a pending file, and nobody else", async () => {
-			const doc = await uploaded(seeded.first);
-			const path = `/api/${FILES_SLUG}/file/${String(doc["filename"])}`;
-
-			expect(
-				(
-					await send(booted, `/api/${FILES_SLUG}/${String(doc.id)}`, {
-						token: seeded.first.token,
-					})
-				).status,
-			).toBe(200);
-			expect(
-				(
-					await send(booted, `/api/${FILES_SLUG}/${String(doc.id)}`, {
-						token: seeded.second.token,
-					})
-				).status,
+				(await chat(user, { message: "Two", files: [doc.id] })).status,
 			).toBe(404);
-
-			const own = await send(booted, path, { token: seeded.first.token });
-
-			expect(own.status).toBe(200);
-			expect(await own.text()).toBe(NOTE);
-			expect(
-				(await send(booted, path, { token: seeded.second.token })).status,
-			).toBe(403);
+			expect(String(await threadOf(doc.id))).toBe(String(thread));
 		});
 
-		it("lets the owner delete a pending file, and nobody else", async () => {
-			const doc = await uploaded(seeded.first);
-			const remove = (user: SeededUser) =>
-				send(booted, `/api/${FILES_SLUG}/${String(doc.id)}`, {
-					method: "DELETE",
-					token: user.token,
-				});
-
-			expect((await remove(seeded.second)).status).not.toBe(200);
-			expect(await fileRow(doc.id)).not.toBeNull();
-			expect((await remove(seeded.first)).status).toBe(200);
-			expect(await fileRow(doc.id)).toBeNull();
-		});
-
-		it("refuses the owner a delete of a file a turn claimed", async () => {
-			const doc = await uploaded(seeded.first);
-
-			await chatOk(seeded.first, { message: "Read this", files: [doc.id] });
-
-			expect(
-				(
-					await send(booted, `/api/${FILES_SLUG}/${String(doc.id)}`, {
-						method: "DELETE",
-						token: seeded.first.token,
-					})
-				).status,
-			).not.toBe(200);
-			expect(await fileRow(doc.id)).not.toBeNull();
-		});
-	});
-
-	describe("chatHandler with files", () => {
-		it("sends the claimed files as references in a signal, without their bytes", async () => {
-			const first = await uploaded(seeded.first, "spring.txt");
-			const second = await uploaded(seeded.first, "autumn.txt");
-			const { thread, posted } = await chatOk(seeded.first, {
-				message: "Compare",
-				files: [first.id, second.id],
+		it("sends a file again in its own thread", async () => {
+			const user = await freshUser();
+			const doc = await uploaded(user);
+			const { thread } = await chatOk(user, {
+				message: "One",
+				files: [doc.id],
 			});
-			const body = readUserTurnBody(posted.body);
+			const again = await chatOk(user, {
+				message: "Again",
+				thread,
+				files: [doc.id],
+			});
 
-			expect(posted).toMatchObject({ kind: "signal", type: "payload-context" });
-			expect(posted.body).not.toContain("MARKER");
-			expect(body?.text).toBe("Compare");
-			expect(body?.files).toEqual([
-				{
-					id: String(first.id),
-					name: "spring.txt",
-					mimeType: "text/plain",
-					size: NOTE.length,
-				},
-				{
-					id: String(second.id),
-					name: "autumn.txt",
-					mimeType: "text/plain",
-					size: NOTE.length,
-				},
+			expect(filesOf(deliveryOf(again.posted)).map((file) => file.id)).toEqual([
+				String(doc.id),
 			]);
+		});
 
-			// The turn references exactly what the thread holds.
-			const { docs } = await booted.payload.find({
-				collection: FILES_SLUG,
-				where: { thread: { equals: thread } },
-				overrideAccess: true,
+		it("strips a flueThread the client sets on create and update", async () => {
+			const user = await freshUser();
+			const target = await uploaded(user);
+			const { thread } = await chatOk(user, {
+				message: "Hi",
+				files: [target.id],
+			});
+			const created = await upload(user, "x.txt", "x", "text/plain", {
+				flueThread: thread,
+			});
+			const { doc } = (await created.json()) as { doc: Doc };
+			const updated = await send(booted, `/api/${UPLOADS}/${String(doc.id)}`, {
+				method: "PATCH",
+				token: user.token,
+				body: { flueThread: thread },
 			});
 
-			expect(docs.map((doc) => String(doc.id)).sort()).toEqual(
-				body?.files.map((file) => file.id).sort(),
-			);
+			expect(created.status).toBe(201);
+			expect(updated.status).toBe(200);
+			expect(await threadOf(doc.id)).toBeNull();
+		});
+
+		it("refuses files for an agent that takes none", async () => {
+			const user = await freshUser();
+			const doc = await uploaded(user);
+
+			expect(
+				(await chat(user, { message: "Hi", files: [doc.id] }, PLAIN.slug))
+					.status,
+			).toBe(400);
+		});
+
+		it("unbinds the files of a first turn the sidecar refuses", async () => {
+			const user = await freshUser();
+			const doc = await uploaded(user);
+
+			booted.sidecar.sendStatus = 400;
+
+			expect(
+				(await chat(user, { message: "Hi", files: [doc.id] })).status,
+			).toBe(502);
+			expect(await threadOf(doc.id)).toBeNull();
 		});
 
 		it("titles a new thread after its first file when the message is empty", async () => {
-			const doc = await uploaded(seeded.first, "minutes.txt");
-			const { thread } = await chatOk(seeded.first, {
-				message: "",
-				files: [doc.id],
-			});
+			const user = await freshUser();
+			const doc = await uploaded(user, "minutes.txt");
+			const { thread } = await chatOk(user, { message: "", files: [doc.id] });
 
 			expect((await stored(booted, thread))["title"]).toBe("minutes.txt");
 		});
+	});
 
-		describe("refusals", () => {
-			/*
-			 * A first turn's status, the thread rows and sends it added, and the
-			 * threads of `files` afterwards.
-			 */
-			const firstTurn = async (
-				body: Record<string, unknown>,
-				files: Doc[] = [],
-			) => {
-				const threads = await count(booted, THREADS_SLUG);
-				const sends = booted.sidecar.sends().length;
-				const { status } = await chat(seeded.first, body);
+	describe("agent uploads", () => {
+		it("binds a file the agent creates to its thread and reads it back", async () => {
+			const user = await freshUser();
+			const { handle, thread } = await chatOk(user, { message: "Write" });
+			const target = targetOf(handle!);
+			const created = await uploadDocument(target, {
+				collection: UPLOADS,
+				filename: "summary.txt",
+				mimeType: "text/plain",
+				data: "Summary.\n",
+			});
 
-				return {
-					status,
-					threads: (await count(booted, THREADS_SLUG)) - threads,
-					sends: booted.sidecar.sends().length - sends,
-					claimed: await Promise.all(files.map((doc) => threadOf(doc.id))),
-				};
+			expect(String(await threadOf(created.id))).toBe(String(thread));
+			expect(
+				new TextDecoder().decode(
+					(
+						await downloadDocument(target, {
+							collection: UPLOADS,
+							id: created.id,
+						})
+					).bytes,
+				),
+			).toBe("Summary.\n");
+		});
+
+		it("leaves a file created without the handle header unbound and unreadable", async () => {
+			const user = await freshUser();
+			const { handle } = await chatOk(user, { message: "Write" });
+			const target = targetOf(handle!);
+			const headerless: typeof fetch = async (input, init) => {
+				const headers = new Headers(init?.headers);
+
+				headers.delete("x-flue-handle");
+
+				return await fetchThrough(input, { ...init, headers });
 			};
 
-			// A refusal writes no thread, claims no file and sends nothing.
-			const refused = (status: number, files = 0) => ({
-				status,
-				threads: 0,
-				sends: 0,
-				claimed: Array.from({ length: files }, () => null),
-			});
-
-			it("refuses a file of another user", async () => {
-				const own = await uploaded(seeded.first);
-				const other = await uploaded(seeded.second);
-
-				expect(
-					await firstTurn({ message: "Read", files: [own.id, other.id] }, [
-						own,
-						other,
-					]),
-				).toEqual(refused(404, 2));
-			});
-
-			it("refuses a file another turn claimed", async () => {
-				const claimed = await uploaded(seeded.first);
-				const own = await uploaded(seeded.first);
-
-				await chatOk(seeded.first, { message: "First", files: [claimed.id] });
-				expect(
-					await firstTurn({ message: "Again", files: [own.id, claimed.id] }, [
-						own,
-					]),
-				).toEqual(refused(404, 1));
-			});
-
-			it("refuses more files than a turn takes", async () => {
-				const docs = [
-					await uploaded(seeded.first),
-					await uploaded(seeded.first),
-					await uploaded(seeded.first),
-				];
-
-				expect(
-					await firstTurn(
-						{ message: "All", files: docs.map((doc) => doc.id) },
-						docs,
-					),
-				).toEqual(refused(400, 3));
-			});
-
-			it("refuses base64 attachments", async () => {
-				expect(
-					await firstTurn({
-						message: "Inline",
-						attachments: [
-							{
-								type: "document",
-								mimeType: "text/plain",
-								data: Buffer.from("a").toString("base64"),
-							},
-						],
-					}),
-				).toEqual(refused(400));
-			});
-
-			it("returns the files to pending when the sidecar refuses a first turn", async () => {
-				const doc = await uploaded(seeded.first);
-
-				booted.sidecar.sendStatus = 422;
-
-				const turn = await firstTurn({ message: "Read", files: [doc.id] }, [
-					doc,
-				]);
-
-				expect(turn).toMatchObject({ status: 502, threads: 0, sends: 1 });
-				expect(turn.claimed).toEqual([null]);
-			});
-
-			it("refuses files past the thread's cap and claims none", async () => {
-				const first = await uploaded(seeded.first);
-				const second = await uploaded(seeded.first);
-				const { thread } = await chatOk(seeded.first, {
-					message: "Two",
-					files: [first.id, second.id],
-				});
-				const more = [
-					await uploaded(seeded.first),
-					await uploaded(seeded.first),
-				];
-				const sends = booted.sidecar.sends().length;
-				const response = await chat(seeded.first, {
-					message: "Two more",
-					thread,
-					files: more.map((doc) => doc.id),
-				});
-
-				expect(response.status).toBe(400);
-				expect(booted.sidecar.sends()).toHaveLength(sends);
-
-				for (const doc of more) {
-					// eslint-disable-next-line no-await-in-loop
-					expect(await threadOf(doc.id)).toBeNull();
-				}
-			});
-		});
-
-		it("removes the user's stale pending files and not another user's", async () => {
-			const own = await uploaded(seeded.second);
-			const other = await uploaded(seeded.first);
-
-			await makeStale(own.id);
-			await makeStale(other.id);
-			await chatOk(seeded.second, { message: "Hello" });
-
-			expect(await fileRow(own.id)).toBeNull();
-			expect(await fileRow(other.id)).not.toBeNull();
-		});
-	});
-
-	describe("archiving a thread with files", () => {
-		it("deletes the thread's files", async () => {
-			const doc = await uploaded(seeded.first);
-			const { thread } = await chatOk(seeded.first, {
-				message: "Keep",
-				files: [doc.id],
-			});
-
-			expect((await archive(seeded.first, thread)).status).toBe(200);
-			// The delete runs after the archive, outside its transaction.
-			await vi.waitFor(async () => {
-				expect(await fileRow(doc.id)).toBeNull();
-			});
-			expect(
-				(
-					await send(
-						booted,
-						`/api/${FILES_SLUG}/file/${String(doc["filename"])}`,
-						{
-							token: seeded.first.token,
-						},
-					)
-				).status,
-			).not.toBe(200);
-		});
-
-		it("logs a failed delete and archives the thread", async () => {
-			const doc = await uploaded(seeded.first);
-			const { thread } = await chatOk(seeded.first, {
-				message: "Keep",
-				files: [doc.id],
-			});
-			const logged = vi.spyOn(booted.payload.logger, "error");
-
-			failDeletes = true;
-
-			try {
-				expect((await archive(seeded.first, thread)).status).toBe(200);
-				await vi.waitFor(() => {
-					expect(logged).toHaveBeenCalledWith(
-						expect.objectContaining({
-							msg: "[payloadcms-flue] Could not delete the files of a thread.",
-						}),
-					);
-				});
-			} finally {
-				logged.mockRestore();
-			}
-
-			expect((await stored(booted, thread))["status"]).toBe("archived");
-			expect(await fileRow(doc.id)).not.toBeNull();
-		});
-	});
-
-	describe("the sidecar file endpoints", () => {
-		const list = (
-			body: unknown,
-			authorization = `Bearer ${SIDECAR_SECRET}`,
-		): Promise<Response> =>
-			send(booted, "/api/flue/files/list", {
-				method: "POST",
-				body,
-				headers: { authorization },
-			});
-
-		const read = (
-			id: number | string,
-			args: {
-				handle?: string | undefined;
-				agent?: string;
-				authorization?: string;
-				query?: string;
-				range?: string;
-			} = {},
-		): Promise<Response> =>
-			send(booted, `/api/flue/files/${String(id)}${args.query ?? ""}`, {
-				headers: {
-					authorization: args.authorization ?? `Bearer ${SIDECAR_SECRET}`,
-					"x-flue-handle": args.handle ?? "",
-					"x-flue-agent": args.agent ?? "editor",
-					...(args.range === undefined ? {} : { range: args.range }),
-				},
-			});
-
-		let file: Doc;
-		let other: Doc;
-		let handle: string;
-
-		beforeAll(async () => {
-			file = await uploaded(seeded.first, "brief.txt");
-			other = await uploaded(seeded.first, "other.txt");
-			handle = (
-				await chatOk(seeded.first, { message: "One", files: [file.id] })
-			).handle!;
-			await chatOk(seeded.first, { message: "Two", files: [other.id] });
-		});
-
-		it("lists the files of the handle's thread", async () => {
-			const response = await list({ handle, agent: "editor" });
-
-			expect(response.status).toBe(200);
-			expect((await response.json()) as WorkspaceFile[]).toEqual([
+			const created = await uploadDocument(
+				{ ...target, fetch: headerless },
 				{
-					id: file.id,
-					name: "brief.txt",
+					collection: UPLOADS,
+					filename: "loose.txt",
 					mimeType: "text/plain",
-					size: NOTE.length,
-					createdAt: expect.any(String) as unknown,
+					data: "Loose.\n",
+				},
+			);
+
+			expect(await threadOf(created.id)).toBeNull();
+			await expect(
+				downloadDocument(target, { collection: UPLOADS, id: created.id }),
+			).rejects.toBeInstanceOf(FluePayloadError);
+		});
+	});
+
+	describe("delivery", () => {
+		it("sends a turn without attachments as a signal whose body is the typed text", async () => {
+			const user = await freshUser();
+			const doc = await uploaded(user, "data.csv", "a,b\n1,2\n", "text/csv");
+			const { posted } = await chatOk(user, {
+				message: "Sum <this>",
+				files: [doc.id],
+			});
+
+			expect(posted).toMatchObject({
+				kind: "signal",
+				type: "payload-context",
+				body: "Sum <this>",
+			});
+			expect(filesOf(deliveryOf(posted))).toEqual([
+				{
+					collection: UPLOADS,
+					id: String(doc.id),
+					name: "data.csv",
+					mimeType: "text/csv",
+					size: 8,
+					attached: false,
 				},
 			]);
 		});
 
-		it("reads a file of the handle's thread", async () => {
-			const response = await read(file.id, { handle });
-
-			expect(response.status).toBe(200);
-			expect(await response.text()).toBe(NOTE);
-		});
-
-		it("answers a range with 206 and its bytes", async () => {
-			const response = await read(file.id, { handle, range: "bytes=0-99" });
-
-			expect(response.status).toBe(206);
-			expect((await response.arrayBuffer()).byteLength).toBe(100);
-		});
-
-		it("ignores prefix, version and original in the query", async () => {
-			const response = await read(file.id, {
-				handle,
-				query: "?prefix=elsewhere&original=true&version=1",
+		it("attaches an image to a user message and lists it in the preamble", async () => {
+			const user = await freshUser();
+			const image = await uploaded(user, "dot.png", PNG, "image/png");
+			const csv = await uploaded(user, "data.csv", "a,b\n", "text/csv");
+			const { posted } = await chatOk(user, {
+				message: "Describe",
+				files: [image.id, csv.id],
 			});
+			const delivery = deliveryOf(posted);
 
-			expect(response.status).toBe(200);
-			expect(await response.text()).toBe(NOTE);
-		});
-
-		it("refuses a wrong secret", async () => {
-			expect(
-				(await list({ handle, agent: "editor" }, "Bearer wrong")).status,
-			).toBe(401);
-			expect(
-				(await read(file.id, { handle, authorization: "Bearer wrong" })).status,
-			).toBe(401);
-		});
-
-		it("lists nothing for a reactive thread", async () => {
-			const reactive = randomUUID();
-
-			await enableEditorKey(booted, seeded.first.id);
-			await booted.payload.create({
-				collection: THREADS_SLUG,
-				data: {
-					agent: "editor",
-					kind: "reactive",
-					conversationId: randomUUID(),
-					handleHash: handleHash(reactive),
-					createdBy: { relationTo: "users", value: seeded.first.id },
+			expect(posted.kind).toBe("user");
+			// Flue may admit a large body after its default 10 seconds.
+			expect(sends.at(-1)?.timeoutMs).toBe(60_000);
+			expect(posted.attachments).toEqual([
+				{
+					type: "image",
+					data: PNG.toString("base64"),
+					mimeType: "image/png",
+					filename: "dot.png",
 				},
-				overrideAccess: true,
-			});
-
-			const response = await list({ handle: reactive, agent: "editor" });
-
-			expect(response.status).toBe(200);
-			expect(await response.json()).toEqual([]);
+			]);
+			expect(contextOf(delivery)).toMatchObject({ route: "/admin" });
+			expect(
+				filesOf(delivery).map(({ id, attached }) => ({ id, attached })),
+			).toEqual([
+				{ id: String(image.id), attached: true },
+				{ id: String(csv.id), attached: false },
+			]);
 		});
 
-		it("answers every refusal with the same 404 and no bytes", async () => {
-			const archivedFile = await uploaded(seeded.first);
-			const archived = await chatOk(seeded.first, {
-				message: "Archive me",
-				files: [archivedFile.id],
+		it("references a CSV even when the agent's policy attaches it", async () => {
+			const user = await freshUser();
+			const csv = await uploaded(user, "data.csv", "a,b\n", "text/csv");
+			const { posted } = await chatOk(
+				user,
+				{ message: "Read", files: [csv.id] },
+				GREEDY.slug,
+			);
+
+			expect(posted.kind).toBe("signal");
+			expect(filesOf(deliveryOf(posted))).toMatchObject([{ attached: false }]);
+		});
+
+		it("references what passes the per-turn attachment budget", async () => {
+			const user = await freshUser();
+			const docs = await Promise.all(
+				[1, 2, 3, 4, 5].map((index) =>
+					uploaded(
+						user,
+						`part-${String(index)}.pdf`,
+						pdfOf(4 * MIB),
+						"application/pdf",
+					),
+				),
+			);
+
+			const { posted } = await chatOk(
+				user,
+				{ message: "Read", files: docs.map((doc) => doc.id) },
+				GREEDY.slug,
+			);
+
+			expect(posted.attachments).toHaveLength(4);
+			expect(filesOf(deliveryOf(posted)).map((file) => file.attached)).toEqual([
+				true,
+				true,
+				true,
+				true,
+				false,
+			]);
+		});
+	});
+
+	describe("the agents endpoint", () => {
+		it("answers each agent's file limits, null for an agent without files", async () => {
+			const user = await freshUser();
+			const response = await send(booted, "/api/flue/agents", {
+				token: user.token,
 			});
+			const { agents } = (await response.json()) as {
+				agents: { slug: string; files: unknown }[];
+			};
+			const limits = {
+				collection: UPLOADS,
+				mimeTypes: ["image/png", "application/pdf", "text/plain", "text/csv"],
+				maxFiles: 10,
+			};
 
-			expect((await archive(seeded.first, archived.thread)).status).toBe(200);
-
-			const expiring = await freshUser();
-			const expiringFile = await uploaded(expiring);
-			const expired = await chatOk(expiring, {
-				message: "Expire me",
-				files: [expiringFile.id],
-			});
-
-			await booted.payload.update({
-				collection: API_KEYS_SLUG,
-				where: { user: { equals: expiring.id } },
-				data: { expiresAt: new Date(Date.now() - 1000).toISOString() },
-				overrideAccess: true,
-			});
-
-			const refusals = [
-				await read(other.id, { handle }),
-				await read(file.id, { handle, agent: "restricted" }),
-				await read(archivedFile.id, { handle: archived.handle }),
-				await read(expiringFile.id, { handle: expired.handle }),
-				await read(file.id, { handle: randomUUID() }),
-				await read("not-an-id", { handle }),
-				await list({ handle: archived.handle, agent: "editor" }),
-				await list({ handle, agent: "restricted" }),
-				await list({ handle: expired.handle, agent: "editor" }),
-				await list({ handle: randomUUID(), agent: "editor" }),
-			];
-
-			for (const response of refusals) {
-				expect(response.status).toBe(404);
-				// eslint-disable-next-line no-await-in-loop
-				expect(await response.json()).toEqual({
-					error: "No live conversation matches this handle and agent.",
-				});
-			}
+			expect(agents).toEqual([
+				expect.objectContaining({ slug: FILER.slug, files: limits }),
+				expect.objectContaining({ slug: GREEDY.slug, files: limits }),
+				expect.objectContaining({ slug: PLAIN.slug, files: null }),
+			]);
 		});
 	});
 });
 
-describe("the file workspace with inlined text", () => {
+describe("chat files in a fluePrivateUploads collection", () => {
 	let dir: string;
 	let booted: Booted;
-	let seeded: Seeded;
 
-	beforeAll(async () => {
-		dir = await mkdtemp(join(tmpdir(), "flue-files-inline-"));
-		booted = await bootWithFiles("flue-files-inline", dir, {
-			inlineTextBytes: 1024,
-		});
-		seeded = await seed(booted.payload);
-	});
-
-	afterAll(async () => {
-		await shutdown(booted);
-		await rm(dir, { recursive: true, force: true });
-	});
-
-	it("references each file and inlines the text files that fit", async () => {
-		const form = new FormData();
-
-		form.append(
-			"file",
-			new File(["# Agenda\n"], "agenda.md", { type: "text/markdown" }),
-		);
-
-		const response = await send(booted, `/api/${FILES_SLUG}`, {
-			method: "POST",
-			token: seeded.first.token,
-			body: form,
-		});
-		const { doc } = (await response.json()) as { doc: Doc };
-
-		await send(booted, "/api/flue/chat/editor", {
-			method: "POST",
-			token: seeded.first.token,
-			body: { message: "Plan", files: [doc.id], context: CONTEXT },
-		});
-
-		const posted = JSON.parse(booted.sidecar.sends().at(-1)?.body ?? "{}") as {
-			body: string;
+	const userOf = async (): Promise<User> => {
+		const credentials = {
+			email: `${randomUUID()}@example.com`,
+			password: "private-secret",
 		};
-		const body = readUserTurnBody(posted.body);
+		const user = await booted.payload.create({
+			collection: "users",
+			data: credentials,
+			overrideAccess: true,
+		});
 
-		expect(body?.files).toEqual([
-			{
-				id: String(doc.id),
-				name: "agenda.md",
-				mimeType: "text/markdown",
-				size: 9,
-			},
-		]);
-		expect(body?.inline).toEqual([
-			{
-				type: "document",
-				data: Buffer.from("# Agenda\n").toString("base64"),
-				mimeType: "text/markdown",
-				filename: "agenda.md",
-			},
-		]);
-	});
-});
+		return {
+			id: user.id,
+			token: await login(booted.payload, "users", credentials),
+		};
+	};
 
-describe("the file workspace with configured policy", () => {
-	let dir: string;
-	let booted: Booted;
-	let seeded: Seeded;
-
-	// The 22 bytes of an empty zip archive.
-	const ZIP = Buffer.concat([
-		Buffer.from([0x50, 0x4b, 0x05, 0x06]),
-		Buffer.alloc(18),
-	]);
-
-	const upload = (
-		user: SeededUser,
-		name: string,
-		bytes: BlobPart,
-		type: string,
-	) => {
+	const uploadAs = async (user: User, name: string): Promise<Doc> => {
 		const form = new FormData();
 
-		form.append("file", new File([bytes], name, { type }));
+		form.append("file", new File(["a,b\n"], name, { type: "text/csv" }));
 
-		return send(booted, `/api/${FILES_SLUG}`, {
+		const response = await send(booted, `/api/${UPLOADS}`, {
 			method: "POST",
 			token: user.token,
 			body: form,
 		});
+
+		expect(response.status).toBe(201);
+
+		return ((await response.json()) as { doc: Doc }).doc;
 	};
 
-	const uploaded = async (
-		user: SeededUser,
-		name: string,
-		bytes: BlobPart,
-		type: string,
-	) =>
-		((await (await upload(user, name, bytes, type)).json()) as { doc: Doc })
-			.doc;
-
 	beforeAll(async () => {
-		dir = await mkdtemp(join(tmpdir(), "flue-files-policy-"));
-		booted = await bootWithFiles("flue-files-policy", dir, {
-			mimeTypes: ["application/zip", "text/plain"],
-			maxFilesPerTurn: 2,
-			pending: { maxFiles: 2, ttlMs: 60 * 60 * 1000 },
-			overrideCollection: (collection) => {
-				const stored = withTestStorage(dir)(collection);
+		dir = await mkdtemp(join(tmpdir(), "flue-private-"));
+		booted = await bootPayload("flue-private-uploads", undefined, (url) => ({
+			...filesConfig(dir, {}, undefined, url),
+			collections: [
+				users,
+				pages,
+				fluePrivateUploads({
+					slug: UPLOADS,
+					mimeTypes: ["text/csv"],
+					overrides: { upload: { staticDir: join(dir, "private") } },
+				}),
+			],
+		}));
+	});
 
-				return {
-					...stored,
-					hooks: {
-						...stored.hooks,
-						beforeOperation: [
-							({ req }) => {
-								if (req.file?.name === "blocked.txt") {
-									throw new APIError("Blocked by the app.", 400);
-								}
-							},
-							...(stored.hooks?.beforeOperation ?? []),
-						],
-					},
-				};
-			},
-		});
-		seeded = await seed(booted.payload);
+	beforeEach(() => {
+		booted.sidecar.reset();
 	});
 
 	afterAll(async () => {
@@ -974,63 +947,79 @@ describe("the file workspace with configured policy", () => {
 		await rm(dir, { recursive: true, force: true });
 	});
 
-	it("claims an upload of a configured type with a turn", async () => {
-		const doc = await uploaded(seeded.first, "a.zip", ZIP, "application/zip");
+	it("stores a file under a random name, keeps the uploader's, and shows it to the uploader only", async () => {
+		const [owner, stranger] = [await userOf(), await userOf()];
+		const doc = await uploadAs(owner, "q3 numbers.csv");
+		const read = (user: User) =>
+			send(booted, `/api/${UPLOADS}/${String(doc.id)}`, { token: user.token });
 
-		await send(booted, "/api/flue/chat/editor", {
+		expect(doc["name"]).toBe("q3 numbers.csv");
+		expect(doc["filename"]).toMatch(/^[0-9a-f-]{36}\.csv$/);
+		expect((await read(owner)).status).toBe(200);
+		expect((await read(stranger)).status).toBe(404);
+	});
+
+	it("sends the uploader's name with the turn", async () => {
+		const owner = await userOf();
+		const doc = await uploadAs(owner, "q3 numbers.csv");
+		const response = await send(booted, `/api/flue/chat/${FILER.slug}`, {
 			method: "POST",
-			token: seeded.first.token,
-			body: { message: "Open", files: [doc.id], context: CONTEXT },
+			token: owner.token,
+			body: { context: CONTEXT, message: "Sum", files: [doc.id] },
 		});
+		const posted = JSON.parse(
+			booted.sidecar.sends().at(-1)?.body ?? "{}",
+		) as Posted;
 
-		const posted = JSON.parse(booted.sidecar.sends().at(-1)?.body ?? "{}") as {
-			body: string;
-		};
-
-		expect(readUserTurnBody(posted.body)?.files).toEqual([
-			{
-				id: String(doc.id),
-				name: "a.zip",
-				mimeType: "application/zip",
-				size: ZIP.length,
-			},
+		expect(response.status).toBe(200);
+		expect(filesOf(posted as DeliveredMessage)).toMatchObject([
+			{ id: String(doc.id), name: "q3 numbers.csv", mimeType: "text/csv" },
 		]);
 	});
+});
 
-	it("lets a beforeOperation hook of the override refuse an upload with its message", async () => {
-		const response = await upload(
-			seeded.second,
-			"blocked.txt",
-			"x",
-			"text/plain",
-		);
+describe("chat files configuration", () => {
+	let dir: string;
 
-		expect(response.status).not.toBe(201);
-		expect(await response.text()).toContain("Blocked by the app.");
+	beforeAll(async () => {
+		dir = await mkdtemp(join(tmpdir(), "flue-files-config-"));
 	});
 
-	it("refuses a third pending upload with pending.maxFiles 2", async () => {
-		await uploaded(seeded.second, "one.txt", "1", "text/plain");
-		await uploaded(seeded.second, "two.txt", "2", "text/plain");
-
-		expect(
-			(await upload(seeded.second, "three.txt", "3", "text/plain")).status,
-		).toBe(400);
+	afterAll(async () => {
+		await rm(dir, { recursive: true, force: true });
 	});
 
-	it("sweeps a file past pending.ttlMs on the next upload", async () => {
-		const user = seeded.first;
-		const old = await uploaded(user, "old.txt", "old", "text/plain");
+	it("refuses an agent taking files when mcpx offers no read for the collection", async () => {
+		const config = filesConfig(dir, {}, { pages: {} });
 
-		await booted.payload.db.updateOne({
-			collection: FILES_SLUG,
-			id: old.id,
-			data: { createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) },
-		});
-		await uploaded(user, "new.txt", "new", "text/plain");
+		await expect(
+			buildConfig({
+				secret: "flue-test-secret",
+				db: sqliteAdapter({ client: { url: ":memory:" } }),
+				admin: { user: "users" },
+				...config,
+			}),
+		).rejects.toThrow(/no read checkbox for "uploads"/);
+	});
 
-		expect(
-			await count(booted, FILES_SLUG, { name: { equals: "old.txt" } }),
-		).toBe(0);
+	it("refuses a files collection with a top-level download field", async () => {
+		const config = filesConfig(dir);
+
+		await expect(
+			buildConfig({
+				secret: "flue-test-secret",
+				db: sqliteAdapter({ client: { url: ":memory:" } }),
+				admin: { user: "users" },
+				...config,
+				collections: [
+					users,
+					pages,
+					{
+						...uploads(join(dir, "store")),
+						fields: [{ name: "download", type: "text" }],
+					},
+				],
+			}),
+		).rejects.toThrow(/field named "download"/);
 	});
 });

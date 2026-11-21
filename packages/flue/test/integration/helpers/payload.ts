@@ -45,18 +45,19 @@ export interface Booted {
 
 /**
  * Starts a fake sidecar and boots the fixture against it, with `flue`
- * replacing flue's options key by key and `overrides` the config's.
- * `getPayload` caches by key, so every spec passes its own.
+ * replacing flue's options key by key and `overrides` the config's, given
+ * directly or from the sidecar's URL. `getPayload` caches by key, so every
+ * spec passes its own.
  */
 export const bootPayload = async (
 	cacheKey: string,
 	flue?: Partial<FluePluginOptions>,
-	overrides: Partial<Config> = {},
+	overrides: Partial<Config> | ((sidecarUrl: string) => Partial<Config>) = {},
 ): Promise<Booted> => {
 	const sidecar = await startSidecar();
 	const config = buildConfig({
 		...fixtureConfig({ sidecarUrl: sidecar.url, ...(flue ? { flue } : {}) }),
-		...overrides,
+		...(typeof overrides === "function" ? overrides(sidecar.url) : overrides),
 	});
 	const payload = await getPayload({ config, key: cacheKey });
 

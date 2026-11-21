@@ -84,26 +84,28 @@ export const FileCard: DataMessagePartComponent = ({ data }) => {
 };
 
 /*
- * A workspace file a user's message references. Its link is Payload's file
- * route, read when the card shows; a file that is gone shows struck through.
- * While the lookup runs or fails, only the name shows.
+ * A file a user's message sent, by its collection and id. Its link is
+ * Payload's file route, read when the card shows; a file that is gone or
+ * out of the user's reach shows struck through. While the lookup runs or
+ * fails, only the name shows.
  */
-export const WorkspaceFile: React.FC<{ id: string; name: string }> = ({
-	id,
-	name,
-}) => {
+export const SentFile: React.FC<{
+	collection: string;
+	id: string;
+	name: string;
+}> = ({ collection, id, name }) => {
 	const tools = useContext(ToolsContext);
 	const [link, setLink] = useState<null | string>();
 
 	useEffect(() => {
-		if (tools?.filesSlug === undefined) {
+		if (tools === null) {
 			return;
 		}
 
 		let active = true;
 
 		tools.api
-			.fileLink(tools.filesSlug, id)
+			.fileLink(collection, id)
 			.then((found) => {
 				if (active) {
 					setLink(found);
@@ -114,7 +116,7 @@ export const WorkspaceFile: React.FC<{ id: string; name: string }> = ({
 		return () => {
 			active = false;
 		};
-	}, [tools, id]);
+	}, [tools, collection, id]);
 
 	if (link === null) {
 		return (

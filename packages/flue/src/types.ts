@@ -1,4 +1,4 @@
-import type { AttachmentMimeType } from "./protocol/attachments.js";
+import type { FileDeliver } from "./protocol/attachments.js";
 import type { ChatContext, RunKind } from "./protocol/context.js";
 import type {
 	CollectionConfig,
@@ -6,11 +6,13 @@ import type {
 	PayloadRequest,
 } from "payload";
 
-export type { AttachmentMimeType } from "./protocol/attachments.js";
+export type { FileDeliver, FileDelivery } from "./protocol/attachments.js";
 
 declare module "payload" {
 	interface RequestContext {
 		flue?: FlueRequestContext;
+		/** The thread an agent request may read files of, resolved once per request. */
+		flueGuard?: unknown;
 	}
 }
 
@@ -53,6 +55,12 @@ export interface FlueAgentConfig {
 	access?: (args: { req: PayloadRequest }) => boolean | Promise<boolean>;
 	/** Runs the agent on a schedule as the agent user. */
 	ambient?: { cron: string; message: string };
+	/**
+	 * Lets chat users send the agent files of `files.collection`; `deliver`
+	 * replaces the plugin-wide policy for this agent. Implies the read grant
+	 * on the collection, which the thread guard narrows. Default off.
+	 */
+	files?: boolean | { deliver?: FileDeliver };
 }
 
 export interface FluePluginOptions {
@@ -92,77 +100,41 @@ export interface FluePluginOptions {
 		wait?: boolean | { maxWaitMs?: number };
 	};
 	/**
-	 * Lets chat users attach images, PDFs and text files to a turn; `true`
-	 * takes the defaults. Raises the chat body cap to fit the files. Default off.
+	 * The admin chat. `false` mounts neither the chat nor the document
+	 * bridge, for an install that runs agents from hooks and schedules only.
+	 * `documentBridge` keeps open edit views in step with the agent's writes:
+	 * `false` mounts it nowhere, lists mount it on those slugs only. Default:
+	 * the chat, and the bridge on every collection and global.
 	 */
-	attachments?: boolean | FlueAttachmentOptions;
+	admin?:
+		| false
+		| {
+				documentBridge?:
+					boolean | { collections?: string[]; globals?: string[] };
+		  };
 	/**
-	 * Lets chat users upload files to a plugin-owned upload collection and
-	 * send them with a turn as references; `true` takes the defaults. Agents
-	 * read them through the sidecar. Excludes `attachments`. Default off.
+	 * Lets chat users send files of an upload collection the app defines with
+	 * a turn, to the agents that opt in with their own `files`. Default off.
 	 */
-	files?: boolean | FlueFileOptions;
+	files?: FlueFileOptions;
 }
 
-/** The chat's file workspace. */
+/** The chat's files. */
 export interface FlueFileOptions {
-	/** Default `flue-files`. */
-	slug?: string;
 	/**
-	 * Exact `type/subtype` MIME types the chat takes; wildcards are refused.
-	 * Default: `DEFAULT_FILE_MIME_TYPES`.
+	 * An upload collection that sets `upload.mimeTypes` and keeps
+	 * `authorship`. The plugin adds a server-only `flueThread` field and
+	 * scopes agent reads to the current thread.
 	 */
-	mimeTypes?: string[];
-	/**
-	 * Largest file in bytes, at most 1 GiB. Default 150 MiB, lowered to what
-	 * Payload's `upload.requestSizeLimit` and `upload.limits.fileSize` take
-	 * and to 32 MiB unless `upload.useTempFiles` is on: 20 MiB at Payload's
-	 * defaults.
-	 */
-	maxBytes?: number;
+	collection: string;
 	/** Files per turn. Default 10, maximum 20. */
 	maxFilesPerTurn?: number;
-	/** Files per thread. Default 100, which is also the maximum. */
-	maxFilesPerThread?: number;
 	/**
-	 * Text files up to this many bytes, all of a turn together, also go into
-	 * the turn's text. Default 0, maximum 64 KiB.
+	 * Whether each file is attached or referenced. Default `defaultDeliver`.
+	 * Only images and PDFs within Flue's caps and the per-turn budget are
+	 * attached, whatever it answers.
 	 */
-	inlineTextBytes?: number;
-	/** Limits of the files a user uploaded that no turn has claimed yet. */
-	pending?: {
-		/** Default 20, between `maxFilesPerTurn` and 100. */
-		maxFiles?: number;
-		/**
-		 * In bytes. Default 300 MiB or `maxBytes` if larger, at most 10 GiB and
-		 * at least `maxBytes`.
-		 */
-		maxBytes?: number;
-		/** How long a pending file lives. Default 24 hours, from 1 hour to 7 days. */
-		ttlMs?: number;
-	};
-	/** Must keep `upload.mimeTypes`, which makes Payload check each file's content. */
-	overrideCollection?: (collection: CollectionConfig) => CollectionConfig;
-}
-
-/** Limits of chat attachments; each may only narrow the default. */
-export interface FlueAttachmentOptions {
-	/**
-	 * Default: PNG, JPEG, GIF, WebP, PDF, Markdown, plain text and CSV. Text
-	 * files reach the model inlined into the turn's text.
-	 */
-	mimeTypes?: AttachmentMimeType[];
-	/** Largest decoded image in bytes. Default and maximum 3.75 MiB. */
-	maxImageBytes?: number;
-	/** Largest decoded PDF in bytes. Default 5 MiB, maximum 10 MiB. */
-	maxDocumentBytes?: number;
-	/**
-	 * Largest decoded text of all text files of a turn, in bytes. Default
-	 * 512 KiB, maximum 2 MiB.
-	 */
-	maxTextBytes?: number;
-	/** Files per turn. Default 4, maximum 20. */
-	maxFiles?: number;
+	deliver?: FileDeliver;
 }
 
 /** The input of the `flue-dispatch` job task. */

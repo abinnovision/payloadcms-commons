@@ -98,8 +98,8 @@ Longer rationale goes in `docs/`. Do not use em-dashes.
 - Shared code such as `turn.ts` throws a public `APIError`; `endpointHandler` answers it as a
   refusal with its status and message.
 - Option and config checks throw `InvalidConfiguration` with the prefix `[payloadcms-flue]`.
-- Sidecar failures become `SidecarError`, and exchange failures in the sidecar
-  `FlueExchangeError`, each with the status that was answered.
+- Sidecar failures become `SidecarError`, and failed calls to Payload from the sidecar
+  `FluePayloadError`, each with the status that was answered.
 
 Anything else reaches Payload's error handler. No message or log line carries the sidecar secret,
 a handle, an mcpx key or a sidecar response body.

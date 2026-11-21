@@ -3,16 +3,11 @@ import {
 	decodeContext,
 	readUserTurnBody,
 } from "../protocol/context.js";
+import { readFileAttributes } from "../protocol/files.js";
 
-import type { ChatContext, UserTurnBody } from "../protocol/context.js";
-import type { WorkspaceFileRef } from "../protocol/files.js";
-import type { DeliveredAttachment, DeliveredMessage } from "@flue/runtime";
-
-// The body of a user's turn, of either shape.
-const turnBodyOf = (delivery: DeliveredMessage): undefined | UserTurnBody =>
-	delivery.kind === "user" || delivery.type === CONTEXT_SIGNAL_TYPE
-		? readUserTurnBody(delivery.body)
-		: undefined;
+import type { ChatContext } from "../protocol/context.js";
+import type { FileRef } from "../protocol/files.js";
+import type { DeliveredMessage } from "@flue/runtime";
 
 /**
  * The context Payload sent with a delivery, from either turn shape: the
@@ -33,23 +28,18 @@ export const contextOf = (
 };
 
 /**
- * The files of a user's turn: the text files Payload inlined into the body,
- * as base64 UTF-8 `document` attachments with their own MIME type, then
- * Flue's attachments, the order the panel shows them in. Empty for any other
- * delivery. A text file cannot go back to Flue as a document, which takes
- * only PDFs.
+ * The files a user's turn carries, in the order the user sent them, from
+ * either turn shape. `attached` marks the ones that also reached the model
+ * as Flue attachments; read any of them with `payload.download`. Empty for
+ * any other delivery. `name` is the uploader's and untrusted.
  */
-export const attachmentsOf = (
-	delivery: DeliveredMessage,
-): DeliveredAttachment[] => [
-	...(turnBodyOf(delivery)?.inline ?? []),
-	...(delivery.kind === "user" ? (delivery.attachments ?? []) : []),
-];
+export const filesOf = (delivery: DeliveredMessage): FileRef[] => {
+	if (delivery.kind === "user") {
+		return readUserTurnBody(delivery.body)?.files ?? [];
+	}
 
-/**
- * The workspace files a user's turn references, in the order the panel
- * shows them. Read them with `payload.files`. Empty for any other delivery.
- * `name` is the uploader's and untrusted.
- */
-export const filesOf = (delivery: DeliveredMessage): WorkspaceFileRef[] =>
-	turnBodyOf(delivery)?.files ?? [];
+	return delivery.type === CONTEXT_SIGNAL_TYPE &&
+		delivery.attributes !== undefined
+		? readFileAttributes(delivery.attributes)
+		: [];
+};

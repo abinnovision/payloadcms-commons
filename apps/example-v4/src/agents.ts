@@ -22,6 +22,8 @@ export const fluePluginOptions: FluePluginOptions = {
 			label: "Editor",
 			description:
 				"Reads, edits, publishes and deletes everything mcpx exposes.",
+			// Takes files in the chat; flue grants it read on `chat-uploads`.
+			files: true,
 			// Every collection and global mcpx exposes; deletes wait for the user's approval.
 			capabilities: {
 				collections: {
@@ -70,8 +72,8 @@ export const fluePluginOptions: FluePluginOptions = {
 	agentUser: { email: AGENT_EMAIL },
 	// Every signed-in user reads agent runs, so a publisher sees the run their publish queued.
 	threads: { readAgentRuns: (req) => Boolean(req.user) },
-	// Files in the chat go to a plugin-owned upload collection; agents read them through tools.
-	files: true,
+	// Files in the chat go to `chat-uploads`; agents read them with `payload.download`.
+	files: { collection: "chat-uploads" },
 };
 
 /**

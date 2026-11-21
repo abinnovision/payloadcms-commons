@@ -1,7 +1,7 @@
 import { invalid } from "../options.js";
 
-import type { StartupLogger } from "../options.js";
-import type { FlueAgentConfig, FlueCollectionGrant } from "../types.js";
+import type { NormalizedOptions, StartupLogger } from "../options.js";
+import type { FlueCollectionGrant } from "../types.js";
 import type {
 	Access,
 	BaseFilter,
@@ -360,18 +360,32 @@ export const capabilityFields = (
 
 /**
  * Refuses a grant mcpx offers no checkbox for and a grant without the one it
- * requires, naming the agent and the path. Warns where an ambient agent may
- * delete, as nobody but the agent user can approve its calls.
+ * requires, naming the agent and the path, and an agent taking files when
+ * mcpx offers no read checkbox for the files collection. Warns where an
+ * ambient agent may delete, as nobody but the agent user can approve its
+ * calls.
  */
 export const validateGrants = (
 	map: CapabilityFieldMap,
-	agents: FlueAgentConfig[],
+	settings: Pick<NormalizedOptions, "agents" | "files">,
 	logger: Pick<StartupLogger, "warn">,
 ): void => {
-	for (const agent of agents) {
+	const { files } = settings;
+
+	for (const agent of settings.agents) {
 		const refuse = (path: string, reason: string): never => {
 			throw invalid(`Agent "${agent.slug}": capabilities.${path} ${reason}`);
 		};
+
+		if (
+			agent.files &&
+			files &&
+			!map.collections[files.collection]?.operations.includes("read")
+		) {
+			throw invalid(
+				`Agent "${agent.slug}" takes files, but the mcpx API keys have no read checkbox for "${files.collection}". Expose it in mcpx's collections.`,
+			);
+		}
 
 		for (const namespace of ["collections", "globals"] as const) {
 			for (const [slug, value] of Object.entries(

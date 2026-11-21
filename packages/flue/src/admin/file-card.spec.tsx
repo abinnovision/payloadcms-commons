@@ -16,7 +16,7 @@ vi.mock("@payloadcms/ui", () => ({
 	PayloadLink: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }));
 
-const { WorkspaceFile } = await import("./file-card.js");
+const { SentFile } = await import("./file-card.js");
 
 // Renders the card with a files API that answers `link`, and waits for the lookup.
 const show = async (link: () => Promise<null | string>) => {
@@ -29,12 +29,11 @@ const show = async (link: () => Promise<null | string>) => {
 			<ToolsContext
 				value={{
 					api: { fileLink } as unknown as FlueApi,
-					filesSlug: "flue-files",
 					adminRoute: "/admin",
 					origin: "https://cms.example.com",
 				}}
 			>
-				<WorkspaceFile id="12" name="brief.pdf" />
+				<SentFile collection="uploads" id="12" name="brief.pdf" />
 			</ToolsContext>,
 		);
 		await Promise.resolve();
@@ -43,15 +42,15 @@ const show = async (link: () => Promise<null | string>) => {
 	return { container, fileLink };
 };
 
-describe("workspaceFile", () => {
-	it("links the name to the file route", async () => {
+describe("sentFile", () => {
+	it("links the name to the file route of its collection", async () => {
 		const { container, fileLink } = await show(() =>
-			Promise.resolve("/api/flue-files/file/abc.pdf"),
+			Promise.resolve("/api/uploads/file/abc.pdf"),
 		);
 		const anchor = container.querySelector("a")!;
 
-		expect(fileLink).toHaveBeenCalledWith("flue-files", "12");
-		expect(anchor.getAttribute("href")).toBe("/api/flue-files/file/abc.pdf");
+		expect(fileLink).toHaveBeenCalledWith("uploads", "12");
+		expect(anchor.getAttribute("href")).toBe("/api/uploads/file/abc.pdf");
 		expect(anchor.textContent).toBe("brief.pdf");
 	});
 

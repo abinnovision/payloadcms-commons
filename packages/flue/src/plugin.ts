@@ -8,12 +8,19 @@ import {
 	conversationHandler,
 } from "./endpoints/conversation.js";
 import { exchangeHandler } from "./endpoints/exchange.js";
-import { fileHandler, filesListHandler } from "./endpoints/files.js";
 import { settledHandler } from "./endpoints/settled.js";
 import {
 	assertFilesCollection,
-	createFilesCollection,
+	assertStartedFilesCollection,
+	withThreadField,
 } from "./files/collection.js";
+import { FACTORY_USER_COLLECTION } from "./files/factory.js";
+import {
+	bindAgentUpload,
+	guardFiles,
+	isBindHook,
+	isFileGuard,
+} from "./files/guard.js";
 import { createDispatchTask } from "./jobs/dispatch.js";
 import { QUEUE_SETTINGS_KEY } from "./jobs/queue.js";
 import {
@@ -22,7 +29,7 @@ import {
 	validateGrants,
 } from "./keys/augment.js";
 import { disableUserKeys } from "./keys/manager.js";
-import { normalizeOptions } from "./options.js";
+import { invalid, normalizeOptions } from "./options.js";
 import { FLUE_ROUTES } from "./protocol/paths.js";
 import { createThreadsCollection } from "./threads/collection.js";
 
@@ -41,11 +48,14 @@ import type {
 
 const ADMIN_ENTRY = "@abinnovision/payloadcms-flue/admin";
 
+// The operations the thread guard narrows on the files collection.
+const GUARDED = ["read", "readVersions", "update", "delete"] as const;
+
 /*
  * Keeps the open edit view in step with the agent's writes. Rendered inside
  * the document's form, which the chat's provider sits above.
  */
-const withDocumentBridge = <T extends CollectionConfig | GlobalConfig>(
+const withBridge = <T extends CollectionConfig | GlobalConfig>(
 	entity: T,
 ): T => ({
 	...entity,
@@ -108,6 +118,16 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 
 		const settings = normalizeOptions(config, options, plugins, logger);
 		const { apiKeysSlug, userCollection } = settings.mcpx;
+		const { admin } = settings;
+		const bridged =
+			(kind: "collections" | "globals") =>
+			<T extends CollectionConfig | GlobalConfig>(entity: T): T =>
+				admin && admin.bridges(kind, entity.slug) ? withBridge(entity) : entity;
+		const withDocumentBridge = bridged("collections");
+		const guardSettings = settings.files && {
+			...settings,
+			files: settings.files,
+		};
 		// normalizeOptions has checked that the key collection is in the config.
 		let capabilityMap: CapabilityFieldMap = {
 			collections: {},
@@ -121,9 +141,33 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					const keys = augmentKeyCollection(collection);
 
 					capabilityMap = capabilityFields(keys);
-					validateGrants(capabilityMap, settings.agents, logger);
+					validateGrants(capabilityMap, settings, logger);
 
 					return keys;
+				}
+
+				if (
+					guardSettings &&
+					collection.slug === guardSettings.files.collection
+				) {
+					assertFilesCollection(collection, logger);
+
+					const factoryUsers: unknown =
+						collection.custom?.[FACTORY_USER_COLLECTION];
+
+					if (factoryUsers !== undefined && factoryUsers !== userCollection) {
+						throw invalid(
+							`The files collection "${collection.slug}" was built for users of ${JSON.stringify(factoryUsers)}, but mcpx's user collection is "${userCollection}". Pass userCollection to fluePrivateUploads.`,
+						);
+					}
+
+					return withDocumentBridge(
+						withThreadField(
+							collection,
+							settings.threads.slug,
+							bindAgentUpload(guardSettings),
+						),
+					);
 				}
 
 				if (collection.slug === userCollection) {
@@ -144,18 +188,7 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 		);
 
 		const threads = createThreadsCollection(settings);
-		const fileCollections: CollectionConfig[] = [];
-
-		if (settings.files) {
-			const files = createFilesCollection({
-				...settings,
-				files: settings.files,
-			});
-			const overridden = settings.files.overrideCollection?.(files) ?? files;
-
-			assertFilesCollection(overridden);
-			fileCollections.push(overridden);
-		}
+		const baseAccess = config.baseAccess?.collections;
 
 		const full: PluginSettings = { ...settings, capabilityMap };
 		const endpoint = (
@@ -173,9 +206,28 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 			collections: [
 				...collections,
 				options.threads?.overrideCollection?.(threads) ?? threads,
-				...fileCollections,
 			],
-			globals: (config.globals ?? []).map(withDocumentBridge),
+			...(guardSettings
+				? {
+						baseAccess: {
+							...config.baseAccess,
+							collections: {
+								...baseAccess,
+								...Object.fromEntries(
+									GUARDED.map((operation) => [
+										operation,
+										guardFiles(
+											baseAccess?.[operation],
+											guardSettings,
+											operation,
+										),
+									]),
+								),
+							},
+						},
+					}
+				: {}),
+			globals: (config.globals ?? []).map(bridged("globals")),
 			endpoints: [
 				...(config.endpoints ?? []),
 				endpoint("agents", "get", agentsHandler(full)),
@@ -188,20 +240,6 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					conversationAttachmentHandler(full),
 				),
 				endpoint("exchange", "post", exchangeHandler(full)),
-				...(settings.files
-					? [
-							endpoint(
-								"filesList",
-								"post",
-								filesListHandler({ ...full, files: settings.files }),
-							),
-							endpoint(
-								"file",
-								"get",
-								fileHandler({ ...full, files: settings.files }),
-							),
-						]
-					: []),
 				endpoint("settled", "post", settledHandler(full)),
 			],
 			jobs: {
@@ -215,30 +253,34 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					agents: settings.agents.map((agent) => agent.slug),
 				} satisfies QueueSettings,
 			},
-			admin: {
-				...config.admin,
-				components: {
-					...config.admin?.components,
-					// A provider stays mounted across admin navigation, and so does the chat.
-					providers: [
-						...(config.admin?.components?.providers ?? []),
-						{
-							path: ADMIN_ENTRY,
-							exportName: "FlueProvider",
-							clientProps: {
-								endpointPath: settings.endpointPath,
-								threadsSlug: settings.threads.slug,
-								userCollection: settings.mcpx.userCollection,
-								mcpxEndpointPath: settings.mcpx.endpointPath,
+			...(admin
+				? {
+						admin: {
+							...config.admin,
+							components: {
+								...config.admin?.components,
+								// A provider stays mounted across admin navigation, and so does the chat.
+								providers: [
+									...(config.admin?.components?.providers ?? []),
+									{
+										path: ADMIN_ENTRY,
+										exportName: "FlueProvider",
+										clientProps: {
+											endpointPath: settings.endpointPath,
+											threadsSlug: settings.threads.slug,
+											userCollection: settings.mcpx.userCollection,
+											mcpxEndpointPath: settings.mcpx.endpointPath,
+										},
+									},
+								],
+								actions: [
+									...(config.admin?.components?.actions ?? []),
+									{ path: ADMIN_ENTRY, exportName: "FlueToggle" },
+								],
 							},
 						},
-					],
-					actions: [
-						...(config.admin?.components?.actions ?? []),
-						{ path: ADMIN_ENTRY, exportName: "FlueToggle" },
-					],
-				},
-			},
+					}
+				: {}),
 			onInit: async (payload) => {
 				const [failure] = failures;
 
@@ -246,12 +288,46 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					throw failure;
 				}
 
-				// A storage adapter may change the upload config after flue ran.
-				const files =
-					settings.files && payload.collections[settings.files.slug];
+				if (settings.files) {
+					const files = payload.collections[settings.files.collection]?.config;
 
-				if (files) {
-					assertFilesCollection(files.config);
+					// A storage adapter or a later plugin may change the collection after flue ran.
+					if (!files) {
+						throw invalid(
+							`files.collection "${settings.files.collection}" is not in the config.`,
+						);
+					}
+
+					assertFilesCollection(files, { warn: () => undefined });
+
+					if (
+						files.flattenedFields.some((field) => field.name === "download")
+					) {
+						throw invalid(
+							`The files collection "${files.slug}" must not have a top-level field named "download": mcpx serves no files of such a collection.`,
+						);
+					}
+
+					const guarded = payload.config.baseAccess?.collections;
+
+					if (
+						!GUARDED.every((operation) => isFileGuard(guarded?.[operation]))
+					) {
+						throw invalid(
+							"Another plugin replaced config.baseAccess after flue, which drops the thread guard on the files collection. Register it before flue.",
+						);
+					}
+
+					await assertStartedFilesCollection(
+						files,
+						settings.mcpx.userCollection,
+					);
+
+					if (!files.hooks.beforeChange.some(isBindHook)) {
+						throw invalid(
+							`Another plugin removed flue's hook from the files collection "${files.slug}", which binds agent uploads to their thread.`,
+						);
+					}
 				}
 
 				for (const message of warnings) {

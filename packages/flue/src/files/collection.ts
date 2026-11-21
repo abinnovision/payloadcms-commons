@@ -1,126 +1,26 @@
-import { randomUUID } from "node:crypto";
-import { APIError } from "payload";
-
 import { invalid } from "../options.js";
-import { ownerWhere } from "../threads/owner.js";
 
-import type { NormalizedFiles, NormalizedOptions } from "../options.js";
+import type { StartupLogger } from "../options.js";
 import type {
-	CollectionBeforeOperationHook,
+	CollectionBeforeChangeHook,
 	CollectionConfig,
 	DefaultDocumentIDType,
-	Payload,
 	PayloadRequest,
-	Where,
 } from "payload";
 
-/** The plugin settings the file workspace reads, with the workspace on. */
-export type FilesSettings = Pick<
-	NormalizedOptions,
-	"agents" | "mcpx" | "threads"
-> & { files: NormalizedFiles };
+/** The field the plugin adds to the files collection: the thread a file belongs to. */
+export const FILE_THREAD_FIELD = "flueThread";
 
-/** A workspace file row as the plugin reads it. */
+/** A file row as the plugin reads it. */
 export interface FileDoc {
 	id: DefaultDocumentIDType;
-	name?: null | string;
+	/** The uploader's file name, where the collection keeps one apart from `filename`. */
+	name?: unknown;
 	filename?: null | string;
 	mimeType?: null | string;
 	filesize?: null | number;
 	prefix?: null | string;
-	createdAt?: string;
 }
-
-// Written by the plugin only, which bypasses access control.
-const SERVER_ONLY = { create: () => false, update: () => false };
-
-const NAME_MAX = 255;
-
-// An extension Payload can still tell a text file's type from.
-const EXTENSION = /\.[A-Za-z0-9]{1,8}$/;
-
-const refuse = (message: string, status: number): APIError =>
-	new APIError(message, status, null, true);
-
-/**
- * The files of `req.user` that no turn has claimed yet, or `false` outside
- * the mcpx user collection.
- */
-export const pendingWhere = (
-	req: PayloadRequest,
-	userCollection: string,
-): false | Where => {
-	const owned = ownerWhere(req, userCollection);
-
-	return owned && { and: [owned, { thread: { exists: false } }] };
-};
-
-/**
- * Deletes the pending files of `req.user` older than the pending TTL, as the
- * user. Logs how many it removed.
- */
-export const sweepPending = async (
-	req: PayloadRequest,
-	settings: FilesSettings,
-): Promise<void> => {
-	const pending = pendingWhere(req, settings.mcpx.userCollection);
-
-	if (!pending) {
-		return;
-	}
-
-	const cutoff = new Date(Date.now() - settings.files.pending.ttlMs);
-	const { docs } = await req.payload.delete({
-		collection: settings.files.slug,
-		where: {
-			and: [pending, { createdAt: { less_than: cutoff.toISOString() } }],
-		},
-		depth: 0,
-		overrideAccess: false,
-		req,
-	});
-
-	if (docs.length > 0) {
-		req.payload.logger.info(
-			`[payloadcms-flue] Removed ${String(docs.length)} stale pending files.`,
-		);
-	}
-};
-
-/**
- * Deletes the files of a thread on a request of its own, so it runs in its
- * own transaction. Best effort: a failure is logged, never thrown, so
- * archiving goes on.
- */
-export const deleteThreadFiles = async (
-	payload: Payload,
-	settings: Pick<NormalizedOptions, "files">,
-	thread: DefaultDocumentIDType,
-): Promise<void> => {
-	if (!settings.files) {
-		return;
-	}
-
-	const msg = "[payloadcms-flue] Could not delete the files of a thread.";
-
-	try {
-		const { errors } = await payload.delete({
-			collection: settings.files.slug,
-			where: { thread: { equals: thread } },
-			depth: 0,
-			overrideAccess: true,
-		});
-
-		if (errors.length > 0) {
-			payload.logger.error({
-				msg,
-				files: errors.map((error) => error.id),
-			});
-		}
-	} catch (error) {
-		payload.logger.error({ err: error, msg });
-	}
-};
 
 /**
  * Hands `req` to the collection's own `/file/:filename` endpoint for the
@@ -159,185 +59,171 @@ export const serveFile = async (
 	return await endpoint.handler(req);
 };
 
-/*
- * Checks an upload before Payload stores it: its declared type and size,
- * and the user's pending caps after removing their stale pending files. The
- * stored name is random, so the collection-wide unique filename reveals
- * nothing about other users' files; the uploader's name goes in `name`.
- */
-const prepareUpload =
-	(settings: FilesSettings): CollectionBeforeOperationHook =>
-	async (hook) => {
-		const { req } = hook;
-		const { file } = req;
-
-		/*
-		 * The argument union carries a deprecated `read` member, which is what
-		 * the deprecation rule reacts to; the operation name is current API.
-		 */
-		// eslint-disable-next-line @typescript-eslint/no-deprecated
-		if (hook.operation !== "create") {
-			return hook.args;
-		}
-
-		// A create without a multipart file would let Payload fetch a `url` from the body.
-		if (!file) {
-			throw refuse("The request must carry the file.", 400);
-		}
-
-		const { files } = settings;
-
-		if (!files.mimeTypes.includes(file.mimetype)) {
-			throw refuse(
-				`The file type must be one of ${files.mimeTypes.join(", ")}.`,
-				400,
-			);
-		}
-
-		if (file.size > files.maxBytes) {
-			throw refuse(
-				`The file is larger than ${String(files.maxBytes)} bytes.`,
-				413,
-			);
-		}
-
-		const pending = pendingWhere(req, settings.mcpx.userCollection);
-
-		if (pending) {
-			await sweepPending(req, settings);
-
-			const { docs } = await req.payload.find({
-				collection: files.slug,
-				where: pending,
-				depth: 0,
-				pagination: false,
-				overrideAccess: true,
-				select: { filesize: true },
-				req,
-			});
-			const bytes = docs.reduce(
-				(sum, doc) => sum + (Number(doc["filesize"]) || 0),
-				file.size,
-			);
-
-			if (docs.length >= files.pending.maxFiles) {
-				throw refuse(
-					`At most ${String(files.pending.maxFiles)} files may wait for a message. Send or remove some first.`,
-					400,
-				);
-			}
-
-			if (bytes > files.pending.maxBytes) {
-				throw refuse(
-					`The files waiting for a message may hold at most ${String(files.pending.maxBytes)} bytes together. Send or remove some first.`,
-					400,
-				);
-			}
-		}
-
-		const extension = EXTENSION.exec(file.name)?.[0].toLowerCase() ?? "";
-
-		req.file = { ...file, name: `${randomUUID()}${extension}` };
-
-		return {
-			...hook.args,
-			data: { ...hook.args.data, name: file.name.slice(0, NAME_MAX) },
-		};
-	};
-
-/**
- * Refuses a files collection whose upload config drops `mimeTypes`, which
- * makes Payload check each file's content, turns off Payload's access
- * control for file reads, which leaves a file readable by anyone, or allows
- * uploads from a URL, which Payload fetches past the plugin's checks.
- */
-export const assertFilesCollection = (collection: {
+interface FilesCollectionView {
 	slug: string;
 	upload?: unknown;
-}): void => {
-	const upload = collection.upload as
-		| undefined
-		| {
-				disablePayloadAccessControl?: unknown;
-				mimeTypes?: unknown;
-				pasteURL?: unknown;
-		  };
+	authorship?: unknown;
+	fields?: readonly unknown[];
+}
 
-	if (
-		typeof upload !== "object" ||
-		!Array.isArray(upload.mimeTypes) ||
-		upload.mimeTypes.length === 0
-	) {
+const namedField = (fields: readonly unknown[], name: string): boolean =>
+	fields.some(
+		(field) =>
+			typeof field === "object" &&
+			field !== null &&
+			"name" in field &&
+			field.name === name,
+	);
+
+/**
+ * Refuses a files collection that is no upload collection, drops
+ * `upload.mimeTypes`, which makes Payload check each file's content, or
+ * drops `createdBy`, which binding a file to a thread relies on. Warns when
+ * files may come from a URL.
+ */
+export const assertFilesCollection = (
+	collection: FilesCollectionView,
+	logger: Pick<StartupLogger, "warn">,
+): void => {
+	const name = `The files collection "${collection.slug}"`;
+	const upload = collection.upload as
+		undefined | { mimeTypes?: unknown; pasteURL?: unknown };
+	const authorship = collection.authorship as
+		boolean | undefined | { createdBy?: unknown };
+
+	if (typeof upload !== "object") {
+		throw invalid(`${name} must be an upload collection (files.collection).`);
+	}
+
+	if (!Array.isArray(upload.mimeTypes) || upload.mimeTypes.length === 0) {
 		throw invalid(
-			`The files collection "${collection.slug}" must keep upload.mimeTypes, which makes Payload check each file's content.`,
+			`${name} must set upload.mimeTypes, which makes Payload check each file's content and the chat's picker offer them (files.collection).`,
 		);
 	}
 
-	if (upload.disablePayloadAccessControl === true) {
+	if (
+		authorship === false ||
+		(typeof authorship === "object" && authorship.createdBy === false)
+	) {
 		throw invalid(
-			`The files collection "${collection.slug}" must not set disablePayloadAccessControl: its files are readable by their owner only.`,
+			`${name} must keep authorship.createdBy: a user sends only files they uploaded.`,
 		);
 	}
 
 	if (upload.pasteURL !== false) {
-		throw invalid(
-			`The files collection "${collection.slug}" must keep upload.pasteURL: false, so every file goes through the plugin's upload checks.`,
+		logger.warn(
+			`[payloadcms-flue] ${name} allows uploads from a URL. Set upload.pasteURL: false unless users should paste URLs.`,
 		);
 	}
 };
 
 /**
- * The `flue-files` upload collection. A user uploads files before a turn;
- * the turn claims them for its thread. Only the owner reads a file and only
- * while it is pending may they delete it. Nobody updates one through the API.
+ * The files collection with the server-only `flueThread` field and `hook`
+ * added. Refuses a collection that already has a field of that name, or a
+ * top-level `download` field, which keeps mcpx from serving its files.
  */
-export const createFilesCollection = (
-	settings: FilesSettings,
+export const withThreadField = (
+	collection: CollectionConfig,
+	threadsSlug: string,
+	hook: CollectionBeforeChangeHook,
 ): CollectionConfig => {
-	const { userCollection } = settings.mcpx;
+	const name = `The files collection "${collection.slug}"`;
+
+	if (namedField(collection.fields, FILE_THREAD_FIELD)) {
+		throw invalid(
+			`${name} already has a field named "${FILE_THREAD_FIELD}", which the plugin adds.`,
+		);
+	}
+
+	if (namedField(collection.fields, "download")) {
+		throw invalid(
+			`${name} must not have a top-level field named "download": mcpx serves no files of such a collection.`,
+		);
+	}
 
 	return {
-		slug: settings.files.slug,
-		versions: false,
-		// The owner is `createdBy`, compared by collection and id.
-		authorship: true,
-		admin: { hidden: true, useAsTitle: "name" },
-		upload: {
-			mimeTypes: settings.files.mimeTypes,
-			filesRequiredOnCreate: true,
-			pasteURL: false,
-			crop: false,
-			focalPoint: false,
+		...collection,
+		hooks: {
+			...collection.hooks,
+			beforeChange: [...(collection.hooks?.beforeChange ?? []), hook],
 		},
-		access: {
-			read: ({ req }) => ownerWhere(req, userCollection),
-			create: async ({ req }) => {
-				if (req.user?.collection !== userCollection) {
-					return false;
-				}
-
-				for (const agent of settings.agents) {
-					// eslint-disable-next-line no-await-in-loop
-					if (!agent.access || (await agent.access({ req }))) {
-						return true;
-					}
-				}
-
-				return false;
-			},
-			update: () => false,
-			delete: ({ req }) => pendingWhere(req, userCollection),
-		},
-		hooks: { beforeOperation: [prepareUpload(settings)] },
 		fields: [
-			{ name: "name", type: "text", required: true, maxLength: NAME_MAX },
+			...collection.fields,
 			{
-				name: "thread",
+				name: FILE_THREAD_FIELD,
 				type: "relationship",
-				relationTo: settings.threads.slug,
+				relationTo: threadsSlug,
 				index: true,
-				access: SERVER_ONLY,
+				// Written by the plugin only, which bypasses access control.
+				access: { create: () => false, update: () => false },
+				admin: { readOnly: true, position: "sidebar" },
 			},
 		],
 	};
+};
+
+interface SanitizedField {
+	name?: string;
+	type?: string;
+	relationTo?: unknown;
+	access?: Record<string, unknown>;
+}
+
+// Whether a field's access function refuses `operation` to a request without a user.
+const refuses = async (
+	field: SanitizedField | undefined,
+	operation: "create" | "update",
+): Promise<boolean> => {
+	const access = field?.access?.[operation];
+
+	return (
+		typeof access === "function" &&
+		(await (access as (args: object) => unknown)({ req: {} })) === false
+	);
+};
+
+/**
+ * Refuses a started files collection whose `createdBy` is not Payload's
+ * authorship field for `userCollection`, which only the server stamps, or
+ * whose `flueThread` field is no longer writable by the server only.
+ */
+export const assertStartedFilesCollection = async (
+	collection: {
+		slug: string;
+		authorship?: { createdBy?: boolean };
+		flattenedFields: readonly SanitizedField[];
+	},
+	userCollection: string,
+): Promise<void> => {
+	const name = `The files collection "${collection.slug}"`;
+	const field = (fieldName: string) =>
+		collection.flattenedFields.find((entry) => entry.name === fieldName);
+	const createdBy = field("createdBy");
+	const relationTo = createdBy?.relationTo;
+
+	if (
+		collection.authorship?.createdBy !== true ||
+		createdBy?.type !== "relationship" ||
+		!(Array.isArray(relationTo) ? relationTo : [relationTo]).includes(
+			userCollection,
+		) ||
+		!(await refuses(createdBy, "create")) ||
+		!(await refuses(createdBy, "update"))
+	) {
+		throw invalid(
+			`${name} must keep Payload's authorship createdBy for "${userCollection}", which only the server writes.`,
+		);
+	}
+
+	const thread = field(FILE_THREAD_FIELD);
+
+	if (
+		thread?.type !== "relationship" ||
+		!(await refuses(thread, "create")) ||
+		!(await refuses(thread, "update"))
+	) {
+		throw invalid(
+			`${name} must keep the "${FILE_THREAD_FIELD}" field the plugin adds, writable by the server only.`,
+		);
+	}
 };

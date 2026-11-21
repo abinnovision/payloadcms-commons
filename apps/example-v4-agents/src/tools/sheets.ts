@@ -1,12 +1,14 @@
-import { FlueFileError, untrusted } from "@abinnovision/payloadcms-flue/agent";
+import {
+	FluePayloadError,
+	untrusted,
+} from "@abinnovision/payloadcms-flue/agent";
 import { useTool } from "@flue/runtime";
 import Papa from "papaparse";
 import readXlsxFile from "read-excel-file/universal";
 import * as v from "valibot";
 
-import { findFile, refusalAsOutput } from "./files.js";
+import { findFile, readBytes, refusalAsOutput } from "./files.js";
 
-import type { FilesApi } from "./files.js";
 import type { PayloadRun } from "@abinnovision/payloadcms-flue/agent";
 
 const XLSX =
@@ -17,19 +19,19 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 type Row = (boolean | number | string | null)[];
 
 const parse = async (
-	files: FilesApi,
+	payload: Pick<PayloadRun, "callTool" | "download">,
 	id: number | string,
 	signal: AbortSignal | undefined,
 ): Promise<Row[]> => {
-	const file = await findFile(files, id);
+	const file = await findFile(payload, id);
 
 	if (file.size > MAX_FILE_BYTES) {
-		throw new FlueFileError("too_large", "The spreadsheet is too large.");
+		throw new FluePayloadError("too_large", "The spreadsheet is too large.");
 	}
 
-	const bytes = await files.read(file, {
+	const bytes = await readBytes(payload, file, {
 		maxBytes: MAX_FILE_BYTES,
-		...(signal ? { signal } : {}),
+		signal,
 	});
 
 	if (file.mimeType === "text/csv") {
@@ -39,7 +41,7 @@ const parse = async (
 	}
 
 	if (file.mimeType !== XLSX) {
-		throw new FlueFileError(
+		throw new FluePayloadError(
 			"refused",
 			`File ${String(file.id)} is ${file.mimeType}, not a spreadsheet.`,
 		);
@@ -59,15 +61,15 @@ const parse = async (
 	) as Row[];
 };
 
-/** Mounts `read_sheet`, a page of rows of an xlsx or CSV file the user attached. */
+/** Mounts `read_sheet`, a page of rows of an xlsx or CSV file the user sent. */
 export const useSheetTool = (
-	payload: Pick<PayloadRun, "files">,
+	payload: Pick<PayloadRun, "callTool" | "download">,
 	spend: () => void,
 ): void => {
 	useTool({
 		name: "read_sheet",
 		description:
-			"Reads rows of the first sheet of an xlsx or CSV file the user attached. Answers nextOffset while more rows follow.",
+			"Reads rows of the first sheet of an xlsx or CSV file the user sent. Answers nextOffset while more rows follow.",
 		input: v.object({
 			file: v.union([v.string(), v.number()]),
 			offset: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
@@ -76,7 +78,7 @@ export const useSheetTool = (
 			await refusalAsOutput(async () => {
 				spend();
 
-				const rows = await parse(payload.files, data.file, signal);
+				const rows = await parse(payload, data.file, signal);
 				const offset = data.offset ?? 0;
 				const page = rows.slice(offset, offset + MAX_ROWS);
 				const end = offset + page.length;

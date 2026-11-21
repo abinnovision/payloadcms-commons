@@ -11,6 +11,7 @@ import * as v from "valibot";
 import { useTitleTool } from "../title-tool.js";
 import {
 	findFile,
+	readBytes,
 	refusalAsOutput,
 	useFileReadTools,
 	useReadBudget,
@@ -31,7 +32,7 @@ export function Editor(): string {
 	useTool({
 		name: "save_file",
 		description:
-			"Saves a file the user attached to the thread: images to the media collection, everything else to the documents collection. Pass the id from the payload-file tag or from list_files.",
+			"Saves a file the user sent in the thread: images to the media collection, everything else to the documents collection. Pass its id from the turn's files or from list_files.",
 		input: v.object({
 			file: v.union([v.string(), v.number()]),
 			alt: v.optional(
@@ -40,13 +41,13 @@ export function Editor(): string {
 		}),
 		run: async ({ data, signal }) =>
 			await refusalAsOutput(async () => {
-				const file = await findFile(payload.files, data.file);
+				const file = await findFile(payload, data.file);
 				const image = file.mimeType.startsWith("image/");
 				const saved = await payload.upload({
 					collection: image ? "media" : "documents",
 					filename: file.name,
 					mimeType: file.mimeType,
-					data: await payload.files.read(file, signal ? { signal } : {}),
+					data: await readBytes(payload, file, { signal }),
 					// `media` shows `alt` as the document's title.
 					...(image && data.alt ? { fields: { alt: data.alt } } : {}),
 				});
@@ -79,7 +80,7 @@ export function Editor(): string {
 		"Read a document before you change it, and say what you changed.",
 		"Deleting needs an approval in the admin: share the review link and continue once the user confirms it.",
 		"When the user asks for a file, write it as Markdown and call save_document.",
-		"Files the user attached are listed by list_files and read with read_file, read_sheet and read_pdf_page. To store one, call save_file with its id. Never pass `file` to createDocument yourself: you cannot send the bytes.",
+		"Files the user sent are listed by list_files and read with read_file, read_sheet and read_pdf_page; images and small PDFs also reach you directly. To store one, call save_file with its id. Never pass `file` to createDocument yourself: you cannot send the bytes.",
 		UNTRUSTED_GUIDANCE,
 		"After your first reply in a conversation, call set_thread_title with a short title for it.",
 		openDocumentGuidance(payload.context()),

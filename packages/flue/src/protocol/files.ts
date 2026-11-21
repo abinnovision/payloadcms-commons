@@ -1,84 +1,128 @@
-const KIB = 1024;
-const MIB = 1024 * KIB;
-const HOUR = 60 * 60 * 1000;
-const GIB = 1024 * MIB;
-
 /**
- * The file types the chat's file workspace takes by default. `files.mimeTypes`
- * replaces the list; spread this one to extend it. Payload checks each
- * upload's content against the list.
+ * A file a user's turn carries, as the agent reads it back. `name` is the
+ * uploader's and untrusted.
  */
-export const DEFAULT_FILE_MIME_TYPES = [
-	"image/png",
-	"image/jpeg",
-	"image/gif",
-	"image/webp",
-	"application/pdf",
-	"text/plain",
-	"text/markdown",
-	"text/csv",
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-] as const;
-
-/** What a whole-file read takes by default; larger files are read by range. */
-export const DEFAULT_READ_BYTES = 32 * MIB;
-
-/**
- * The limits of the file workspace. `default` and `max` bound an option;
- * `pending` caps the files a user uploaded that no turn has claimed yet.
- */
-export const FILE_LIMITS = {
-	maxBytes: { default: 150 * MIB, max: 1024 * MIB },
-	maxFilesPerTurn: { default: 10, max: 20 },
-	maxFilesPerThread: 100,
-	inlineTextBytes: { default: 0, max: 64 * KIB },
-	pending: {
-		files: { default: 20, max: 100 },
-		bytes: { default: 300 * MIB, max: 10 * GIB },
-		ttlMs: { default: 24 * HOUR, min: HOUR, max: 7 * 24 * HOUR },
-	},
-	/** The most files a thread's listing answers. */
-	listMax: 100,
-} as const;
-
-/** Whether the string reads as an exact `type/subtype` MIME type. */
-export const isMimeType = (mimeType: string): boolean =>
-	/^[\w.+-]+\/[\w.+-]+$/.test(mimeType);
-
-/**
- * A workspace file as a user's turn references it. `name` is the uploader's
- * file name and untrusted.
- */
-export interface WorkspaceFileRef {
-	/** The Payload id as text, as read from the turn body. */
+export interface FileRef {
+	/** The upload collection the file is stored in. */
+	collection: string;
+	/** The Payload id as text. */
 	id: string;
 	name: string;
 	mimeType: string;
 	/** In bytes. */
 	size: number;
+	/** Whether the file also reached the model as a Flue attachment. */
+	attached: boolean;
 }
 
-/** A workspace file of a thread, as the sidecar's listing answers it. */
-export interface WorkspaceFile {
-	/** The Payload id, as the collection's id type has it. */
-	id: number | string;
-	name: string;
-	mimeType: string;
-	/** In bytes. */
-	size: number;
-	createdAt: string;
-}
+/** The turn attribute listing the files, `id|mimeType|size|name` joined by `; `. */
+export const FILES_ATTRIBUTE = "files";
 
-/** The body the sidecar posts to list a thread's files. */
-export interface FilesListRequest {
-	handle: string;
-	/** The slug the agent is mounted under in the sidecar. */
-	agent: string;
-}
+/** The turn attribute naming the files' upload collection. */
+export const FILES_COLLECTION_ATTRIBUTE = "filesCollection";
+
+/** The turn attribute listing the ids of the attached files, joined by `;`. */
+export const ATTACHED_ATTRIBUTE = "attached";
 
 /**
- * The headers the sidecar reads one file with, so the handle stays out of
- * the URL. The shared secret goes in `authorization`.
+ * The header the agent sends its handle in on every request to Payload, so
+ * Payload scopes its file reads to the conversation's thread.
  */
 export const FILE_HANDLE_HEADER = "x-flue-handle";
-export const FILE_AGENT_HEADER = "x-flue-agent";
+
+const NAME_MAX = 120;
+
+/** Whether the string reads as an exact `type/subtype` MIME type. */
+export const isMimeType = (mimeType: string): boolean =>
+	/^[\w.+-]+\/[\w.+-]+$/.test(mimeType);
+
+/** Whether an id can be written into a turn's refs. */
+export const isRefId = (id: string): boolean => id !== "" && !/[|;]/.test(id);
+
+// Without parameters; anything that is not a MIME type then reads as bytes.
+const refMimeType = (mimeType: string): string => {
+	const [type = ""] = mimeType.split(";");
+	const trimmed = type.trim().toLowerCase();
+
+	return isMimeType(trimmed) ? trimmed : "application/octet-stream";
+};
+
+/** A file name without the characters Flue escapes, the separators and control characters. */
+export const refName = (name: string): string =>
+	// eslint-disable-next-line no-control-regex
+	name.replace(/[&<>"'|;\u0000-\u001f\u007f]/g, "").slice(0, NAME_MAX);
+
+/**
+ * The turn attributes of `files`, empty without files. Values hold none of
+ * the characters Flue escapes in signal attributes. Throws for an id that
+ * {@link isRefId} refuses.
+ */
+export const fileAttributes = (
+	collection: string,
+	files: readonly Omit<FileRef, "collection">[],
+): Record<string, string> => {
+	if (files.length === 0) {
+		return {};
+	}
+
+	for (const file of files) {
+		if (!isRefId(file.id)) {
+			throw new Error(
+				`[payloadcms-flue] File id "${file.id}" cannot be referenced in a turn.`,
+			);
+		}
+	}
+
+	const attached = files.filter((file) => file.attached);
+
+	return {
+		[FILES_ATTRIBUTE]: files
+			.map(
+				(file) =>
+					`${file.id}|${refMimeType(file.mimeType)}|${String(Math.max(0, Math.floor(file.size)))}|${refName(file.name)}`,
+			)
+			.join("; "),
+		[FILES_COLLECTION_ATTRIBUTE]: collection,
+		...(attached.length > 0
+			? { [ATTACHED_ATTRIBUTE]: attached.map((file) => file.id).join(";") }
+			: {}),
+	};
+};
+
+/** The files of turn attributes written by {@link fileAttributes}. */
+export const readFileAttributes = (
+	attributes: Readonly<Record<string, unknown>>,
+): FileRef[] => {
+	const value = attributes[FILES_ATTRIBUTE];
+	const collection = attributes[FILES_COLLECTION_ATTRIBUTE];
+	const attachedValue = attributes[ATTACHED_ATTRIBUTE];
+
+	if (typeof value !== "string" || typeof collection !== "string") {
+		return [];
+	}
+
+	const attached = new Set(
+		typeof attachedValue === "string" ? attachedValue.split(";") : [],
+	);
+
+	return value.split("; ").flatMap((entry): FileRef[] => {
+		const [id = "", mimeType = "", size = "", name, ...rest] = entry.split("|");
+
+		return name === undefined ||
+			rest.length > 0 ||
+			!isRefId(id) ||
+			!isMimeType(mimeType) ||
+			!/^\d+$/.test(size)
+			? []
+			: [
+					{
+						collection,
+						id,
+						name,
+						mimeType,
+						size: Number(size),
+						attached: attached.has(id),
+					},
+				];
+	});
+};

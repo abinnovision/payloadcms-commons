@@ -2,55 +2,51 @@
 
 ## Not included
 
-| Not included                                  | Instead                                                                                                                                      |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Payload REST for agents, `@payloadcms/sdk`    | Agents reach Payload only through mcpx. The plugin mints no session tokens and adds no auth strategy.                                        |
-| Programmatic mcpx calls from `usePayload`     | The agent calls mcpx tools through the MCP connection `usePayload` registers. `upload()` is the one exception.                               |
-| A `changes` audit on threads                  | mcpx writes are attributed to the key's user by Payload's authorship, not to a thread.                                                       |
-| In-chat actions                               | No `proposeValues`, `navigate`, `openDocument`, `showList`, `focusField`, `uiAction` or `useAgentAction`. The agent cannot drive the admin.  |
-| Unsaved form state for the agent              | Unsaved edits reach the agent as a draft saved before the turn. Without drafts the turn is refused until the user saves.                     |
-| Merging around moved rows                     | A form whose rows the user or the agent moved during a run goes stale; the user saves and reloads instead.                                   |
-| Reloads for other threads                     | Only the thread open in the panel is watched, so writes from other threads or reactive and ambient runs do not reload the form.              |
-| Typing during a reload                        | A keystroke made while a reload resets the form can be lost.                                                                                 |
-| Rich text in a merge                          | Rich-text (Lexical) values are put back through form state and have not been verified to repaint.                                            |
-| Document locks                                | The agent does not see them. mcpx writes as the chat's user, so a lock that user holds does not block a write.                               |
-| `sidebar.tabs`                                | The panel docks next to the admin and opens from the header or with Ctrl or Cmd plus J.                                                      |
-| Confirmable publish                           | `publish` is a plain mcpx grant: an agent with it publishes without approval.                                                                |
-| Rate limits and turn caps                     | Limit runs in the sidecar or in front of Payload.                                                                                            |
-| Thread sharing                                | A chat thread belongs to its user. Others read only reactive and ambient threads, through `readAgentRuns`.                                   |
-| Mapping mcpx writes to `onBehalfOf`           | A reactive run writes as the agent user; `onBehalfOf` is recorded on the thread only.                                                        |
-| One agent user per agent                      | All reactive and ambient runs act as the one `agentUser`.                                                                                    |
-| `deleteUnattended`                            | Every delete an agent asks for waits for approval by the key's user.                                                                         |
-| A public `./protocol` export                  | The wire types are internal. `./agent` re-exports `decodeContext`, `contextOf`, `CONTEXT_SIGNAL_TYPE`, `ChatContext` and `ExchangeResponse`. |
-| Chat attachments in Payload                   | Files of a chat turn live in the sidecar's store. An agent that should keep one saves it with `upload()`.                                    |
-| Attachments on runs from jobs                 | `queueFlueRun` and ambient runs send text and context only.                                                                                  |
-| `file` parts from agents                      | Flue lets agents write data parts only. Uploads show as the `data-payload-file` card.                                                        |
-| Flue embedded in the Payload process          | Flue runs as a separate sidecar.                                                                                                             |
-| Disabling a managed key from the admin or API | Use the agent's `access`, the user record, Stop, archive or logout (see [security.md](./security.md#revocation)).                            |
+| Not included                                  | Instead                                                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payload REST for agents, `@payloadcms/sdk`    | Agents reach Payload only through mcpx. The plugin mints no session tokens and adds no auth strategy.                                       |
+| Programmatic mcpx calls from `usePayload`     | The agent calls mcpx tools through the MCP connection `usePayload` registers. `upload()` is the one exception.                              |
+| A `changes` audit on threads                  | mcpx writes are attributed to the key's user by Payload's authorship, not to a thread.                                                      |
+| In-chat actions                               | No `proposeValues`, `navigate`, `openDocument`, `showList`, `focusField`, `uiAction` or `useAgentAction`. The agent cannot drive the admin. |
+| Unsaved form state for the agent              | Unsaved edits reach the agent as a draft saved before the turn. Without drafts the turn is refused until the user saves.                    |
+| Merging around moved rows                     | A form whose rows the user or the agent moved during a run goes stale; the user saves and reloads instead.                                  |
+| Reloads for other threads                     | Only the thread open in the panel is watched, so writes from other threads or reactive and ambient runs do not reload the form.             |
+| Typing during a reload                        | A keystroke made while a reload resets the form can be lost.                                                                                |
+| Rich text in a merge                          | Rich-text (Lexical) values are put back through form state and have not been verified to repaint.                                           |
+| Document locks                                | The agent does not see them. mcpx writes as the chat's user, so a lock that user holds does not block a write.                              |
+| `sidebar.tabs`                                | The panel docks next to the admin and opens from the header or with Ctrl or Cmd plus J.                                                     |
+| Confirmable publish                           | `publish` is a plain mcpx grant: an agent with it publishes without approval.                                                               |
+| Rate limits and turn caps                     | Limit runs in the sidecar or in front of Payload.                                                                                           |
+| Thread sharing                                | A chat thread belongs to its user. Others read only reactive and ambient threads, through `readAgentRuns`.                                  |
+| Mapping mcpx writes to `onBehalfOf`           | A reactive run writes as the agent user; `onBehalfOf` is recorded on the thread only.                                                       |
+| One agent user per agent                      | All reactive and ambient runs act as the one `agentUser`.                                                                                   |
+| `deleteUnattended`                            | Every delete an agent asks for waits for approval by the key's user.                                                                        |
+| A public `./protocol` export                  | The wire types are internal. `./agent` reads them with `contextOf` and `filesOf` and exports `ChatContext` and `FileRef`.                   |
+| Plugin-owned file storage                     | Chat files live in an upload collection the app defines; cleanup and size policy are the app's.                                             |
+| Files on runs from jobs                       | `queueFlueRun` and ambient runs send text and context only.                                                                                 |
+| `file` parts from agents                      | Flue lets agents write data parts only. Uploads show as the `data-payload-file` card.                                                       |
+| Flue embedded in the Payload process          | Flue runs as a separate sidecar.                                                                                                            |
+| Disabling a managed key from the admin or API | Use the agent's `access`, the user record, Stop, archive or logout (see [security.md](./security.md#revocation)).                           |
 
 ## Attachments
 
-Flue replays a thread's files to the model on every later turn, so each file adds its tokens to
-every turn after it. A file the provider rejects fails every later turn of the thread as well;
-start a new thread then. The option's types and image limit keep within Anthropic's limits, but
-not every limit can be checked before sending:
+Flue replays a thread's attachments to the model on every later turn, so each attached file adds
+its tokens to every turn after it, and the per-turn budget of 16 MiB does not bound later model
+requests. A file the provider rejects fails every later turn of the thread as well; start a new
+thread then. `defaultDeliver` keeps within Anthropic's limits, but not every limit can be checked
+before sending:
 
 - Anthropic: images at most 5 MB as base64 and 8000 pixels on a side, a request at most 32 MB,
   PDFs at most 100 pages.
 - PDFs reach the model natively only on Anthropic, Google and Vertex, and OpenAI's Responses API.
-  Other providers get a placeholder instead.
-- Text files reach every model, inlined into the turn's text, and stay in the history. 512 KiB of
-  text, the default for one turn, is roughly 130,000 tokens; a thread of several such turns can
-  outgrow the model's context.
-
-Hosts with a smaller request body limit than the [chat cap](./integration.md#attachments), such as
-some serverless platforms and proxies, refuse large turns before Payload sees them.
+  Other providers get a placeholder instead. A policy that attaches PDFs for such a model wastes
+  them; reference them instead with `deliver`.
 
 A send that times out after Flue admitted the turn marks the thread failed, and resending it adds
-the files to the history a second time.
+the attachments to the history a second time.
 
-Flue has no API to delete a conversation, so a thread's files stay in the sidecar's store after
-it is archived, together with the conversation.
+Flue has no API to delete a conversation, so a thread's attachments stay in the sidecar's store
+after it is archived, together with the conversation.
 
 An upload targeting a collection that cannot take a file is refused by mcpx, so `upload()` throws
 and nothing is created (see [uploads](./integration.md#uploads)). Pass only upload collections
@@ -64,33 +60,24 @@ a retried response it lists only uploads made afterwards.
 
 ## Files
 
-These apply to the [file workspace](./integration.md#files).
+These apply to [chat files](./integration.md#files).
 
-- Archiving deletes a thread's files from Payload, but Flue's own copies stay in the sidecar's
-  store: the images a tool sent to child calls, and any inline attachments of the thread. Flue has no API to delete them.
-- A thread that had inline attachments before `files` was turned on keeps them in its history and
-  keeps replaying them (see [attachments](#attachments)). The two options exclude each other for
-  new turns only.
+- The plugin removes no files. Uploads that were never sent and files of archived threads stay in
+  the collection until the app deletes them (see [recipes](./recipes.md)).
+- A file belongs to one thread at a time.
 - The plugin cannot see limits in front of Payload: Next 16's `proxyClientMaxBodySize`, 10 MB by
   default, a reverse proxy's body limit or a platform's. A file over one is refused before Payload
   sees it.
-- `files.read` and `payload.download` take 32 MiB by default; read more by range with `files.fetch`
-  or pass `maxBytes`. A `Range` read goes through Payload's file handler. It is covered for the
-  local storage adapter and unverified on cloud adapters; `fetch` falls back to a whole-file read
-  and slices it when the handler answers 200.
+- `payload.download` takes 32 MiB by default; pass `maxBytes` or read by range. Each read, ranged
+  or not, takes one mcpx download grant, a few database round trips, and a key holds at most 10
+  outstanding grants. A storage adapter that ignores `Range` streams the whole file to the sidecar,
+  which keeps only the slice.
 - Saving a file into an app collection with `payload.upload` goes through mcpx, which caps it at
-  25 MB. A larger save fails with `FlueUploadError`.
-- An expired or disabled key makes a thread's files unreadable until the next turn rolls it,
-  because the file endpoints answer only while the handle's key is live.
-- The pending caps count a user's files, then the upload inserts. Concurrent uploads of one user
-  can each pass the count, so the caps can be overshot by the number of uploads in flight.
-- A pending file older than 24 hours can be swept while it still sits in the composer, for example
-  in a tab left open overnight. Sending it then answers 404; attach it again.
-- Two tabs of the same user that send the same pending file at the same moment can both claim it.
-  Both turns may reference it and the loser's tools answer `not_found`. The file belongs to the
-  thread either way.
-- The plugin ships no file tools. Any type the app lists in `files.mimeTypes` is stored and
-  listed, and a tool of the agent has to read its bytes with `payload.files` (see
+  25 MB.
+- An expired or disabled key makes a thread's files unreadable until the next turn rolls it.
+- Two tabs of the same user that send the same unbound file at the same moment may both bind it;
+  one wins, and the other turn references only what its thread holds.
+- The plugin ships no file tools. A tool of the agent reads bytes with `payload.download` (see
   [recipes](./recipes.md)).
 
 ## Known gaps

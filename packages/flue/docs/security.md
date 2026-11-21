@@ -185,17 +185,13 @@ delete; a reactive run of an agent with `delete` gets no warning.
 
 ## Attachments
 
-Attachments are off by default. Once `attachments` is on:
+Flue keeps the attachments of a turn in its store. The panel reads them:
 
 - **Access.** The panel reads a file only through `GET /c/:thread/attachments/:attachment`, which
   reads the thread as the user, as the conversation route does. A user who cannot read the thread
   gets 404 and nothing is requested from the sidecar.
-- **Body cap.** `POST /chat/:agent` accepts bodies of tens of MiB, about 26.7 MiB at the defaults,
-  from every user who may chat with an agent, not only from those who attach files. The plugin
-  buffers and parses each body in memory, so every concurrent request of that size holds its
-  body and the parsed copy. Narrow the limits, or limit bodies and requests in front of Payload.
-- **Storage.** Files live in the Flue sidecar's store, not in Payload, and stay there as long as
-  the conversation (see [limitations](./limitations.md#attachments)).
+- **Storage.** Attachments live in the Flue sidecar's store as well as in the files collection,
+  and stay there as long as the conversation (see [limitations](./limitations.md#attachments)).
 - **Headers.** Flue's `Content-Security-Policy: sandbox` and the plugin's `nosniff` pass through,
   and every file that is not an image is served as a download, so no attachment runs as active
   content on the admin's origin.
@@ -206,52 +202,65 @@ Attachments are off by default. Once `attachments` is on:
   same site. A panel served from another site than Payload needs `SameSite=None` cookies to show
   them.
 
-The preamble of a turn with files is not a trust boundary. Payload writes it and agent code reads
-only the preamble at the start of the body, so `contextOf` cannot be forged. The model, however,
-reads the whole body: a user can still type a `<payload-context .../>` tag or a block that looks
-like an `<attachments>` manifest into their text or a text file, and mislead the model with it.
-A text file the user attaches is part of the turn's text, so it reaches the model as if the user
-had typed it. Never treat the
-context, or anything the model concludes from it, as authorization; mcpx's key and Payload access
-control decide what a run may do.
+The preamble of a turn with attachments is not a trust boundary. Payload writes it and agent code
+reads only the preamble at the start of the body, so `contextOf` and `filesOf` cannot be forged.
+The model, however, reads the whole body: a user can still type a `<payload-context .../>` tag
+into their text and mislead the model with it. Never treat the context, or anything the model
+concludes from it, as authorization; mcpx's key and Payload access control decide what a run may
+do.
 
 ## Files
 
-The [file workspace](./integration.md#files) is off by default. Once `files` is on:
+[Chat files](./integration.md#files) are off by default. Once `files` names a collection:
 
-- **Owner-only reads.** A file belongs to its uploader. The collection's `read` rule admits the
-  owner only, compared by collection and id, and nobody updates a file through the API. The owner
-  may delete a file only while it is pending. The panel reads files through Payload's own file
-  handler for the collection, so access control, storage adapters and `Range` apply. The plugin
-  rejects a collection with `disablePayloadAccessControl`, and the panel never links to a file's
-  `url`. It cannot detect a storage bucket with a public ACL or a custom `generateFileURL` that
-  serves files around Payload; keep the bucket private.
-- **Handle auth.** The sidecar reads files with the shared secret and the thread's handle, the
-  handle in a header rather than the URL. The plugin resolves the handle to a live thread of the
-  same agent and acts as the thread's owner, so a handle reaches only that thread's files. A
-  thread that is archived, or whose key is disabled or expired, answers 404 until the next turn
-  rolls the key. Reactive and ambient threads have no files.
-- **Stored names.** Payload stores each file under a random name, so the collection-wide unique
-  file name reveals nothing about other users' files. The uploader's name is data in `name`, at
-  most 255 characters, and a tool marks it untrusted.
-- **Content check.** The collection keeps `upload.mimeTypes`, so Payload checks each file's
-  content against its declared type. The plugin refuses a collection that drops it.
-- **No URL uploads.** The collection sets `upload.pasteURL: false` and every create must carry a
-  multipart file, so Payload never fetches a `url` from a request body past the plugin's checks.
-  The plugin refuses a collection that allows URL uploads.
-- **Caps.** A user's pending files are capped by `pending.maxFiles` (20) and `pending.maxBytes`
-  (300 MiB) together, and stale ones are swept after `pending.ttlMs` (24 hours), so an upload that
-  is never sent does not fill the store. A thread holds at most `maxFilesPerThread` files.
-- **File content is data.** A file is text from a user, who may try to steer the model with it.
-  A tool that returns file content wraps it with `untrusted()` from `./agent`, which marks it as
-  data and escapes tags inside it, and the agent's instructions add `UNTRUSTED_GUIDANCE`. Never
-  treat what a file says as authorization; mcpx's key and Payload access control decide what a run
-  may do. The [recipes](./recipes.md) show the pattern, including the caveats of vision calls.
-- **Archive and storage.** Archiving deletes the thread's files from Payload. Copies Flue made,
-  such as images sent to a child call, stay in the sidecar's store (see
+- **Binding.** A turn binds only files the user created (Payload's `createdBy`, compared by
+  collection and id) that belong to no thread or to the turn's thread. It checks them as the user
+  and writes the binding past access control on the same condition, so a user cannot bind a file
+  of another user, even one they may read, or move a file from another thread. `flueThread` is
+  writable by the plugin only: a value a client sends on create or update is dropped.
+- **Thread guard.** The plugin composes `baseAccess.collections.read`, `readVersions`, `update`
+  and `delete`, keeping a function already there, and acts on the files collection only. A request made with a
+  flue-managed mcpx key must carry the conversation's handle in `x-flue-handle`. The handle must
+  name a thread that is not archived, of the key's agent and user, whose user is the request's,
+  with the key enabled and unexpired; for a chat thread the agent's `access` must still admit the
+  user. The guard then narrows the request to that thread's files, as a query on `flueThread`, or
+  on `version.flueThread` for versions. Without a valid handle the request is refused. Each
+  request resolves the handle once.
+- **Every read path.** The guard is Payload access control, so it applies to `findDocuments`,
+  `getDocument`, `findVersions` and the file route itself: Payload checks file access before any
+  storage handler streams the file. A download grant fetched without the handle answers 403.
+- **Scope.** The guard narrows reads, updates and deletes, so an agent granted `write` or
+  `delete` on the collection still reaches only its thread's files; creates go through the
+  collection's access, and the agent upload hook binds them. The implied grant is `read` only. A
+  request without a flue-managed key, such as the admin's, the REST API's, another mcpx key's or
+  the in-process mcpx client's, is left to the collection's access alone. Every key-authenticated
+  mcpx request carries the key's id, so a flue key cannot pass as keyless.
+- **Agent uploads.** A file an agent creates in the collection is bound to its thread when the
+  request carries a valid handle, so the agent can read its own output; without one it stays
+  unbound and unreadable to the agent.
+- **Ordering.** A plugin that replaces `config.baseAccess` after flue would drop the guard; flue
+  refuses to start then. Register such a plugin before flue.
+- **File serving.** The guard applies only where Payload serves the file. A storage adapter
+  configured to serve files straight from the bucket, a bucket with a public ACL or a custom
+  `generateFileURL` bypasses Payload's access control and the guard, and the plugin cannot detect
+  them; never configure the chat collection that way and keep its bucket private. The panel never
+  links to a file's `url`.
+- **Thread ids are visible.** `flueThread` is readable like any other field, so whoever may read a
+  file also sees which thread it belongs to, but not the thread itself.
+- **Stored names.** Payload keeps file names unique per collection, so a collection that stores
+  the uploader's name can reveal that a name exists. `fluePrivateUploads` stores random names and
+  keeps the uploader's in `name`.
+- **One thread per file.** A row of a shared collection belongs to one thread at a time; a file
+  bound to one thread cannot be sent in another.
+- **Logs.** The handle travels in a header on every agent request. Redact `x-flue-handle` in proxy
+  and APM logs.
+- **File content is data.** A file is content from a user, who may try to steer the model with
+  it. A tool that returns file content wraps it with `untrusted()` from `./agent`, and the agent's
+  instructions add `UNTRUSTED_GUIDANCE`. The [recipes](./recipes.md) show the pattern, including
+  the caveats of vision calls.
+- **Archive.** Archiving leaves files bound and stops the agent's reads. Copies Flue made, the
+  attachments and images sent to a child call, stay in the sidecar's store (see
   [limitations](./limitations.md#files)).
-- **Host limits.** The plugin cannot see Next's `proxyClientMaxBodySize` or a reverse proxy's
-  limit, so a file over one is refused before Payload sees it.
 
 ### Upload grants
 
@@ -276,17 +285,16 @@ headers. Payload's `cors` option applies to its endpoints as to any other.
 
 ## Limits
 
-| Limit                                          | Value                                                                                         |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `POST /chat/:agent` body                       | 64 KiB, counted in bytes; with attachments see [integration.md](./integration.md#attachments) |
-| attachment id (`:attachment`)                  | `^att_[\w-]{1,200}$`                                                                          |
-| message                                        | 1 to 16,000 characters                                                                        |
-| `POST /exchange` body                          | 4 KiB, counted in bytes                                                                       |
-| `GET /files/:file`, `POST /files/list`         | handle and agent in headers or a 4 KiB body; the sidecar secret                               |
-| `POST /settled` body                           | 4 KiB, counted in bytes; `conversation` and `submissionId` 1 to 256 characters                |
-| `offset` on `view=updates`                     | `^(?:-1\|\d{1,32}_\d{1,32})$`                                                                 |
-| `cursor`, `from`, `before`                     | `^[\w.~=+/-]{1,2048}$`                                                                        |
-| thread id (`:thread`, `thread` in a chat body) | `^\d{1,20}$` on an adapter with numeric ids, else `^[\w-]{1,64}$`                             |
-| thread title from the agent                    | 120 characters                                                                                |
+| Limit                                          | Value                                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| `POST /chat/:agent` body                       | 64 KiB, counted in bytes                                                       |
+| attachment id (`:attachment`)                  | `^att_[\w-]{1,200}$`                                                           |
+| message                                        | 1 to 16,000 characters                                                         |
+| `POST /exchange` body                          | 4 KiB, counted in bytes                                                        |
+| `POST /settled` body                           | 4 KiB, counted in bytes; `conversation` and `submissionId` 1 to 256 characters |
+| `offset` on `view=updates`                     | `^(?:-1\|\d{1,32}_\d{1,32})$`                                                  |
+| `cursor`, `from`, `before`                     | `^[\w.~=+/-]{1,2048}$`                                                         |
+| thread id (`:thread`, `thread` in a chat body) | `^\d{1,20}$` on an adapter with numeric ids, else `^[\w-]{1,64}$`              |
+| thread title from the agent                    | 120 characters                                                                 |
 
 The plugin sets no rate limits or turn caps (see [limitations.md](./limitations.md)).

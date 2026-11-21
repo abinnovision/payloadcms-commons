@@ -11,10 +11,6 @@ export const FLUE_ROUTES = {
 	/** One attachment of the thread's conversation, where the Flue client resolves `file` parts. */
 	conversationAttachment: "/c/:thread/attachments/:attachment",
 	exchange: "/exchange",
-	/** The sidecar lists the files of a handle's thread. */
-	filesList: "/files/list",
-	/** The sidecar reads one file of a handle's thread, the handle in a header. */
-	file: "/files/:file",
 	/** The sidecar reports a settled submission; Payload reconciles from history. */
 	settled: "/settled",
 } as const;

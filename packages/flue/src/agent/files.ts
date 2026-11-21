@@ -1,178 +1,59 @@
-import { FlueExchangeError, joinUrl } from "./exchange.js";
-import {
-	FILE_AGENT_HEADER,
-	FILE_HANDLE_HEADER,
-	DEFAULT_READ_BYTES,
-} from "../protocol/files.js";
+import { codeOf, FluePayloadError, joinUrl } from "./exchange.js";
+import { concat, readCapped as readBody } from "../protocol/body.js";
+import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
-import { routePath } from "../protocol/paths.js";
 
 import type { ExchangeSession } from "./exchange.js";
-import type {
-	FilesListRequest,
-	WorkspaceFile,
-	WorkspaceFileRef,
-} from "../protocol/files.js";
 
-/** Why a file could not be read. */
-export type FlueFileErrorCode =
-	"not_found" | "refused" | "too_large" | "unavailable";
+/** What a whole-file read takes by default. */
+const DEFAULT_READ_BYTES = 32 * 1024 * 1024;
 
-/**
- * Thrown when a file cannot be listed, read or downloaded. Its message never
- * carries the secret, the handle or a download grant.
- */
-export class FlueFileError extends Error {
-	public override readonly name = "FlueFileError";
+const failure = (status: number, what: string): FluePayloadError =>
+	new FluePayloadError(
+		codeOf(status),
+		status === 404
+			? `${what} does not exist.`
+			: `Payload answered ${what} with status ${String(status)}.`,
+		status,
+	);
 
-	public readonly code: FlueFileErrorCode;
-
-	/** The status Payload answered with, `undefined` when none applies. */
-	public readonly status: number | undefined;
-
-	public constructor(
-		code: FlueFileErrorCode,
-		message: string,
-		status?: number,
-		options?: ErrorOptions,
-	) {
-		super(`[payloadcms-flue] ${message}`, options);
-		this.code = code;
-		this.status = status;
-	}
-}
-
-/** A workspace file by its id, or a listed or referenced file. */
-export type FileArg =
-	number | Pick<WorkspaceFile, "id"> | Pick<WorkspaceFileRef, "id"> | string;
-
-/** The files of the run's thread, read as its user. */
-export interface PayloadFiles {
-	/** The thread's files, oldest first. Empty outside a chat thread. */
-	list: () => Promise<WorkspaceFile[]>;
-	/**
-	 * A file's bytes. Refuses with `too_large` past `maxBytes`, which
-	 * defaults to `DEFAULT_READ_BYTES`; read larger files by range.
-	 */
-	read: (
-		file: FileArg,
-		options?: { maxBytes?: number; signal?: AbortSignal },
-	) => Promise<Uint8Array>;
-	/**
-	 * A file's response. With `range`, bytes `start` to `end` inclusive as a
-	 * 206, also when Payload ignores the range and answers the whole file.
-	 */
-	fetch: (
-		file: FileArg,
-		init?: {
-			range?: { start: number; end: number };
-			signal?: AbortSignal;
-		},
-	) => Promise<Response>;
-}
-
-export interface FilesTarget {
-	payloadUrl: string;
-	fluePath: string;
-	secret: string;
-	handle: string;
-	agent: string;
-	fetch?: typeof fetch;
-}
-
-const idOf = (file: FileArg): number | string =>
-	typeof file === "object" ? file.id : file;
-
-const failure = (status: number, what: string): FlueFileError => {
-	if (status === 404) {
-		return new FlueFileError("not_found", `${what} does not exist.`, status);
-	}
-
-	return status === 401 || status === 403 || status === 416
-		? new FlueFileError(
-				"refused",
-				`Payload refused ${what} with status ${String(status)}.`,
-				status,
-			)
-		: new FlueFileError(
-				"unavailable",
-				`Payload answered ${what} with status ${String(status)}.`,
-				status,
-			);
-};
-
-const unreachable = (what: string, error: unknown): FlueFileError =>
-	new FlueFileError(
-		"unavailable",
+const unreachable = (what: string, error: unknown): FluePayloadError =>
+	new FluePayloadError(
+		"unreachable",
 		`${what} did not reach Payload.`,
 		undefined,
 		{ cause: error },
 	);
 
-const tooLarge = (maxBytes: number): FlueFileError =>
-	new FlueFileError(
+const tooLarge = (maxBytes: number): FluePayloadError =>
+	new FluePayloadError(
 		"too_large",
 		`The file is larger than ${String(maxBytes)} bytes.`,
 	);
-
-const concat = (chunks: Uint8Array[], size: number): Uint8Array => {
-	const bytes = new Uint8Array(size);
-	let offset = 0;
-
-	for (const chunk of chunks) {
-		bytes.set(chunk, offset);
-		offset += chunk.byteLength;
-	}
-
-	return bytes;
-};
 
 /** Reads a body, cancelling it once it passes `maxBytes`. */
 export const readCapped = async (
 	response: Response,
 	maxBytes: number,
 ): Promise<Uint8Array> => {
-	if (Number(response.headers.get("content-length") ?? 0) > maxBytes) {
-		await response.body?.cancel().catch(() => undefined);
+	const bytes = await readBody(response, maxBytes);
+
+	if (bytes === undefined) {
 		throw tooLarge(maxBytes);
 	}
 
-	const reader = response.body?.getReader();
-
-	if (reader === undefined) {
-		return new Uint8Array();
-	}
-
-	const chunks: Uint8Array[] = [];
-	let size = 0;
-
-	for (;;) {
-		// eslint-disable-next-line no-await-in-loop
-		const { done, value } = await reader.read();
-
-		if (done) {
-			break;
-		}
-
-		size += value.byteLength;
-
-		if (size > maxBytes) {
-			// eslint-disable-next-line no-await-in-loop
-			await reader.cancel().catch(() => undefined);
-			throw tooLarge(maxBytes);
-		}
-
-		chunks.push(value);
-	}
-
-	return concat(chunks, size);
+	return bytes;
 };
 
-// Bytes `start` to `end` inclusive of a whole-file body; the rest is cancelled.
-const sliceOf = async (
+/**
+ * Bytes `start` to `end` inclusive of a whole-file body, to its end without
+ * `end`. Bytes before `start` are discarded and the rest is cancelled, so
+ * memory stays bounded by the slice.
+ */
+export const sliceOf = async (
 	response: Response,
-	start: number,
-	end: number,
+	range: { start: number; end?: number | undefined },
+	maxBytes = Number.POSITIVE_INFINITY,
 ): Promise<Uint8Array> => {
 	const reader = response.body?.getReader();
 
@@ -180,6 +61,7 @@ const sliceOf = async (
 		return new Uint8Array();
 	}
 
+	const end = range.end ?? Number.POSITIVE_INFINITY;
 	const chunks: Uint8Array[] = [];
 	let position = 0;
 	let size = 0;
@@ -192,12 +74,19 @@ const sliceOf = async (
 			break;
 		}
 
-		const from = Math.max(start - position, 0);
+		const from = Math.max(range.start - position, 0);
 		const to = Math.min(end + 1 - position, value.byteLength);
 
 		if (from < to) {
-			chunks.push(value.subarray(from, to));
 			size += to - from;
+
+			if (size > maxBytes) {
+				// eslint-disable-next-line no-await-in-loop
+				await reader.cancel().catch(() => undefined);
+				throw tooLarge(maxBytes);
+			}
+
+			chunks.push(value.subarray(from, to));
 		}
 
 		position += value.byteLength;
@@ -208,122 +97,15 @@ const sliceOf = async (
 	return concat(chunks, size);
 };
 
-/** Reads the workspace files of a handle's thread through the plugin's endpoints. */
-export const createFiles = (target: FilesTarget): PayloadFiles => {
-	const doFetch = target.fetch ?? fetch;
-	const authorization = `Bearer ${target.secret}`;
-
-	const fetchFile: PayloadFiles["fetch"] = async (file, init = {}) => {
-		const { range, signal } = init;
-		const id = idOf(file);
-		let response: Response;
-
-		try {
-			response = await doFetch(
-				joinUrl(
-					target.payloadUrl,
-					`${target.fluePath}${routePath("file", { file: id })}`,
-				),
-				{
-					headers: {
-						authorization,
-						[FILE_HANDLE_HEADER]: target.handle,
-						[FILE_AGENT_HEADER]: target.agent,
-						...(range
-							? { range: `bytes=${String(range.start)}-${String(range.end)}` }
-							: {}),
-					},
-					signal: signal ?? null,
-				},
-			);
-		} catch (error) {
-			throw unreachable(`Reading file ${String(id)}`, error);
-		}
-
-		if (!response.ok) {
-			await response.body?.cancel().catch(() => undefined);
-			throw failure(response.status, `file ${String(id)}`);
-		}
-
-		if (!range || response.status === 206) {
-			return response;
-		}
-
-		const size = response.headers.get("content-length") ?? "*";
-		const slice = await sliceOf(response, range.start, range.end);
-		const type = response.headers.get("content-type");
-
-		// The range asks for at least one byte, so an empty slice starts past the end.
-		if (slice.byteLength === 0) {
-			throw failure(416, `file ${String(id)}`);
-		}
-
-		return new Response(slice as Uint8Array<ArrayBuffer>, {
-			status: 206,
-			headers: {
-				"content-range": `bytes ${String(range.start)}-${String(range.start + slice.byteLength - 1)}/${size}`,
-				...(type === null ? {} : { "content-type": type }),
-			},
-		});
-	};
-
-	return {
-		list: async () => {
-			const body: FilesListRequest = {
-				handle: target.handle,
-				agent: target.agent,
-			};
-			let response: Response;
-
-			try {
-				response = await doFetch(
-					joinUrl(
-						target.payloadUrl,
-						`${target.fluePath}${routePath("filesList")}`,
-					),
-					{
-						method: "POST",
-						headers: { authorization, "content-type": "application/json" },
-						body: JSON.stringify(body),
-					},
-				);
-			} catch (error) {
-				throw unreachable("Listing the files", error);
-			}
-
-			if (!response.ok) {
-				await response.body?.cancel().catch(() => undefined);
-				throw failure(response.status, "the thread's files");
-			}
-
-			const files: unknown = await response.json().catch(() => undefined);
-
-			if (!Array.isArray(files)) {
-				throw new FlueFileError(
-					"unavailable",
-					"Payload answered the listing without files.",
-					response.status,
-				);
-			}
-
-			return files as WorkspaceFile[];
-		},
-		read: async (file, options = {}) => {
-			const response = await fetchFile(
-				file,
-				options.signal ? { signal: options.signal } : {},
-			);
-
-			return await readCapped(response, options.maxBytes ?? DEFAULT_READ_BYTES);
-		},
-		fetch: fetchFile,
-	};
-};
-
 export interface DownloadArgs {
 	collection: string;
 	id: number | string;
-	/** Defaults to `DEFAULT_READ_BYTES`; past it the download is cancelled. */
+	/**
+	 * Bytes `start` to `end` inclusive, to the end of the file without `end`.
+	 * Each read takes one download grant, so read large chunks.
+	 */
+	range?: { start: number; end?: number };
+	/** Defaults to 32 MiB; past it the download is cancelled. */
 	maxBytes?: number;
 	signal?: AbortSignal;
 }
@@ -338,10 +120,33 @@ export interface DownloadTarget {
 	session: Pick<ExchangeSession, "callTool">;
 	payloadUrl: string;
 	mcpPath: string;
+	/** The conversation's handle, which scopes the read to its thread. */
+	handle: string;
 	fetch?: typeof fetch;
 }
 
 const trimmed = (path: string): string => path.replace(/\/+$/, "");
+
+// Refuses a range without a whole start of at least 0 and a whole end not before it.
+const assertRange = (range: DownloadArgs["range"]): void => {
+	if (
+		range === undefined ||
+		(Number.isSafeInteger(range.start) &&
+			range.start >= 0 &&
+			(range.end === undefined ||
+				(Number.isSafeInteger(range.end) && range.end >= range.start)))
+	) {
+		return;
+	}
+
+	throw new FluePayloadError(
+		"refused",
+		"A range needs a whole start of at least 0 and an end not before it.",
+	);
+};
+
+const rangeHeader = (range: { start: number; end?: number }): string =>
+	`bytes=${String(range.start)}-${range.end === undefined ? "" : String(range.end)}`;
 
 /**
  * Downloads the file of an upload collection's document as the run's user:
@@ -353,6 +158,9 @@ export const downloadDocument = async (
 	args: DownloadArgs,
 ): Promise<Download> => {
 	const what = `${args.collection} ${String(args.id)}`;
+	const maxBytes = args.maxBytes ?? DEFAULT_READ_BYTES;
+	assertRange(args.range);
+
 	let doc: unknown;
 
 	try {
@@ -362,11 +170,11 @@ export const downloadDocument = async (
 			download: true,
 		});
 	} catch (error) {
-		if (error instanceof FlueExchangeError) {
+		if (error instanceof FluePayloadError) {
 			throw error;
 		}
 
-		throw new FlueFileError(
+		throw new FluePayloadError(
 			"refused",
 			(error instanceof Error ? error.message : String(error)).replace(
 				/^\[payloadcms-flue\] /,
@@ -385,7 +193,7 @@ export const downloadDocument = async (
 		typeof download["url"] !== "string" ||
 		!isRecord(download["headers"])
 	) {
-		throw new FlueFileError(
+		throw new FluePayloadError(
 			"not_found",
 			`Document ${what} has no file to download.`,
 		);
@@ -397,7 +205,7 @@ export const downloadDocument = async (
 	try {
 		handoffPath = trimmed(new URL(download["url"]).pathname);
 	} catch (error) {
-		throw new FlueFileError(
+		throw new FluePayloadError(
 			"refused",
 			"mcpx returned an unparsable download URL.",
 			undefined,
@@ -406,17 +214,21 @@ export const downloadDocument = async (
 	}
 
 	if (!handoffPath.endsWith(filePath)) {
-		throw new FlueFileError(
+		throw new FluePayloadError(
 			"refused",
 			`mcpx returned a download outside "${filePath}", so it was not fetched.`,
 		);
 	}
 
-	const headers = Object.fromEntries(
-		Object.entries(download["headers"]).filter(
-			(entry): entry is [string, string] => typeof entry[1] === "string",
+	const headers: Record<string, string> = {
+		...Object.fromEntries(
+			Object.entries(download["headers"]).filter(
+				(entry): entry is [string, string] => typeof entry[1] === "string",
+			),
 		),
-	);
+		[FILE_HANDLE_HEADER]: target.handle,
+		...(args.range ? { range: rangeHeader(args.range) } : {}),
+	};
 	let response: Response;
 
 	try {
@@ -428,12 +240,16 @@ export const downloadDocument = async (
 		throw unreachable(`Downloading ${what}`, error);
 	}
 
-	if (response.status !== 200) {
+	if (response.status !== 200 && response.status !== 206) {
 		await response.body?.cancel().catch(() => undefined);
 		throw failure(response.status, `the download of ${what}`);
 	}
 
-	const bytes = await readCapped(response, args.maxBytes ?? DEFAULT_READ_BYTES);
+	// A server that ignores the range answers the whole file with a 200.
+	const bytes =
+		args.range && response.status === 200
+			? await sliceOf(response, args.range, maxBytes)
+			: await readCapped(response, maxBytes);
 
 	return {
 		filename:

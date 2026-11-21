@@ -80,6 +80,7 @@ describe("./agent module boundary", () => {
 				"agent/title.ts",
 				"agent/upload.ts",
 				"agent/use-payload.ts",
+				"protocol/body.ts",
 				"protocol/context.ts",
 				"protocol/events.ts",
 				"protocol/exchange.ts",

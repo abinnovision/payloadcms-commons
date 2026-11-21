@@ -3,32 +3,28 @@ import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 
 import type { Keyset, Where } from "./keyset.js";
-import type {
-	AttachmentLimits,
-	DeliveredAttachment,
-} from "../protocol/attachments.js";
 import type { ChatContext, RunKind } from "../protocol/context.js";
 import type { ThreadStatus } from "../protocol/events.js";
 import type { RelationValue } from "../protocol/owner.js";
 
 export type ThreadId = number | string;
 
+/** What an agent takes as files, as `GET /agents` lists it. */
+export interface AgentFiles {
+	/** The upload collection files are stored in. */
+	collection: string;
+	mimeTypes: string[];
+	/** Most files a message takes. */
+	maxFiles: number;
+}
+
 /** An agent the signed-in user may chat with, as `GET /agents` lists it. */
 export interface AgentSummary {
 	slug: string;
 	label?: string;
 	description?: string;
-}
-
-/** The limits of the chat's file workspace, as `GET /agents` lists them. */
-export interface FilesLimits {
-	/** The slug of the files collection. */
-	slug: string;
-	mimeTypes: string[];
-	/** Largest file in bytes. */
-	maxBytes: number;
-	/** Most files a message takes. */
-	maxFiles: number;
+	/** Null or unset when the agent takes no files. */
+	files?: AgentFiles | null;
 }
 
 /** What `GET /agents` answers. */
@@ -37,10 +33,6 @@ export interface AgentsAnswer {
 	agents: AgentSummary[];
 	/** Every agent, when the user may read agent runs; null otherwise. */
 	runs: null | { agents: AgentSummary[] };
-	/** The limits of chat attachments; null while attachments are off. */
-	attachments: null | AttachmentLimits;
-	/** The limits of the file workspace; null while it is off. */
-	files: null | FilesLimits;
 }
 
 /** A thread row as the REST API returns it at depth 0. */
@@ -280,16 +272,11 @@ export const flueApi = ({
 
 	return {
 		agents: async (): Promise<AgentsAnswer> => {
-			const { agents, runs, attachments, files } = await request<AgentsAnswer>(
+			const { agents, runs } = await request<AgentsAnswer>(
 				plugin(routePath("agents")),
 			);
 
-			return {
-				agents,
-				runs: runs ?? null,
-				attachments: attachments ?? null,
-				files: files ?? null,
-			};
+			return { agents, runs: runs ?? null };
 		},
 
 		/**
@@ -338,15 +325,14 @@ export const flueApi = ({
 				message: string;
 				thread?: ThreadId | undefined;
 				context: SendContext;
-				attachments?: DeliveredAttachment[];
-				/** Ids of the files uploaded to the file workspace. */
+				/** Ids of the files the user uploaded for the message. */
 				files?: string[];
 			},
 		): Promise<ChatResult> =>
 			request(plugin(routePath("chat", { agent })), json("POST", body)),
 
 		/**
-		 * Stores `file` in the files collection through Payload's REST API and
+		 * Stores `file` in an upload collection through Payload's REST API and
 		 * resolves to its id, reporting the share uploaded as it goes.
 		 */
 		uploadFile: (
@@ -357,7 +343,6 @@ export const flueApi = ({
 			const form = new FormData();
 
 			form.append("file", file);
-			form.append("_payload", JSON.stringify({ name: file.name }));
 
 			return uploadForm(`${api}/${slug}`, form, file.name, onProgress);
 		},

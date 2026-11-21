@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { FlueExchangeError } from "./exchange.js";
-import { createFiles, downloadDocument, FlueFileError } from "./files.js";
-import { DEFAULT_READ_BYTES } from "../protocol/files.js";
+import { FluePayloadError } from "./exchange.js";
+import { downloadDocument, sliceOf } from "./files.js";
 
 const MIB = 1024 * 1024;
 const BYTES = new TextEncoder().encode("0123456789");
@@ -58,128 +57,11 @@ const fixed = (
 	};
 };
 
-const filesWith = (fetch: typeof globalThis.fetch) =>
-	createFiles({
-		payloadUrl: "http://payload.local/",
-		fluePath: "/api/flue",
-		secret: "secret",
-		handle: "handle-1",
-		agent: "editor",
-		fetch,
-	});
-
 const rejection = async (promise: Promise<unknown>): Promise<unknown> =>
 	await promise.then(
 		() => undefined,
 		(error: unknown) => error,
 	);
-
-describe("createFiles", () => {
-	it("reads a file with the handle in a header, not the URL", async () => {
-		const { fetch, seen } = fixed(() => new Response(BYTES));
-
-		expect(await filesWith(fetch).read(42)).toEqual(BYTES);
-		expect(seen.url).toBe("http://payload.local/api/flue/files/42");
-		expect(seen.headers.get("x-flue-handle")).toBe("handle-1");
-		expect(seen.headers.get("x-flue-agent")).toBe("editor");
-		expect(seen.headers.get("authorization")).toBe("Bearer secret");
-	});
-
-	it("cancels the body once a read passes its cap", async () => {
-		const { fetch, seen } = fixed(
-			(state) => new Response(largeBody(4 * MIB, state)),
-		);
-		const error = await rejection(
-			filesWith(fetch).read(1, { maxBytes: 2 * MIB }),
-		);
-
-		expect(error).toBeInstanceOf(FlueFileError);
-		expect(error).toMatchObject({ code: "too_large" });
-		expect(seen.cancelled).toBe(true);
-	});
-
-	it("caps a read at DEFAULT_READ_BYTES by default", async () => {
-		const { fetch, seen } = fixed(
-			(state) => new Response(largeBody(DEFAULT_READ_BYTES + 4 * MIB, state)),
-		);
-
-		expect(await rejection(filesWith(fetch).read(1))).toMatchObject({
-			code: "too_large",
-		});
-		expect(seen.cancelled).toBe(true);
-	});
-
-	it("passes a 206 through", async () => {
-		const { fetch, seen } = fixed(
-			() => new Response(BYTES.slice(2, 5), { status: 206 }),
-		);
-		const response = await filesWith(fetch).fetch(1, {
-			range: { start: 2, end: 4 },
-		});
-
-		expect(seen.headers.get("range")).toBe("bytes=2-4");
-		expect(response.status).toBe(206);
-		expect(await response.text()).toBe("234");
-	});
-
-	it("slices a whole-file 200 to the range and cancels the rest", async () => {
-		const { fetch, seen } = fixed(
-			(state) =>
-				new Response(largeBody(8 * MIB, state), {
-					headers: { "content-type": "application/pdf" },
-				}),
-		);
-		const response = await filesWith(fetch).fetch(1, {
-			range: { start: MIB - 2, end: MIB + 1 },
-		});
-
-		expect(response.status).toBe(206);
-		expect(response.headers.get("content-type")).toBe("application/pdf");
-		expect(response.headers.get("content-range")).toBe(
-			`bytes ${String(MIB - 2)}-${String(MIB + 1)}/*`,
-		);
-		expect((await response.arrayBuffer()).byteLength).toBe(4);
-		expect(seen.cancelled).toBe(true);
-	});
-
-	it("refuses a range starting past the end of a whole-file 200", async () => {
-		const { fetch } = fixed(() => new Response(BYTES));
-
-		expect(
-			await rejection(
-				filesWith(fetch).fetch(1, { range: { start: 20, end: 29 } }),
-			),
-		).toMatchObject({ code: "refused", status: 416 });
-	});
-
-	it.each([
-		[404, "not_found"],
-		[401, "refused"],
-		[502, "unavailable"],
-	])("maps status %i to %s", async (status, code) => {
-		const { fetch } = fixed(() => new Response(null, { status }));
-		const files = filesWith(fetch);
-
-		expect(await rejection(files.read(1))).toMatchObject({ code, status });
-		expect(await rejection(files.list())).toMatchObject({ code, status });
-	});
-
-	it("lists the thread's files", async () => {
-		const listed = [
-			{
-				id: 1,
-				name: "a.txt",
-				mimeType: "text/plain",
-				size: 3,
-				createdAt: "2026-11-19T00:00:00.000Z",
-			},
-		];
-		const { fetch, seen } = fixed(() => Response.json(listed));
-
-		expect(await filesWith(fetch).list()).toEqual(listed);
-		expect(seen.url).toBe("http://payload.local/api/flue/files/list");
-	});
-});
 
 const HANDOFF = {
 	filename: "brief.pdf",
@@ -194,6 +76,7 @@ const target = (fetch: typeof globalThis.fetch, doc: unknown = HANDOFF) => ({
 	session: { callTool: async () => await Promise.resolve(doc) },
 	payloadUrl: "http://payload.local",
 	mcpPath: "/api/mcpx",
+	handle: "handle-1",
 	fetch,
 });
 
@@ -210,6 +93,92 @@ describe("downloadDocument", () => {
 		});
 		expect(seen.url).toBe("http://payload.local/api/mcpx/file");
 		expect(seen.headers.get("x-mcpx-grant")).toBe("grant");
+		expect(seen.headers.get("x-flue-handle")).toBe("handle-1");
+		expect(seen.headers.get("range")).toBeNull();
+	});
+
+	it("asks for a range and takes the 206", async () => {
+		const { fetch, seen } = fixed(
+			() => new Response(BYTES.slice(2, 5), { status: 206 }),
+		);
+		const download = await downloadDocument(target(fetch), {
+			collection: "docs",
+			id: 3,
+			range: { start: 2, end: 4 },
+		});
+
+		expect(seen.headers.get("range")).toBe("bytes=2-4");
+		expect(new TextDecoder().decode(download.bytes)).toBe("234");
+	});
+
+	it("asks for an open range without an end", async () => {
+		const { fetch, seen } = fixed(
+			() => new Response(BYTES.slice(7), { status: 206 }),
+		);
+		const download = await downloadDocument(target(fetch), {
+			collection: "docs",
+			id: 3,
+			range: { start: 7 },
+		});
+
+		expect(seen.headers.get("range")).toBe("bytes=7-");
+		expect(new TextDecoder().decode(download.bytes)).toBe("789");
+	});
+
+	it("slices a whole-file 200 to the range and cancels the rest", async () => {
+		const { fetch, seen } = fixed(
+			(state) => new Response(largeBody(8 * MIB, state)),
+		);
+		const download = await downloadDocument(target(fetch), {
+			collection: "docs",
+			id: 3,
+			range: { start: MIB - 2, end: MIB + 1 },
+		});
+
+		expect(download.bytes.byteLength).toBe(4);
+		expect(seen.cancelled).toBe(true);
+	});
+
+	it("caps an open range of a whole-file 200 at maxBytes", async () => {
+		const { fetch, seen } = fixed(
+			(state) => new Response(largeBody(8 * MIB, state)),
+		);
+		const error = await rejection(
+			downloadDocument(target(fetch), {
+				collection: "docs",
+				id: 3,
+				range: { start: MIB },
+				maxBytes: 2 * MIB,
+			}),
+		);
+
+		expect(error).toMatchObject({ code: "too_large" });
+		expect(seen.cancelled).toBe(true);
+	});
+
+	it.each([
+		["a negative start", { start: -1 }],
+		["a fractional start", { start: 1.5 }],
+		["an end before the start", { start: 5, end: 4 }],
+	])("refuses %s without a request", async (_label, range) => {
+		const { fetch, seen } = fixed(() => new Response(BYTES));
+
+		expect(
+			await rejection(
+				downloadDocument(target(fetch), { collection: "docs", id: 3, range }),
+			),
+		).toMatchObject({ code: "refused" });
+		expect(seen.url).toBe("");
+	});
+
+	it("maps a refused download to its status", async () => {
+		const { fetch } = fixed(() => new Response(null, { status: 403 }));
+
+		expect(
+			await rejection(
+				downloadDocument(target(fetch), { collection: "docs", id: 3 }),
+			),
+		).toMatchObject({ name: "FluePayloadError", code: "refused", status: 403 });
 	});
 
 	it("stops at its 32 MiB default", async () => {
@@ -255,7 +224,7 @@ describe("downloadDocument", () => {
 
 	it("passes exchange errors through", async () => {
 		const { fetch } = fixed(() => new Response(BYTES));
-		const exchangeError = new FlueExchangeError("refused", 401);
+		const exchangeError = new FluePayloadError("unauthorized", "refused", 401);
 
 		expect(
 			await rejection(
@@ -270,5 +239,26 @@ describe("downloadDocument", () => {
 				),
 			),
 		).toBe(exchangeError);
+	});
+});
+
+describe("sliceOf", () => {
+	it("discards the bytes before start and stops after end", async () => {
+		const seen: Seen = { url: "", headers: new Headers(), cancelled: false };
+		const slice = await sliceOf(new Response(largeBody(4 * MIB, seen)), {
+			start: MIB + 1,
+			end: MIB + 3,
+		});
+
+		expect(slice.byteLength).toBe(3);
+		expect(seen.cancelled).toBe(true);
+	});
+
+	it("reads to the end without end", async () => {
+		expect(
+			new TextDecoder().decode(
+				await sliceOf(new Response(BYTES), { start: 7 }),
+			),
+		).toBe("789");
 	});
 });

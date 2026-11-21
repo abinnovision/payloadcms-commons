@@ -1,13 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { APIError, createPayloadRequest } from "payload";
 
-import { pendingWhere, serveFile } from "./files/collection.js";
+import { FILE_THREAD_FIELD, serveFile } from "./files/collection.js";
 import { ensureAgentKey } from "./keys/manager.js";
 import {
-	bytesToText,
-	isTextMimeType,
-	textToBase64,
+	ATTACH_BYTES_PER_TURN,
+	ATTACHMENT_MAX_BYTES,
+	attachmentKind,
+	bytesToBase64,
+	isAttachmentMimeType,
 } from "./protocol/attachments.js";
+import { readCapped } from "./protocol/body.js";
 import {
 	CONTEXT_SIGNAL_TYPE,
 	encodeContext,
@@ -16,9 +19,11 @@ import {
 	userTurnBody,
 } from "./protocol/context.js";
 import { INITIAL_DATA_KEY } from "./protocol/exchange.js";
+import { fileAttributes, refName } from "./protocol/files.js";
 import { isOwner } from "./protocol/owner.js";
 import { createSidecarClient, SidecarError } from "./sidecar/client.js";
 import { handleHash } from "./threads/handle.js";
+import { ownerWhere } from "./threads/owner.js";
 
 import type { FileDoc } from "./files/collection.js";
 import type { KeySettings } from "./keys/manager.js";
@@ -27,11 +32,16 @@ import type { DeliveredAttachment } from "./protocol/attachments.js";
 import type { ChatContext, RunKind } from "./protocol/context.js";
 import type { ThreadStatus } from "./protocol/events.js";
 import type { FlueInitialData } from "./protocol/exchange.js";
-import type { WorkspaceFileRef } from "./protocol/files.js";
+import type { FileRef } from "./protocol/files.js";
 import type { RelationValue } from "./protocol/owner.js";
 import type { SendArgs } from "./sidecar/client.js";
 import type { FlueAgentConfig, FlueRequestContext } from "./types.js";
-import type { DefaultDocumentIDType, Payload, PayloadRequest } from "payload";
+import type {
+	DefaultDocumentIDType,
+	Payload,
+	PayloadRequest,
+	Where,
+} from "payload";
 
 /** The plugin's settings plus the capability map keys are written from. */
 export type PluginSettings = NormalizedOptions & KeySettings;
@@ -69,9 +79,7 @@ export interface TurnArgs {
 	/** An existing thread of `user` and `agent`; a new one when left out. */
 	threadId?: DefaultDocumentIDType | undefined;
 	message: string;
-	/** Sends the turn as a Flue `user` message when non-empty. */
-	attachments?: DeliveredAttachment[] | undefined;
-	/** Ids of the user's pending workspace files the turn claims. */
+	/** Ids of the user's files the turn binds to the thread and sends. */
 	files?: DefaultDocumentIDType[] | undefined;
 	context: TurnContext;
 	kind: RunKind;
@@ -114,32 +122,24 @@ const titleOf = (
 };
 
 /*
- * The turn as Flue takes it: a context signal whose body is the preamble,
- * the file references and the message; a `user` message with the context in
- * a preamble when it carries attachments, which only `user` messages can.
- * The body always starts with the preamble, so text the user types cannot
- * pass for one. Flue takes no text documents, so text files go into the
- * body.
+ * The turn as Flue takes it: a context signal whose body is the message, or
+ * a `user` message with the context in a preamble when it carries
+ * attachments, which only `user` messages can. The body of a `user` message
+ * always starts with the preamble, so text the user types cannot pass for
+ * one. The files go into attributes in both shapes.
  */
 const turnMessage = (
 	context: ChatContext,
 	message: string,
+	files: Record<string, string>,
 	attachments: DeliveredAttachment[],
-	references: WorkspaceFileRef[],
-	inline: DeliveredAttachment[],
 ): Pick<SendArgs, "message" | "timeoutMs"> =>
 	attachments.length > 0
 		? {
 				message: {
 					kind: "user",
-					body: userTurnBody(
-						context,
-						message,
-						attachments.filter((file) => isTextMimeType(file.mimeType)),
-					),
-					attachments: attachments.filter(
-						(file) => !isTextMimeType(file.mimeType),
-					),
+					body: userTurnBody(context, message, files),
+					attachments,
 				},
 				timeoutMs: ATTACHMENT_SEND_MS,
 			}
@@ -147,10 +147,11 @@ const turnMessage = (
 				message: {
 					kind: "signal",
 					type: CONTEXT_SIGNAL_TYPE,
-					body: userTurnBody(context, message, inline, references),
+					body: message,
 					attributes: {
 						...encodeContext(context),
 						[TURN_ATTRIBUTE]: USER_TURN,
+						...files,
 					},
 				},
 			};
@@ -161,64 +162,7 @@ const refuse = (message: string, status: number): APIError =>
 const GONE =
 	"The agent sidecar no longer has this conversation. Start a new thread.";
 
-const NO_FILE = "A file does not exist or was sent already.";
-
-/*
- * The text of the claimed text files that fit within `budget` bytes
- * together, read through the collection's file endpoint as the user. A file
- * that cannot be read stays a reference only.
- */
-const inlineTexts = async (
-	payload: Payload,
-	user: TurnUser,
-	slug: string,
-	docs: FileDoc[],
-	budget: number,
-): Promise<DeliveredAttachment[]> => {
-	const inline: DeliveredAttachment[] = [];
-	let left = budget;
-
-	for (const doc of docs) {
-		const size = doc.filesize ?? Number.POSITIVE_INFINITY;
-		const { mimeType } = doc;
-
-		if (!mimeType || !isTextMimeType(mimeType) || size > left) {
-			continue;
-		}
-
-		let text: string | undefined;
-
-		try {
-			// eslint-disable-next-line no-await-in-loop
-			const req = await createPayloadRequest({ payload, user });
-			// eslint-disable-next-line no-await-in-loop
-			const response = await serveFile(req, slug, doc);
-
-			text =
-				response?.ok === true
-					? // eslint-disable-next-line no-await-in-loop
-						bytesToText(new Uint8Array(await response.arrayBuffer()))
-					: undefined;
-		} catch (error) {
-			payload.logger.warn({
-				err: error,
-				msg: "[payloadcms-flue] Could not read a text file to inline; it stays a reference.",
-			});
-		}
-
-		if (text !== undefined) {
-			left -= size;
-			inline.push({
-				type: "document",
-				data: textToBase64(text),
-				mimeType,
-				...(doc.name ? { filename: doc.name } : {}),
-			});
-		}
-	}
-
-	return inline;
-};
+const NO_FILE = "A file does not exist or belongs to another thread.";
 
 /**
  * A fresh request for the plugin's own writes. Authorship records `user`,
@@ -277,136 +221,200 @@ const ownThread = async (
 	return existing;
 };
 
-/*
- * The workspace files of a turn, read as the user, or the refusal: each id
- * must name one of the user's pending files. Runs before the turn writes
- * anything.
- */
-const loadPending = async (
+// The user's files among `ids`, or `false` outside the mcpx user collection.
+const ownFiles = (
 	internal: PayloadRequest,
-	files: false | NormalizedFiles,
-	ids: DefaultDocumentIDType[] = [],
+	settings: Pick<NormalizedOptions, "mcpx">,
+	ids: DefaultDocumentIDType[],
+	thread: DefaultDocumentIDType | undefined,
+): false | Where => {
+	const owned = ownerWhere(internal, settings.mcpx.userCollection);
+
+	return (
+		owned && {
+			and: [
+				{ id: { in: ids } },
+				owned,
+				thread === undefined
+					? { [FILE_THREAD_FIELD]: { exists: false } }
+					: {
+							or: [
+								{ [FILE_THREAD_FIELD]: { exists: false } },
+								{ [FILE_THREAD_FIELD]: { equals: thread } },
+							],
+						},
+			],
+		}
+	);
+};
+
+// The files in the order of `ids`.
+const inOrder = (docs: FileDoc[], ids: DefaultDocumentIDType[]): FileDoc[] => {
+	const order = ids.map(String);
+
+	return docs.sort(
+		(a, b) => order.indexOf(String(a.id)) - order.indexOf(String(b.id)),
+	);
+};
+
+/*
+ * Refuses a turn unless each id names a file the user created that is
+ * unbound or bound to `thread` already, read as the user. Runs before the
+ * turn writes anything; answers the files' names for a new thread's title.
+ */
+const checkFiles = async (
+	internal: PayloadRequest,
+	settings: Pick<NormalizedOptions, "files" | "mcpx">,
+	ids: DefaultDocumentIDType[],
+	thread: DefaultDocumentIDType | undefined,
 ): Promise<FileDoc[]> => {
 	if (ids.length === 0) {
 		return [];
 	}
 
-	if (!files) {
-		throw refuse("files are not enabled.", 400);
-	}
+	const where = settings.files && ownFiles(internal, settings, ids, thread);
 
-	const { docs } = await internal.payload.find({
-		collection: files.slug,
-		where: { id: { in: ids } },
-		depth: 0,
-		pagination: false,
-		overrideAccess: false,
-		select: { name: true, thread: true },
-		req: internal,
-	});
-
-	if (
-		docs.length !== new Set(ids.map(String)).size ||
-		docs.some((doc) => doc["thread"] !== null && doc["thread"] !== undefined)
-	) {
+	if (!settings.files || !where) {
 		throw refuse(NO_FILE, 404);
 	}
 
-	return docs as FileDoc[];
-};
-
-// Refuses a turn whose files would take the thread past its file cap.
-const assertThreadRoom = async (
-	internal: PayloadRequest,
-	files: false | NormalizedFiles,
-	thread: DefaultDocumentIDType,
-	adding: number,
-): Promise<void> => {
-	if (!files || adding === 0) {
-		return;
-	}
-
-	const { totalDocs } = await internal.payload.count({
-		collection: files.slug,
-		where: { thread: { equals: thread } },
-		overrideAccess: true,
+	const { docs } = await internal.payload.find({
+		collection: settings.files.collection,
+		where,
+		depth: 0,
+		pagination: false,
+		overrideAccess: false,
 		req: internal,
 	});
 
-	if (totalDocs + adding > files.maxFilesPerThread) {
-		throw refuse(
-			`A thread holds at most ${String(files.maxFilesPerThread)} files.`,
-			400,
-		);
+	if (docs.length !== new Set(ids.map(String)).size) {
+		throw refuse(NO_FILE, 404);
 	}
+
+	return inOrder(docs, ids);
 };
 
 /*
- * Claims the user's pending files for the thread and answers the ones the
- * thread now holds, in the order of `ids`. The update is not atomic across
- * rows, so the thread is read back and only what it holds is referenced.
+ * Binds the user's unbound files among `ids` to the thread and answers the
+ * ones it holds, in the order of `ids`. Each row is claimed with one
+ * conditional write, so of two turns binding the same file only one wins;
+ * `checkFiles` already proved the user created them, which nobody can
+ * change. A claimed row is then updated through Payload, so versions and
+ * hooks see the binding.
  */
-const claimFiles = async (
+const bindFiles = async (
 	internal: PayloadRequest,
-	settings: Pick<PluginSettings, "mcpx"> & { files: NormalizedFiles },
+	settings: Pick<NormalizedOptions, "mcpx"> & { files: NormalizedFiles },
 	ids: DefaultDocumentIDType[],
 	thread: DefaultDocumentIDType,
 ): Promise<FileDoc[]> => {
 	const { payload } = internal;
-	const slug = settings.files.slug;
-	const pending = pendingWhere(internal, settings.mcpx.userCollection);
+	const { collection } = settings.files;
+	const owned = ownerWhere(internal, settings.mcpx.userCollection);
 
-	if (!pending) {
+	if (!owned) {
 		return [];
 	}
 
-	await payload.update({
-		collection: slug,
-		where: { and: [{ id: { in: ids } }, pending] },
-		data: { thread },
-		depth: 0,
-		overrideAccess: true,
-		req: internal,
-	});
+	for (const id of ids) {
+		// eslint-disable-next-line no-await-in-loop
+		const claimed: unknown = await payload.db.updateOne({
+			collection,
+			where: {
+				and: [
+					{ id: { equals: id } },
+					{ [FILE_THREAD_FIELD]: { exists: false } },
+				],
+			},
+			data: { [FILE_THREAD_FIELD]: thread },
+			options: { atomic: true },
+			req: internal,
+		});
+
+		if (claimed) {
+			// eslint-disable-next-line no-await-in-loop
+			await payload.update({
+				collection,
+				id,
+				data: { [FILE_THREAD_FIELD]: thread },
+				depth: 0,
+				overrideAccess: true,
+				req: internal,
+			});
+		}
+	}
 
 	const { docs } = await payload.find({
-		collection: slug,
+		collection,
 		where: {
-			and: [{ id: { in: ids } }, { thread: { equals: thread } }],
+			and: [
+				{ id: { in: ids } },
+				owned,
+				{ [FILE_THREAD_FIELD]: { equals: thread } },
+			],
 		},
 		depth: 0,
 		pagination: false,
 		overrideAccess: true,
-		select: {
-			name: true,
-			filename: true,
-			prefix: true,
-			mimeType: true,
-			filesize: true,
-		},
 		req: internal,
 	});
-	const order = ids.map(String);
 
-	return (docs as FileDoc[]).sort(
-		(a, b) => order.indexOf(String(a.id)) - order.indexOf(String(b.id)),
-	);
+	return inOrder(docs, ids);
+};
+
+// The uploader's name where the collection keeps one, else the stored name.
+const nameOf = (doc: FileDoc): string =>
+	typeof doc.name === "string" && doc.name !== ""
+		? doc.name
+		: (doc.filename ?? "");
+
+/*
+ * The bytes of a file, read as the user and cancelled past `maxBytes`, or
+ * `undefined`.
+ */
+const readAsUser = async (
+	payload: Payload,
+	user: TurnUser,
+	collection: string,
+	doc: FileDoc,
+	maxBytes: number,
+): Promise<Uint8Array | undefined> => {
+	try {
+		const req = await createPayloadRequest({ payload, user });
+		const response = await serveFile(req, collection, doc);
+
+		if (response?.ok !== true) {
+			await response?.body?.cancel().catch(() => undefined);
+
+			return undefined;
+		}
+
+		return await readCapped(response, maxBytes);
+	} catch (error) {
+		payload.logger.warn({
+			err: error,
+			msg: "[payloadcms-flue] Could not read a file to attach; it is referenced only.",
+		});
+
+		return undefined;
+	}
 };
 
 interface TurnFiles {
-	references: WorkspaceFileRef[];
-	inline: DeliveredAttachment[];
+	attributes: Record<string, string>;
+	attachments: DeliveredAttachment[];
 }
 
 /*
- * Claims the turn's files for the thread and answers what its body carries:
- * a reference per claimed file, and the text of the text files that fit
- * within `inlineTextBytes`. Logs files another turn claimed first.
+ * Binds the turn's files to the thread and answers what the turn carries:
+ * every file as a reference, and the ones the policy attaches that Flue
+ * takes natively, within its cap and the per-turn budget, as attachments.
+ * Logs files another turn bound first.
  */
-const claimTurnFiles = async (
+const deliverFiles = async (
 	internal: PayloadRequest,
 	settings: PluginSettings,
-	args: Pick<TurnArgs, "files" | "message" | "user"> & {
+	args: Pick<TurnArgs, "agent" | "files" | "message" | "user"> & {
 		thread: DefaultDocumentIDType;
 	},
 ): Promise<TurnFiles> => {
@@ -414,11 +422,11 @@ const claimTurnFiles = async (
 	const ids = args.files ?? [];
 
 	if (!files || ids.length === 0) {
-		return { references: [], inline: [] };
+		return { attributes: {}, attachments: [] };
 	}
 
 	const { payload } = internal;
-	const docs = await claimFiles(
+	const docs = await bindFiles(
 		internal,
 		{ ...settings, files },
 		ids,
@@ -427,7 +435,7 @@ const claimTurnFiles = async (
 
 	if (docs.length < ids.length) {
 		payload.logger.warn(
-			`[payloadcms-flue] A turn claimed ${String(docs.length)} of its ${String(ids.length)} files; another turn claimed the others.`,
+			`[payloadcms-flue] A turn bound ${String(docs.length)} of its ${String(ids.length)} files; another turn bound the others.`,
 		);
 	}
 
@@ -436,34 +444,56 @@ const claimTurnFiles = async (
 		throw refuse(NO_FILE, 404);
 	}
 
+	const deliver =
+		typeof args.agent.files === "object" && args.agent.files.deliver
+			? args.agent.files.deliver
+			: files.deliver;
+	const user = { ...args.user, collection: settings.mcpx.userCollection };
+	const refs: Omit<FileRef, "collection">[] = [];
+	const attachments: DeliveredAttachment[] = [];
+	let budget = ATTACH_BYTES_PER_TURN;
+
+	for (const doc of docs) {
+		const mimeType = doc.mimeType ?? "";
+		const size = doc.filesize ?? Number.POSITIVE_INFINITY;
+		const name = nameOf(doc);
+		const cap = Math.min(ATTACHMENT_MAX_BYTES, budget);
+		const bytes =
+			isAttachmentMimeType(mimeType) &&
+			size <= cap &&
+			deliver({ mimeType, size, agent: args.agent.slug }) === "attach"
+				? // eslint-disable-next-line no-await-in-loop
+					await readAsUser(payload, user, files.collection, doc, cap)
+				: undefined;
+		const filename = refName(name);
+
+		if (bytes !== undefined && isAttachmentMimeType(mimeType)) {
+			budget -= bytes.byteLength;
+			attachments.push({
+				type: attachmentKind(mimeType),
+				data: bytesToBase64(bytes),
+				mimeType,
+				...(filename === "" ? {} : { filename }),
+			});
+		}
+
+		refs.push({
+			id: String(doc.id),
+			name,
+			mimeType,
+			size: doc.filesize ?? 0,
+			attached: bytes !== undefined,
+		});
+	}
+
 	return {
-		references: docs.flatMap((doc): WorkspaceFileRef[] =>
-			doc.mimeType
-				? [
-						{
-							id: String(doc.id),
-							name: doc.name ?? "",
-							mimeType: doc.mimeType,
-							size: doc.filesize ?? 0,
-						},
-					]
-				: [],
-		),
-		inline:
-			files.inlineTextBytes > 0
-				? await inlineTexts(
-						payload,
-						{ ...args.user, collection: settings.mcpx.userCollection },
-						files.slug,
-						docs,
-						files.inlineTextBytes,
-					)
-				: [],
+		attributes: fileAttributes(files.collection, refs),
+		attachments,
 	};
 };
 
-// Returns the files of a thread Flue never created to their user's pending files.
-const releaseFiles = async (
+// Unbinds the files of a thread Flue never created, so they may be sent again.
+const unbindFiles = async (
 	internal: PayloadRequest,
 	files: false | NormalizedFiles,
 	thread: DefaultDocumentIDType,
@@ -473,9 +503,9 @@ const releaseFiles = async (
 	}
 
 	await internal.payload.update({
-		collection: files.slug,
-		where: { thread: { equals: thread } },
-		data: { thread: null },
+		collection: files.collection,
+		where: { [FILE_THREAD_FIELD]: { equals: thread } },
+		data: { [FILE_THREAD_FIELD]: null },
 		depth: 0,
 		overrideAccess: true,
 		req: internal,
@@ -496,7 +526,7 @@ export const startTurn = async (
 ): Promise<TurnResult> => {
 	const { payload } = req;
 	const { agent, kind, onBehalfOf, dispatchJob } = args;
-	const attachments = args.attachments ?? [];
+	const fileIds = args.files ?? [];
 	const { userCollection } = settings.mcpx;
 	const collection = settings.threads.slug;
 	const user: TurnUser = { ...args.user, collection: userCollection };
@@ -516,13 +546,13 @@ export const startTurn = async (
 			req: internal,
 		});
 
-	const pendingFiles = await loadPending(internal, settings.files, args.files);
-
 	let thread: ThreadDoc;
 	// Set when this turn creates the conversation in Flue, which reads it once.
 	let handle: string | undefined;
 
 	if (args.threadId === undefined) {
+		const files = await checkFiles(internal, settings, fileIds, undefined);
+
 		// Before the row, so a failed key write leaves no thread behind.
 		await ensureKey();
 		handle = randomToken();
@@ -532,10 +562,10 @@ export const startTurn = async (
 				agent: agent.slug,
 				conversationId: randomToken(),
 				handleHash: handleHash(handle),
-				title: titleOf(args.message, [
-					...attachments.map((file) => file.filename),
-					...pendingFiles.map((file) => file.name),
-				]),
+				title: titleOf(
+					args.message,
+					files.map((file) => nameOf(file)),
+				),
 				context: {
 					collection: args.context.collection,
 					docId: args.context.id,
@@ -560,12 +590,7 @@ export const startTurn = async (
 			agent.slug,
 		);
 
-		await assertThreadRoom(
-			internal,
-			settings.files,
-			existing.id,
-			pendingFiles.length,
-		);
+		await checkFiles(internal, settings, fileIds, existing.id);
 		thread = existing;
 	}
 
@@ -603,9 +628,17 @@ export const startTurn = async (
 		throw refuse(GONE, 409);
 	}
 
-	// Undoes a first turn Flue never took: its files go back to pending.
+	// Undoes a first turn Flue never took, unbinding its files first.
 	const discard = async (): Promise<void> => {
-		await releaseFiles(internal, settings.files, thread.id);
+		try {
+			await unbindFiles(internal, settings.files, thread.id);
+		} catch (error) {
+			payload.logger.error({
+				err: error,
+				msg: "[payloadcms-flue] Could not unbind the files of a discarded thread.",
+			});
+		}
+
 		await payload.delete({
 			collection,
 			id: thread.id,
@@ -617,12 +650,12 @@ export const startTurn = async (
 	let sent = false;
 
 	try {
-		// Before the claim, so a failed key write leaves the files pending.
+		// Before the binding, so a failed key write leaves the files unbound.
 		if (handle === undefined) {
 			await ensureKey();
 		}
 
-		const { references, inline } = await claimTurnFiles(internal, settings, {
+		const { attributes, attachments } = await deliverFiles(internal, settings, {
 			...args,
 			thread: thread.id,
 		});
@@ -632,7 +665,7 @@ export const startTurn = async (
 			onBehalfOf: onBehalfOf === undefined ? undefined : String(onBehalfOf),
 		});
 		const submission = await client.send(agent.slug, conversationId, {
-			...turnMessage(context, args.message, attachments, references, inline),
+			...turnMessage(context, args.message, attributes, attachments),
 			uid: handle === undefined ? flueUid : null,
 			initialData:
 				handle === undefined

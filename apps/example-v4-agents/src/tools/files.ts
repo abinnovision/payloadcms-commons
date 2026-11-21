@@ -1,24 +1,43 @@
-import { FlueFileError, untrusted } from "@abinnovision/payloadcms-flue/agent";
+import {
+	FluePayloadError,
+	untrusted,
+} from "@abinnovision/payloadcms-flue/agent";
 import { useAgentStart, usePersistentState, useTool } from "@flue/runtime";
 import * as v from "valibot";
 
-import type {
-	FileArg,
-	PayloadRun,
-	WorkspaceFile,
-} from "@abinnovision/payloadcms-flue/agent";
+import type { PayloadRun } from "@abinnovision/payloadcms-flue/agent";
 
 const READS_PER_TURN = 40;
 const PAGE_CHARS = 20_000;
+const LIST_LIMIT = 25;
 
-export type FilesApi = Pick<PayloadRun, "files">["files"];
+const text = (value: unknown): string =>
+	typeof value === "string" ? value : "";
 
-/** Runs a tool body; a file refusal comes back as output the model can act on. */
+const fileOf = (doc: Record<string, unknown>): ThreadFile => ({
+	id: doc["id"] as number | string,
+	name: text(doc["name"]) || text(doc["filename"]),
+	mimeType: text(doc["mimeType"]),
+	size: Number(doc["filesize"] ?? 0),
+});
+
+/** The upload collection chat files are stored in, as the plugin's `files.collection`. */
+export const FILES_COLLECTION = "chat-uploads";
+
+/** A file of the run's thread, as `list_files` answers it. */
+export interface ThreadFile {
+	id: number | string;
+	name: string;
+	mimeType: string;
+	size: number;
+}
+
+/** Runs a tool body; a refusal by Payload comes back as output the model can act on. */
 export const refusalAsOutput = async <T>(run: () => Promise<T>) => {
 	try {
 		return { output: await run() };
 	} catch (error) {
-		if (!(error instanceof FlueFileError)) {
+		if (!(error instanceof FluePayloadError)) {
 			throw error;
 		}
 
@@ -28,20 +47,47 @@ export const refusalAsOutput = async <T>(run: () => Promise<T>) => {
 	}
 };
 
-/** The listed file of an id; the listing applies the thread's access. */
-export const findFile = async (
-	files: FilesApi,
-	file: FileArg,
-): Promise<WorkspaceFile> => {
-	const id = String(typeof file === "object" ? file.id : file);
-	const found = (await files.list()).find((item) => String(item.id) === id);
+/** The files of the run's thread, newest first. Payload narrows the query to the thread. */
+export const listFiles = async (
+	payload: Pick<PayloadRun, "callTool">,
+): Promise<ThreadFile[]> => {
+	const result = (await payload.callTool("findDocuments", {
+		collection: FILES_COLLECTION,
+		sort: "-createdAt",
+		limit: LIST_LIMIT,
+		select: { name: true, filename: true, mimeType: true, filesize: true },
+	})) as { docs?: Record<string, unknown>[] };
 
-	if (!found) {
-		throw new FlueFileError("not_found", `File ${id} is not in this thread.`);
-	}
-
-	return found;
+	return (result.docs ?? []).map(fileOf);
 };
+
+/** A file of the run's thread by its id. */
+export const findFile = async (
+	payload: Pick<PayloadRun, "callTool">,
+	id: number | string,
+): Promise<ThreadFile> => {
+	const result = (await payload.callTool("getDocument", {
+		collection: FILES_COLLECTION,
+		id,
+	})) as Record<string, unknown>;
+
+	return fileOf(result);
+};
+
+/** The bytes of a file of the run's thread, up to `maxBytes`. */
+export const readBytes = async (
+	payload: Pick<PayloadRun, "download">,
+	file: ThreadFile,
+	options: { maxBytes?: number; signal?: AbortSignal | undefined } = {},
+): Promise<Uint8Array> =>
+	(
+		await payload.download({
+			collection: FILES_COLLECTION,
+			id: file.id,
+			...(options.maxBytes === undefined ? {} : { maxBytes: options.maxBytes }),
+			...(options.signal ? { signal: options.signal } : {}),
+		})
+	).bytes;
 
 /*
  * A per-turn read budget in persistent state, keyed by a counter that
@@ -63,7 +109,7 @@ export const useReadBudget = (): (() => void) => {
 			const reads = previous.turn === turn ? previous.reads : 0;
 
 			if (reads >= READS_PER_TURN) {
-				throw new FlueFileError(
+				throw new FluePayloadError(
 					"refused",
 					"This turn used up its file reads. Answer with what you have.",
 				);
@@ -74,22 +120,20 @@ export const useReadBudget = (): (() => void) => {
 	};
 };
 
-/** Mounts `list_files` and `read_file` for the files the user attached to the thread. */
+/** Mounts `list_files` and `read_file` for the files the user sent in the thread. */
 export const useFileReadTools = (
-	payload: Pick<PayloadRun, "files">,
+	payload: Pick<PayloadRun, "callTool" | "download">,
 	spend: () => void,
 ): void => {
-	const { files } = payload;
-
 	useTool({
 		name: "list_files",
 		description:
-			"Lists the files the user attached to this thread: id, name, MIME type and size in bytes.",
+			"Lists the files the user sent in this thread: id, name, MIME type and size in bytes.",
 		run: async () =>
 			await refusalAsOutput(async () => {
 				spend();
 
-				return untrusted(JSON.stringify(await files.list()), {
+				return untrusted(JSON.stringify(await listFiles(payload)), {
 					source: "file-list",
 				});
 			}),
@@ -98,7 +142,7 @@ export const useFileReadTools = (
 	useTool({
 		name: "read_file",
 		description:
-			"Reads a text file the user attached, by characters. Answers nextOffset while more text follows.",
+			"Reads a text file the user sent, by characters. Answers nextOffset while more text follows.",
 		input: v.object({
 			file: v.union([v.string(), v.number()]),
 			offset: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
@@ -107,23 +151,28 @@ export const useFileReadTools = (
 			await refusalAsOutput(async () => {
 				spend();
 
-				const file = await findFile(files, data.file);
+				const file = await findFile(payload, data.file);
 
 				if (!file.mimeType.startsWith("text/")) {
-					throw new FlueFileError(
+					throw new FluePayloadError(
 						"refused",
 						`File ${String(file.id)} is ${file.mimeType}, not text.`,
 					);
 				}
 
-				const text = new TextDecoder().decode(
-					await files.read(file, signal ? { signal } : {}),
+				const decoded = new TextDecoder().decode(
+					await readBytes(payload, file, { signal }),
 				);
 				const offset = data.offset ?? 0;
-				const end = Math.min(offset + PAGE_CHARS, text.length);
-				const content = untrusted(text.slice(offset, end), { name: file.name });
+				const end = Math.min(offset + PAGE_CHARS, decoded.length);
+				const content = untrusted(decoded.slice(offset, end), {
+					name: file.name,
+				});
 
-				return { content, ...(end < text.length ? { nextOffset: end } : {}) };
+				return {
+					content,
+					...(end < decoded.length ? { nextOffset: end } : {}),
+				};
 			}),
 	});
 };

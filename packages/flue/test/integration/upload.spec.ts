@@ -15,13 +15,12 @@ import {
 	count,
 	keySettings,
 	login,
-	send,
 	shutdown,
 	THREADS_SLUG,
 } from "./helpers/payload.js";
-import { exchangeSession } from "../../src/agent/exchange.js";
-import { createFiles, downloadDocument } from "../../src/agent/files.js";
-import { FlueUploadError, uploadDocument } from "../../src/agent/upload.js";
+import { exchangeSession, FluePayloadError } from "../../src/agent/exchange.js";
+import { downloadDocument } from "../../src/agent/files.js";
+import { uploadDocument } from "../../src/agent/upload.js";
 import { fluePlugin } from "../../src/index.js";
 import { ensureAgentKey } from "../../src/keys/manager.js";
 import { handleHash } from "../../src/threads/handle.js";
@@ -178,6 +177,7 @@ const startConversation = async (
 			}),
 			payloadUrl: PAYLOAD_URL,
 			mcpPath: "/api/mcpx",
+			handle,
 			fetch,
 		},
 	};
@@ -273,7 +273,7 @@ describe("uploadDocument", () => {
 			data: TEXT,
 		}).catch((caught: unknown) => caught);
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(String(error)).toContain("needs a locale");
 		expect(await files()).toBe(before);
 	});
@@ -290,7 +290,7 @@ describe("uploadDocument", () => {
 				{ ...target, locale: "en" },
 				{ collection, filename: "a.bin", mimeType, data: TEXT },
 			),
-		).rejects.toBeInstanceOf(FlueUploadError);
+		).rejects.toBeInstanceOf(FluePayloadError);
 		expect([await files(), await count(booted, "archive")]).toEqual(before);
 	});
 
@@ -317,7 +317,7 @@ describe("uploadDocument", () => {
 			.find((request) => request.method === "PUT")
 			?.headers.get("x-mcpx-grant");
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(error).toMatchObject({ status: 400 });
 		expect(grant).toEqual(expect.any(String));
 		expect(String(error)).not.toContain(grant);
@@ -356,98 +356,29 @@ describe("uploadDocument without mcpx leases", () => {
 			},
 		).catch((caught: unknown) => caught);
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(String(error)).toContain("createDocument not found");
 		expect(await count(booted, "files")).toBe(0);
 	});
 });
 
-describe("workspace files through ./agent", () => {
-	const WORKSPACE_SLUG = "flue-files";
+describe("downloads through ./agent", () => {
 	const MIB = 1024 * 1024;
 	let booted: Booted;
 	let staticDir: string;
-
-	// A text file of `size` bytes, uploaded by the user and claimed by the thread.
-	const workspaceFile = async (
-		conversation: Awaited<ReturnType<typeof startConversation>>,
-		size: number,
-	): Promise<{ id: number | string; bytes: Uint8Array }> => {
-		const bytes = new TextEncoder().encode("a".repeat(size));
-		const form = new FormData();
-
-		form.append("file", new File([bytes], "notes.txt", { type: "text/plain" }));
-
-		const response = await send(booted, `/api/${WORKSPACE_SLUG}`, {
-			method: "POST",
-			token: conversation.token,
-			body: form,
-		});
-
-		expect(response.status).toBe(201);
-
-		const { doc } = (await response.json()) as {
-			doc: { id: number | string };
-		};
-
-		await booted.payload.update({
-			collection: WORKSPACE_SLUG,
-			id: doc.id,
-			data: { thread: conversation.thread },
-			overrideAccess: true,
-		});
-
-		return { id: doc.id, bytes };
-	};
-
-	const filesOf = (
-		conversation: Awaited<ReturnType<typeof startConversation>>,
-	) =>
-		createFiles({
-			payloadUrl: PAYLOAD_URL,
-			fluePath: "/api/flue",
-			secret: SIDECAR_SECRET,
-			handle: conversation.handle,
-			agent: UPLOADER.slug,
-			fetch: routedFetch(booted, []),
-		});
 
 	beforeAll(async () => {
 		staticDir = await mkdtemp(join(tmpdir(), "flue-agent-files-"));
 		booted = await bootPayload(
 			"flue-agent-files",
 			undefined,
-			uploadConfig(
-				staticDir,
-				// Payload's multipart parser takes 20 MiB per file by default.
-				{ upload: { limits: { fileSize: 32 * MIB } } },
-				{
-					files: {
-						overrideCollection: (collection) => ({
-							...collection,
-							upload: {
-								...(collection.upload as object),
-								staticDir: join(staticDir, "workspace"),
-							},
-						}),
-					},
-				},
-			),
+			uploadConfig(staticDir),
 		);
 	});
 
 	afterAll(async () => {
 		await shutdown(booted);
 		await rm(staticDir, { recursive: true, force: true });
-	});
-
-	it("reads the bytes of a workspace file", async () => {
-		const conversation = await startConversation(booted);
-		const file = await workspaceFile(conversation, 300);
-		const files = filesOf(conversation);
-
-		expect(await files.read(file.id)).toEqual(file.bytes);
-		expect((await files.list()).map((listed) => listed.id)).toEqual([file.id]);
 	});
 
 	it("downloads an app collection's file through mcpx", async () => {
@@ -471,16 +402,54 @@ describe("workspace files through ./agent", () => {
 		});
 	});
 
-	it("saves a workspace file under 25 MB into an app collection", async () => {
+	it("reads a range of a file through mcpx as a 206", async () => {
+		const statuses: number[] = [];
 		const conversation = await startConversation(booted);
-		const file = await workspaceFile(conversation, 1000);
-		const saved = await uploadDocument(
+		const pdf = new Uint8Array(2 * MIB).fill(0x20);
+		const trailer = new TextEncoder().encode("xref\n%%EOF\n");
+
+		// Payload checks the header and the trailer of a PDF.
+		pdf.set(new TextEncoder().encode("%PDF-1.4\n"));
+		pdf.set(trailer, pdf.byteLength - trailer.byteLength);
+
+		const created = await uploadDocument(
 			{ ...conversation.target, locale: "en" },
+			{
+				collection: "files",
+				filename: "large.pdf",
+				mimeType: "application/pdf",
+				data: pdf,
+			},
+		);
+		const fetch = conversation.target.fetch ?? globalThis.fetch;
+		const download = await downloadDocument(
+			{
+				...conversation.target,
+				fetch: async (input, init) => {
+					const response = await fetch(input, init);
+
+					statuses.push(response.status);
+
+					return response;
+				},
+			},
+			{ collection: "files", id: created.id, range: { start: 0, end: 1023 } },
+		);
+
+		expect(download.bytes.byteLength).toBe(1024);
+		expect(download.bytes).toEqual(pdf.slice(0, 1024));
+		expect(statuses.at(-1)).toBe(206);
+	});
+
+	it("saves a file under 25 MB into an app collection", async () => {
+		const { target } = await startConversation(booted);
+		const saved = await uploadDocument(
+			{ ...target, locale: "en" },
 			{
 				collection: "files",
 				filename: "notes.txt",
 				mimeType: "text/plain",
-				data: await filesOf(conversation).read(file.id),
+				data: "a".repeat(1000),
 			},
 		);
 		const doc = await booted.payload.findByID({
@@ -492,21 +461,20 @@ describe("workspace files through ./agent", () => {
 		expect(doc["filesize"]).toBe(1000);
 	});
 
-	it("refuses to save a workspace file above 25 MB and writes nothing", async () => {
-		const conversation = await startConversation(booted);
-		const file = await workspaceFile(conversation, 26 * MIB);
+	it("refuses to save a file above 25 MB and writes nothing", async () => {
+		const { target } = await startConversation(booted);
 		const before = await count(booted, "files");
 		const error: unknown = await uploadDocument(
-			{ ...conversation.target, locale: "en" },
+			{ ...target, locale: "en" },
 			{
 				collection: "files",
 				filename: "large.txt",
 				mimeType: "text/plain",
-				data: await filesOf(conversation).read(file.id),
+				data: "a".repeat(26 * MIB),
 			},
 		).catch((caught: unknown) => caught);
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(await count(booted, "files")).toBe(before);
 	});
 });

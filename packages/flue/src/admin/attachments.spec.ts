@@ -2,123 +2,34 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-	attachmentAdapter,
-	deliveredOf,
 	dropHint,
-	echoParts,
 	echoReferences,
 	fileAdapter,
 	fileIdsOf,
+	fileRefPart,
 	mimeTypeOf,
+	uploadRefOf,
 } from "./attachments.js";
 
-import type { FilesLimits } from "./api.js";
-import type { AttachmentLimits } from "../protocol/attachments.js";
+import type { AgentFiles } from "./api.js";
 import type { PendingAttachment } from "@assistant-ui/react";
-
-const LIMITS: AttachmentLimits = {
-	mimeTypes: ["image/png", "application/pdf"],
-	maxImageBytes: 3_932_160,
-	maxDocumentBytes: 5_242_880,
-	maxTextBytes: 524_288,
-	maxFiles: 2,
-};
 
 const fileOf = (name: string, type: string, text: string): File =>
 	new File([text], name, { type });
 
-const pending = (file: File, count = 0): Promise<PendingAttachment> =>
-	attachmentAdapter(LIMITS, () => count).add({
-		file,
-	}) as Promise<PendingAttachment>;
+const TEXT_TYPES = ["text/markdown", "text/plain", "text/csv"];
 
-describe("attachmentAdapter", () => {
-	it("accepts the configured types", () => {
-		expect(attachmentAdapter(LIMITS, () => 0).accept).toBe(
-			"image/png,application/pdf",
+describe("mimeTypeOf", () => {
+	it("takes a type a wildcard admits and keeps the file's own type", () => {
+		expect(mimeTypeOf({ name: "a.png", type: "image/png" }, ["image/*"])).toBe(
+			"image/png",
 		);
-	});
-
-	it("refuses a type outside the configured ones", async () => {
-		await expect(
-			pending(fileOf("logo.svg", "image/svg+xml", "<svg/>")),
-		).rejects.toThrow("logo.svg is not a file type the agent takes.");
-	});
-
-	it("refuses an image or a PDF over its limit", async () => {
-		await expect(
-			pending(fileOf("big.png", "image/png", "x".repeat(3_932_161))),
-		).rejects.toThrow("big.png is larger than 3.75 MiB.");
-		await expect(
-			pending(fileOf("big.pdf", "application/pdf", "x".repeat(5_242_881))),
-		).rejects.toThrow("big.pdf is larger than 5 MiB.");
-	});
-
-	it("refuses a file beyond the most a message takes", async () => {
-		await expect(
-			pending(fileOf("third.png", "image/png", "abc"), 2),
-		).rejects.toThrow("A message takes at most 2 files.");
-	});
-
-	it("sends an image as a data URL and a PDF as base64", async () => {
-		const adapter = attachmentAdapter(LIMITS, () => 0);
-		const image = await adapter.send(
-			await pending(fileOf("dot.png", "image/png", "png")),
+		expect(mimeTypeOf({ name: "notes.md", type: "" }, ["text/*"])).toBe(
+			"text/markdown",
 		);
-		const pdf = await adapter.send(
-			await pending(fileOf("brief.pdf", "application/pdf", "%PDF-1")),
-		);
-
-		expect(image).toMatchObject({
-			type: "image",
-			name: "dot.png",
-			status: { type: "complete" },
-			content: [
-				{
-					type: "image",
-					image: `data:image/png;base64,${btoa("png")}`,
-					filename: "dot.png",
-				},
-			],
-		});
-		expect(pdf).toMatchObject({
-			type: "document",
-			content: [
-				{
-					type: "file",
-					data: btoa("%PDF-1"),
-					mimeType: "application/pdf",
-					filename: "brief.pdf",
-				},
-			],
-		});
-		expect(deliveredOf([image, pdf])).toEqual([
-			{
-				type: "image",
-				data: btoa("png"),
-				mimeType: "image/png",
-				filename: "dot.png",
-			},
-			{
-				type: "document",
-				data: btoa("%PDF-1"),
-				mimeType: "application/pdf",
-				filename: "brief.pdf",
-			},
-		]);
-	});
-});
-
-describe("text attachments", () => {
-	const TEXT: AttachmentLimits = {
-		...LIMITS,
-		mimeTypes: ["text/markdown", "text/plain", "text/csv"],
-	};
-
-	it("accepts the text types and their extensions in the file picker", () => {
-		expect(attachmentAdapter(TEXT, () => 0).accept).toBe(
-			"text/markdown,text/plain,text/csv,.md,.markdown,.txt,.csv",
-		);
+		expect(
+			mimeTypeOf({ name: "a.pdf", type: "application/pdf" }, ["image/*"]),
+		).toBeUndefined();
 	});
 
 	it.each([
@@ -130,58 +41,14 @@ describe("text attachments", () => {
 		["table.csv", "text/csv", "text/csv"],
 		["table.csv", "text/plain", "text/csv"],
 	])("takes %s reported as %j as %s", (name, type, expected) => {
-		expect(mimeTypeOf({ name, type }, TEXT.mimeTypes)).toBe(expected);
+		expect(mimeTypeOf({ name, type }, TEXT_TYPES)).toBe(expected);
 	});
 
 	it("takes no extension outside the allowed types", () => {
 		expect(
 			mimeTypeOf({ name: "notes.md", type: "" }, ["text/plain"]),
 		).toBeUndefined();
-		expect(mimeTypeOf({ name: "notes", type: "" }, TEXT.mimeTypes)).toBe(
-			undefined,
-		);
-	});
-
-	it("sends a text file as a base64 file part of its mapped type", async () => {
-		const adapter = attachmentAdapter(TEXT, () => 0);
-		const sent = await adapter.send(
-			(await adapter.add({
-				file: fileOf("a.md", "", "# Hi"),
-			})) as PendingAttachment,
-		);
-
-		expect(deliveredOf([sent])).toEqual([
-			{
-				type: "document",
-				data: btoa("# Hi"),
-				mimeType: "text/markdown",
-				filename: "a.md",
-			},
-		]);
-	});
-
-	it("refuses an empty file and a text file that is not UTF-8", async () => {
-		const adapter = attachmentAdapter(TEXT, () => 0);
-
-		await expect(
-			adapter.add({ file: fileOf("empty.md", "", "") }),
-		).rejects.toThrow("empty.md is empty.");
-		await expect(
-			adapter.add({
-				file: new File([new Uint8Array([0x61, 0xff])], "latin.csv"),
-			}),
-		).rejects.toThrow("latin.csv is not UTF-8 text.");
-		await expect(
-			adapter.add({ file: fileOf("nul.txt", "text/plain", "a\0b") }),
-		).rejects.toThrow("nul.txt is not UTF-8 text.");
-	});
-
-	it("refuses a text file over its own limit", async () => {
-		await expect(
-			attachmentAdapter(TEXT, () => 0).add({
-				file: fileOf("big.txt", "text/plain", "x".repeat(524_289)),
-			}),
-		).rejects.toThrow("big.txt is larger than 0.5 MiB.");
+		expect(mimeTypeOf({ name: "notes", type: "" }, TEXT_TYPES)).toBe(undefined);
 	});
 });
 
@@ -198,46 +65,41 @@ describe("dropHint", () => {
 			"Images, PDFs and text files, up to 2 per message",
 		],
 		[["text/plain"], 1, "Text files, one per message"],
+		[["application/zip"], 3, "Files, up to 3 per message"],
+		[
+			["application/pdf", "application/zip"],
+			3,
+			"PDFs and other files, up to 3 per message",
+		],
 	] as const)("names %j with %i files", (mimeTypes, maxFiles, hint) => {
-		expect(dropHint({ ...LIMITS, mimeTypes: [...mimeTypes], maxFiles })).toBe(
-			hint,
-		);
+		expect(dropHint({ mimeTypes: [...mimeTypes], maxFiles })).toBe(hint);
 	});
 });
 
-describe("echoParts", () => {
-	it("shows delivered files as file parts with data URLs", () => {
-		expect(
-			echoParts([
-				{
-					type: "image",
-					data: "cG5n",
-					mimeType: "image/png",
-					filename: "a.png",
-				},
-				{ type: "document", data: "JVBE", mimeType: "application/pdf" },
-			]),
-		).toEqual([
-			{
-				type: "file",
-				mediaType: "image/png",
-				url: "data:image/png;base64,cG5n",
-				filename: "a.png",
-			},
-			{
-				type: "file",
-				mediaType: "application/pdf",
-				url: "data:application/pdf;base64,JVBE",
-			},
-		]);
+describe("uploadRefOf", () => {
+	it("round-trips a collection and an id through a file part", () => {
+		const part = fileRefPart(
+			{ collection: "uploads", id: "6743f0c1/x" },
+			"a.pdf",
+			"application/pdf",
+		);
+
+		expect(part.type === "file" && uploadRefOf(part.data)).toEqual({
+			collection: "uploads",
+			id: "6743f0c1/x",
+		});
+	});
+
+	it("reads no reference from other data", () => {
+		expect(uploadRefOf("data:text/plain;base64,YQ==")).toBeUndefined();
+		expect(uploadRefOf("flue-file:12")).toBeUndefined();
 	});
 });
 
 describe("fileAdapter", () => {
-	const FILES: FilesLimits = {
-		slug: "flue-files",
+	const FILES: AgentFiles = {
+		collection: "uploads",
 		mimeTypes: ["application/pdf", "text/markdown", "text/csv"],
-		maxBytes: 1024,
 		maxFiles: 2,
 	};
 
@@ -307,10 +169,12 @@ describe("fileAdapter", () => {
 			type: "document",
 			contentType: "application/pdf",
 			status: { type: "requires-action", reason: "composer-send" },
-			content: [{ type: "file", data: "flue-file:12", filename: "brief.pdf" }],
+			content: [
+				{ type: "file", data: "flue-file:uploads/12", filename: "brief.pdf" },
+			],
 		});
 		expect(api.uploadFile).toHaveBeenCalledWith(
-			"flue-files",
+			"uploads",
 			expect.any(File),
 			expect.any(Function),
 		);
@@ -350,9 +214,6 @@ describe("fileAdapter", () => {
 			added(api, fileOf("logo.svg", "image/svg+xml", "<svg/>")).next(),
 		).rejects.toThrow("logo.svg is not a file type the agent takes.");
 		await expect(
-			added(api, fileOf("a.pdf", "application/pdf", "x".repeat(1025))).next(),
-		).rejects.toThrow("a.pdf is larger than 0 MiB.");
-		await expect(
 			added(api, fileOf("a.pdf", "application/pdf", "abc"), 2).next(),
 		).rejects.toThrow("A message takes at most 2 files.");
 		await expect(
@@ -378,7 +239,7 @@ describe("fileAdapter", () => {
 
 		await adapter.remove(ready);
 
-		expect(api.deleteFile).toHaveBeenCalledWith("flue-files", "12");
+		expect(api.deleteFile).toHaveBeenCalledWith("uploads", "12");
 
 		// Nothing was stored for an upload that never finished.
 		await adapter.remove({ ...ready, content: [] });
@@ -401,7 +262,7 @@ describe("fileAdapter", () => {
 		api.finish("12");
 		await next;
 
-		expect(api.deleteFile).toHaveBeenCalledWith("flue-files", "12");
+		expect(api.deleteFile).toHaveBeenCalledWith("uploads", "12");
 	});
 
 	it("sends the id and echoes the reference", async () => {
@@ -421,12 +282,11 @@ describe("fileAdapter", () => {
 
 		expect(sent.status).toEqual({ type: "complete" });
 		expect(fileIdsOf([sent])).toEqual(["31"]);
-		expect(deliveredOf([sent])).toEqual([]);
 		expect(echoReferences([sent])).toEqual([
 			{
 				type: "file",
 				mediaType: "text/csv",
-				url: "flue-file:31",
+				url: "flue-file:uploads/31",
 				filename: "data.csv",
 			},
 		]);
@@ -436,19 +296,5 @@ describe("fileAdapter", () => {
 		expect(fileAdapter(FILES, () => 0, upload()).accept).toBe(
 			"application/pdf,text/markdown,text/csv,.md,.markdown,.csv",
 		);
-	});
-});
-
-describe("dropHint for the file workspace", () => {
-	it("names spreadsheets", () => {
-		expect(
-			dropHint({
-				mimeTypes: [
-					"application/pdf",
-					"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-				],
-				maxFiles: 10,
-			}),
-		).toBe("PDFs and spreadsheets, up to 10 per message");
 	});
 });

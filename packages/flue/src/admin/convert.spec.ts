@@ -7,8 +7,8 @@ import {
 	toThreadMessage,
 } from "./convert.js";
 import { fixtureJson } from "../../test/builders/fixtures.js";
-import { textToBase64 } from "../protocol/attachments.js";
 import { userTurnBody } from "../protocol/context.js";
+import { fileAttributes } from "../protocol/files.js";
 
 import type { FlueConversationMessage, FlueConversationState } from "@flue/sdk";
 
@@ -82,6 +82,61 @@ describe("shownMessages and toThreadMessage", () => {
 				id: "entry_turn",
 				role: "user",
 				content: [{ type: "text", text: "Publish the page." }],
+			},
+		]);
+	});
+
+	it("shows the files of a signal turn as file cards and a main-era turn without any", () => {
+		const files = fileAttributes("uploads", [
+			{
+				id: "12",
+				name: "data.csv",
+				mimeType: "text/csv",
+				size: 8,
+				attached: false,
+			},
+		]);
+		const turn = (id: string, attributes: Record<string, string>) =>
+			message({
+				id,
+				role: "system",
+				purpose: "dispatch",
+				display: "hidden",
+				signal: { attributes: { turn: "user", ...attributes } },
+				parts: [{ type: "text", text: "Sum it.", state: "done" }],
+			});
+
+		expect(
+			convert(
+				conversationOf([turn("entry_new", files), turn("entry_old", {})]),
+			),
+		).toEqual([
+			{
+				id: "entry_new",
+				role: "user",
+				content: [{ type: "text", text: "Sum it." }],
+				attachments: [
+					{
+						id: "entry_new:file:0",
+						type: "document",
+						name: "data.csv",
+						contentType: "text/csv",
+						status: { type: "complete" },
+						content: [
+							{
+								type: "file",
+								data: "flue-file:uploads/12",
+								mimeType: "text/csv",
+								filename: "data.csv",
+							},
+						],
+					},
+				],
+			},
+			{
+				id: "entry_old",
+				role: "user",
+				content: [{ type: "text", text: "Sum it." }],
 			},
 		]);
 	});
@@ -237,51 +292,7 @@ describe("shownMessages and toThreadMessage", () => {
 		]);
 	});
 
-	it("shows the text files of a user's turn as documents and not as text", () => {
-		const file = {
-			type: "document",
-			data: textToBase64("# Checkpoints"),
-			mimeType: "text/markdown",
-			filename: "list.md",
-		} as const;
-		const turn = message({
-			id: "entry_text",
-			role: "user",
-			purpose: "user",
-			parts: [
-				{
-					type: "text",
-					text: userTurnBody({ kind: "chat" }, "Create these", [file]),
-					state: "done",
-				},
-			],
-		});
-
-		expect(toThreadMessage(turn)).toEqual({
-			id: "entry_text",
-			role: "user",
-			content: [{ type: "text", text: "Create these" }],
-			attachments: [
-				{
-					id: "entry_text:text:0",
-					type: "document",
-					name: "list.md",
-					contentType: "text/markdown",
-					status: { type: "complete" },
-					content: [
-						{
-							type: "file",
-							data: `data:text/markdown;base64,${file.data}`,
-							mimeType: "text/markdown",
-							filename: "list.md",
-						},
-					],
-				},
-			],
-		});
-	});
-
-	it("shows the workspace files a turn references as file cards and not as text", () => {
+	it("shows the files a user turn sent as file cards and not as text", () => {
 		const turn = message({
 			id: "entry_ref",
 			role: "user",
@@ -292,15 +303,15 @@ describe("shownMessages and toThreadMessage", () => {
 					text: userTurnBody(
 						{ kind: "chat" },
 						"Summarize",
-						[],
-						[
+						fileAttributes("uploads", [
 							{
 								id: "12",
-								name: 'q3 "final".pdf',
+								name: "q3 final.pdf",
 								mimeType: "application/pdf",
 								size: 2048,
+								attached: true,
 							},
-						],
+						]),
 					),
 					state: "done",
 				},
@@ -315,15 +326,15 @@ describe("shownMessages and toThreadMessage", () => {
 				{
 					id: "entry_ref:file:0",
 					type: "document",
-					name: 'q3 "final".pdf',
+					name: "q3 final.pdf",
 					contentType: "application/pdf",
 					status: { type: "complete" },
 					content: [
 						{
 							type: "file",
-							data: "flue-file:12",
+							data: "flue-file:uploads/12",
 							mimeType: "application/pdf",
-							filename: 'q3 "final".pdf',
+							filename: "q3 final.pdf",
 						},
 					],
 				},
@@ -331,7 +342,7 @@ describe("shownMessages and toThreadMessage", () => {
 		});
 	});
 
-	it("shows the echo of a workspace file as a file card", () => {
+	it("shows the echo of an uploaded file as a file card", () => {
 		const echo = message({
 			id: "pending:sub_1",
 			role: "user",
@@ -341,7 +352,7 @@ describe("shownMessages and toThreadMessage", () => {
 				{
 					type: "file",
 					mediaType: "image/png",
-					url: "flue-file:31",
+					url: "flue-file:uploads/31",
 					filename: "chart.png",
 				},
 			],
@@ -352,7 +363,7 @@ describe("shownMessages and toThreadMessage", () => {
 				{
 					type: "document",
 					name: "chart.png",
-					content: [{ type: "file", data: "flue-file:31" }],
+					content: [{ type: "file", data: "flue-file:uploads/31" }],
 				},
 			],
 		});

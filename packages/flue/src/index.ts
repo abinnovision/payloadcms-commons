@@ -1,17 +1,19 @@
 import type { FluePluginOptions } from "./types.js";
 
 export { fluePlugin } from "./plugin.js";
-export { DEFAULT_FILE_MIME_TYPES } from "./protocol/files.js";
+export { fluePrivateUploads } from "./files/factory.js";
+export { defaultDeliver } from "./protocol/attachments.js";
 export { DISPATCH_TASK } from "./jobs/dispatch.js";
 export { flueQueues, queueFlueRun } from "./jobs/queue.js";
 
+export type { FluePrivateUploadsArgs } from "./files/factory.js";
 export type { FlueRunOutput } from "./jobs/dispatch.js";
 export type { QueueFlueRunArgs } from "./jobs/queue.js";
 export type { ChatContext, RunKind } from "./protocol/context.js";
 export type {
-	AttachmentMimeType,
+	FileDeliver,
+	FileDelivery,
 	FlueAgentConfig,
-	FlueAttachmentOptions,
 	FlueCapabilities,
 	FlueFileOptions,
 	FlueCollectionGrant,

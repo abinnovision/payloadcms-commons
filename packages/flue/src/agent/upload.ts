@@ -1,26 +1,11 @@
 import * as v from "valibot";
 
-import { FlueExchangeError, joinUrl } from "./exchange.js";
+import { codeOf, FluePayloadError, joinUrl } from "./exchange.js";
+import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 
 import type { ExchangeSession } from "./exchange.js";
 import type { FilePartData, PayloadUpload } from "../protocol/events.js";
-
-/**
- * Thrown when an upload cannot be completed. Its message never carries the
- * upload grant.
- */
-export class FlueUploadError extends Error {
-	public override readonly name = "FlueUploadError";
-
-	/** The status of the PUT that failed, `undefined` before the PUT. */
-	public readonly status: number | undefined;
-
-	public constructor(message: string, status?: number, options?: ErrorOptions) {
-		super(`[payloadcms-flue] ${message}`, options);
-		this.status = status;
-	}
-}
 
 export interface PayloadUploadArgs {
 	/** An upload collection the agent may write, which sets `upload.mimeTypes`. */
@@ -89,6 +74,8 @@ export interface UploadTarget {
 	session: Pick<ExchangeSession, "callTool">;
 	payloadUrl: string;
 	mcpPath: string;
+	/** The conversation's handle, which binds the new document to its thread. */
+	handle: string;
 	/** The turn's locale, used when the call names none. */
 	locale?: string | undefined;
 	/** The fetch for the PUT. Defaults to the global one. */
@@ -119,7 +106,8 @@ const requestHandoff = async (
 			file: { filename: args.filename, mimeType: args.mimeType, size },
 		});
 	} catch (error) {
-		if (error instanceof FlueExchangeError) {
+		// Failures of the exchange or the transport pass through.
+		if (error instanceof FluePayloadError && error.code !== "refused") {
 			throw error;
 		}
 
@@ -128,14 +116,16 @@ const requestHandoff = async (
 		).replace(/^\[payloadcms-flue\] /, "");
 
 		if (locale === undefined && /\blocale\b/.test(message)) {
-			throw new FlueUploadError(
+			throw new FluePayloadError(
+				"refused",
 				"The upload needs a locale: Payload is localized, and neither the turn nor the call names one.",
 				undefined,
 				{ cause: error },
 			);
 		}
 
-		throw new FlueUploadError(
+		throw new FluePayloadError(
+			"refused",
 			`Payload refused the upload. ${message}`,
 			undefined,
 			{ cause: error },
@@ -166,7 +156,7 @@ export const uploadDocument = async (
 		typeof upload["url"] !== "string" ||
 		!isRecord(upload["headers"])
 	) {
-		throw new FlueUploadError(PREREQUISITES);
+		throw new FluePayloadError("refused", PREREQUISITES);
 	}
 
 	const uploadPath = `${trimmed(target.mcpPath)}/upload`;
@@ -175,26 +165,29 @@ export const uploadDocument = async (
 	try {
 		handoffPath = trimmed(new URL(upload["url"]).pathname);
 	} catch (error) {
-		throw new FlueUploadError(
+		throw new FluePayloadError(
+			"refused",
 			"mcpx returned an unparsable handoff URL.",
 			undefined,
-			{
-				cause: error,
-			},
+			{ cause: error },
 		);
 	}
 
 	if (!handoffPath.endsWith(uploadPath)) {
-		throw new FlueUploadError(
+		throw new FluePayloadError(
+			"refused",
 			`mcpx returned a handoff outside "${uploadPath}", so the file was not sent.`,
 		);
 	}
 
-	const headers = Object.fromEntries(
-		Object.entries(upload["headers"]).filter(
-			(entry): entry is [string, string] => typeof entry[1] === "string",
+	const headers: Record<string, string> = {
+		...Object.fromEntries(
+			Object.entries(upload["headers"]).filter(
+				(entry): entry is [string, string] => typeof entry[1] === "string",
+			),
 		),
-	);
+		[FILE_HANDLE_HEADER]: target.handle,
+	};
 	let response: Response;
 
 	try {
@@ -203,15 +196,19 @@ export const uploadDocument = async (
 			{ method: "PUT", headers, body },
 		);
 	} catch (error) {
-		throw new FlueUploadError("The upload did not reach Payload.", undefined, {
-			cause: error,
-		});
+		throw new FluePayloadError(
+			"unreachable",
+			"The upload did not reach Payload.",
+			undefined,
+			{ cause: error },
+		);
 	}
 
 	const written: unknown = await response.json().catch(() => undefined);
 
 	if (response.status !== 200) {
-		throw new FlueUploadError(
+		throw new FluePayloadError(
+			codeOf(response.status),
 			`Payload answered the upload with status ${String(response.status)}. ${errorText(written)}`.trim(),
 			response.status,
 		);
@@ -222,7 +219,8 @@ export const uploadDocument = async (
 		(typeof written["id"] !== "string" && typeof written["id"] !== "number") ||
 		typeof written["adminUrl"] !== "string"
 	) {
-		throw new FlueUploadError(
+		throw new FluePayloadError(
+			"refused",
 			"Payload answered the upload without the document.",
 			response.status,
 		);

@@ -57,11 +57,11 @@ The package is ESM only, like Payload.
 
 ## Entry points
 
-| Entry     | Runs in            | Exports                                                                                                                                                                                                                                                                        |
-| --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.`       | the Payload server | `fluePlugin`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK`, `DEFAULT_FILE_MIME_TYPES` and the option types                                                                                                                                                                    |
-| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                                                                                                                                                   |
-| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `attachmentsOf`, `filesOf`, `openDocumentGuidance`, `untrusted`, `UNTRUSTED_GUIDANCE`, `DEFAULT_READ_BYTES`, `FlueExchangeError`, `FlueFileError`, `FlueUploadError`, `decodeContext`, `CONTEXT_SIGNAL_TYPE` |
+| Entry     | Runs in            | Exports                                                                                                                                                    |
+| --------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`       | the Payload server | `fluePlugin`, `fluePrivateUploads`, `defaultDeliver`, `queueFlueRun`, `flueQueues`, `DISPATCH_TASK` and the option types                                   |
+| `./admin` | the admin browser  | `FlueProvider`, `FlueToggle` and `FlueDocumentBridge`, mounted by the plugin                                                                               |
+| `./agent` | the Flue sidecar   | `usePayload`, `useThreadTitle`, `reportSettlements`, `contextOf`, `filesOf`, `openDocumentGuidance`, `untrusted`, `UNTRUSTED_GUIDANCE`, `FluePayloadError` |
 
 `./admin` needs four browser packages: `@flue/sdk` to follow conversations,
 `@assistant-ui/react` for the chat UI, `@assistant-ui/react-markdown` for the
@@ -171,26 +171,39 @@ export function Editor(): string {
 }
 ```
 
-### Attachments, files and uploads
+### Files and uploads
 
-All three are opt-in:
+Both are opt-in:
 
-| Feature          | Turned on by                                | Does                                                                                                                                  |
-| ---------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat attachments | `attachments: true` in the plugin's options | users attach images, PDFs and Markdown, text or CSV files to a turn                                                                   |
-| File workspace   | `files: true` in the plugin's options       | users upload files to a `flue-files` collection (20 MiB each at Payload's defaults); agents read them on demand. Excludes attachments |
-| Agent uploads    | `usePayload().upload()` in a tool           | the agent saves a file to an upload collection through mcpx; the chat shows it as a card                                              |
+| Feature       | Turned on by                                          | Does                                                                                                        |
+| ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Chat files    | `files: { collection }` and `files: true` on an agent | users send files of an app upload collection; images and small PDFs reach the model, the rest as references |
+| Agent uploads | `usePayload().upload()` in a tool                     | the agent saves a file to an upload collection through mcpx; the chat shows it as a card                    |
 
-Attachments raise the chat body cap to about 27 MiB at the defaults, and their
-files stay in the sidecar's store. The file workspace keeps files in Payload and
-sends the model references; its size follows Payload's `upload.requestSizeLimit`,
-`upload.limits.fileSize` and `upload.useTempFiles`, which you raise for large
-files, and limits in front of Payload such as Next 16's
-`proxyClientMaxBodySize` (10 MB) apply too. Uploads need an upload collection with
-`upload.mimeTypes`, `read` and `write` granted on it, and mcpx leases. See
-[attachments](./docs/integration.md#attachments),
-[files](./docs/integration.md#files) and
+Chat files take three steps: an upload collection that keeps `authorship` and
+`upload.mimeTypes`, or one built with `fluePrivateUploads`; the collection in
+mcpx's `collections`, with mcpx's leases; and `files.collection` plus `files`
+on each agent that takes them. Agents read the files of their thread with
+`payload.download`, and Payload refuses them any other file of the collection.
+Size limits, storage and cleanup are the collection's, and limits in front of
+Payload such as Next 16's `proxyClientMaxBodySize` (10 MB) apply too. Uploads
+need an upload collection with `upload.mimeTypes`, `read` and `write` granted
+on it, and mcpx leases. See [files](./docs/integration.md#files) and
 [uploads](./docs/integration.md#uploads).
+
+#### Breaking for 0.1.0 betas
+
+- The `attachments` option is gone; send files through `files` instead. The
+  chat endpoint takes `files: ids[]` and no longer takes base64 attachments.
+- `files` names an app collection (`{ collection, maxFilesPerTurn?, deliver? }`)
+  and each agent opts in with its own `files`. The plugin no longer creates a
+  files collection of its own.
+- `GET /agents` answers each agent's `files` instead of top-level limits.
+- `./agent` throws one `FluePayloadError` with a `code` in place of its three
+  error classes. The context decoder, the attachment reader, `payload.files`
+  and the default read size are gone; read files with `filesOf` and
+  `payload.download`.
+- A signal turn's body is the typed text; its files are in attributes.
 
 [`docs/integration.md`](./docs/integration.md) covers every option, the
 sidecar contract, the endpoints and jobs.
@@ -213,9 +226,10 @@ sidecar contract, the endpoints and jobs.
 - Chat attachments are served only through a Payload route that checks read
   access to the thread. The context preamble of a turn with files is not a
   trust boundary for the model.
-- Workspace files are readable by their owner only, through Payload's file
-  handler. The sidecar reads them with the shared secret and a thread's handle,
-  and file content reaches the model as data, never as instructions.
+- A user sends only files they uploaded. An agent reads only the files of its
+  current thread: every agent request carries the thread's handle, and Payload
+  access control narrows the files collection to that thread on every read
+  path. File content reaches the model as data, never as instructions.
 
 Details: [`docs/security.md`](./docs/security.md).
 
@@ -226,7 +240,7 @@ Details: [`docs/security.md`](./docs/security.md).
 - [`docs/integration.md`](./docs/integration.md): options, startup
   validation, the sidecar contract, endpoints, jobs, the database, the
   example apps.
-- [`docs/recipes.md`](./docs/recipes.md): storage adapters, upload hooks and
+- [`docs/recipes.md`](./docs/recipes.md): the files collection, cleanup and
   file tools to copy into an agent.
 - [`docs/security.md`](./docs/security.md): the trust chain, key locks,
   revocation and the risks an integrator owns.

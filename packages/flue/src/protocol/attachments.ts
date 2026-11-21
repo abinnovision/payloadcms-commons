@@ -1,18 +1,7 @@
 /**
- * The text file types a chat turn may carry. Flue takes no text documents,
- * so the plugin inlines them into the turn's body instead of attaching them.
- */
-export const TEXT_MIME_TYPES = [
-	"text/markdown",
-	"text/plain",
-	"text/csv",
-] as const;
-
-/**
- * The file types a chat turn may carry. Images and PDFs reach the model as
- * Flue attachments, which the providers Flue targets all accept natively;
- * text files as part of the turn's text. The `attachments` option may narrow
- * the list.
+ * The file types Flue takes as attachments, which the providers Flue
+ * targets all accept natively. Any other file reaches the model as a
+ * reference only.
  */
 export const ATTACHMENT_MIME_TYPES = [
 	"image/png",
@@ -20,14 +9,10 @@ export const ATTACHMENT_MIME_TYPES = [
 	"image/gif",
 	"image/webp",
 	"application/pdf",
-	...TEXT_MIME_TYPES,
 ] as const;
 
 /** One of {@link ATTACHMENT_MIME_TYPES}. */
 export type AttachmentMimeType = (typeof ATTACHMENT_MIME_TYPES)[number];
-
-/** One of {@link TEXT_MIME_TYPES}. */
-export type TextMimeType = (typeof TEXT_MIME_TYPES)[number];
 
 /**
  * One file of a chat turn in Flue's `DeliveredAttachment` shape: base64
@@ -41,9 +26,11 @@ export interface DeliveredAttachment {
 	filename?: string;
 }
 
-/** Whether the MIME type is one of {@link TEXT_MIME_TYPES}. */
-export const isTextMimeType = (mimeType: string): mimeType is TextMimeType =>
-	(TEXT_MIME_TYPES as readonly string[]).includes(mimeType);
+/** Whether Flue takes the MIME type as an attachment. */
+export const isAttachmentMimeType = (
+	mimeType: string,
+): mimeType is AttachmentMimeType =>
+	(ATTACHMENT_MIME_TYPES as readonly string[]).includes(mimeType);
 
 /** The attachment `type` Flue expects for a MIME type. */
 export const attachmentKind = (
@@ -51,33 +38,47 @@ export const attachmentKind = (
 ): DeliveredAttachment["type"] =>
 	mimeType.startsWith("image/") ? "image" : "document";
 
-/** The attachment limits the agents endpoint answers, null when disabled. */
-export interface AttachmentLimits {
-	mimeTypes: AttachmentMimeType[];
-	/** Largest decoded image, in bytes. */
-	maxImageBytes: number;
-	/** Largest decoded PDF, in bytes. */
-	maxDocumentBytes: number;
-	/** Largest decoded text of all text files of a turn, in bytes. */
-	maxTextBytes: number;
-	maxFiles: number;
-}
+const KIB = 1024;
+const MIB = 1024 * KIB;
 
-/** The largest decoded file of the MIME type the limits allow, in bytes. */
-export const maxBytesOf = (
-	limits: Pick<
-		AttachmentLimits,
-		"maxDocumentBytes" | "maxImageBytes" | "maxTextBytes"
-	>,
-	mimeType: AttachmentMimeType,
-): number => {
-	if (isTextMimeType(mimeType)) {
-		return limits.maxTextBytes;
+/**
+ * The largest file Flue takes as one attachment: its cap of 14,680,064
+ * base64 characters, decoded.
+ */
+export const ATTACHMENT_MAX_BYTES = (14_680_064 / 4) * 3;
+
+/** The raw bytes all attachments of one turn may hold together. */
+export const ATTACH_BYTES_PER_TURN = 16 * MIB;
+
+/** How a file of a turn reaches the model. */
+export type FileDelivery = "attach" | "reference";
+
+/**
+ * Decides per file whether it is attached to the turn or referenced only.
+ * The plugin attaches only Flue's native types within its caps, whatever
+ * the policy answers.
+ */
+export type FileDeliver = (file: {
+	mimeType: string;
+	size: number;
+	agent: string;
+}) => FileDelivery;
+
+const IMAGE_MAX_BYTES = 3.75 * MIB;
+const PDF_MAX_BYTES = 5 * MIB;
+
+/**
+ * Attaches images up to 3.75 MiB, which stay within Anthropic's 5 MiB
+ * base64 image limit, and PDFs up to 5 MiB; references everything else.
+ */
+export const defaultDeliver: FileDeliver = ({ mimeType, size }) => {
+	if (mimeType === "application/pdf") {
+		return size <= PDF_MAX_BYTES ? "attach" : "reference";
 	}
 
-	return attachmentKind(mimeType) === "image"
-		? limits.maxImageBytes
-		: limits.maxDocumentBytes;
+	return isAttachmentMimeType(mimeType) && size <= IMAGE_MAX_BYTES
+		? "attach"
+		: "reference";
 };
 
 /** Bytes as base64, in chunks that stay under the engines' argument limits. */
@@ -90,28 +91,3 @@ export const bytesToBase64 = (bytes: Uint8Array): string => {
 
 	return btoa(binary);
 };
-
-/** UTF-8 text as base64. */
-export const textToBase64 = (text: string): string =>
-	bytesToBase64(new TextEncoder().encode(text));
-
-/**
- * The text of UTF-8 bytes, or `undefined` when the bytes are not UTF-8 or
- * hold a NUL byte, which no text file the chat takes does. A leading byte
- * order mark is dropped.
- */
-export const bytesToText = (bytes: Uint8Array): string | undefined => {
-	let text: string;
-
-	try {
-		text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-	} catch {
-		return undefined;
-	}
-
-	return text.includes("\0") ? undefined : text;
-};
-
-/** {@link bytesToText} of base64 bytes. */
-export const base64ToText = (data: string): string | undefined =>
-	bytesToText(Uint8Array.from(atob(data), (char) => char.charCodeAt(0)));

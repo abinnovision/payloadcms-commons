@@ -21,7 +21,6 @@ import {
 	THREADS_SLUG,
 } from "./helpers/payload.js";
 import { queueFlueRun } from "../../src/index.js";
-import { readUserTurnBody } from "../../src/protocol/context.js";
 import { handleHash } from "../../src/threads/handle.js";
 import { EDITOR, RESTRICTED, SIDECAR_SECRET } from "../fixtures/config.js";
 
@@ -190,13 +189,9 @@ describe("flue-dispatch", () => {
 			status: "running",
 		});
 		expect(keys.totalDocs).toBe(1);
-		const message = JSON.parse(posted?.body ?? "{}") as { body: string };
-
-		expect(readUserTurnBody(message.body)?.text).toBe(
-			"Review the published page.",
-		);
-		expect(message).toMatchObject({
+		expect(JSON.parse(posted?.body ?? "{}")).toMatchObject({
 			kind: "signal",
+			body: "Review the published page.",
 			attributes: {
 				turn: "user",
 				kind: "reactive",

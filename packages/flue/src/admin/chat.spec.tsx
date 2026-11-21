@@ -9,7 +9,7 @@ import { POLL_MS } from "./threads-view.js";
 
 import type {
 	ChatResult,
-	FilesLimits,
+	AgentFiles,
 	FlueApi,
 	ThreadDoc,
 	ThreadFilter,
@@ -18,7 +18,6 @@ import type {
 import type { FlueChatProps } from "./chat.js";
 import type { DocumentRegistry, OpenDocument } from "./document.js";
 import type { Keyset } from "./keyset.js";
-import type { AttachmentLimits } from "../protocol/attachments.js";
 import type { ReactNode } from "react";
 
 (
@@ -641,138 +640,10 @@ describe("the FlueChat component", () => {
 	});
 });
 
-describe("attachments in the FlueChat composer", () => {
-	const LIMITS: AttachmentLimits = {
-		mimeTypes: ["image/png", "application/pdf"],
-		maxImageBytes: 3_932_160,
-		maxDocumentBytes: 5_242_880,
-		maxTextBytes: 524_288,
-		maxFiles: 4,
-	};
-
-	const RESULT: ChatResult = {
-		thread: { id: 1001, status: "running", title: "dot.png" },
-		offset: "-1",
-		streamUrl: "/api/flue/c/1001",
-		submissionId: "sub_1",
-	};
-
-	const mountComposer = (chat: FlueApi["chat"]) => {
-		const { api } = server([]);
-		const panel = mount(
-			{ ...api, chat },
-			{ attachments: LIMITS, view: "conversation" },
-		);
-
-		return {
-			...panel,
-			// Picks a file through the input the Attach button opens.
-			pick: (file: File): HTMLInputElement => {
-				panel.click("Attach");
-
-				const input =
-					document.body.querySelector<HTMLInputElement>('input[type="file"]')!;
-
-				Object.defineProperty(input, "files", { value: [file] });
-				act(() => {
-					input.dispatchEvent(new Event("change"));
-				});
-
-				return input;
-			},
-			write: (text: string) => {
-				const input = panel.container.querySelector<HTMLTextAreaElement>(
-					'textarea[aria-label="Message"]',
-				)!;
-
-				act(() => {
-					Object.getOwnPropertyDescriptor(
-						HTMLTextAreaElement.prototype,
-						"value",
-					)!.set!.call(input, text);
-					input.dispatchEvent(new Event("input", { bubbles: true }));
-				});
-			},
-			attached: () =>
-				[
-					...panel.container.querySelectorAll(
-						".flue-composer .flue-attachment__name",
-					),
-				].map((name) => name.textContent),
-		};
-	};
-
-	it("sends a picked image in base64 with the message", async () => {
-		const chat = vi.fn(() => Promise.resolve(RESULT));
-		const panel = mountComposer(chat);
-		const input = panel.pick(
-			new File(["png"], "dot.png", { type: "image/png" }),
-		);
-
-		expect(input.accept).toBe("image/png,application/pdf");
-		await until(() => panel.attached().length === 1);
-		expect(panel.attached()).toEqual(["dot.png"]);
-
-		panel.write("What is this?");
-		panel.click("Send");
-		await until(() => chat.mock.calls.length === 1);
-
-		expect(chat).toHaveBeenCalledWith("editor", {
-			message: "What is this?",
-			thread: undefined,
-			context: { route: "/admin" },
-			attachments: [
-				{
-					type: "image",
-					data: btoa("png"),
-					mimeType: "image/png",
-					filename: "dot.png",
-				},
-			],
-		});
-		panel.unmount();
-	});
-
-	it("refuses an image over its limit with an error", async () => {
-		const panel = mountComposer(vi.fn());
-
-		panel.pick(
-			new File(["x".repeat(3_932_161)], "big.png", { type: "image/png" }),
-		);
-		await until(() => toastError.mock.calls.length > 0);
-
-		expect(toastError).toHaveBeenCalledWith("big.png is larger than 3.75 MiB.");
-		expect(panel.attached()).toEqual([]);
-		panel.unmount();
-	});
-
-	it("puts the text and files back into the composer when the send fails", async () => {
-		const chat = vi.fn(() => Promise.reject(new Error("Too large.")));
-		const panel = mountComposer(chat);
-
-		panel.pick(new File(["%PDF-1"], "brief.pdf", { type: "application/pdf" }));
-		await until(() => panel.attached().length === 1);
-		panel.write("Summarize");
-		panel.click("Send");
-		await until(() => chat.mock.calls.length === 1);
-		await until(() => panel.attached().length === 1);
-
-		expect(panel.attached()).toEqual(["brief.pdf"]);
-		expect(
-			panel.container.querySelector<HTMLTextAreaElement>(
-				'textarea[aria-label="Message"]',
-			)!.value,
-		).toBe("Summarize");
-		expect(toastError).toHaveBeenCalledWith("Too large.");
-		panel.unmount();
-	});
-});
-
-describe("the file workspace in the FlueChat composer", () => {
-	const FILES: FilesLimits = {
-		slug: "flue-files",
+describe("files in the FlueChat composer", () => {
+	const FILES: AgentFiles = {
+		collection: "uploads",
 		mimeTypes: ["application/pdf", "text/markdown"],
-		maxBytes: 1024,
 		maxFiles: 4,
 	};
 
@@ -784,7 +655,7 @@ describe("the file workspace in the FlueChat composer", () => {
 	};
 
 	// An upload the test settles itself.
-	const mountComposer = () => {
+	const mountComposer = (chat = vi.fn(() => Promise.resolve(RESULT))) => {
 		let progress: (fraction: number) => void = () => undefined;
 		let finish: (id: string) => void = () => undefined;
 		let fail: (error: Error) => void = () => undefined;
@@ -797,11 +668,13 @@ describe("the file workspace in the FlueChat composer", () => {
 				}),
 		);
 		const deleteFile = vi.fn(() => Promise.resolve());
-		const chat = vi.fn(() => Promise.resolve(RESULT));
 		const { api } = server([]);
 		const panel = mount(
 			{ ...api, chat, uploadFile, deleteFile },
-			{ files: FILES, view: "conversation" },
+			{
+				agents: [{ slug: "editor", label: "Editor", files: FILES }],
+				view: "conversation",
+			},
 		);
 
 		return {
@@ -835,6 +708,19 @@ describe("the file workspace in the FlueChat composer", () => {
 				Object.defineProperty(input, "files", { value: [file] });
 				act(() => {
 					input.dispatchEvent(new Event("change"));
+				});
+			},
+			write: (text: string) => {
+				const input = panel.container.querySelector<HTMLTextAreaElement>(
+					'textarea[aria-label="Message"]',
+				)!;
+
+				act(() => {
+					Object.getOwnPropertyDescriptor(
+						HTMLTextAreaElement.prototype,
+						"value",
+					)!.set!.call(input, text);
+					input.dispatchEvent(new Event("input", { bubbles: true }));
 				});
 			},
 			status: () =>
@@ -906,7 +792,44 @@ describe("the file workspace in the FlueChat composer", () => {
 		});
 		await until(() => panel.attached().length === 0);
 
-		expect(panel.deleteFile).toHaveBeenCalledWith("flue-files", "12");
+		expect(panel.deleteFile).toHaveBeenCalledWith("uploads", "12");
+		panel.unmount();
+	});
+
+	it("puts the text and files back into the composer when the send fails", async () => {
+		const chat = vi.fn(() => Promise.reject(new Error("Too large.")));
+		const panel = mountComposer(chat);
+
+		panel.pick(new File(["%PDF-1"], "brief.pdf", { type: "application/pdf" }));
+		await until(() => panel.status() === "0%");
+		await panel.finish("12");
+		await until(() => panel.status() === undefined);
+		panel.write("Summarize");
+		panel.click("Send");
+		await until(() => chat.mock.calls.length === 1);
+		await until(() => panel.attached().length === 1);
+
+		expect(panel.attached()).toEqual(["brief.pdf"]);
+		expect(
+			panel.container.querySelector<HTMLTextAreaElement>(
+				'textarea[aria-label="Message"]',
+			)!.value,
+		).toBe("Summarize");
+		expect(toastError).toHaveBeenCalledWith("Too large.");
+		panel.unmount();
+	});
+
+	it("offers no upload for an agent that takes no files", () => {
+		const panel = mount(server([]).api, { view: "conversation" });
+
+		expect(
+			panel.container.querySelector('button[aria-label="Attach"]'),
+		).toBeNull();
+		expect(
+			[...panel.container.querySelectorAll("button")].some(
+				(button) => button.textContent === "Attach",
+			),
+		).toBe(false);
 		panel.unmount();
 	});
 });

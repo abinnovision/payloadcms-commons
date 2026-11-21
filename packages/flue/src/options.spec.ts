@@ -2,10 +2,10 @@ import { definePlugin } from "payload";
 import { describe, expect, it } from "vitest";
 
 import { mcpxSettings, normalizeOptions } from "./options.js";
+import { defaultDeliver } from "./protocol/attachments.js";
 
 import type {
 	FlueAgentConfig,
-	FlueAttachmentOptions,
 	FlueFileOptions,
 	FluePluginOptions,
 } from "./types.js";
@@ -14,7 +14,7 @@ import type { CollectionConfig, Config, PayloadRequest, Plugin } from "payload";
 const SECRET = "s".repeat(32);
 const MINUTE = 60_000;
 
-type ConfigView = Pick<Config, "admin" | "collections" | "routes" | "upload">;
+type ConfigView = Pick<Config, "admin" | "collections" | "routes">;
 
 const collection = (slug: string): CollectionConfig => ({ slug, fields: [] });
 
@@ -311,354 +311,79 @@ describe("normalizeOptions", () => {
 		});
 	});
 
-	describe("attachments", () => {
-		const MIB = 1024 * 1024;
-
-		it("is off by default", () => {
-			expect(normalize().normalized.attachments).toBe(false);
-			expect(
-				normalize(options({ attachments: false })).normalized.attachments,
-			).toBe(false);
-		});
-
-		it("applies the defaults for true and sizes the body cap for four PDFs", () => {
-			expect(
-				normalize(options({ attachments: true })).normalized.attachments,
-			).toEqual({
-				mimeTypes: [
-					"image/png",
-					"image/jpeg",
-					"image/gif",
-					"image/webp",
-					"application/pdf",
-					"text/markdown",
-					"text/plain",
-					"text/csv",
-				],
-				maxImageBytes: 3.75 * MIB,
-				maxDocumentBytes: 5 * MIB,
-				maxTextBytes: 512 * 1024,
-				maxFiles: 4,
-				bodyMax: 64 * 1024 + 4 * (Math.ceil((5 * MIB * 4) / 3) + 2048),
-			});
-		});
-
-		it("sizes the body cap by the largest allowed type", () => {
-			expect(
-				normalize(
-					options({
-						attachments: {
-							mimeTypes: ["image/png"],
-							maxImageBytes: 3000,
-							maxDocumentBytes: 10 * MIB,
-							maxFiles: 2,
-						},
-					}),
-				).normalized.attachments,
-			).toEqual({
-				mimeTypes: ["image/png"],
-				maxImageBytes: 3000,
-				maxDocumentBytes: 10 * MIB,
-				maxTextBytes: 512 * 1024,
-				maxFiles: 2,
-				bodyMax: 64 * 1024 + 2 * (4000 + 2048),
-			});
-		});
-
-		it("sizes the body cap by the text limit for text files only", () => {
-			expect(
-				normalize(
-					options({
-						attachments: {
-							mimeTypes: ["text/markdown", "text/csv"],
-							maxTextBytes: 2 * MIB,
-							maxFiles: 3,
-						},
-					}),
-				).normalized.attachments,
-			).toMatchObject({
-				maxTextBytes: 2 * MIB,
-				bodyMax: 64 * 1024 + 3 * (Math.ceil((2 * MIB * 4) / 3) + 2048),
-			});
-		});
-
-		it.each([
-			[
-				"a type outside the allowed ones",
-				{ mimeTypes: ["image/svg+xml"] },
-				/mimeTypes/,
-			],
-			["an empty type list", { mimeTypes: [] }, /mimeTypes/],
-			[
-				"images over 3.75 MiB",
-				{ maxImageBytes: 3.75 * MIB + 1 },
-				/maxImageBytes/,
-			],
-			[
-				"PDFs over 10 MiB",
-				{ maxDocumentBytes: 10 * MIB + 1 },
-				/maxDocumentBytes/,
-			],
-			["text files over 2 MiB", { maxTextBytes: 2 * MIB + 1 }, /maxTextBytes/],
-			["an empty text limit", { maxTextBytes: 0 }, /maxTextBytes/],
-			["no files", { maxFiles: 0 }, /maxFiles/],
-			["a fraction of a file", { maxFiles: 1.5 }, /maxFiles/],
-			["more than 20 files", { maxFiles: 21 }, /maxFiles/],
-		])("refuses %s", (_label, attachments, message) => {
-			expect(() =>
-				normalize(
-					options({
-						attachments: attachments as FlueAttachmentOptions,
-					}),
-				),
-			).toThrow(message);
-		});
-	});
 	describe("files", () => {
-		const MIB = 1024 * 1024;
-		const TEMP_FILES = {
-			requestSizeLimit: 160 * MIB,
-			limits: { fileSize: 150 * MIB },
-			useTempFiles: true,
-		};
-		const SETTINGS = /requestSizeLimit.*useTempFiles.*tempFileDir/;
-
+		const view = config({
+			collections: [
+				collection("users"),
+				collection("mcpx-api-keys"),
+				collection("uploads"),
+			],
+		});
 		const files = (
-			option: NonNullable<FluePluginOptions["files"]>,
-			upload?: ConfigView["upload"],
-		) =>
-			normalize(
-				options({ files: option }),
-				config(upload === undefined ? {} : { upload }),
-			);
+			option: FlueFileOptions,
+			agents: FlueAgentConfig[] = [editor],
+		) => normalize(options({ files: option, agents }), view).normalized;
 
 		it("is off by default", () => {
 			expect(normalize().normalized.files).toBe(false);
 		});
 
-		it("boots Payload's default config with 20 MiB and a warning naming the settings", () => {
-			const { normalized, warnings } = files(true);
-
-			expect(normalized.files).toEqual({
-				slug: "flue-files",
-				mimeTypes: [
-					"image/png",
-					"image/jpeg",
-					"image/gif",
-					"image/webp",
-					"application/pdf",
-					"text/plain",
-					"text/markdown",
-					"text/csv",
-					"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-				],
-				maxBytes: 20 * MIB,
+		it("applies the defaults", () => {
+			expect(files({ collection: "uploads" }).files).toEqual({
+				collection: "uploads",
 				maxFilesPerTurn: 10,
-				maxFilesPerThread: 100,
-				inlineTextBytes: 0,
-				pending: { maxFiles: 20, maxBytes: 300 * MIB, ttlMs: 24 * 3_600_000 },
-				overrideCollection: undefined,
-			});
-			expect(warnings).toHaveLength(1);
-			expect(warnings[0]).toMatch(/upload\.requestSizeLimit/);
-			expect(warnings[0]).toMatch(/upload\.useTempFiles/);
-			expect(warnings[0]).toMatch(/upload\.limits\.fileSize/);
-		});
-
-		it("follows a request limit below 150 MiB with temp files on", () => {
-			const { normalized, warnings } = files(true, {
-				requestSizeLimit: 100 * MIB,
-				limits: { fileSize: 150 * MIB },
-				useTempFiles: true,
-			});
-
-			expect(normalized.files).toMatchObject({ maxBytes: 99 * MIB });
-			expect(warnings).toHaveLength(1);
-		});
-
-		it("follows a file size limit below the request limit with a warning naming it", () => {
-			const { normalized, warnings } = files(true, {
-				...TEMP_FILES,
-				limits: { fileSize: 60 * MIB },
-			});
-
-			expect(normalized.files).toMatchObject({ maxBytes: 60 * MIB });
-			expect(warnings[0]).toMatch(/upload\.limits\.fileSize/);
-		});
-
-		it("follows Payload's 20 MiB file size default", () => {
-			const { normalized } = files(true, {
-				requestSizeLimit: 160 * MIB,
-				useTempFiles: true,
-			});
-
-			expect(normalized.files).toMatchObject({ maxBytes: 20 * MIB });
-		});
-
-		it("defaults to 150 MiB without a warning when Payload takes it", () => {
-			const { normalized, warnings } = files(true, TEMP_FILES);
-
-			expect(normalized.files).toMatchObject({ maxBytes: 150 * MIB });
-			expect(warnings).toEqual([]);
-		});
-
-		it("takes an explicit maxBytes Payload takes", () => {
-			expect(
-				files({ maxBytes: 120 * MIB }, TEMP_FILES).normalized.files,
-			).toMatchObject({ maxBytes: 120 * MIB });
-			expect(files({ maxBytes: 8 * MIB }).normalized.files).toMatchObject({
-				maxBytes: 8 * MIB,
+				deliver: defaultDeliver,
 			});
 		});
 
-		it("refuses an explicit maxBytes above the request limit", () => {
-			expect(() => files({ maxBytes: 160 * MIB }, TEMP_FILES)).toThrow(
-				SETTINGS,
-			);
-		});
-
-		it("refuses an explicit maxBytes above the file size limit", () => {
-			expect(() =>
-				files(
-					{ maxBytes: 100 * MIB },
-					{ ...TEMP_FILES, limits: { fileSize: 60 * MIB } },
-				),
-			).toThrow(/upload\.limits\.fileSize/);
-			expect(() => files({ maxBytes: 25 * MIB })).toThrow(
-				/upload\.limits\.fileSize/,
-			);
-		});
-
-		it("refuses an explicit maxBytes above 32 MiB without temp files", () => {
-			expect(() =>
-				files(
-					{ maxBytes: 40 * MIB },
-					{ requestSizeLimit: 160 * MIB, useTempFiles: false },
-				),
-			).toThrow(SETTINGS);
-		});
-
-		it("takes a custom exact type", () => {
-			expect(
-				files({ mimeTypes: ["application/zip"] }, TEMP_FILES).normalized.files,
-			).toMatchObject({ mimeTypes: ["application/zip"] });
-		});
-
-		it("takes a null pending as the defaults", () => {
-			expect(
-				files({ pending: null } as unknown as FlueFileOptions, TEMP_FILES)
-					.normalized.files,
-			).toMatchObject({ pending: { maxFiles: 20 } });
-		});
-
-		it("takes the pending bounds at their edges", () => {
-			expect(
-				files(
-					{
-						pending: {
-							maxFiles: 100,
-							maxBytes: 10 * 1024 * MIB,
-							ttlMs: 3_600_000,
-						},
+		it("adds the read grant on the collection for an agent taking files", () => {
+			const { agents } = files({ collection: "uploads" }, [
+				{
+					...editor,
+					files: true,
+					capabilities: {
+						collections: { pages: { read: true }, uploads: { write: true } },
 					},
-					TEMP_FILES,
-				).normalized.files,
-			).toMatchObject({
-				pending: { maxFiles: 100, maxBytes: 10 * 1024 * MIB, ttlMs: 3_600_000 },
+				},
+				{ slug: "other", capabilities: {} },
+			]);
+
+			expect(agents[0]?.capabilities.collections).toEqual({
+				pages: { read: true },
+				uploads: { write: true, read: true },
 			});
+			expect(agents[1]?.capabilities).toEqual({});
 		});
 
-		it("raises the default pending bytes to a larger maxBytes", () => {
-			expect(
-				files(
-					{ maxBytes: 500 * MIB },
-					{
-						requestSizeLimit: 510 * MIB,
-						limits: { fileSize: 500 * MIB },
-						useTempFiles: true,
-					},
-				).normalized.files,
-			).toMatchObject({ pending: { maxBytes: 500 * MIB } });
-		});
-
-		it("refuses files together with attachments", () => {
+		it("refuses an agent taking files without the files option", () => {
 			expect(() =>
-				normalize(options({ files: true, attachments: true })),
-			).toThrow(/files and attachments/);
-		});
-
-		it("refuses a slug another collection holds", () => {
-			expect(() => files({ slug: "users" })).toThrow(/files\.slug/);
-			expect(() => files({ slug: "flue-threads" })).toThrow(/files\.slug/);
+				normalize(options({ agents: [{ ...editor, files: true }] })),
+			).toThrow(/agents\[0\]\.files needs the plugin's files option/);
 		});
 
 		it.each([
 			[
-				"a wildcard type",
-				{ mimeTypes: ["image/*"] },
-				/files\.mimeTypes entries must be exact MIME types, got "image\/\*"/,
-			],
-			["a malformed type", { mimeTypes: ["png"] }, /files\.mimeTypes/],
-			["an upper-case type", { mimeTypes: ["Image/PNG"] }, /exact MIME types/],
-			["an empty type list", { mimeTypes: [] }, /files\.mimeTypes/],
-			[
-				"pending files below the turn size",
-				{ maxFilesPerTurn: 10, pending: { maxFiles: 5 } },
-				/pending\.maxFiles/,
+				"a collection the config lacks",
+				{ collection: "missing" },
+				/files\.collection "missing"/,
 			],
 			[
-				"more than 100 pending files",
-				{ pending: { maxFiles: 101 } },
-				/pending\.maxFiles/,
+				"the threads collection",
+				{ collection: "flue-threads" },
+				/files\.collection/,
 			],
 			[
-				"pending bytes below the file size",
-				{ maxBytes: 10 * MIB, pending: { maxBytes: 9 * MIB } },
-				/pending\.maxBytes/,
-			],
-			[
-				"more than 10 GiB pending",
-				{ pending: { maxBytes: 10 * 1024 * MIB + 1 } },
-				/pending\.maxBytes/,
-			],
-			[
-				"a pending TTL under an hour",
-				{ pending: { ttlMs: 3_599_999 } },
-				/pending\.ttlMs/,
-			],
-			[
-				"a pending TTL over 7 days",
-				{ pending: { ttlMs: 7 * 24 * 3_600_000 + 1 } },
-				/pending\.ttlMs/,
-			],
-			["more than 1 GiB", { maxBytes: 1024 * MIB + 1 }, /files\.maxBytes/],
-			["no bytes", { maxBytes: 0 }, /files\.maxBytes/],
-			["no files per turn", { maxFilesPerTurn: 0 }, /maxFilesPerTurn/],
-			[
-				"more than 20 files per turn",
-				{ maxFilesPerTurn: 21 },
+				"no files per turn",
+				{ collection: "uploads", maxFilesPerTurn: 0 },
 				/maxFilesPerTurn/,
 			],
 			[
-				"fewer files per thread than per turn",
-				{ maxFilesPerThread: 5 },
-				/maxFilesPerThread/,
+				"more than 20 files per turn",
+				{ collection: "uploads", maxFilesPerTurn: 21 },
+				/maxFilesPerTurn/,
 			],
-			[
-				"more files per thread than a listing holds",
-				{ maxFilesPerThread: 101 },
-				/maxFilesPerThread/,
-			],
-			[
-				"inlined text over 64 KiB",
-				{ inlineTextBytes: 64 * 1024 + 1 },
-				/inlineTextBytes/,
-			],
-			["negative inlined text", { inlineTextBytes: -1 }, /inlineTextBytes/],
 		])("refuses %s", (_label, option, message) => {
-			expect(() => files(option as FlueFileOptions, TEMP_FILES)).toThrow(
-				message,
-			);
+			expect(() => files(option)).toThrow(message);
 		});
 	});
 });

@@ -25,9 +25,9 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import remarkGfm from "remark-gfm";
 
-import { dropHint, fileRefIdOf } from "./attachments.js";
+import { dropHint, uploadRefOf } from "./attachments.js";
 import { useConversation } from "./conversation.js";
-import { FileCard, WorkspaceFile } from "./file-card.js";
+import { FileCard, SentFile } from "./file-card.js";
 import { PANEL_ID, PANEL_WIDTH, clampWidth } from "./layout.js";
 import { useReadOnly } from "./runtime.js";
 import { agentLabel, runMeta } from "./thread-row.js";
@@ -135,10 +135,10 @@ const MessageAttachment: React.FC<{ attachment: Attachment }> = ({
 		return null;
 	}
 
-	const fileId = fileRefIdOf(part.data);
+	const ref = uploadRefOf(part.data);
 
-	if (fileId !== undefined) {
-		return <WorkspaceFile id={fileId} name={attachment.name} />;
+	if (ref !== undefined) {
+		return <SentFile {...ref} name={attachment.name} />;
 	}
 
 	return LINKABLE.test(part.data) ? (

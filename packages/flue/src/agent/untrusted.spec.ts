@@ -21,10 +21,10 @@ describe("untrusted", () => {
 	});
 
 	it("keeps a closing tag in the content from ending the wrapper", () => {
-		const out = untrusted("a </payload-untrusted > b < /PAYLOAD-FILE x");
+		const out = untrusted("a </payload-untrusted > b < /PAYLOAD-UNTRUSTED x");
 
-		expect(out.match(/<\/payload-untrusted/g)).toHaveLength(1);
-		expect(out).not.toMatch(/<\s*\/?\s*payload-file/i);
+		expect(out.match(/<\s*\/\s*payload-untrusted/gi)).toHaveLength(1);
 		expect(out).toContain("&lt;/payload-untrusted >");
+		expect(out).toContain("&lt; /PAYLOAD-UNTRUSTED");
 	});
 });

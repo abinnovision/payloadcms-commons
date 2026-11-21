@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { exchangeKey, exchangeSession, FlueExchangeError } from "./exchange.js";
+import { exchangeKey, exchangeSession, FluePayloadError } from "./exchange.js";
 
 import type { ExchangeResponse } from "../protocol/exchange.js";
 
@@ -73,23 +73,23 @@ describe("exchangeKey", () => {
 	});
 
 	it.each([401, 404, 500])(
-		"maps status %i to a FlueExchangeError with that status",
+		"maps status %i to a FluePayloadError with that status",
 		async (status) => {
 			const { fetch } = recordingFetch(() => new Response(null, { status }));
 
 			await expect(exchangeKey(args(fetch))).rejects.toMatchObject({
-				name: "FlueExchangeError",
+				name: "FluePayloadError",
 				status,
 			});
 		},
 	);
 
-	it("maps a network failure to a FlueExchangeError without a status", async () => {
+	it("maps a network failure to a FluePayloadError without a status", async () => {
 		const fetch = (): Promise<Response> =>
 			Promise.reject(new TypeError("fetch failed"));
 
 		await expect(exchangeKey(args(fetch))).rejects.toMatchObject({
-			name: "FlueExchangeError",
+			name: "FluePayloadError",
 			status: undefined,
 		});
 	});
@@ -98,7 +98,7 @@ describe("exchangeKey", () => {
 		const { fetch } = recordingFetch(() => Response.json({ mcpPath: "/x" }));
 
 		await expect(exchangeKey(args(fetch))).rejects.toBeInstanceOf(
-			FlueExchangeError,
+			FluePayloadError,
 		);
 	});
 
@@ -115,7 +115,7 @@ describe("exchangeKey", () => {
 				(caught: unknown) => caught,
 			);
 
-			expect(error).toBeInstanceOf(FlueExchangeError);
+			expect(error).toBeInstanceOf(FluePayloadError);
 			expect(String(error)).not.toContain(SECRET);
 			expect(String(error)).not.toContain(HANDLE);
 		},
@@ -158,6 +158,24 @@ describe("exchangeSession", () => {
 		await expect(session.auth()).resolves.toBe("key-2");
 	});
 
+	it("sends the handle on every transport request and keeps its headers", async () => {
+		const { requests, fetch } = recordingFetch(() => new Response(null));
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await session.fetch(MCP_URL, {
+			method: "POST",
+			headers: { authorization: "Bearer key-1" },
+		});
+		await session.fetch(
+			new Request(MCP_URL, { headers: { "mcp-session-id": "s1" } }),
+		);
+
+		expect(requests[0]?.headers.get("x-flue-handle")).toBe(HANDLE);
+		expect(requests[0]?.headers.get("authorization")).toBe("Bearer key-1");
+		expect(requests[1]?.headers.get("x-flue-handle")).toBe(HANDLE);
+		expect(requests[1]?.headers.get("mcp-session-id")).toBe("s1");
+	});
+
 	it("exchanges again after a failed exchange", async () => {
 		const answers = [
 			new Response(null, { status: 404 }),
@@ -179,7 +197,7 @@ describe("exchangeSession", () => {
 		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
 
 		await expect(session.auth()).rejects.toMatchObject({
-			name: "FlueExchangeError",
+			name: "FluePayloadError",
 			status: undefined,
 			message:
 				'[payloadcms-flue] Payload serves mcpx at "/cms-api/mcpx", not at the configured "/api/mcpx".',
@@ -208,6 +226,7 @@ describe("exchangeSession.callTool", () => {
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.method).toBe("POST");
 		expect(calls[0]?.headers.get("authorization")).toBe("Bearer key-1");
+		expect(calls[0]?.headers.get("x-flue-handle")).toBe(HANDLE);
 		expect(calls[0]?.headers.get("accept")).toBe(
 			"application/json, text/event-stream",
 		);
@@ -266,9 +285,11 @@ describe("exchangeSession.callTool", () => {
 		);
 		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
 
-		await expect(session.callTool("getDocument", {})).rejects.toThrow(
-			'[payloadcms-flue] mcpx answered "getDocument" with status 401.',
-		);
+		await expect(session.callTool("getDocument", {})).rejects.toMatchObject({
+			name: "FluePayloadError",
+			code: "unauthorized",
+			message: '[payloadcms-flue] mcpx answered "getDocument" with status 401.',
+		});
 	});
 
 	it("throws the tool's error message when the result is an error", async () => {

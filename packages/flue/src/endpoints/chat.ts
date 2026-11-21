@@ -8,32 +8,19 @@ import {
 	requireJson,
 	requireUser,
 } from "./http.js";
-import { sweepPending } from "../files/collection.js";
 import { CHAT_BODY_MAX } from "../options.js";
-import {
-	attachmentKind,
-	base64ToText,
-	isTextMimeType,
-	maxBytesOf,
-} from "../protocol/attachments.js";
+import { isRefId } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 import { startTurn } from "../turn.js";
 
-import type { NormalizedAttachments, NormalizedFiles } from "../options.js";
-import type {
-	AttachmentMimeType,
-	DeliveredAttachment,
-	TextMimeType,
-} from "../protocol/attachments.js";
+import type { NormalizedFiles } from "../options.js";
 import type { PluginSettings, TurnContext } from "../turn.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
 const MESSAGE_MAX = 16_000;
-const FILENAME_MAX = 255;
 const FOCUS_MAX = 256;
 const FOCUS_PATH = /^[\w.-]+$/;
-const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 type SendContext = Pick<
 	TurnContext,
@@ -42,8 +29,7 @@ type SendContext = Pick<
 
 interface ChatBody {
 	message: string;
-	attachments: DeliveredAttachment[];
-	/** Ids of pending workspace files. */
+	/** Ids of the user's files in the files collection. */
 	files: string[];
 	thread?: number | string | undefined;
 	context: SendContext;
@@ -71,128 +57,7 @@ const parseFocus = (value: unknown): string | undefined | false => {
 		: focus;
 };
 
-// The decoded size of valid base64.
-const decodedSize = (data: string): number =>
-	(data.length / 4) * 3 -
-	(data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0);
-
-// The leading bytes of each binary type, by offset, as latin1 text.
-const SIGNATURES: Record<
-	Exclude<AttachmentMimeType, TextMimeType>,
-	ReadonlyArray<readonly [number, string]>
-> = {
-	"image/png": [[0, "\x89PNG"]],
-	"image/jpeg": [[0, "\xff\xd8\xff"]],
-	"image/gif": [[0, "GIF8"]],
-	"image/webp": [
-		[0, "RIFF"],
-		[8, "WEBP"],
-	],
-	"application/pdf": [[0, "%PDF-"]],
-};
-
-/*
- * Whether the base64 bytes are a file of the type: a text file decodes as
- * UTF-8 without NUL bytes, any other file starts with its signature.
- */
-const isFileOf = (data: string, mimeType: AttachmentMimeType): boolean => {
-	if (isTextMimeType(mimeType)) {
-		return base64ToText(data) !== undefined;
-	}
-
-	const head = Buffer.from(data.slice(0, 16), "base64").toString("latin1");
-
-	return SIGNATURES[mimeType].every(([offset, signature]) =>
-		head.startsWith(signature, offset),
-	);
-};
-
-// The attachments, or the reason they are refused.
-const parseAttachments = (
-	value: unknown,
-	limits: false | NormalizedAttachments,
-): DeliveredAttachment[] | string => {
-	if (value === undefined) {
-		return [];
-	}
-
-	if (!limits) {
-		return "attachments are not enabled.";
-	}
-
-	if (!Array.isArray(value) || value.length > limits.maxFiles) {
-		return `attachments must be a list of at most ${String(limits.maxFiles)} files.`;
-	}
-
-	const attachments: DeliveredAttachment[] = [];
-	let textBytes = 0;
-
-	for (const [index, item] of (value as unknown[]).entries()) {
-		const at = `attachments[${String(index)}]`;
-
-		if (!isRecord(item)) {
-			return `${at} must be an object.`;
-		}
-
-		const { type, mimeType, data, filename } = item;
-
-		if (
-			typeof mimeType !== "string" ||
-			!(limits.mimeTypes as string[]).includes(mimeType)
-		) {
-			return `${at}.mimeType must be one of ${limits.mimeTypes.join(", ")}.`;
-		}
-
-		const kind = attachmentKind(mimeType as AttachmentMimeType);
-
-		if (type !== kind) {
-			return `${at}.type must be "${kind}" for ${mimeType}.`;
-		}
-
-		const max = maxBytesOf(limits, mimeType as AttachmentMimeType);
-
-		if (
-			typeof data !== "string" ||
-			data.length % 4 !== 0 ||
-			!BASE64.test(data) ||
-			decodedSize(data) > max
-		) {
-			return `${at}.data must be base64 of at most ${String(max)} bytes.`;
-		}
-
-		if (isTextMimeType(mimeType)) {
-			textBytes += decodedSize(data);
-
-			if (textBytes > limits.maxTextBytes) {
-				return `The text files of a message hold at most ${String(limits.maxTextBytes)} bytes together.`;
-			}
-		}
-
-		if (!isFileOf(data, mimeType as AttachmentMimeType)) {
-			return isTextMimeType(mimeType)
-				? `${at}.data must be UTF-8 text without NUL bytes.`
-				: `${at}.data is not a ${mimeType} file.`;
-		}
-
-		if (
-			filename !== undefined &&
-			(typeof filename !== "string" || filename.length > FILENAME_MAX)
-		) {
-			return `${at}.filename must be a string of at most ${String(FILENAME_MAX)} characters.`;
-		}
-
-		attachments.push({
-			type: kind,
-			data,
-			mimeType: mimeType as AttachmentMimeType,
-			...(filename === undefined ? {} : { filename }),
-		});
-	}
-
-	return attachments;
-};
-
-// The ids of pending workspace files, or the reason they are refused.
+// The ids of the turn's files, or the reason they are refused.
 const parseFiles = (
 	req: PayloadRequest,
 	value: unknown,
@@ -203,7 +68,7 @@ const parseFiles = (
 	}
 
 	if (!files) {
-		return "files are not enabled.";
+		return "This agent takes no files.";
 	}
 
 	const ids = Array.isArray(value)
@@ -215,7 +80,7 @@ const parseFiles = (
 	if (
 		!Array.isArray(value) ||
 		ids.length > files.maxFilesPerTurn ||
-		!ids.every((id) => isDocumentId(req, id)) ||
+		!ids.every((id): id is string => isDocumentId(req, id) && isRefId(id)) ||
 		new Set(ids).size !== ids.length
 	) {
 		return `files must be a list of at most ${String(files.maxFilesPerTurn)} distinct file ids.`;
@@ -242,7 +107,6 @@ const parseMessage = (
 const parseBody = (
 	req: PayloadRequest,
 	body: unknown,
-	limits: false | NormalizedAttachments,
 	fileLimits: false | NormalizedFiles,
 ): ChatBody | string => {
 	if (!isRecord(body)) {
@@ -250,19 +114,13 @@ const parseBody = (
 	}
 
 	const { message, thread, context } = body;
-	const attachments = parseAttachments(body["attachments"], limits);
-
-	if (typeof attachments === "string") {
-		return attachments;
-	}
-
 	const files = parseFiles(req, body["files"], fileLimits);
 
 	if (typeof files === "string") {
 		return files;
 	}
 
-	const parsed = parseMessage(message, attachments.length + files.length > 0);
+	const parsed = parseMessage(message, files.length > 0);
 
 	if (typeof parsed === "string") {
 		return parsed;
@@ -325,7 +183,6 @@ const parseBody = (
 
 	return {
 		message: parsed.text,
-		attachments,
 		files,
 		thread: thread ?? undefined,
 		context: { route: context["route"], collection, id, global, locale, focus },
@@ -420,28 +277,13 @@ export const chatHandler = (settings: PluginSettings): PayloadHandler =>
 			return notJson;
 		}
 
-		// Best effort: a failed sweep leaves the stale files for the next one.
-		if (settings.files) {
-			await sweepPending(req, { ...settings, files: settings.files }).catch(
-				(error: unknown) => {
-					req.payload.logger.error({
-						err: error,
-						msg: "[payloadcms-flue] Could not remove stale pending files.",
-					});
-				},
-			);
-		}
-
-		const raw = await readJson(
-			req,
-			settings.attachments ? settings.attachments.bodyMax : CHAT_BODY_MAX,
-		);
+		const raw = await readJson(req, CHAT_BODY_MAX);
 
 		if (raw instanceof Response) {
 			return raw;
 		}
 
-		const body = parseBody(req, raw, settings.attachments, settings.files);
+		const body = parseBody(req, raw, agent.files ? settings.files : false);
 
 		if (typeof body === "string") {
 			return refusal(400, body);
@@ -452,7 +294,6 @@ export const chatHandler = (settings: PluginSettings): PayloadHandler =>
 			user,
 			threadId: body.thread,
 			message: body.message,
-			attachments: body.attachments,
 			files: body.files,
 			context: {
 				...body.context,

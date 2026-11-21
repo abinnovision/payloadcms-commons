@@ -172,53 +172,42 @@ describe("flueApi", () => {
 		await expect(api.agents()).resolves.toEqual({
 			agents: [{ slug: "editor" }],
 			runs: { agents: [{ slug: "editor" }, { slug: "auditor" }] },
-			attachments: null,
-			files: null,
 		});
 	});
 
-	it("reads the attachment limits", async () => {
-		const attachments = {
-			mimeTypes: ["image/png", "application/pdf"],
-			maxImageBytes: 3_932_160,
-			maxDocumentBytes: 5_242_880,
-			maxFiles: 4,
-		};
-
-		answer(() =>
-			Response.json({ agents: [{ slug: "editor" }], runs: null, attachments }),
-		);
-
-		await expect(api.agents()).resolves.toEqual({
-			agents: [{ slug: "editor" }],
-			runs: null,
-			attachments,
-			files: null,
-		});
-	});
-
-	it("reads the file workspace limits", async () => {
+	it("reads what each agent takes as files", async () => {
 		const files = {
-			slug: "flue-files",
+			collection: "uploads",
 			mimeTypes: ["application/pdf"],
-			maxBytes: 1024,
 			maxFiles: 3,
 		};
 
 		answer(() =>
-			Response.json({ agents: [], runs: null, attachments: null, files }),
+			Response.json({
+				agents: [
+					{ slug: "editor", files },
+					{ slug: "auditor", files: null },
+				],
+				runs: null,
+			}),
 		);
 
-		await expect(api.agents()).resolves.toMatchObject({ files });
+		await expect(api.agents()).resolves.toEqual({
+			agents: [
+				{ slug: "editor", files },
+				{ slug: "auditor", files: null },
+			],
+			runs: null,
+		});
 	});
 
-	it("deletes a pending file through the collection's REST API", async () => {
+	it("deletes an uploaded file through the collection's REST API", async () => {
 		const sent = answer(() => Response.json({ doc: { id: 12 } }));
 
-		await api.deleteFile("flue-files", "12");
+		await api.deleteFile("uploads", "12");
 
 		expect(sent).toMatchObject([
-			{ url: "https://cms.example.com/api/flue-files/12", method: "DELETE" },
+			{ url: "https://cms.example.com/api/uploads/12", method: "DELETE" },
 		]);
 	});
 
@@ -232,34 +221,34 @@ describe("flueApi", () => {
 				}),
 			);
 
-			await expect(api.fileLink("flue-files", "12")).resolves.toBe(
-				"https://cms.example.com/api/flue-files/file/a%20b.md",
+			await expect(api.fileLink("uploads", "12")).resolves.toBe(
+				"https://cms.example.com/api/uploads/file/a%20b.md",
 			);
 			expect(sent[0]!.url).toBe(
-				"https://cms.example.com/api/flue-files/12?depth=0",
+				"https://cms.example.com/api/uploads/12?depth=0",
 			);
 		});
 
 		it("carries the storage prefix of the document", async () => {
 			answer(() => Response.json({ filename: "a.md", prefix: "chat/7" }));
 
-			await expect(api.fileLink("flue-files", "12")).resolves.toBe(
-				"https://cms.example.com/api/flue-files/file/a.md?prefix=chat%2F7",
+			await expect(api.fileLink("uploads", "12")).resolves.toBe(
+				"https://cms.example.com/api/uploads/file/a.md?prefix=chat%2F7",
 			);
 		});
 
 		it("answers null for a file that is gone or out of reach", async () => {
 			answer(() => Response.json({ errors: [] }, { status: 404 }));
-			await expect(api.fileLink("flue-files", "12")).resolves.toBeNull();
+			await expect(api.fileLink("uploads", "12")).resolves.toBeNull();
 
 			answer(() => Response.json({ errors: [] }, { status: 403 }));
-			await expect(api.fileLink("flue-files", "12")).resolves.toBeNull();
+			await expect(api.fileLink("uploads", "12")).resolves.toBeNull();
 		});
 
 		it("rejects on any other failure", async () => {
 			answer(() => Response.json({ errors: [] }, { status: 500 }));
 
-			await expect(api.fileLink("flue-files", "12")).rejects.toThrow(
+			await expect(api.fileLink("uploads", "12")).rejects.toThrow(
 				"The request failed with status 500.",
 			);
 		});
@@ -327,7 +316,7 @@ describe("flueApi", () => {
 
 		const file = new File(["# Notes"], "notes.md", { type: "text/markdown" });
 
-		it("posts the file and its name as multipart and resolves to the id", async () => {
+		it("posts the file as multipart and resolves to the id", async () => {
 			const { requests } = xhr((self) => {
 				self.status = 201;
 				self.responseText = JSON.stringify({ doc: { id: 12 } });
@@ -335,19 +324,17 @@ describe("flueApi", () => {
 			});
 
 			await expect(
-				api.uploadFile("flue-files", file, () => undefined),
+				api.uploadFile("uploads", file, () => undefined),
 			).resolves.toBe("12");
 
 			expect(requests).toHaveLength(1);
 			expect(requests[0]).toMatchObject({
 				method: "POST",
-				url: "https://cms.example.com/api/flue-files",
+				url: "https://cms.example.com/api/uploads",
 				credentials: true,
 			});
 			expect((requests[0]!.form!.get("file") as File).name).toBe("notes.md");
-			expect(requests[0]!.form!.get("_payload")).toBe(
-				JSON.stringify({ name: "notes.md" }),
-			);
+			expect(requests[0]!.form!.get("_payload")).toBeNull();
 		});
 
 		it("reports the share uploaded as the browser sends it", async () => {
@@ -369,7 +356,7 @@ describe("flueApi", () => {
 				self.onload();
 			});
 
-			await api.uploadFile("flue-files", file, (fraction) => {
+			await api.uploadFile("uploads", file, (fraction) => {
 				seen.push(fraction);
 			});
 
@@ -384,7 +371,7 @@ describe("flueApi", () => {
 			});
 
 			await expect(
-				api.uploadFile("flue-files", file, () => undefined),
+				api.uploadFile("uploads", file, () => undefined),
 			).rejects.toThrow("notes.md is larger than the server takes.");
 		});
 
@@ -398,7 +385,7 @@ describe("flueApi", () => {
 			});
 
 			await expect(
-				api.uploadFile("flue-files", file, () => undefined),
+				api.uploadFile("uploads", file, () => undefined),
 			).rejects.toThrow("The file type must be one of text/plain.");
 		});
 
@@ -410,7 +397,7 @@ describe("flueApi", () => {
 			});
 
 			await expect(
-				api.uploadFile("flue-files", file, () => undefined),
+				api.uploadFile("uploads", file, () => undefined),
 			).rejects.toThrow("notes.md could not be uploaded (status 502).");
 		});
 	});
