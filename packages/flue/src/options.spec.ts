@@ -2,10 +2,11 @@ import { definePlugin } from "payload";
 import { describe, expect, it } from "vitest";
 
 import { mcpxSettings, normalizeOptions } from "./options.js";
+import { defaultDeliver } from "./protocol/attachments.js";
 
 import type {
 	FlueAgentConfig,
-	FlueAttachmentOptions,
+	FlueFileOptions,
 	FluePluginOptions,
 } from "./types.js";
 import type { CollectionConfig, Config, PayloadRequest, Plugin } from "payload";
@@ -310,83 +311,79 @@ describe("normalizeOptions", () => {
 		});
 	});
 
-	describe("attachments", () => {
-		const MIB = 1024 * 1024;
+	describe("files", () => {
+		const view = config({
+			collections: [
+				collection("users"),
+				collection("mcpx-api-keys"),
+				collection("uploads"),
+			],
+		});
+		const files = (
+			option: FlueFileOptions,
+			agents: FlueAgentConfig[] = [editor],
+		) => normalize(options({ files: option, agents }), view).normalized;
 
 		it("is off by default", () => {
-			expect(normalize().normalized.attachments).toBe(false);
-			expect(
-				normalize(options({ attachments: false })).normalized.attachments,
-			).toBe(false);
+			expect(normalize().normalized.files).toBe(false);
 		});
 
-		it("applies the defaults for true and sizes the body cap for four PDFs", () => {
-			expect(
-				normalize(options({ attachments: true })).normalized.attachments,
-			).toEqual({
-				mimeTypes: [
-					"image/png",
-					"image/jpeg",
-					"image/gif",
-					"image/webp",
-					"application/pdf",
-				],
-				maxImageBytes: 3.75 * MIB,
-				maxDocumentBytes: 5 * MIB,
-				maxFiles: 4,
-				bodyMax: 64 * 1024 + 4 * (Math.ceil((5 * MIB * 4) / 3) + 2048),
+		it("applies the defaults", () => {
+			expect(files({ collection: "uploads" }).files).toEqual({
+				collection: "uploads",
+				maxFilesPerTurn: 10,
+				deliver: defaultDeliver,
 			});
 		});
 
-		it("sizes the body cap by the largest allowed type", () => {
-			expect(
-				normalize(
-					options({
-						attachments: {
-							mimeTypes: ["image/png"],
-							maxImageBytes: 3000,
-							maxDocumentBytes: 10 * MIB,
-							maxFiles: 2,
-						},
-					}),
-				).normalized.attachments,
-			).toEqual({
-				mimeTypes: ["image/png"],
-				maxImageBytes: 3000,
-				maxDocumentBytes: 10 * MIB,
-				maxFiles: 2,
-				bodyMax: 64 * 1024 + 2 * (4000 + 2048),
+		it("adds the read grant on the collection for an agent taking files", () => {
+			const { agents } = files({ collection: "uploads" }, [
+				{
+					...editor,
+					files: true,
+					capabilities: {
+						collections: { pages: { read: true }, uploads: { write: true } },
+					},
+				},
+				{ slug: "other", capabilities: {} },
+			]);
+
+			expect(agents[0]?.capabilities.collections).toEqual({
+				pages: { read: true },
+				uploads: { write: true, read: true },
 			});
+			expect(agents[1]?.capabilities).toEqual({});
+		});
+
+		it("refuses an agent taking files without the files option", () => {
+			expect(() =>
+				normalize(options({ agents: [{ ...editor, files: true }] })),
+			).toThrow(/agents\[0\]\.files needs the plugin's files option/);
 		});
 
 		it.each([
 			[
-				"a type outside the five",
-				{ mimeTypes: ["image/svg+xml"] },
-				/mimeTypes/,
-			],
-			["an empty type list", { mimeTypes: [] }, /mimeTypes/],
-			[
-				"images over 3.75 MiB",
-				{ maxImageBytes: 3.75 * MIB + 1 },
-				/maxImageBytes/,
+				"a collection the config lacks",
+				{ collection: "missing" },
+				/files\.collection "missing"/,
 			],
 			[
-				"PDFs over 10 MiB",
-				{ maxDocumentBytes: 10 * MIB + 1 },
-				/maxDocumentBytes/,
+				"the threads collection",
+				{ collection: "flue-threads" },
+				/files\.collection/,
 			],
-			["no files", { maxFiles: 0 }, /maxFiles/],
-			["a fraction of a file", { maxFiles: 1.5 }, /maxFiles/],
-			["more than 20 files", { maxFiles: 21 }, /maxFiles/],
-		])("refuses %s", (_label, attachments, message) => {
-			expect(() =>
-				normalize(
-					options({
-						attachments: attachments as FlueAttachmentOptions,
-					}),
-				),
-			).toThrow(message);
+			[
+				"no files per turn",
+				{ collection: "uploads", maxFilesPerTurn: 0 },
+				/maxFilesPerTurn/,
+			],
+			[
+				"more than 20 files per turn",
+				{ collection: "uploads", maxFilesPerTurn: 21 },
+				/maxFilesPerTurn/,
+			],
+		])("refuses %s", (_label, option, message) => {
+			expect(() => files(option)).toThrow(message);
 		});
 	});
 });

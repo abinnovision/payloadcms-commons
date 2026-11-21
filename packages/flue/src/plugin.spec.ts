@@ -3,18 +3,16 @@ import { describe, expect, it } from "vitest";
 import { fixtureConfig } from "../test/fixtures/config.js";
 
 import type { FluePluginOptions } from "./types.js";
-import type { Config, Payload } from "payload";
+import type { CollectionConfig, Config, Payload } from "payload";
 
 const SIDECAR_URL = "http://127.0.0.1:3101";
 
 // The fixture after its plugin functions ran in order, as buildConfig runs them.
 const applyPlugins = async (
-	sidecar: FluePluginOptions["sidecar"],
+	flue: Partial<FluePluginOptions>,
 	extend: (config: Config) => Config = (config) => config,
 ): Promise<Config> => {
-	let config = extend(
-		fixtureConfig({ sidecarUrl: SIDECAR_URL, flue: { sidecar } }),
-	);
+	let config = extend(fixtureConfig({ sidecarUrl: SIDECAR_URL, flue }));
 
 	for (const plugin of config.plugins ?? []) {
 		// eslint-disable-next-line no-await-in-loop
@@ -42,7 +40,7 @@ const controlsOf = (entity?: {
 
 describe("fluePlugin", () => {
 	it("mounts the document bridge in the edit view of every content entity", async () => {
-		const config = await applyPlugins(SIDECAR, (raw) => ({
+		const config = await applyPlugins({ sidecar: SIDECAR }, (raw) => ({
 			...raw,
 			globals: [
 				{
@@ -63,7 +61,7 @@ describe("fluePlugin", () => {
 	});
 
 	it("leaves the bridge out of the threads and mcpx key collections", async () => {
-		const config = await applyPlugins(SIDECAR);
+		const config = await applyPlugins({ sidecar: SIDECAR });
 		const own = config.collections?.filter((entry) =>
 			["flue-threads", "mcpx-api-keys"].includes(entry.slug),
 		);
@@ -74,18 +72,159 @@ describe("fluePlugin", () => {
 		}
 	});
 
+	describe("admin", () => {
+		const withSettings = (raw: Config): Config => ({
+			...raw,
+			globals: [{ slug: "settings", fields: [] }],
+		});
+		const componentsOf = (config: Config) => ({
+			providers: config.admin?.components?.providers ?? [],
+			actions: config.admin?.components?.actions ?? [],
+		});
+		const bridged = (config: Config): string[] =>
+			[...(config.collections ?? []), ...(config.globals ?? [])]
+				.filter((entity) =>
+					((controlsOf(entity) as unknown[] | undefined) ?? []).some(
+						(control) =>
+							typeof control === "object" &&
+							control !== null &&
+							"exportName" in control &&
+							control.exportName === BRIDGE.exportName,
+					),
+				)
+				.map((entity) => entity.slug);
+
+		it("mounts the chat by default", async () => {
+			const config = await applyPlugins({ sidecar: SIDECAR });
+
+			expect(componentsOf(config).providers).toContainEqual(
+				expect.objectContaining({ exportName: "FlueProvider" }),
+			);
+			expect(componentsOf(config).actions).toContainEqual(
+				expect.objectContaining({ exportName: "FlueToggle" }),
+			);
+		});
+
+		it("mounts neither the chat nor the bridge with admin false", async () => {
+			const config = await applyPlugins(
+				{ sidecar: SIDECAR, admin: false },
+				withSettings,
+			);
+
+			expect(componentsOf(config)).toEqual({ providers: [], actions: [] });
+			expect(bridged(config)).toEqual([]);
+		});
+
+		it("keeps the chat and mounts no bridge with documentBridge false", async () => {
+			const config = await applyPlugins(
+				{ sidecar: SIDECAR, admin: { documentBridge: false } },
+				withSettings,
+			);
+
+			expect(componentsOf(config).providers).toHaveLength(1);
+			expect(bridged(config)).toEqual([]);
+		});
+
+		it("mounts the bridge on the listed slugs only", async () => {
+			const config = await applyPlugins(
+				{
+					sidecar: SIDECAR,
+					admin: {
+						documentBridge: { collections: ["pages"], globals: ["settings"] },
+					},
+				},
+				withSettings,
+			);
+
+			expect(bridged(config)).toEqual(["pages", "settings"]);
+		});
+	});
+
 	it("builds without the sidecar secret and fails at startup", async () => {
-		const config = await applyPlugins({ url: SIDECAR_URL, secret: "" });
+		const config = await applyPlugins({
+			sidecar: { url: SIDECAR_URL, secret: "" },
+		});
 
 		await expect(config.onInit?.(payload)).rejects.toThrow(/sidecar\.secret/);
 	});
 
 	it("builds without the sidecar URL and fails at startup", async () => {
 		const config = await applyPlugins({
-			url: undefined as unknown as string,
-			secret: "s".repeat(32),
+			sidecar: { url: undefined as unknown as string, secret: "s".repeat(32) },
 		});
 
 		await expect(config.onInit?.(payload)).rejects.toThrow(/sidecar\.url/);
+	});
+
+	describe("files", () => {
+		const UPLOADS: CollectionConfig = {
+			slug: "uploads",
+			upload: { mimeTypes: ["application/pdf"], pasteURL: false },
+			fields: [{ name: "alt", type: "text" }],
+		};
+
+		const build = (uploads: CollectionConfig = UPLOADS) =>
+			applyPlugins(
+				{ sidecar: SIDECAR, files: { collection: "uploads" } },
+				(config) => ({
+					...config,
+					collections: [...(config.collections ?? []), uploads],
+				}),
+			);
+
+		const uploadsOf = (config: Config) =>
+			config.collections?.find((entry) => entry.slug === "uploads");
+
+		it("adds the server-only thread field", async () => {
+			const uploads = uploadsOf(await build());
+			const field = uploads?.fields.find(
+				(entry) => "name" in entry && entry.name === "flueThread",
+			);
+
+			expect(field).toMatchObject({
+				type: "relationship",
+				relationTo: "flue-threads",
+				index: true,
+			});
+			expect(uploads?.access).toBeUndefined();
+		});
+
+		it.each([
+			[
+				"a field named flueThread",
+				{ ...UPLOADS, fields: [{ name: "flueThread", type: "text" }] },
+				/already has a field named "flueThread"/,
+			],
+			[
+				"a top-level download field",
+				{ ...UPLOADS, fields: [{ name: "download", type: "text" }] },
+				/field named "download"/,
+			],
+			[
+				"no upload config",
+				{ slug: "uploads", fields: [] },
+				/must be an upload collection/,
+			],
+			[
+				"no mimeTypes",
+				{ ...UPLOADS, upload: { pasteURL: false } },
+				/upload\.mimeTypes/,
+			],
+			[
+				"authorship turned off",
+				{ ...UPLOADS, authorship: false },
+				/authorship\.createdBy/,
+			],
+			[
+				"createdBy turned off",
+				{ ...UPLOADS, authorship: { createdBy: false } },
+				/authorship\.createdBy/,
+			],
+		] as [string, CollectionConfig, RegExp][])(
+			"refuses a collection with %s",
+			async (_label, uploads, message) => {
+				await expect(build(uploads)).rejects.toThrow(message);
+			},
+		);
 	});
 });

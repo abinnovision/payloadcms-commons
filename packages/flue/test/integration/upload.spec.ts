@@ -18,8 +18,9 @@ import {
 	shutdown,
 	THREADS_SLUG,
 } from "./helpers/payload.js";
-import { exchangeSession } from "../../src/agent/exchange.js";
-import { FlueUploadError, uploadDocument } from "../../src/agent/upload.js";
+import { exchangeSession, FluePayloadError } from "../../src/agent/exchange.js";
+import { downloadDocument } from "../../src/agent/files.js";
+import { uploadDocument } from "../../src/agent/upload.js";
 import { fluePlugin } from "../../src/index.js";
 import { ensureAgentKey } from "../../src/keys/manager.js";
 import { handleHash } from "../../src/threads/handle.js";
@@ -27,7 +28,7 @@ import { SIDECAR_SECRET } from "../fixtures/config.js";
 
 import type { Booted } from "./helpers/payload.js";
 import type { UploadTarget } from "../../src/agent/upload.js";
-import type { FlueAgentConfig } from "../../src/index.js";
+import type { FlueAgentConfig, FluePluginOptions } from "../../src/index.js";
 import type { CollectionConfig, Config } from "payload";
 
 const PAYLOAD_URL = "http://localhost";
@@ -69,7 +70,11 @@ const uploadCollection = (
  * Localized, with a public `serverURL` the sidecar is not meant to reach, so
  * the handoff names another origin than the one the PUT goes to.
  */
-const uploadConfig = (staticDir: string, extra: Partial<Config> = {}) => ({
+const uploadConfig = (
+	staticDir: string,
+	extra: Partial<Config> = {},
+	flue: Partial<FluePluginOptions> = {},
+) => ({
 	serverURL: PUBLIC_URL,
 	localization: { locales: ["en", "de"], defaultLocale: "en" },
 	collections: [
@@ -82,6 +87,7 @@ const uploadConfig = (staticDir: string, extra: Partial<Config> = {}) => ({
 		fluePlugin({
 			sidecar: { url: "http://127.0.0.1:9", secret: SIDECAR_SECRET },
 			agents: [UPLOADER],
+			...flue,
 		}),
 	],
 	...extra,
@@ -116,7 +122,13 @@ const routedFetch =
 const startConversation = async (
 	booted: Booted,
 	requests: Recorded[] = [],
-): Promise<{ userId: number | string; target: UploadTarget }> => {
+): Promise<{
+	userId: number | string;
+	token: string;
+	handle: string;
+	thread: number | string;
+	target: UploadTarget & { handle: string };
+}> => {
 	const credentials = {
 		email: `${randomUUID()}@example.com`,
 		password: "upload-secret",
@@ -128,8 +140,8 @@ const startConversation = async (
 	});
 	const handle = randomUUID();
 
-	await login(booted.payload, "users", credentials);
-	await booted.payload.create({
+	const token = await login(booted.payload, "users", credentials);
+	const thread = await booted.payload.create({
 		collection: THREADS_SLUG,
 		data: {
 			agent: UPLOADER.slug,
@@ -150,6 +162,9 @@ const startConversation = async (
 
 	return {
 		userId: user.id,
+		token,
+		handle,
+		thread: thread.id,
 		target: {
 			session: exchangeSession({
 				payloadUrl: PAYLOAD_URL,
@@ -162,6 +177,7 @@ const startConversation = async (
 			}),
 			payloadUrl: PAYLOAD_URL,
 			mcpPath: "/api/mcpx",
+			handle,
 			fetch,
 		},
 	};
@@ -257,7 +273,7 @@ describe("uploadDocument", () => {
 			data: TEXT,
 		}).catch((caught: unknown) => caught);
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(String(error)).toContain("needs a locale");
 		expect(await files()).toBe(before);
 	});
@@ -274,7 +290,7 @@ describe("uploadDocument", () => {
 				{ ...target, locale: "en" },
 				{ collection, filename: "a.bin", mimeType, data: TEXT },
 			),
-		).rejects.toBeInstanceOf(FlueUploadError);
+		).rejects.toBeInstanceOf(FluePayloadError);
 		expect([await files(), await count(booted, "archive")]).toEqual(before);
 	});
 
@@ -301,7 +317,7 @@ describe("uploadDocument", () => {
 			.find((request) => request.method === "PUT")
 			?.headers.get("x-mcpx-grant");
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(error).toMatchObject({ status: 400 });
 		expect(grant).toEqual(expect.any(String));
 		expect(String(error)).not.toContain(grant);
@@ -340,8 +356,125 @@ describe("uploadDocument without mcpx leases", () => {
 			},
 		).catch((caught: unknown) => caught);
 
-		expect(error).toBeInstanceOf(FlueUploadError);
+		expect(error).toBeInstanceOf(FluePayloadError);
 		expect(String(error)).toContain("createDocument not found");
 		expect(await count(booted, "files")).toBe(0);
+	});
+});
+
+describe("downloads through ./agent", () => {
+	const MIB = 1024 * 1024;
+	let booted: Booted;
+	let staticDir: string;
+
+	beforeAll(async () => {
+		staticDir = await mkdtemp(join(tmpdir(), "flue-agent-files-"));
+		booted = await bootPayload(
+			"flue-agent-files",
+			undefined,
+			uploadConfig(staticDir),
+		);
+	});
+
+	afterAll(async () => {
+		await shutdown(booted);
+		await rm(staticDir, { recursive: true, force: true });
+	});
+
+	it("downloads an app collection's file through mcpx", async () => {
+		const { target } = await startConversation(booted);
+		const created = await uploadDocument(
+			{ ...target, locale: "en" },
+			{
+				collection: "files",
+				filename: "summary.txt",
+				mimeType: "text/plain",
+				data: TEXT,
+			},
+		);
+
+		expect(
+			await downloadDocument(target, { collection: "files", id: created.id }),
+		).toEqual({
+			filename: "summary.txt",
+			mimeType: "text/plain",
+			bytes: new TextEncoder().encode(TEXT),
+		});
+	});
+
+	it("reads a range of a file through mcpx as a 206", async () => {
+		const statuses: number[] = [];
+		const conversation = await startConversation(booted);
+		const pdf = new Uint8Array(2 * MIB).fill(0x20);
+		const trailer = new TextEncoder().encode("xref\n%%EOF\n");
+
+		// Payload checks the header and the trailer of a PDF.
+		pdf.set(new TextEncoder().encode("%PDF-1.4\n"));
+		pdf.set(trailer, pdf.byteLength - trailer.byteLength);
+
+		const created = await uploadDocument(
+			{ ...conversation.target, locale: "en" },
+			{
+				collection: "files",
+				filename: "large.pdf",
+				mimeType: "application/pdf",
+				data: pdf,
+			},
+		);
+		const fetch = conversation.target.fetch ?? globalThis.fetch;
+		const download = await downloadDocument(
+			{
+				...conversation.target,
+				fetch: async (input, init) => {
+					const response = await fetch(input, init);
+
+					statuses.push(response.status);
+
+					return response;
+				},
+			},
+			{ collection: "files", id: created.id, range: { start: 0, end: 1023 } },
+		);
+
+		expect(download.bytes.byteLength).toBe(1024);
+		expect(download.bytes).toEqual(pdf.slice(0, 1024));
+		expect(statuses.at(-1)).toBe(206);
+	});
+
+	it("saves a file under 25 MB into an app collection", async () => {
+		const { target } = await startConversation(booted);
+		const saved = await uploadDocument(
+			{ ...target, locale: "en" },
+			{
+				collection: "files",
+				filename: "notes.txt",
+				mimeType: "text/plain",
+				data: "a".repeat(1000),
+			},
+		);
+		const doc = await booted.payload.findByID({
+			collection: "files",
+			id: saved.id,
+			overrideAccess: true,
+		});
+
+		expect(doc["filesize"]).toBe(1000);
+	});
+
+	it("refuses to save a file above 25 MB and writes nothing", async () => {
+		const { target } = await startConversation(booted);
+		const before = await count(booted, "files");
+		const error: unknown = await uploadDocument(
+			{ ...target, locale: "en" },
+			{
+				collection: "files",
+				filename: "large.txt",
+				mimeType: "text/plain",
+				data: "a".repeat(26 * MIB),
+			},
+		).catch((caught: unknown) => caught);
+
+		expect(error).toBeInstanceOf(FluePayloadError);
+		expect(await count(booted, "files")).toBe(before);
 	});
 });

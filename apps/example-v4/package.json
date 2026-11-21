@@ -35,6 +35,9 @@
 		"@abinnovision/payloadcms-montage": "workspace:*",
 		"@abinnovision/payloadcms-oidc": "workspace:*",
 		"@abinnovision/payloadcms-wayfinder": "workspace:*",
+		"@assistant-ui/react": "0.15.32",
+		"@assistant-ui/react-markdown": "0.14.24",
+		"@flue/sdk": "2.3.0",
 		"@payloadcms/db-sqlite": "4.0.0-beta.7",
 		"@payloadcms/next": "4.0.0-beta.7",
 		"@payloadcms/richtext-lexical": "4.0.0-beta.7",
@@ -45,7 +48,8 @@
 		"path-to-regexp": "^8.4.2",
 		"payload": "4.0.0-beta.7",
 		"react": "^19.3.0",
-		"react-dom": "^19.3.0"
+		"react-dom": "^19.3.0",
+		"remark-gfm": "^4.0.1"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",

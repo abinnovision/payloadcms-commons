@@ -6,6 +6,13 @@ import { describe, expect, it } from "vitest";
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = resolve(here, "index.ts");
 
+const ADMIN_PACKAGES = new Set([
+	"@assistant-ui/react",
+	"@assistant-ui/react-markdown",
+	"@flue/sdk",
+	"remark-gfm",
+]);
+
 const isSidecarDependency = (specifier: string): boolean =>
 	specifier.startsWith("@flue/") ||
 	specifier === "valibot" ||
@@ -51,6 +58,16 @@ describe('the "." module boundary', () => {
 				(s) => !["payload", "node:crypto", "eventsource-parser"].includes(s),
 			),
 		).toEqual([]);
+	});
+
+	it("reaches none of the optional admin packages", () => {
+		const { bareSpecifiers } = walkModuleGraph(entry, {
+			includeTypeImports: true,
+		});
+
+		expect([...bareSpecifiers].filter((s) => ADMIN_PACKAGES.has(s))).toEqual(
+			[],
+		);
 	});
 
 	it("walks the server surface", () => {

@@ -24,8 +24,9 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import remarkGfm from "remark-gfm";
 
+import { dropHint, uploadRefOf } from "./attachments.js";
 import { useConversation } from "./conversation.js";
-import { FileCard } from "./file-card.js";
+import { FileCard, SentFile } from "./file-card.js";
 import { PANEL_ID, PANEL_WIDTH, clampWidth } from "./layout.js";
 import { useReadOnly } from "./runtime.js";
 import { agentLabel, runMeta } from "./thread-row.js";
@@ -34,10 +35,10 @@ import { ConfirmableToolRow, DELETE_TOOL, ToolRow } from "./tools.js";
 import { FILE_PART } from "../protocol/events.js";
 
 import type { AgentSummary, FlueApi } from "./api.js";
+import type { Attachable } from "./attachments.js";
 import type { ConversationSnapshot } from "./conversation.js";
 import type { RunningRow } from "./stale-running.js";
 import type { ThreadCustom } from "./thread-list.js";
-import type { AttachmentLimits } from "../protocol/attachments.js";
 import type {
 	Attachment,
 	ReasoningMessagePartComponent,
@@ -133,6 +134,12 @@ const MessageAttachment: React.FC<{ attachment: Attachment }> = ({
 		return null;
 	}
 
+	const ref = uploadRefOf(part.data);
+
+	if (ref !== undefined) {
+		return <SentFile {...ref} name={attachment.name} />;
+	}
+
 	return LINKABLE.test(part.data) ? (
 		<a
 			className="flue-attachment flue-attachment__link"
@@ -158,20 +165,44 @@ const UserMessage: React.FC = () => (
 	</MessagePrimitive.Root>
 );
 
-// A file waiting in the composer, with its name and a remove button.
-const ComposerAttachment: React.FC = () => (
-	<AttachmentPrimitive.Root className="flue-attachment">
-		<span className="flue-attachment__name">
-			<AttachmentPrimitive.Name />
-		</span>
-		<AttachmentPrimitive.Remove
-			aria-label="Remove file"
-			className="flue-icon-button flue-attachment__remove"
-		>
-			<XIcon size={16} />
-		</AttachmentPrimitive.Remove>
-	</AttachmentPrimitive.Root>
-);
+// The upload's progress, or why it failed.
+const attachmentStatus = (status: {
+	type: string;
+	message?: string;
+	progress?: number;
+}): string | undefined => {
+	if (status.type === "running") {
+		return `${String(Math.round((status.progress ?? 0) * 100))}%`;
+	}
+
+	return status.type === "incomplete" ? "Failed" : undefined;
+};
+
+// A file waiting in the composer, with its name, upload progress and a remove button.
+const ComposerAttachment: React.FC = () => {
+	const status = attachmentStatus(
+		useAuiState((state) => state.attachment.status),
+	);
+
+	return (
+		<AttachmentPrimitive.Root className="flue-attachment">
+			<span className="flue-attachment__name">
+				<AttachmentPrimitive.Name />
+			</span>
+			{status === undefined ? null : (
+				<span className="flue-attachment__status" role="status">
+					{status}
+				</span>
+			)}
+			<AttachmentPrimitive.Remove
+				aria-label="Remove file"
+				className="flue-icon-button flue-attachment__remove"
+			>
+				<XIcon size={16} />
+			</AttachmentPrimitive.Remove>
+		</AttachmentPrimitive.Root>
+	);
+};
 
 const AssistantMessage: React.FC = () => (
 	<MessagePrimitive.Root className="flue-message flue-message--assistant">
@@ -296,8 +327,8 @@ export interface FluePanelProps {
 	agent: string | undefined;
 	/** Every agent, when the user may read agent runs. */
 	runAgents?: AgentSummary[] | undefined;
-	/** The limits of chat attachments; null or unset while they are off. */
-	attachments?: AttachmentLimits | null | undefined;
+	/** The limits of what a message takes; null or unset while attachments are off. */
+	attachments?: Attachable | null | undefined;
 	/** Switches the agent, which opens a new thread. */
 	onAgent: (slug: string) => void;
 	/** Opens a chat of any agent, switching the agent when it differs. */
@@ -505,71 +536,82 @@ export const FluePanel: React.FC<FluePanelProps> = ({
 			/>
 			<div className="flue-conversation" hidden={view !== "conversation"}>
 				<TitleBar agents={runAgents ?? agents} api={api} />
-				<ThreadPrimitive.Root className="flue-thread">
-					<ThreadPrimitive.Viewport className="flue-thread__viewport">
-						<AuiIf condition={(state) => state.thread.isEmpty}>
-							<EmptyThread
-								agent={agents.find((entry) => entry.slug === agent)}
-							/>
-						</AuiIf>
-						<ThreadPrimitive.Messages>
-							{({ message }) => {
-								const Message = MESSAGES[message.role];
+				<ComposerPrimitive.AttachmentDropzone
+					className="flue-dropzone"
+					disabled={!attachments || readOnly}
+				>
+					<ThreadPrimitive.Root className="flue-thread">
+						<ThreadPrimitive.Viewport className="flue-thread__viewport">
+							<AuiIf condition={(state) => state.thread.isEmpty}>
+								<EmptyThread
+									agent={agents.find((entry) => entry.slug === agent)}
+								/>
+							</AuiIf>
+							<ThreadPrimitive.Messages>
+								{({ message }) => {
+									const Message = MESSAGES[message.role];
 
-								return <Message />;
-							}}
-						</ThreadPrimitive.Messages>
-						<AuiIf condition={(state) => state.thread.isRunning}>
-							<p className="flue-thread__working" role="status">
-								<SpinnerIcon size="sm" />
-								The agent is working.
-							</p>
-						</AuiIf>
-					</ThreadPrimitive.Viewport>
-					{agent === undefined ? null : (
-						<ComposerPrimitive.Root className="flue-composer">
-							{attachments ? (
-								<div className="flue-composer__attachments">
-									<ComposerPrimitive.Attachments>
-										{() => <ComposerAttachment />}
-									</ComposerPrimitive.Attachments>
-								</div>
-							) : null}
-							<ComposerPrimitive.Input
-								aria-label="Message"
-								className="flue-composer__input"
-								ref={composer}
-								maxRows={10}
-								minRows={2}
-								placeholder={
-									readOnly
-										? "This thread belongs to an agent run and is read-only."
-										: "Message the agent"
-								}
-								submitMode="enter"
-							/>
-							<div className="flue-composer__actions">
+									return <Message />;
+								}}
+							</ThreadPrimitive.Messages>
+							<AuiIf condition={(state) => state.thread.isRunning}>
+								<p className="flue-thread__working" role="status">
+									<SpinnerIcon size="sm" />
+									The agent is working.
+								</p>
+							</AuiIf>
+						</ThreadPrimitive.Viewport>
+						{agent === undefined ? null : (
+							<ComposerPrimitive.Root className="flue-composer">
 								{attachments ? (
-									<ComposerPrimitive.AddAttachment className="flue-button flue-composer__attach">
-										Attach
-									</ComposerPrimitive.AddAttachment>
+									<div className="flue-composer__attachments">
+										<ComposerPrimitive.Attachments>
+											{() => <ComposerAttachment />}
+										</ComposerPrimitive.Attachments>
+									</div>
 								) : null}
-								<AuiIf
-									condition={(state) =>
-										state.thread.isRunning && !state.thread.isDisabled
+								<ComposerPrimitive.Input
+									aria-label="Message"
+									className="flue-composer__input"
+									ref={composer}
+									maxRows={10}
+									minRows={2}
+									placeholder={
+										readOnly
+											? "This thread belongs to an agent run and is read-only."
+											: "Message the agent"
 									}
-								>
-									<ComposerPrimitive.Cancel className="flue-button">
-										Stop
-									</ComposerPrimitive.Cancel>
-								</AuiIf>
-								<ComposerPrimitive.Send className="flue-button flue-button--primary">
-									Send
-								</ComposerPrimitive.Send>
-							</div>
-						</ComposerPrimitive.Root>
-					)}
-				</ThreadPrimitive.Root>
+									submitMode="enter"
+								/>
+								<div className="flue-composer__actions">
+									{attachments ? (
+										<ComposerPrimitive.AddAttachment className="flue-button flue-composer__attach">
+											Attach
+										</ComposerPrimitive.AddAttachment>
+									) : null}
+									<AuiIf
+										condition={(state) =>
+											state.thread.isRunning && !state.thread.isDisabled
+										}
+									>
+										<ComposerPrimitive.Cancel className="flue-button">
+											Stop
+										</ComposerPrimitive.Cancel>
+									</AuiIf>
+									<ComposerPrimitive.Send className="flue-button flue-button--primary">
+										Send
+									</ComposerPrimitive.Send>
+								</div>
+							</ComposerPrimitive.Root>
+						)}
+					</ThreadPrimitive.Root>
+					{attachments && !readOnly ? (
+						<div aria-hidden="true" className="flue-dropzone__overlay">
+							<p className="flue-dropzone__title">Drop to attach</p>
+							<p className="flue-dropzone__hint">{dropHint(attachments)}</p>
+						</div>
+					) : null}
+				</ComposerPrimitive.AttachmentDropzone>
 			</div>
 		</aside>
 	);

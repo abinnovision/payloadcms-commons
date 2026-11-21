@@ -1,3 +1,4 @@
+import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 
@@ -6,25 +7,50 @@ import type {
 	ExchangeResponse,
 } from "../protocol/exchange.js";
 
-/**
- * Thrown when Payload refuses or cannot answer a key exchange. Its message
- * never carries the secret or the handle.
- */
-export class FlueExchangeError extends Error {
-	public override readonly name = "FlueExchangeError";
+/** Why a call to Payload failed. */
+export type FluePayloadErrorCode =
+	"not_found" | "refused" | "too_large" | "unauthorized" | "unreachable";
 
-	/** The status Payload answered with, `undefined` when no answer arrived. */
+/**
+ * Thrown when Payload refuses or cannot answer a call of `./agent`. Its
+ * message never carries the secret, the handle or a grant.
+ */
+export class FluePayloadError extends Error {
+	public override readonly name = "FluePayloadError";
+
+	public readonly code: FluePayloadErrorCode;
+
+	/** The status Payload answered with, `undefined` when none applies. */
 	public readonly status: number | undefined;
 
 	public constructor(
+		code: FluePayloadErrorCode,
 		message: string,
-		status: number | undefined,
+		status?: number,
 		options?: ErrorOptions,
 	) {
 		super(`[payloadcms-flue] ${message}`, options);
+		this.code = code;
 		this.status = status;
 	}
 }
+
+/** The code of an HTTP failure status. */
+export const codeOf = (status: number): FluePayloadErrorCode => {
+	if (status === 401) {
+		return "unauthorized";
+	}
+
+	if (status === 404) {
+		return "not_found";
+	}
+
+	if (status === 413) {
+		return "too_large";
+	}
+
+	return status < 500 ? "refused" : "unreachable";
+};
 
 export interface ExchangeKeyArgs {
 	/** The Payload server URL, such as `https://cms.example.com`. */
@@ -76,7 +102,8 @@ export const exchangeKey = async (
 			},
 		);
 	} catch (error) {
-		throw new FlueExchangeError(
+		throw new FluePayloadError(
+			"unreachable",
 			"The key exchange did not reach Payload.",
 			undefined,
 			{ cause: error },
@@ -84,7 +111,8 @@ export const exchangeKey = async (
 	}
 
 	if (!response.ok) {
-		throw new FlueExchangeError(
+		throw new FluePayloadError(
+			codeOf(response.status),
 			REFUSALS[response.status] ??
 				`Payload answered the key exchange with status ${String(response.status)}.`,
 			response.status,
@@ -94,7 +122,8 @@ export const exchangeKey = async (
 	const result: unknown = await response.json().catch(() => undefined);
 
 	if (!isExchangeResponse(result)) {
-		throw new FlueExchangeError(
+		throw new FluePayloadError(
+			"refused",
 			"Payload answered the key exchange without a key.",
 			response.status,
 		);
@@ -126,8 +155,12 @@ export interface ExchangeSession {
 	callTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
 }
 
-const toolError = (message: string): Error =>
-	new Error(`[payloadcms-flue] ${message}`);
+const toolError = (message: string, status?: number): FluePayloadError =>
+	new FluePayloadError(
+		status === undefined ? "refused" : codeOf(status),
+		message,
+		status,
+	);
 
 // The JSON of a text block, or the text itself when it is not JSON.
 const parseText = (text: string): unknown => {
@@ -188,9 +221,9 @@ export const exchangeSession = (args: ExchangeSessionArgs): ExchangeSession => {
 		if (pending === undefined) {
 			const attempt = exchangeKey(args).then((response) => {
 				if (response.mcpPath !== args.mcpPath) {
-					throw new FlueExchangeError(
+					throw new FluePayloadError(
+						"refused",
 						`Payload serves mcpx at "${response.mcpPath}", not at the configured "${args.mcpPath}".`,
-						undefined,
 					);
 				}
 
@@ -210,11 +243,18 @@ export const exchangeSession = (args: ExchangeSessionArgs): ExchangeSession => {
 
 	const url = joinUrl(args.payloadUrl, args.mcpPath);
 
+	// Every mcpx request names the thread, so Payload scopes its file reads.
 	const sessionFetch = async (
 		input: RequestInfo | URL,
 		init?: RequestInit,
 	): Promise<Response> => {
-		const response = await (args.fetch ?? fetch)(input, init);
+		const headers = new Headers(
+			init?.headers ?? (input instanceof Request ? input.headers : undefined),
+		);
+
+		headers.set(FILE_HANDLE_HEADER, args.handle);
+
+		const response = await (args.fetch ?? fetch)(input, { ...init, headers });
 
 		if (response.status === 401) {
 			pending = undefined;
@@ -256,6 +296,7 @@ export const exchangeSession = (args: ExchangeSessionArgs): ExchangeSession => {
 			if (!response.ok) {
 				throw toolError(
 					`mcpx answered "${name}" with status ${String(response.status)}.`,
+					response.status,
 				);
 			}
 

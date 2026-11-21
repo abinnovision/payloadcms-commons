@@ -3,21 +3,28 @@ import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 
 import type { Keyset, Where } from "./keyset.js";
-import type {
-	AttachmentLimits,
-	DeliveredAttachment,
-} from "../protocol/attachments.js";
 import type { ChatContext, RunKind } from "../protocol/context.js";
 import type { ThreadStatus } from "../protocol/events.js";
 import type { RelationValue } from "../protocol/owner.js";
 
 export type ThreadId = number | string;
 
+/** What an agent takes as files, as `GET /agents` lists it. */
+export interface AgentFiles {
+	/** The upload collection files are stored in. */
+	collection: string;
+	mimeTypes: string[];
+	/** Most files a message takes. */
+	maxFiles: number;
+}
+
 /** An agent the signed-in user may chat with, as `GET /agents` lists it. */
 export interface AgentSummary {
 	slug: string;
 	label?: string;
 	description?: string;
+	/** Null or unset when the agent takes no files. */
+	files?: AgentFiles | null;
 }
 
 /** What `GET /agents` answers. */
@@ -26,8 +33,6 @@ export interface AgentsAnswer {
 	agents: AgentSummary[];
 	/** Every agent, when the user may read agent runs; null otherwise. */
 	runs: null | { agents: AgentSummary[] };
-	/** The limits of chat attachments; null while attachments are off. */
-	attachments: null | AttachmentLimits;
 }
 
 /** A thread row as the REST API returns it at depth 0. */
@@ -173,6 +178,71 @@ const fetchOk = async (url: string, init?: RequestInit): Promise<Response> => {
 	return response;
 };
 
+/*
+ * Uploads with XHR, as `fetch` reports no upload progress. Resolves to the
+ * id of the stored file. A proxy's 413 carries no Payload error body.
+ */
+const uploadForm = (
+	url: string,
+	form: FormData,
+	name: string,
+	onProgress: (fraction: number) => void,
+): Promise<string> =>
+	new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+
+		xhr.open("POST", url);
+		xhr.withCredentials = true;
+		xhr.upload.onprogress = (event) => {
+			if (event.lengthComputable) {
+				onProgress(event.loaded / event.total);
+			}
+		};
+
+		xhr.onerror = () => {
+			reject(new Error(`${name} could not be uploaded.`));
+		};
+
+		xhr.onload = () => {
+			if (xhr.status === 413) {
+				reject(new Error(`${name} is larger than the server takes.`));
+
+				return;
+			}
+
+			let body: unknown;
+
+			try {
+				body = JSON.parse(xhr.responseText);
+			} catch {
+				body = undefined;
+			}
+
+			const { doc, errors } = (isRecord(body) ? body : {}) as {
+				doc?: { id?: number | string };
+				errors?: { message?: unknown }[];
+			};
+
+			if (xhr.status >= 200 && xhr.status < 300 && doc?.id !== undefined) {
+				resolve(String(doc.id));
+
+				return;
+			}
+
+			const message = errors?.[0]?.message;
+
+			reject(
+				new Error(
+					typeof message === "string"
+						? message
+						: `${name} could not be uploaded (status ${String(xhr.status)}).`,
+				),
+			);
+		};
+
+		xhr.send(form);
+	});
+
 const request = async <T>(url: string, init?: RequestInit): Promise<T> =>
 	(await (await fetchOk(url, init)).json()) as T;
 
@@ -202,11 +272,11 @@ export const flueApi = ({
 
 	return {
 		agents: async (): Promise<AgentsAnswer> => {
-			const { agents, runs, attachments } = await request<AgentsAnswer>(
+			const { agents, runs } = await request<AgentsAnswer>(
 				plugin(routePath("agents")),
 			);
 
-			return { agents, runs: runs ?? null, attachments: attachments ?? null };
+			return { agents, runs: runs ?? null };
 		},
 
 		/**
@@ -255,10 +325,69 @@ export const flueApi = ({
 				message: string;
 				thread?: ThreadId | undefined;
 				context: SendContext;
-				attachments?: DeliveredAttachment[];
+				/** Ids of the files the user uploaded for the message. */
+				files?: string[];
 			},
 		): Promise<ChatResult> =>
 			request(plugin(routePath("chat", { agent })), json("POST", body)),
+
+		/**
+		 * Stores `file` in an upload collection through Payload's REST API and
+		 * resolves to its id, reporting the share uploaded as it goes.
+		 */
+		uploadFile: (
+			slug: string,
+			file: File,
+			onProgress: (fraction: number) => void,
+		): Promise<string> => {
+			const form = new FormData();
+
+			form.append("file", file);
+
+			return uploadForm(`${api}/${slug}`, form, file.name, onProgress);
+		},
+
+		/** Deletes a file nothing has sent yet. */
+		deleteFile: async (slug: string, id: string): Promise<void> => {
+			await fetchOk(`${api}/${slug}/${encodeURIComponent(id)}`, {
+				method: "DELETE",
+			});
+		},
+
+		/**
+		 * Where Payload's own file route serves the file, or null once the file
+		 * is gone or out of the user's reach. Never the document's `url`, which
+		 * may be public.
+		 */
+		fileLink: async (slug: string, id: string): Promise<null | string> => {
+			const response = await fetch(
+				`${api}/${slug}/${encodeURIComponent(id)}?depth=0`,
+				{ credentials: "include" },
+			);
+
+			if (response.status === 404 || response.status === 403) {
+				return null;
+			}
+
+			if (!response.ok) {
+				throw new Error(await errorMessage(response));
+			}
+
+			const { filename, prefix } = (await response.json()) as {
+				filename?: unknown;
+				prefix?: unknown;
+			};
+
+			if (typeof filename !== "string") {
+				return null;
+			}
+
+			const route = `${api}/${slug}/file/${encodeURIComponent(filename)}`;
+
+			return typeof prefix === "string" && prefix !== ""
+				? `${route}?prefix=${encodeURIComponent(prefix)}`
+				: route;
+		},
 
 		/** The Flue conversation of a thread, as the SDK client addresses it. */
 		conversationUrl: (thread: ThreadId): string =>

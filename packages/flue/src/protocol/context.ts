@@ -1,7 +1,11 @@
+import { readFileAttributes } from "./files.js";
+
+import type { FileRef } from "./files.js";
+
 /**
  * The Flue signal type that carries the per-turn context. On a user's turn
  * the signal's body is the user's message; agent code reads the context
- * back with {@link decodeContext}.
+ * back with `contextOf` and the files with `filesOf`.
  */
 export const CONTEXT_SIGNAL_TYPE = "payload-context";
 
@@ -113,63 +117,83 @@ const ESCAPES: Record<string, string> = {
 	"<": "&lt;",
 	">": "&gt;",
 	'"': "&quot;",
+	"\n": "&#10;",
+	"\r": "&#13;",
 };
 const UNESCAPES: Record<string, string> = Object.fromEntries(
 	Object.entries(ESCAPES).map(([raw, entity]) => [entity, raw]),
 );
 
-// The preamble at the start of the body and its separator; values hold only escaped text.
-const PREAMBLE = new RegExp(
-	`^<${CONTEXT_SIGNAL_TYPE}((?: [A-Za-z]+="(?:[^"<>&]|&(?:amp|lt|gt|quot);)*")*)/>\\n\\n`,
-);
+// Attributes whose values hold only escaped text.
+const ATTRIBUTES =
+	'((?: [A-Za-z]+="(?:[^"<>&]|&(?:amp|lt|gt|quot|#10|#13);)*")*)';
+
+// The preamble at the start of the body and its separator.
+const PREAMBLE = new RegExp(`^<${CONTEXT_SIGNAL_TYPE}${ATTRIBUTES}/>\\n\\n`);
 const ATTRIBUTE = /([A-Za-z]+)="([^"]*)"/g;
 
-/**
- * The body of a user's turn sent as a Flue `user` message: a self-closing
- * `payload-context` tag carrying the context and the user turn marker, a
- * blank line, then the user's text as typed.
- */
-export const userTurnBody = (context: ChatContext, text: string): string => {
-	const attributes = Object.entries({
-		...encodeContext(context),
-		[TURN_ATTRIBUTE]: USER_TURN,
-	})
+export const writeAttributes = (attributes: Record<string, string>): string =>
+	Object.entries(attributes)
 		.map(
 			([name, value]) =>
-				`${name}="${value.replace(/[&<>"]/g, (char) => ESCAPES[char] ?? char)}"`,
+				` ${name}="${value.replace(/[&<>"\n\r]/g, (char) => ESCAPES[char] ?? char)}"`,
 		)
-		.join(" ");
+		.join("");
 
-	return `<${CONTEXT_SIGNAL_TYPE} ${attributes}/>\n\n${text}`;
+const readAttributes = (source: string): Record<string, string> => {
+	const attributes: Record<string, string> = {};
+
+	for (const [, name = "", value = ""] of source.matchAll(ATTRIBUTE)) {
+		attributes[name] = value.replace(
+			/&(?:amp|lt|gt|quot|#10|#13);/g,
+			(entity) => UNESCAPES[entity] ?? entity,
+		);
+	}
+
+	return attributes;
 };
 
 /**
- * The context and the user's text of a body written by {@link userTurnBody},
- * or `undefined` when the body does not start with its preamble. A tag
- * anywhere else is the user's text.
+ * The body of a user's turn sent as a Flue `user` message: a self-closing
+ * `payload-context` tag carrying the context, the user turn marker and the
+ * file attributes, a blank line, then the user's text as typed.
  */
-export const readUserTurnBody = (
-	body: string,
-): { context: ChatContext; text: string } | undefined => {
+export const userTurnBody = (
+	context: ChatContext,
+	text: string,
+	files: Readonly<Record<string, string>> = {},
+): string =>
+	`<${CONTEXT_SIGNAL_TYPE}${writeAttributes({
+		...encodeContext(context),
+		[TURN_ATTRIBUTE]: USER_TURN,
+		...files,
+	})}/>\n\n${text}`;
+
+/** A user's turn as {@link readUserTurnBody} reads it. */
+export interface UserTurnBody {
+	context: ChatContext;
+	/** The files the turn carries. */
+	files: FileRef[];
+	text: string;
+}
+
+/**
+ * The context, the files and the user's text of a body written by
+ * {@link userTurnBody}, or `undefined` when the body does not start with its
+ * preamble. A tag anywhere else is the user's text.
+ */
+export const readUserTurnBody = (body: string): undefined | UserTurnBody => {
 	const match = PREAMBLE.exec(body);
 
 	if (!match) {
 		return undefined;
 	}
 
-	const attributes: Record<string, string> = {};
-
-	for (const [, name = "", value = ""] of (match[1] ?? "").matchAll(
-		ATTRIBUTE,
-	)) {
-		attributes[name] = value.replace(
-			/&(?:amp|lt|gt|quot);/g,
-			(entity) => UNESCAPES[entity] ?? entity,
-		);
-	}
+	const attributes = readAttributes(match[1] ?? "");
 
 	return {
 		context: decodeContext(attributes),
+		files: readFileAttributes(attributes),
 		text: body.slice(match[0].length),
 	};
 };

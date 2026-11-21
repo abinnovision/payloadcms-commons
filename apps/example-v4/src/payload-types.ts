@@ -62,18 +62,20 @@ export type SupportedTimezones =
 	| "Pacific/Fiji";
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_EFD36D8D".
+ * via the `definition` "LexicalNodes_E096DA1C".
  */
-export type LexicalNodes_EFD36D8D =
+export type LexicalNodes_E096DA1C =
 	| SerializedTextNode
 	| SerializedTabNode
 	| SerializedLineBreakNode
-	| SerializedParagraphNode<LexicalNodes_EFD36D8D>
+	| SerializedParagraphNode<LexicalNodes_E096DA1C>
+	| SerializedAutoLinkNode<LexicalNodes_E096DA1C, LexicalLinkFields_E469DC16>
+	| SerializedLinkNode<LexicalNodes_E096DA1C, LexicalLinkFields_E469DC16>
 	| SerializedBlockNode<CalloutBlock>
 	| SerializedHorizontalRuleNode
 	| SerializedUploadNode<"media">
 	| SerializedUploadNode<"documents">
-	| SerializedQuoteNode<LexicalNodes_EFD36D8D>
+	| SerializedQuoteNode<LexicalNodes_E096DA1C>
 	| SerializedRelationshipNode<
 			| "users"
 			| "pages"
@@ -88,9 +90,9 @@ export type LexicalNodes_EFD36D8D =
 			| "payload-preferences"
 			| "payload-migrations"
 	  >
-	| SerializedListNode<LexicalNodes_EFD36D8D>
-	| SerializedListItemNode<LexicalNodes_EFD36D8D>
-	| SerializedHeadingNode<LexicalNodes_EFD36D8D>;
+	| SerializedListNode<LexicalNodes_E096DA1C>
+	| SerializedListItemNode<LexicalNodes_E096DA1C>
+	| SerializedHeadingNode<LexicalNodes_E096DA1C>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_CB00AB58".
@@ -156,6 +158,7 @@ export interface Config {
 		tags: Tag;
 		media: Media;
 		documents: Document;
+		"chat-uploads": ChatUpload;
 		"mcpx-api-keys": McpxApiKey;
 		"flue-threads": FlueThread;
 		"payload-kv": PayloadKv;
@@ -175,6 +178,7 @@ export interface Config {
 		tags: TagsSelect<false> | TagsSelect<true>;
 		media: MediaSelect<false> | MediaSelect<true>;
 		documents: DocumentsSelect<false> | DocumentsSelect<true>;
+		"chat-uploads": ChatUploadsSelect<false> | ChatUploadsSelect<true>;
 		"mcpx-api-keys": McpxApiKeysSelect<false> | McpxApiKeysSelect<true>;
 		"flue-threads": FlueThreadsSelect<false> | FlueThreadsSelect<true>;
 		"payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -264,7 +268,7 @@ export interface HeroModuleBlock {
  * via the `definition` "RichTextModuleBlock".
  */
 export interface RichTextModuleBlock {
-	content?: LexicalRichText<LexicalNodes_EFD36D8D> | null;
+	content?: LexicalRichText<LexicalNodes_E096DA1C> | null;
 	id?: string | null;
 	blockName?: string | null;
 	blockType: "rich-text-module";
@@ -572,6 +576,77 @@ export interface Document {
 	focalY?: number | null;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chat-uploads".
+ */
+export interface ChatUpload {
+	id: number;
+	flueThread?: (number | null) | FlueThread;
+	createdBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedAt: string;
+	createdAt: string;
+	url?: string | null;
+	thumbnailURL?: string | null;
+	filename?: string | null;
+	mimeType?: string | null;
+	filesize?: number | null;
+	width?: number | null;
+	height?: number | null;
+	original?: {
+		filename?: string | null;
+		url?: string | null;
+		mimeType?: string | null;
+		filesize?: number | null;
+		width?: number | null;
+		height?: number | null;
+		prefix?: string | null;
+		_objectKey?: string | null;
+	};
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "flue-threads".
+ */
+export interface FlueThread {
+	id: number;
+	agent: string;
+	conversationId?: string | null;
+	handleHash?: string | null;
+	title?: string | null;
+	agentTitle?: string | null;
+	context?: {
+		collection?: string | null;
+		docId?: string | null;
+		global?: string | null;
+		locale?: string | null;
+	};
+	kind?: ("chat" | "reactive" | "ambient") | null;
+	onBehalfOf?: (number | null) | User;
+	status?: ("idle" | "running" | "failed" | "archived") | null;
+	lastMessageAt?: string | null;
+	lastReadAt?: string | null;
+	lastSubmissionId?: string | null;
+	flueUid?: string | null;
+	dispatchJob?: string | null;
+	createdBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedBy?: {
+		relationTo: "users";
+		value: number | User;
+	} | null;
+	updatedAt: string;
+	createdAt: string;
+}
+/**
  * Keys for MCP clients. Each key acts as its user and may only do what its capabilities allow.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -743,6 +818,16 @@ export interface McpxApiKey {
 				 */
 				deleteUnattended?: boolean | null;
 			};
+			chatUploads?: {
+				/**
+				 * Describe, find and read.
+				 */
+				read?: boolean | null;
+				/**
+				 * Create, patch and validate drafts.
+				 */
+				write?: boolean | null;
+			};
 		};
 		globals?: {
 			siteSettings?: {
@@ -762,42 +847,6 @@ export interface McpxApiKey {
 		};
 	};
 	managedBy?: string | null;
-	updatedAt: string;
-	createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "flue-threads".
- */
-export interface FlueThread {
-	id: number;
-	agent: string;
-	conversationId?: string | null;
-	handleHash?: string | null;
-	title?: string | null;
-	agentTitle?: string | null;
-	context?: {
-		collection?: string | null;
-		docId?: string | null;
-		global?: string | null;
-		locale?: string | null;
-	};
-	kind?: ("chat" | "reactive" | "ambient") | null;
-	onBehalfOf?: (number | null) | User;
-	status?: ("idle" | "running" | "failed" | "archived") | null;
-	lastMessageAt?: string | null;
-	lastReadAt?: string | null;
-	lastSubmissionId?: string | null;
-	flueUid?: string | null;
-	dispatchJob?: string | null;
-	createdBy?: {
-		relationTo: "users";
-		value: number | User;
-	} | null;
-	updatedBy?: {
-		relationTo: "users";
-		value: number | User;
-	} | null;
 	updatedAt: string;
 	createdAt: string;
 }
@@ -966,6 +1015,10 @@ export interface PayloadLockedDocument {
 		| ({
 				relationTo: "documents";
 				value: number | Document;
+		  } | null)
+		| ({
+				relationTo: "chat-uploads";
+				value: number | ChatUpload;
 		  } | null)
 		| ({
 				relationTo: "mcpx-api-keys";
@@ -1234,6 +1287,36 @@ export interface DocumentsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chat-uploads_select".
+ */
+export interface ChatUploadsSelect<T extends boolean = true> {
+	flueThread?: T;
+	createdBy?: T;
+	updatedBy?: T;
+	updatedAt?: T;
+	createdAt?: T;
+	url?: T;
+	thumbnailURL?: T;
+	filename?: T;
+	mimeType?: T;
+	filesize?: T;
+	width?: T;
+	height?: T;
+	original?:
+		| T
+		| {
+				filename?: T;
+				url?: T;
+				mimeType?: T;
+				filesize?: T;
+				width?: T;
+				height?: T;
+				prefix?: T;
+				_objectKey?: T;
+		  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "mcpx-api-keys_select".
  */
 export interface McpxApiKeysSelect<T extends boolean = true> {
@@ -1307,6 +1390,12 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 										write?: T;
 										delete?: T;
 										deleteUnattended?: T;
+								  };
+							chatUploads?:
+								| T
+								| {
+										read?: T;
+										write?: T;
 								  };
 					  };
 				globals?:
@@ -1656,6 +1745,47 @@ export interface TaskFlueDispatch {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "LexicalLinkFields_E469DC16".
+ */
+export interface LexicalLinkFields_E469DC16 {
+	link: {
+		label: string;
+		type?: ("reference" | "custom" | "same-page" | "download") | null;
+		newTab?: boolean | null;
+		reference?:
+			| ({
+					relationTo: "pages";
+					value: number | Page;
+			  } | null)
+			| ({
+					relationTo: "articles";
+					value: number | Article;
+			  } | null)
+			| ({
+					relationTo: "sections";
+					value: number | Section;
+			  } | null);
+		url?: string | null;
+		samePageIdentifier?: string | null;
+		fileName?: string | null;
+		inline?: boolean | null;
+	};
+	doc?: {
+		relationTo: string;
+		value:
+			| string
+			| number
+			| {
+					id: string | number;
+					[k: string]: unknown;
+			  };
+	} | null;
+	linkType: "custom" | "internal";
+	newTab: boolean;
+	url?: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "CalloutBlock".
  */
 export interface CalloutBlock {
@@ -1725,6 +1855,34 @@ export interface SerializedParagraphNode<
 	type: "paragraph";
 	textFormat: number;
 	textStyle: string;
+}
+
+export interface LexicalLinkFields {
+	[k: string]: unknown;
+	doc?: {
+		relationTo: string;
+		value:
+			| Config["db"]["defaultIDType"]
+			| { [k: string]: unknown; id: Config["db"]["defaultIDType"] };
+	} | null;
+	linkType: "custom" | "internal";
+	newTab: boolean;
+	url?: string;
+}
+export interface SerializedLinkNode<
+	TChildren,
+	TFields = LexicalLinkFields,
+> extends SerializedLexicalElementBase<TChildren> {
+	type: "link";
+	fields: TFields;
+	id?: string;
+}
+export interface SerializedAutoLinkNode<
+	TChildren,
+	TFields = LexicalLinkFields,
+> extends SerializedLexicalElementBase<TChildren> {
+	type: "autolink";
+	fields: TFields;
 }
 
 export type SerializedBlockNode<TFields extends { blockType: string }> =
@@ -1831,34 +1989,6 @@ export interface LexicalRichText<TNode> {
 		/** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
 		version: number;
 	};
-}
-
-export interface LexicalLinkFields {
-	[k: string]: unknown;
-	doc?: {
-		relationTo: string;
-		value:
-			| Config["db"]["defaultIDType"]
-			| { [k: string]: unknown; id: Config["db"]["defaultIDType"] };
-	} | null;
-	linkType: "custom" | "internal";
-	newTab: boolean;
-	url?: string;
-}
-export interface SerializedLinkNode<
-	TChildren,
-	TFields = LexicalLinkFields,
-> extends SerializedLexicalElementBase<TChildren> {
-	type: "link";
-	fields: TFields;
-	id?: string;
-}
-export interface SerializedAutoLinkNode<
-	TChildren,
-	TFields = LexicalLinkFields,
-> extends SerializedLexicalElementBase<TChildren> {
-	type: "autolink";
-	fields: TFields;
 }
 
 declare module "payload" {

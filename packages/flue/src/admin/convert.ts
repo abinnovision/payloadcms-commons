@@ -1,7 +1,10 @@
+import { fileRefPart, uploadRefOf } from "./attachments.js";
 import { isUserTurn, readUserTurnBody } from "../protocol/context.js";
 import { TITLE_PART } from "../protocol/events.js";
+import { readFileAttributes } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 
+import type { FileRef } from "../protocol/files.js";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import type {
 	FlueConversationMessage,
@@ -35,9 +38,23 @@ const isShown = (message: FlueConversationMessage): boolean =>
 const textOf = (message: FlueConversationMessage): string =>
 	message.parts.map((part) => (part.type === "text" ? part.text : "")).join("");
 
+// A file a turn sent, shown as a card the panel resolves by collection and id.
+const fileCard = (
+	file: Pick<FileRef, "collection" | "id" | "mimeType" | "name">,
+	id: string,
+): Attachment => ({
+	id,
+	type: "document",
+	name: file.name,
+	contentType: file.mimeType,
+	status: { type: "complete" },
+	content: [fileRefPart(file, file.name, file.mimeType)],
+});
+
 /*
  * A user's file as an attachment: an image shows from its URL, any other
  * file links to it. A file whose bytes cannot be resolved yet is left out.
+ * The optimistic echo of an uploaded file carries its reference as the URL.
  */
 const attachmentsOf = (message: FlueConversationMessage): Attachment[] =>
 	message.parts.flatMap((part, index): Attachment[] => {
@@ -47,6 +64,16 @@ const attachmentsOf = (message: FlueConversationMessage): Attachment[] =>
 
 		const image = part.mediaType.startsWith("image/");
 		const name = part.filename ?? (image ? "Image" : "Document");
+		const ref = uploadRefOf(part.url);
+
+		if (ref !== undefined) {
+			return [
+				fileCard(
+					{ ...ref, name, mimeType: part.mediaType },
+					`${message.id}:file:${String(index)}`,
+				),
+			];
+		}
 
 		return [
 			{
@@ -135,12 +162,21 @@ export const toThreadMessage = (
 		// The runtime's echo of a message on its way; Flue's own messages carry no such key.
 		const optimistic = message.metadata?.["isOptimistic"] === true;
 		const raw = textOf(message);
-		// A turn with files reaches Flue as a user message whose body starts with the context.
-		const text =
+		// A turn with attachments reaches Flue as a user message whose body starts with the context.
+		const body =
 			message.purpose === "user" && !optimistic
-				? (readUserTurnBody(raw)?.text ?? raw)
-				: raw;
-		const attachments = attachmentsOf(message);
+				? readUserTurnBody(raw)
+				: undefined;
+		const text = body?.text ?? raw;
+		const files =
+			body?.files ?? readFileAttributes(message.signal?.attributes ?? {});
+		// The files a turn sent stand for its Flue attachments; a turn without them shows those.
+		const attachments =
+			files.length > 0
+				? files.map((file, index) =>
+						fileCard(file, `${message.id}:file:${String(index)}`),
+					)
+				: attachmentsOf(message);
 
 		return {
 			...base,

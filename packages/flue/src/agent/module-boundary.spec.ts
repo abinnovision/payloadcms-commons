@@ -44,6 +44,19 @@ describe("./agent module boundary", () => {
 		).toEqual([]);
 	});
 
+	it("reaches none of the optional admin packages", () => {
+		expect(
+			bareSpecifiersOf(entry).filter((s) =>
+				[
+					"@assistant-ui/react",
+					"@assistant-ui/react-markdown",
+					"@flue/sdk",
+					"remark-gfm",
+				].includes(s),
+			),
+		).toEqual([]);
+	});
+
 	it("reaches only @flue/runtime and valibot", () => {
 		expect(bareSpecifiersOf(entry).sort()).toEqual([
 			"@flue/runtime",
@@ -61,13 +74,17 @@ describe("./agent module boundary", () => {
 				"agent/context.ts",
 				"agent/index.ts",
 				"agent/exchange.ts",
+				"agent/untrusted.ts",
+				"agent/files.ts",
 				"agent/settled.ts",
 				"agent/title.ts",
 				"agent/upload.ts",
 				"agent/use-payload.ts",
+				"protocol/body.ts",
 				"protocol/context.ts",
 				"protocol/events.ts",
 				"protocol/exchange.ts",
+				"protocol/files.ts",
 				"protocol/paths.ts",
 			]),
 		);

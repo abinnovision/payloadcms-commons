@@ -17,6 +17,7 @@ const LAYERS: Record<string, number> = {
 	"threads/": 2,
 	"keys/": 2,
 	"sidecar/": 2,
+	"files/": 2,
 	"turn.ts": 3,
 	"endpoints/": 4,
 	"jobs/": 4,

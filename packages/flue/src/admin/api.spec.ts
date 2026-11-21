@@ -172,26 +172,202 @@ describe("flueApi", () => {
 		await expect(api.agents()).resolves.toEqual({
 			agents: [{ slug: "editor" }],
 			runs: { agents: [{ slug: "editor" }, { slug: "auditor" }] },
-			attachments: null,
 		});
 	});
 
-	it("reads the attachment limits", async () => {
-		const attachments = {
-			mimeTypes: ["image/png", "application/pdf"],
-			maxImageBytes: 3_932_160,
-			maxDocumentBytes: 5_242_880,
-			maxFiles: 4,
+	it("deletes an uploaded file through the collection's REST API", async () => {
+		const sent = answer(() => Response.json({ doc: { id: 12 } }));
+
+		await api.deleteFile("uploads", "12");
+
+		expect(sent).toMatchObject([
+			{ url: "https://cms.example.com/api/uploads/12", method: "DELETE" },
+		]);
+	});
+
+	describe("fileLink", () => {
+		it("points at Payload's file route, never the document's url", async () => {
+			const sent = answer(() =>
+				Response.json({
+					id: 12,
+					filename: "a b.md",
+					url: "https://cdn.example.com/public/a b.md",
+				}),
+			);
+
+			await expect(api.fileLink("uploads", "12")).resolves.toBe(
+				"https://cms.example.com/api/uploads/file/a%20b.md",
+			);
+			expect(sent[0]!.url).toBe(
+				"https://cms.example.com/api/uploads/12?depth=0",
+			);
+		});
+
+		it("carries the storage prefix of the document", async () => {
+			answer(() => Response.json({ filename: "a.md", prefix: "chat/7" }));
+
+			await expect(api.fileLink("uploads", "12")).resolves.toBe(
+				"https://cms.example.com/api/uploads/file/a.md?prefix=chat%2F7",
+			);
+		});
+
+		it("answers null for a file that is gone or out of reach", async () => {
+			answer(() => Response.json({ errors: [] }, { status: 404 }));
+			await expect(api.fileLink("uploads", "12")).resolves.toBeNull();
+
+			answer(() => Response.json({ errors: [] }, { status: 403 }));
+			await expect(api.fileLink("uploads", "12")).resolves.toBeNull();
+		});
+
+		it("rejects on any other failure", async () => {
+			answer(() => Response.json({ errors: [] }, { status: 500 }));
+
+			await expect(api.fileLink("uploads", "12")).rejects.toThrow(
+				"The request failed with status 500.",
+			);
+		});
+	});
+
+	describe("uploadFile", () => {
+		interface Request {
+			method: string;
+			url: string;
+			credentials: boolean;
+			form: FormData | undefined;
+		}
+
+		interface FakeXhr {
+			status: number;
+			responseText: string;
+			withCredentials: boolean;
+			upload: {
+				onprogress?: (event: {
+					loaded: number;
+					total: number;
+					lengthComputable: boolean;
+				}) => void;
+			};
+			onload: () => void;
+			onerror: () => void;
+			open: (method: string, url: string) => void;
+			send: (form: FormData) => void;
+		}
+
+		// A stand-in for the browser's XHR that answers as `reply` tells it.
+		const xhr = (reply: (self: FakeXhr) => void): { requests: Request[] } => {
+			const requests: Request[] = [];
+
+			vi.stubGlobal("XMLHttpRequest", function Fake() {
+				let method = "";
+				let url = "";
+				const self: FakeXhr = {
+					status: 0,
+					responseText: "",
+					withCredentials: false,
+					upload: {},
+					onload: () => undefined,
+					onerror: () => undefined,
+					open: (verb, target) => {
+						method = verb;
+						url = target;
+					},
+					send: (form) => {
+						requests.push({
+							method,
+							url,
+							credentials: self.withCredentials,
+							form,
+						});
+						reply(self);
+					},
+				};
+
+				return self;
+			});
+
+			return { requests };
 		};
 
-		answer(() =>
-			Response.json({ agents: [{ slug: "editor" }], runs: null, attachments }),
-		);
+		const file = new File(["# Notes"], "notes.md", { type: "text/markdown" });
 
-		await expect(api.agents()).resolves.toEqual({
-			agents: [{ slug: "editor" }],
-			runs: null,
-			attachments,
+		it("posts the file as multipart and resolves to the id", async () => {
+			const { requests } = xhr((self) => {
+				self.status = 201;
+				self.responseText = JSON.stringify({ doc: { id: 12 } });
+				self.onload();
+			});
+
+			await expect(
+				api.uploadFile("uploads", file, () => undefined),
+			).resolves.toBe("12");
+
+			expect(requests).toHaveLength(1);
+			expect(requests[0]).toMatchObject({
+				method: "POST",
+				url: "https://cms.example.com/api/uploads",
+				credentials: true,
+			});
+			expect((requests[0]!.form!.get("file") as File).name).toBe("notes.md");
+			expect(requests[0]!.form!.get("_payload")).toBeNull();
+		});
+
+		it("reports the share uploaded as the browser sends it", async () => {
+			const seen: number[] = [];
+
+			xhr((self) => {
+				self.upload.onprogress?.({
+					loaded: 25,
+					total: 100,
+					lengthComputable: true,
+				});
+				self.upload.onprogress?.({
+					loaded: 100,
+					total: 100,
+					lengthComputable: false,
+				});
+				self.status = 201;
+				self.responseText = JSON.stringify({ doc: { id: 1 } });
+				self.onload();
+			});
+
+			await api.uploadFile("uploads", file, (fraction) => {
+				seen.push(fraction);
+			});
+
+			expect(seen).toEqual([0.25]);
+		});
+
+		it.each([
+			[
+				"names a 413 as the server taking no file this large",
+				413,
+				"<html>Request Entity Too Large</html>",
+				"notes.md is larger than the server takes.",
+			],
+			[
+				"rejects with Payload's message for another refusal",
+				400,
+				JSON.stringify({
+					errors: [{ message: "The file type must be one of text/plain." }],
+				}),
+				"The file type must be one of text/plain.",
+			],
+			[
+				"rejects with the status when the answer has no message",
+				502,
+				"bad gateway",
+				"notes.md could not be uploaded (status 502).",
+			],
+		])("%s", async (_label, status, responseText, message) => {
+			xhr((self) => {
+				self.status = status;
+				self.responseText = responseText;
+				self.onload();
+			});
+
+			await expect(
+				api.uploadFile("uploads", file, () => undefined),
+			).rejects.toThrow(message);
 		});
 	});
 

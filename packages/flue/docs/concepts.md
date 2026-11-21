@@ -64,13 +64,15 @@ Archiving is final from the API. The exchange refuses the handle of an archived 
 archive asks the sidecar to abort the conversation's run whatever the status, which can lag the
 run. The archive does not wait for the sidecar's answer, and a conversation Flue has not seen
 counts as stopped. Archiving a `running` thread also disables the key of the thread's user and
-agent until the next turn. Both are best effort and logged on failure.
+agent until the next turn. Both are best effort and logged on failure. Archiving leaves the
+thread's files bound to it; with `flueThreadScoped` on the files collection the agent can no
+longer read them, as the handle no longer resolves.
 
 ## The turn
 
 Each message is one turn, and each turn is exactly one Flue submission: a signal of type
-`payload-context` (`CONTEXT_SIGNAL_TYPE`) whose body is the message and whose attributes carry the
-context. A turn with attachments takes another shape, described [below](#turns-with-attachments).
+`payload-context` whose attributes carry the context and whose body is the message as typed. A
+turn whose files include attachments takes another shape, described [below](#turns-with-files).
 
 | Attribute    | Value                                                                                             |
 | ------------ | ------------------------------------------------------------------------------------------------- |
@@ -85,6 +87,7 @@ context. A turn with attachments takes another shape, described [below](#turns-w
 | `kind`       | `chat`, `reactive` or `ambient`                                                                   |
 | `onBehalfOf` | the triggering user's id, reactive runs only                                                      |
 | `turn`       | `user`, which marks the signal as the user's turn                                                 |
+| `files`      | the turn's files, see [turns with files](#turns-with-files)                                       |
 
 Unset values are left out. Agent code reads the context with `usePayload().context()`, or with
 `contextOf(delivery)` from a delivery of either turn shape. The panel shows a signal marked `turn: user`
@@ -93,26 +96,43 @@ as the user's message and hides every other signal.
 A turn carries the user's message and its context together, because a signal alone starts a model
 run and a second message joining a live run would race the context.
 
-### Turns with attachments
+### Turns with files
 
-With the `attachments` option on, the panel's composer takes images and PDFs. Only a Flue `user`
-message carries files, so a turn with at least one file is sent as one: its body starts with a
+The composer uploads each file to the app's files collection before the turn, and the turn sends
+only the ids. The turn binds the files to its thread and lists every one in three attributes:
+
+| Attribute         | Value                                                                   |
+| ----------------- | ----------------------------------------------------------------------- |
+| `files`           | one `id\|mimeType\|size\|name` entry per file, joined by `; `, in order |
+| `filesCollection` | the files collection's slug                                             |
+| `attached`        | the ids of the files that are also Flue attachments, joined by `;`      |
+
+The encoding holds none of the characters Flue escapes. The MIME type is cut at its first `;`, the
+name loses `& < > " ' | ;` and control characters and is cut to 120 characters, and an id holding
+`|` or `;` is refused at send, which Payload's default id types never do.
+
+A turn without attachments stays a signal and its body is the user's text. Only a Flue `user`
+message carries attachments, so a turn with at least one is sent as one: its body starts with a
 preamble Payload writes, a self-closing tag with the same attributes, values XML-escaped, then a
 blank line and the user's text as typed.
 
 ```
-<payload-context route="/admin/collections/posts/12" collection="posts" id="12" locale="en" kind="chat" turn="user"/>
+<payload-context route="/admin" kind="chat" turn="user" files="31|image/png|48213|chart.png; 32|text/csv|1204|q3.csv" filesCollection="chat-uploads" attached="31"/>
 
-Describe this picture.
+Compare the chart with the numbers.
 ```
 
-Text-only turns and runs from jobs stay signals, so a thread can hold both shapes. Only a preamble
-at the very start of a `user` message is read; the same tag anywhere else is the user's text.
-The panel hides the preamble and shows the files with the message.
+Only a preamble at the very start of a body is read; the same tag anywhere else is the user's
+text. `filesOf(delivery)` in `./agent` decodes either shape to
+`{ collection, id, name, mimeType, size, attached }`, with `name` untrusted, and `contextOf` reads
+the context. The panel hides the preamble and shows each file as a card that links to the file
+through Payload's own file route.
 
-Flue keeps the files in the sidecar's store and replays them to the model on every later turn.
-The panel loads them through `GET /api/flue/c/:thread/attachments/:attachment`, never from the
-sidecar. Payload stores none of them.
+Flue keeps attachments in the sidecar's store and replays them to the model on every later turn;
+the panel loads them through `GET /api/flue/c/:thread/attachments/:attachment`. Every other file
+reaches the model as its reference only. Agent code reads any file of the thread with
+`payload.download` (see [files in agent code](./integration.md#files-in-agent-code)); Payload
+scopes those reads to the thread through the handle each agent request carries.
 
 A dispatch job that runs again finds its thread through `dispatchJob` and sends nothing. With
 `dispatch.wait` on, it waits on the thread's recorded submission (see
@@ -282,9 +302,14 @@ agent no longer has this conversation. Start a new thread."
   are dropped, raw HTML is skipped and links open in a new tab with
   `rel="noopener noreferrer nofollow"`, because a reply can repeat text from the content the agent
   read. The user's messages show as typed.
-- With attachments on, the composer has an add button limited to the configured types, and refuses
-  a file over its type's limit. A turn's files show with the user's message: images as
-  thumbnails, PDFs as links. A failed send puts the text and the files back in the composer.
+- For an agent that takes files, the composer has an add button limited to the collection's
+  types, and the whole conversation takes dropped files, showing a drop target while a file is
+  dragged over it. Each file is uploaded as soon as it is added, with its progress in percent;
+  removing it deletes the upload. A file that is empty, of another type or past the message's file
+  count is refused before it is uploaded, and the collection's own checks decide the rest. A sent
+  message shows its files as cards that link to each file through Payload's file route, as the
+  user; images Flue holds as attachments of older threads show as thumbnails. A failed send puts
+  the text and the files back in the composer.
 - Files an agent uploaded with `usePayload().upload()` show as one card per response, from the
   `data-payload-file` part, with each file's name, type and size and a link to its document.
   A link that does not lead into the admin's collections is left out, and the name shows alone.

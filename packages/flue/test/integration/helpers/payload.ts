@@ -45,18 +45,19 @@ export interface Booted {
 
 /**
  * Starts a fake sidecar and boots the fixture against it, with `flue`
- * replacing flue's options key by key and `overrides` the config's.
- * `getPayload` caches by key, so every spec passes its own.
+ * replacing flue's options key by key and `overrides` the config's, given
+ * directly or from the sidecar's URL. `getPayload` caches by key, so every
+ * spec passes its own.
  */
 export const bootPayload = async (
 	cacheKey: string,
 	flue?: Partial<FluePluginOptions>,
-	overrides: Partial<Config> = {},
+	overrides: Partial<Config> | ((sidecarUrl: string) => Partial<Config>) = {},
 ): Promise<Booted> => {
 	const sidecar = await startSidecar();
 	const config = buildConfig({
 		...fixtureConfig({ sidecarUrl: sidecar.url, ...(flue ? { flue } : {}) }),
-		...overrides,
+		...(typeof overrides === "function" ? overrides(sidecar.url) : overrides),
 	});
 	const payload = await getPayload({ config, key: cacheKey });
 
@@ -123,7 +124,8 @@ export const seed = async (payload: Payload): Promise<Seeded> => {
 /**
  * Sends one request through Payload's router, the path a Next.js route
  * handler takes. A `token` signs it in; a `body` is sent as JSON unless it
- * is a string; `headers` come last; `signal` stands for the client going away.
+ * is a string or form data; `headers` come last; `signal` stands for the
+ * client going away.
  */
 export const send = (
 	booted: Booted,
@@ -142,7 +144,7 @@ export const send = (
 		request: new Request(`http://localhost${path}`, {
 			method: args.method ?? "GET",
 			headers: {
-				...(args.body === undefined
+				...(args.body === undefined || args.body instanceof FormData
 					? {}
 					: { "content-type": "application/json" }),
 				...(args.token === undefined
@@ -155,7 +157,7 @@ export const send = (
 				? {}
 				: {
 						body:
-							typeof args.body === "string"
+							typeof args.body === "string" || args.body instanceof FormData
 								? args.body
 								: JSON.stringify(args.body),
 					}),
