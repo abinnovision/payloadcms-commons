@@ -434,7 +434,7 @@ export const flueApi = ({
 			key: string,
 			confirmation: string,
 		): Promise<string | undefined> => {
-			const params = new URLSearchParams({ key, confirmation });
+			const params = new URLSearchParams({ principal: key, confirmation });
 			const { confirmations: pending } = await request<{
 				confirmations: { handle: string; highlighted: boolean }[];
 			}>(`${confirmations}?${params.toString()}`);
@@ -451,7 +451,7 @@ export const flueApi = ({
 			(
 				await request<{ decided: string[] }>(
 					confirmations,
-					json("POST", { key, handles: [handle], decision }),
+					json("POST", { principal: key, handles: [handle], decision }),
 				)
 			).decided.includes(handle),
 	};
