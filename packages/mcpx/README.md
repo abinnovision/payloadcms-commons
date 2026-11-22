@@ -3,7 +3,8 @@
 ![A content model of any size funnels through a fixed set of tools out to one client](https://raw.githubusercontent.com/abinnovision/payloadcms-commons/main/packages/mcpx/assets/header.png)
 
 A [Payload CMS](https://payloadcms.com/) plugin that serves an MCP (Model Context Protocol) server
-on one `POST` endpoint. Clients authenticate with API keys that users create in the admin panel.
+on one `POST` endpoint. Clients authenticate with API keys that users create in the admin panel,
+or through a Payload auth strategy of your own.
 
 The server has nine tools plus any you add, and that number does not grow with the content model.
 A client reads the shape of one collection, block or rich text node at a time through
@@ -102,7 +103,7 @@ Claude Desktop and the MCP Inspector are covered in
 | `limits.maxLimit`            | `25`                                      | Highest `limit` a client may pass to a list tool.                                                                                                 |
 | `limits.maxDepth`            | `1`                                       | Highest `depth` a client may pass to a read tool.                                                                                                 |
 | `tools`                      | `[]`                                      | Custom tools, see [`docs/custom-tools.md`](./docs/custom-tools.md).                                                                               |
-| `auth.resolve`               | none                                      | Replace or wrap the key lookup.                                                                                                                   |
+| `auth.resolve`               | none                                      | Replace or wrap the default lookup of strategy auth and keys.                                                                                     |
 | `serverInfo`                 | `payloadcms-mcpx` and the package version | `{ name, version }` reported to clients.                                                                                                          |
 | `diagnostics`                | `true`                                    | Expose the server version plus repository and issue links.                                                                                        |
 
@@ -137,7 +138,7 @@ every argument.
 
 ## Capabilities
 
-A key can do something only when both the config and the key allow it.
+A key can do something only when the config, the key and the user's Payload access all allow it.
 
 The plugin config sets the upper bound: which collections and globals are exposed, and whether
 each one is readable, writable and publishable. A key cannot go past it.
@@ -157,6 +158,10 @@ approved it on the key's edit view, except where the config sets `delete: "unatt
 key's approval shield is off: there the document moves to trash at once. See
 [deleting](./docs/concepts.md#deleting).
 
+The user's access narrows a key's grants per request: `read` needs the collection's or global's
+`read` access, `write` and `publish` need `update`, and `delete` needs `delete`. Access that
+answers with a query counts as allowed, and the query still applies when the tool runs.
+
 `tools/list` follows the key. A tool the key cannot use is not listed, and each `collection` and
 `global` argument lists only the slugs the key may use with that tool. A checkbox added by a later
 config change starts unticked on existing keys.
@@ -167,8 +172,10 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
 
 ## Security
 
-- Only an API key authenticates. Admin sessions and JWTs are ignored, and a key does not work on
-  the REST or GraphQL API.
+- An API key, or a Payload auth strategy that attaches capabilities with `withMcpxAuth`,
+  authenticates. Admin sessions and JWTs alone get nothing, and a key does not work on the REST
+  or GraphQL API. See
+  [Capabilities from a Payload auth strategy](./docs/integration.md#capabilities-from-a-payload-auth-strategy).
 - A key acts as its user, and Payload access control applies to what its tools read and write.
 - Relations are populated only into collections the key can read.
 - A readable folder collection exposes every folder name and, on Payload 3, the `folderType`
@@ -184,8 +191,9 @@ To restrict that, use `apiKeys.overrideCollection` as shown in
   single-use grant. Only collections with `upload.mimeTypes` take files. Downloads go through the
   collection's own file access. Payload 4 may store a file under another name, and the plugin
   reports the stored `filename`. See [uploads](./docs/security.md#uploads).
-- A delete waits for the key's user to approve it in the admin panel and is then run by the same
-  key. Collections with `trash` move the document to trash. See
+- A delete waits for the requesting user to approve it, in the admin panel for a key, and is then
+  run by the same key or strategy principal. A request that carries strategy capabilities cannot
+  approve. Collections with `trash` move the document to trash. See
   [confirmations](./docs/security.md#confirmations).
 - Custom tools are trusted code and must apply access control themselves.
 

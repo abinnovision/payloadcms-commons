@@ -44,7 +44,7 @@ export const McpxConfirmations: React.FC<McpxConfirmationsProps> = ({
 		}
 
 		let active = true;
-		const params = new URLSearchParams({ key: String(id) });
+		const params = new URLSearchParams({ principal: String(id) });
 		const highlight = new URLSearchParams(window.location.search).get(
 			"confirmation",
 		);
@@ -89,7 +89,7 @@ export const McpxConfirmations: React.FC<McpxConfirmationsProps> = ({
 				method: "POST",
 				credentials: "include",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ key: id, handles, decision }),
+				body: JSON.stringify({ principal: String(id), handles, decision }),
 			})
 				.then(async (response) => {
 					if (!response.ok) {

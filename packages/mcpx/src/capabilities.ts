@@ -1,7 +1,9 @@
-import { isPlainObject } from "./guards.js";
+import { isPlainObject, ownValue, propOf } from "./guards.js";
 
 import type { NormalizedOptions } from "./options.js";
 import type {
+	McpxCapabilities,
+	McpxCapabilityGrant,
 	McpxEntityCapabilities,
 	McpxExposedEntity,
 	McpxResolvedCapabilities,
@@ -155,6 +157,98 @@ export const resolveCapabilities = (
 		tools,
 	};
 };
+
+/*
+ * The Payload operation each capability needs. Writes and publishes update a
+ * document, or a draft of it; a delete deletes it.
+ */
+const PERMISSION_OF = {
+	read: "read",
+	write: "update",
+	publish: "update",
+	delete: "delete",
+	deleteUnattended: "delete",
+} as const satisfies Record<StoredOperation, string>;
+
+// Payload keeps a query constraint as `{ permission: true, where }`.
+const isPermitted = (permission: unknown): boolean =>
+	permission === true || propOf(permission, "permission") === true;
+
+/**
+ * Drops every capability whose Payload operation the user's access denies
+ * on the entity. A query constraint counts as allowed, since execution still
+ * applies it. A capability whose prerequisite is dropped is dropped too.
+ */
+export const narrowToPermissions = (
+	capabilities: McpxResolvedCapabilities,
+	// Typed loosely: Payload's types omit the constrained form.
+	permissions: {
+		collections?: Record<string, object>;
+		globals?: Record<string, object>;
+	},
+): McpxResolvedCapabilities => {
+	const narrow = (
+		entries: Record<string, McpxEntityCapabilities>,
+		allowed: Record<string, object> | undefined,
+	): Record<string, McpxEntityCapabilities> =>
+		Object.fromEntries(
+			Object.entries(entries).map(([slug, granted]) => {
+				const permitted = ownValue(allowed, slug);
+				const narrowed = { ...granted };
+
+				for (const { id } of STORED_OPERATIONS) {
+					const needs = requiresOf(id);
+
+					narrowed[id] =
+						granted[id] &&
+						isPermitted(propOf(permitted, PERMISSION_OF[id])) &&
+						(needs === undefined || narrowed[needs]);
+				}
+
+				return [slug, narrowed];
+			}),
+		);
+
+	return {
+		...capabilities,
+		collections: narrow(capabilities.collections, permissions.collections),
+		globals: narrow(capabilities.globals, permissions.globals),
+	};
+};
+
+// The slug-keyed grants in the shape of a key's stored capability group.
+const storedGroup = (
+	entities: McpxExposedEntity[],
+	granted: Record<string, McpxCapabilityGrant> | undefined,
+): Record<string, unknown> =>
+	Object.fromEntries(
+		entities.map((entity) => {
+			const operations = ownValue(granted, entity.slug);
+
+			return [
+				entity.fieldName,
+				{
+					read: operations?.read,
+					write: operations?.write,
+					publish: operations?.publish,
+					delete: operations?.delete,
+				},
+			];
+		}),
+	);
+
+/**
+ * Slug-keyed grants in the shape of a key's stored `capabilities` group, for
+ * {@link resolveCapabilities}. Never grants `deleteUnattended`.
+ */
+export const storedCapabilities = (
+	options: NormalizedOptions,
+	granted: McpxCapabilities,
+): Record<string, unknown> => ({
+	collections: storedGroup(options.collections, granted.collections),
+	globals: storedGroup(options.globals, granted.globals),
+	tools: granted.tools,
+});
 
 /**
  * The slugs tools use to narrow their enums. Taken from the output of

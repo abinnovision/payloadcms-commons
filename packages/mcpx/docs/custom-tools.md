@@ -39,9 +39,12 @@ mcpxPlugin({
 ## What a handler receives
 
 `handler` receives `args`, `scope`, `req` and `extra`. `req` is the request of the MCP call, with
-`req.user` set to the key's user and `req.context.mcpx` holding the key id and its resolved
-capabilities. It is the same object as `scope.req`. `extra` is the MCP SDK's request context. The
-key id is a `McpxDocumentId`, which is `number | string` because it follows the database adapter.
+`req.user` set to the acting user and `req.context.mcpx` holding the `principal`, the key id
+where an API key authenticated, and the resolved capabilities. It is the same object as
+`scope.req`. `extra` is the MCP SDK's request context. The key id is a `McpxDocumentId`, which is
+`number | string` because it follows the database adapter. The principal is the key id as a
+string, or the principal a [Payload auth strategy](./integration.md#capabilities-from-a-payload-auth-strategy)
+attached.
 
 `scope` describes what the key may touch: the slugs it may read, write and publish, for
 `collections` and for `globals` (`readable`, `writable`, `publishable` in each, typed

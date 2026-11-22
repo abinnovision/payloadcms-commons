@@ -19,6 +19,7 @@ import { defineMcpxTool, mcpxPlugin } from "../../src/index.js";
 import type { McpxPluginOptions } from "../../src/index.js";
 import type {
 	CollectionConfig,
+	Config,
 	DatabaseAdapterObj,
 	FlattenedField,
 	KVAdapterResult,
@@ -115,13 +116,19 @@ const defaultPluginOptions: McpxPluginOptions = {
 	tools: [echoTool, whichCollectionTool],
 };
 
+// `previousSecrets` is not in the Payload 3 config type.
+const keyringOf = (previousSecrets: string[] | undefined): object =>
+	previousSecrets === undefined ? {} : { previousSecrets };
+
 /**
  * A sanitized config with the plugin applied. `sqliteAdapter` only connects
  * in `init`, so this is safe for unit tests that never call `getPayload`.
  *
  * `users` replaces the fixture user collection, `collections` is appended to
- * the fixture collections, `db` replaces the in-memory adapter and `kv`
- * Payload's database KV; without them the config is unchanged.
+ * the fixture collections, `db` replaces the in-memory adapter, `kv`
+ * Payload's database KV, `admin` the admin options and `previousSecrets`
+ * the keyring's older secrets, which only Payload 4 reads; without them the
+ * config is unchanged.
  */
 export const buildFixtureConfig = (
 	overrides: {
@@ -130,10 +137,14 @@ export const buildFixtureConfig = (
 		collections?: CollectionConfig[];
 		db?: DatabaseAdapterObj;
 		kv?: KVAdapterResult;
+		admin?: Config["admin"];
+		previousSecrets?: string[];
 	} = {},
 ): Promise<SanitizedConfig> =>
 	buildConfig({
 		secret: "mcpx-test-secret",
+		...keyringOf(overrides.previousSecrets),
+		...(overrides.admin === undefined ? {} : { admin: overrides.admin }),
 		db: overrides.db ?? sqliteAdapter({ client: { url: ":memory:" } }),
 		...(overrides.kv === undefined ? {} : { kv: overrides.kv }),
 		editor: lexicalEditor(),

@@ -28,11 +28,20 @@ export type FallbackLocale = Exclude<
 >;
 
 /**
+ * Who a lease belongs to: the principal it is bound to, the key behind it
+ * when one authenticated the request, and the acting user at issue.
+ */
+export interface LeaseOwner {
+	principal: string;
+	apiKeyId?: DocumentId;
+	user: { collection: string; id: DocumentId };
+}
+
+/**
  * A call stored with the request's locale and fallback locale at issue,
  * `null` when unset.
  */
-export interface StoredCall {
-	apiKeyId: DocumentId;
+export interface StoredCall extends LeaseOwner {
 	tool: string;
 	args: Record<string, unknown>;
 	locale: null | string;
@@ -53,10 +62,10 @@ export interface LeaseRow<T = unknown> {
  */
 export const leasePrefixes = (
 	kind: "confirmation" | "grant",
-	apiKeyId: DocumentId,
+	principal: string,
 ): { prefix: string; usedPrefix: string } => ({
-	prefix: `mcpx-${kind}:${String(apiKeyId)}:`,
-	usedPrefix: `mcpx-${kind}-used:${String(apiKeyId)}:`,
+	prefix: `mcpx-${kind}:${principal}:`,
+	usedPrefix: `mcpx-${kind}-used:${principal}:`,
 });
 
 /**
@@ -203,21 +212,38 @@ export const claimLease = async (
 };
 
 /**
- * The KV slug and key id of the request, which a call that stores a lease
+ * The KV slug and owner of the request, which a call that stores a lease
  * needs. Throws where the endpoint would not offer one.
  */
 export const leaseContext = (
 	req: PayloadRequest,
-): { slug: string; apiKeyId: DocumentId } => {
+): LeaseOwner & { slug: string } => {
 	const slug = leaseKvSlug(req.payload.config);
-	const apiKeyId = req.context.mcpx?.apiKeyId;
+	const { principal, apiKeyId } = req.context.mcpx ?? {};
 
-	if (slug === undefined || apiKeyId === undefined) {
-		throw new Error("A lease needs a database KV and a key.");
+	if (slug === undefined || principal === undefined || !req.user) {
+		throw new Error("A lease needs a database KV and a principal.");
 	}
 
-	return { slug, apiKeyId };
+	return {
+		slug,
+		principal,
+		...(apiKeyId === undefined ? {} : { apiKeyId }),
+		user: { collection: req.user.collection, id: req.user.id },
+	};
 };
+
+/**
+ * Whether a lease was issued to `user`. A row without a stored user belongs
+ * to nobody.
+ */
+export const issuedTo = (
+	owner: { user?: unknown },
+	user: LeaseOwner["user"],
+): boolean =>
+	isPlainObject(owner.user) &&
+	owner.user["collection"] === user.collection &&
+	String(owner.user["id"]) === String(user.id);
 
 /**
  * The data of `row` when it has not expired at `now`, otherwise `undefined`.

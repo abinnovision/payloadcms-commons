@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidAuthResult, parseBearer } from "./resolve.js";
+import { isValidAuthResult, parseBearer, principalOf } from "./resolve.js";
 
 const headers = (authorization?: string): Headers =>
 	new Headers(authorization === undefined ? {} : { authorization });
@@ -74,5 +74,51 @@ describe("isValidAuthResult", () => {
 		expect(isValidAuthResult(auth({ apiKeyId: undefined }), options)).toBe(
 			false,
 		);
+	});
+
+	it("accepts a principal in the strategy format instead of a key id", () => {
+		expect(
+			isValidAuthResult(
+				auth({ apiKeyId: undefined, principal: "my-agent:a_1-B" }),
+				options,
+			),
+		).toBe(true);
+	});
+
+	it.each(["42", "agent", "Agent:1", "agent:", "agent:1:2", "agent:1 "])(
+		"refuses the principal %j",
+		(principal) => {
+			expect(
+				isValidAuthResult(auth({ apiKeyId: undefined, principal }), options),
+			).toBe(false);
+		},
+	);
+
+	it("refuses a key id together with a principal", () => {
+		expect(isValidAuthResult(auth({ principal: "agent:1" }), options)).toBe(
+			false,
+		);
+	});
+});
+
+describe("principalOf", () => {
+	it("is the key id as a string for a key", () => {
+		expect(
+			principalOf({
+				user: { id: 1, collection: "users" },
+				apiKeyId: 42,
+				capabilities: {},
+			}),
+		).toBe("42");
+	});
+
+	it("is the strategy principal otherwise", () => {
+		expect(
+			principalOf({
+				user: { id: 1, collection: "users" },
+				principal: "agent:1",
+				capabilities: {},
+			}),
+		).toBe("agent:1");
 	});
 });

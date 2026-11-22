@@ -1,7 +1,18 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { getAccessResults } from "payload";
 
-import { isValidAuthResult, resolveApiKeyAuth } from "../auth/resolve.js";
-import { resolveCapabilities, scopeSlugs } from "../capabilities.js";
+import {
+	authenticateRequest,
+	isValidAuthResult,
+	principalOf,
+	resolveApiKeyAuth,
+	resolveStrategyAuth,
+} from "../auth/resolve.js";
+import {
+	narrowToPermissions,
+	resolveCapabilities,
+	scopeSlugs,
+} from "../capabilities.js";
 import { jsonRpcError } from "./errors.js";
 import { leasesAvailable, readCapped } from "./http.js";
 import { createMcpServer } from "./server.js";
@@ -65,17 +76,28 @@ export const actAs = (
 };
 
 /**
- * Makes `req` act as the key, with the capabilities its checkboxes resolve to.
+ * Makes `req` act as the authenticated user, with the capabilities its key or
+ * strategy resolves to, narrowed to the user's Payload permissions and bound
+ * to its principal.
  */
-export const authenticateAs = (
+export const authenticateAs = async (
 	req: PayloadRequest,
 	options: NormalizedOptions,
 	auth: McpxAuthResult,
-): McpxToolScope =>
-	actAs(req, options, auth.user, {
-		apiKeyId: auth.apiKeyId,
-		capabilities: resolveCapabilities(options, auth.capabilities),
+): Promise<McpxToolScope> => {
+	req.user = auth.user;
+
+	const permissions = await getAccessResults({ req });
+
+	return actAs(req, options, auth.user, {
+		...(auth.apiKeyId === undefined ? {} : { apiKeyId: auth.apiKeyId }),
+		principal: principalOf(auth),
+		capabilities: narrowToPermissions(
+			resolveCapabilities(options, auth.capabilities),
+			permissions,
+		),
 	});
+};
 
 /**
  * Answers GET and DELETE on the endpoint path. The server is stateless and
@@ -90,16 +112,20 @@ export const methodNotAllowed: PayloadHandler = () =>
 	});
 
 /**
- * The MCP endpoint. Authenticates the bearer key, sets `req.user` and the
+ * The MCP endpoint. Authenticates the request, sets `req.user` and the
  * request marker, then serves the JSON-RPC body with a fresh server and
- * transport. Any user Payload resolved from cookies or a JWT is ignored: only
- * an API key authenticates here.
+ * transport. The auth strategies run again without admin autologin, and only
+ * auth a strategy attached or an API key authenticates here: a user from
+ * cookies or a JWT alone is ignored.
  */
 export const createMcpxHandler =
 	(options: NormalizedOptions): PayloadHandler =>
 	async (req) => {
-		const resolveDefault = (): ReturnType<typeof resolveApiKeyAuth> =>
-			resolveApiKeyAuth(req, options);
+		await authenticateRequest(req);
+
+		const resolveDefault = async (): Promise<McpxAuthResult | null> =>
+			resolveStrategyAuth(req, options) ??
+			(await resolveApiKeyAuth(req, options));
 
 		// Typed as unknown because a custom resolver's result is not trusted.
 		const auth: unknown = options.auth?.resolve
@@ -109,7 +135,7 @@ export const createMcpxHandler =
 		if (!isValidAuthResult(auth, options)) {
 			if (auth) {
 				req.payload.logger.error(
-					"[payloadcms-mcpx] auth.resolve returned an invalid result: it needs a user of the user collection with an id, and an apiKeyId.",
+					"[payloadcms-mcpx] auth.resolve returned an invalid result: it needs a user of the user collection with an id, and either an apiKeyId or a principal.",
 				);
 			}
 
@@ -121,7 +147,7 @@ export const createMcpxHandler =
 			});
 		}
 
-		const scope = authenticateAs(req, options, auth);
+		const scope = await authenticateAs(req, options, auth);
 
 		let parsedBody: unknown;
 		try {

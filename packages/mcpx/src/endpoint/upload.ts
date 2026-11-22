@@ -1,7 +1,11 @@
 import { authenticateAs } from "./handler.js";
 import { leasesAvailable, readCapped, respond } from "./http.js";
 import { runTool } from "./server.js";
-import { resolveApiKeyById } from "../auth/resolve.js";
+import {
+	authenticateRequest,
+	resolveApiKeyById,
+	resolveStrategyAuth,
+} from "../auth/resolve.js";
 import { isToolEnabled, toolInputSchema } from "../define-tool.js";
 import { claimGrant } from "../leases/grant.js";
 import { parseResult } from "../result.js";
@@ -14,7 +18,7 @@ import {
 
 import type { Grant } from "../leases/grant.js";
 import type { NormalizedOptions } from "../options.js";
-import type { McpxToolExtra, McpxToolScope } from "../types.js";
+import type { McpxAuthResult, McpxToolExtra, McpxToolScope } from "../types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { PayloadHandler, PayloadRequest } from "payload";
 
@@ -27,7 +31,7 @@ const UPLOAD_TOOLS = new Set(["createDocument", "patchDocument"]);
 const refused = (): Response =>
 	respond(403, {
 		error:
-			"The request was refused: the grant is unknown, expired or used, or the key no longer allows it. Call the tool again for a new one.",
+			"The request was refused: the grant is unknown, expired or used, or its client no longer allows it. Call the tool again for a new one.",
 	});
 
 // What the tool result's status means over HTTP.
@@ -56,11 +60,37 @@ const NO_SESSION = {
 } as unknown as McpxToolExtra;
 
 /*
- * Claims the grant in `x-mcpx-grant` and makes `req` act as its key again, or
- * returns `undefined`. Only the grant steers the request, so the query is
- * dropped and the locale is the one of the tool call: `?uploadEdits` would
- * crop or move the focal point, `?locale` would change where a write lands
- * and `?prefix` which file is served.
+ * Who may claim `grant`: its key, checked again, or, for a grant issued
+ * through a Payload auth strategy, this request's strategy auth with the same
+ * principal and user.
+ */
+const grantAuth = async (
+	req: PayloadRequest,
+	options: NormalizedOptions,
+	grant: Grant,
+): Promise<McpxAuthResult | null> => {
+	if (grant.apiKeyId !== undefined) {
+		return await resolveApiKeyById(req, options, grant.apiKeyId);
+	}
+
+	await authenticateRequest(req);
+
+	const auth = resolveStrategyAuth(req, options);
+
+	return auth?.principal === grant.principal &&
+		auth.user.collection === grant.user.collection &&
+		String(auth.user.id) === String(grant.user.id)
+		? auth
+		: null;
+};
+
+/*
+ * Claims the grant in `x-mcpx-grant` and makes `req` act as its owner again,
+ * or returns `undefined`. A grant the request may not claim stays claimable.
+ * Only the grant steers the request, so the query is dropped and the locale
+ * is the one of the tool call: `?uploadEdits` would crop or move the focal
+ * point, `?locale` would change where a write lands and `?prefix` which file
+ * is served.
  */
 const claimAs = async <Kind extends Grant["kind"]>(
 	req: PayloadRequest,
@@ -76,19 +106,18 @@ const claimAs = async <Kind extends Grant["kind"]>(
 		return undefined;
 	}
 
-	const grant = await claimGrant(req.payload, slug, grantId);
+	const claimed = await claimGrant(req.payload, slug, grantId, (grant) =>
+		grant.kind === kind
+			? grantAuth(req, options, grant)
+			: Promise.resolve(null),
+	);
 
-	if (grant?.kind !== kind) {
+	if (!claimed) {
 		return undefined;
 	}
 
-	const auth = await resolveApiKeyById(req, options, grant.apiKeyId);
-
-	if (!auth) {
-		return undefined;
-	}
-
-	const scope = authenticateAs(req, options, auth);
+	const { grant, accepted: auth } = claimed;
+	const scope = await authenticateAs(req, options, auth);
 
 	req.query = {};
 
@@ -104,7 +133,7 @@ const claimAs = async <Kind extends Grant["kind"]>(
 
 /**
  * Completes a call that returned an `upload`: claims the grant, acts as its
- * key again, then runs the same tool with the same arguments and the body as
+ * owner again, then runs the same tool with the same arguments and the body as
  * the file. The response body is the tool's result. The grant header is never
  * logged.
  */
@@ -168,7 +197,7 @@ export const createUploadHandler =
 
 /**
  * Serves the file of a `getDocument` call that returned a `download`: claims
- * the grant, acts as its key again, reloads the document as its user and
+ * the grant, acts as its owner again, reloads the document as its user and
  * hands the request to the collection's own `/file/:filename` endpoint, so
  * Payload's file access, storage handlers and response headers apply.
  */

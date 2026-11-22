@@ -10,6 +10,7 @@ import {
 	storedState,
 	USER,
 } from "./helpers/payload.js";
+import { hashApiKey } from "../../src/api-keys/key.js";
 
 import type { McpClient } from "./helpers/mcp.js";
 import type { Booted, KeyCapabilities } from "./helpers/payload.js";
@@ -48,6 +49,7 @@ type Doc = Record<string, unknown> & { id: number | string };
 
 interface Confirmation {
 	id: string;
+	principal: string;
 	url: string;
 	expiresAt: string;
 }
@@ -94,7 +96,7 @@ describe("confirmed deletes", () => {
 		confirmationId?: string,
 		key: number | string = keyId,
 	): Promise<Listed[]> => {
-		const query = new URLSearchParams({ key: String(key) });
+		const query = new URLSearchParams({ principal: String(key) });
 
 		if (confirmationId !== undefined) {
 			query.set("confirmation", confirmationId);
@@ -121,7 +123,11 @@ describe("confirmed deletes", () => {
 	const decide = async (id: string, decision: "approved" | "rejected") =>
 		await send("POST", {
 			cookie: ownerCookie,
-			body: { key: keyId, handles: [await handleOf(id)], decision },
+			body: {
+				principal: String(keyId),
+				handles: [await handleOf(id)],
+				decision,
+			},
 		});
 
 	const request = async (
@@ -169,18 +175,21 @@ describe("confirmed deletes", () => {
 			})
 		).docs[0] as Doc | undefined;
 
-	// The calls stored in Payload's KV, of every key.
-	const storedCalls = async (): Promise<number> => {
+	// The KV keys of the calls stored in Payload's KV, of every key.
+	const storedCallKeys = async (): Promise<string[]> => {
 		const { docs } = await booted.payload.find({
 			collection: "payload-kv" as never,
 			pagination: false,
 			overrideAccess: true,
 		});
 
-		return docs.filter((doc) =>
-			String((doc as { key?: unknown }).key).startsWith("mcpx-confirmation:"),
-		).length;
+		return docs
+			.map((doc) => String((doc as { key?: unknown }).key))
+			.filter((key) => key.startsWith("mcpx-confirmation:"));
 	};
+
+	const storedCalls = async (): Promise<number> =>
+		(await storedCallKeys()).length;
 
 	const snapshot = async () => ({
 		state: await storedState(booted.payload, {
@@ -246,8 +255,12 @@ describe("confirmed deletes", () => {
 			expect(confirmation.url).toBe(
 				`http://localhost/admin/collections/${API_KEYS_SLUG}/${String(keyId)}?confirmation=${confirmation.id}`,
 			);
+			expect(confirmation.principal).toBe(String(keyId));
 			expect(after.state).toEqual(before.state);
 			expect(after.calls).toBe(before.calls + 1);
+			expect(await storedCallKeys()).toContain(
+				`mcpx-confirmation:${String(keyId)}:${hashApiKey(booted.payload.secret, confirmation.id)}`,
+			);
 		});
 
 		it("offers no global and only the collections the key may delete", async () => {
@@ -421,7 +434,11 @@ describe("confirmed deletes", () => {
 			const { id } = await request(mcp, { collection: "tags", id: tag.id });
 			const before = await snapshot();
 			const handle = await handleOf(id);
-			const body = { key: keyId, handles: [handle], decision: "approved" };
+			const body = {
+				principal: String(keyId),
+				handles: [handle],
+				decision: "approved",
+			};
 
 			expect((await send("POST", { cookie: otherCookie, body })).status).toBe(
 				403,
@@ -431,7 +448,7 @@ describe("confirmed deletes", () => {
 				(
 					await send("GET", {
 						cookie: otherCookie,
-						query: `?key=${String(keyId)}`,
+						query: `?principal=${String(keyId)}`,
 					})
 				).status,
 			).toBe(403);
@@ -528,7 +545,11 @@ describe("confirmed deletes", () => {
 					(
 						await send("POST", {
 							cookie: ownerCookie,
-							body: { key: keyId, handles: [handle], decision: "approved" },
+							body: {
+								principal: String(keyId),
+								handles: [handle],
+								decision: "approved",
+							},
 						})
 					).data,
 				).toEqual({ decided: [] });
@@ -593,7 +614,7 @@ describe("confirmed deletes", () => {
 			await send("POST", {
 				cookie: ownerCookie,
 				body: {
-					key: untickedId,
+					principal: String(untickedId),
 					handles: [entry!.handle],
 					decision: "approved",
 				},
@@ -618,7 +639,7 @@ describe("confirmed deletes", () => {
 				{
 					id,
 					status: "skipped",
-					reason: "This key no longer allows this call.",
+					reason: "This client no longer allows this call.",
 				},
 			]);
 			expect((await snapshot()).state).toEqual(before.state);

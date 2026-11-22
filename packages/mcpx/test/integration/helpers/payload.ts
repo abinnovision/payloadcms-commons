@@ -5,6 +5,7 @@ import { buildFixtureConfig } from "../../fixtures/config.js";
 import type { McpxPluginOptions } from "../../../src/index.js";
 import type {
 	CollectionConfig,
+	Config,
 	DatabaseAdapterObj,
 	KVAdapterResult,
 	Payload,
@@ -38,6 +39,8 @@ export const bootPayload = async (
 		collections?: CollectionConfig[];
 		db?: DatabaseAdapterObj;
 		kv?: KVAdapterResult;
+		admin?: Config["admin"];
+		previousSecrets?: string[];
 	} = {},
 ): Promise<Booted> => {
 	const cacheKey = args.key ?? DEFAULT_CACHE_KEY;
@@ -49,6 +52,10 @@ export const bootPayload = async (
 			: { collections: args.collections }),
 		...(args.db === undefined ? {} : { db: args.db }),
 		...(args.kv === undefined ? {} : { kv: args.kv }),
+		...(args.admin === undefined ? {} : { admin: args.admin }),
+		...(args.previousSecrets === undefined
+			? {}
+			: { previousSecrets: args.previousSecrets }),
 	});
 	const payload = await getPayload({ config, key: cacheKey });
 

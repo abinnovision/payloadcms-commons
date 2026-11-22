@@ -1,5 +1,6 @@
 import {
 	claimLease,
+	issuedTo,
 	issueLease,
 	LEASE_ID,
 	leaseHandle,
@@ -9,17 +10,16 @@ import {
 	unexpired,
 } from "./lease.js";
 
-import type { StoredCall } from "./lease.js";
+import type { LeaseOwner, StoredCall } from "./lease.js";
 import type { ConfirmationDecision } from "../api-keys/confirmation-view.js";
-import type { DocumentId } from "../entity.js";
 import type { Payload } from "payload";
 
 const CONFIRMATION_TTL_MS = 15 * 60 * 1000;
 
 /**
- * Calls a key may have stored at a time, apart from its upload grants.
+ * Calls a principal may have stored at a time, apart from its upload grants.
  */
-export const CONFIRMATIONS_PER_KEY = 50;
+export const CONFIRMATIONS_PER_PRINCIPAL = 50;
 
 // The hex HMAC the admin panel addresses an entry by.
 const HANDLE = /^[\da-f]{64}$/;
@@ -27,7 +27,7 @@ const HANDLE = /^[\da-f]{64}$/;
 export type ConfirmationState = ConfirmationDecision | "pending";
 
 /**
- * A call of a confirmable tool, stored until its key runs it.
+ * A call of a confirmable tool, stored until its principal runs it.
  */
 export interface Confirmation extends StoredCall {
 	state: ConfirmationState;
@@ -38,8 +38,8 @@ export interface Confirmation extends StoredCall {
 }
 
 /**
- * Stores a pending call and returns its id. A key may hold at most
- * {@link CONFIRMATIONS_PER_KEY} calls.
+ * Stores a pending call and returns its id. A principal may hold at most
+ * {@link CONFIRMATIONS_PER_PRINCIPAL} calls.
  */
 export const issueConfirmation = async (
 	payload: Payload,
@@ -49,29 +49,30 @@ export const issueConfirmation = async (
 	const entry: Omit<Confirmation, "exp"> = { ...call, state: "pending" };
 
 	return await issueLease(payload, slug, {
-		...leasePrefixes("confirmation", call.apiKeyId),
-		cap: CONFIRMATIONS_PER_KEY,
-		capMessage: `This key already has ${String(CONFIRMATIONS_PER_KEY)} calls waiting for approval. Run or abandon them first; each expires 15 minutes after it was requested.`,
+		...leasePrefixes("confirmation", call.principal),
+		cap: CONFIRMATIONS_PER_PRINCIPAL,
+		capMessage: `This client already has ${String(CONFIRMATIONS_PER_PRINCIPAL)} calls waiting for approval. Run or abandon them first; each expires 15 minutes after it was requested.`,
 		ttlMs: CONFIRMATION_TTL_MS,
 		data: entry,
 	});
 };
 
 /**
- * The unexpired call of `apiKeyId` with `id`, without claiming it. A call of
- * another key is `undefined`, as is a malformed id, before any database read.
+ * The unexpired call of `principal` with `id`, without claiming it. A call of
+ * another principal is `undefined`, as is a malformed id, before any database
+ * read.
  */
 export const readConfirmation = async (
 	payload: Payload,
 	slug: string,
-	apiKeyId: DocumentId,
+	principal: string,
 	id: string,
 ): Promise<Confirmation | undefined> => {
 	if (!LEASE_ID.test(id)) {
 		return undefined;
 	}
 
-	const key = `${leasePrefixes("confirmation", apiKeyId).prefix}${leaseHandle(payload, id)}`;
+	const key = `${leasePrefixes("confirmation", principal).prefix}${leaseHandle(payload, id)}`;
 	const rows = await leasesWith<Confirmation>(payload, slug, [key]);
 
 	return unexpired(
@@ -87,34 +88,36 @@ export const readConfirmation = async (
 export const claimConfirmation = async (
 	payload: Payload,
 	slug: string,
-	apiKeyId: DocumentId,
+	principal: string,
 	id: string,
 	exp: number,
 ): Promise<boolean> =>
 	await claimLease(
 		payload,
 		slug,
-		leasePrefixes("confirmation", apiKeyId),
+		leasePrefixes("confirmation", principal),
 		leaseHandle(payload, id),
 		exp,
 	);
 
 /**
- * Every unexpired call of `apiKeyId` with its handle, oldest first.
+ * Every unexpired call of `principal` that `user` requested, with its handle,
+ * oldest first.
  */
 export const listConfirmations = async (
 	payload: Payload,
 	slug: string,
-	apiKeyId: DocumentId,
+	principal: string,
+	user: LeaseOwner["user"],
 ): Promise<{ handle: string; confirmation: Confirmation }[]> => {
-	const { prefix } = leasePrefixes("confirmation", apiKeyId);
+	const { prefix } = leasePrefixes("confirmation", principal);
 	const now = Date.now();
 
 	return (await leasesWith<Confirmation>(payload, slug, [prefix]))
 		.flatMap((row) => {
 			const confirmation = unexpired(row, now);
 
-			return confirmation
+			return confirmation && issuedTo(confirmation, user)
 				? [{ handle: row.key.slice(prefix.length), confirmation }]
 				: [];
 		})
@@ -122,18 +125,18 @@ export const listConfirmations = async (
 };
 
 /**
- * Approves or rejects the pending calls of `apiKeyId` among `handles`, and
- * returns the handles it changed. A call that was decided, run or expired is
- * left alone and not returned.
+ * Approves or rejects the pending calls of `principal` that `user` requested
+ * among `handles`, and returns the handles it changed. A call that was
+ * decided, run or expired is left alone and not returned.
  */
 export const decideConfirmations = async (
 	payload: Payload,
 	slug: string,
-	apiKeyId: DocumentId,
+	owner: { principal: string; user: LeaseOwner["user"] },
 	handles: string[],
 	state: ConfirmationDecision,
 ): Promise<string[]> => {
-	const { prefix } = leasePrefixes("confirmation", apiKeyId);
+	const { prefix } = leasePrefixes("confirmation", owner.principal);
 	const keys = new Set(
 		handles
 			.filter((handle) => HANDLE.test(handle))
@@ -150,7 +153,11 @@ export const decideConfirmations = async (
 	for (const row of await leasesWith<Confirmation>(payload, slug, [prefix])) {
 		const confirmation = unexpired(row, now);
 
-		if (!keys.has(row.key) || confirmation?.state !== "pending") {
+		if (
+			!keys.has(row.key) ||
+			confirmation?.state !== "pending" ||
+			!issuedTo(confirmation, owner.user)
+		) {
 			continue;
 		}
 

@@ -19,7 +19,13 @@ import type { CollectionRef } from "../entity.js";
 import type { McpxToolConfirm, McpxToolScope } from "../types.js";
 import type { PayloadRequest, Where } from "payload";
 
-const DESCRIPTION = `Asks to delete one document. This call deletes nothing: it returns a "confirmation" with an "id" and a "url". Give the url to the user, who approves or rejects in the admin panel, then pass the id to runConfirmed, which deletes. Refused when the document is unknown, already in trash, changed since "expectedUpdatedAt" or not deletable by the user.`;
+const REFUSALS = `Refused when the document is unknown, already in trash, changed since "expectedUpdatedAt" or not deletable by the user.`;
+
+// Where the user approves: the key's edit view, or wherever a strategy's client talks to them.
+const approvalSentence = (scope: McpxToolScope): string =>
+	scope.req.context.mcpx?.apiKeyId === undefined
+		? `Asks to delete one document. This call deletes nothing: it returns a "confirmation" with an "id". The user approves or rejects it where they talk to you, then pass the id to runConfirmed, which deletes.`
+		: `Asks to delete one document. This call deletes nothing: it returns a "confirmation" with an "id" and a "url". Give the url to the user, who approves or rejects in the admin panel, then pass the id to runConfirmed, which deletes.`;
 
 // Names the collections whose deletes cannot be undone.
 const permanenceSentence = (scope: McpxToolScope): string => {
@@ -161,7 +167,7 @@ const confirm: McpxToolConfirm = {
 };
 
 /**
- * Deletes one collection document once the key's user approved the call. The
+ * Deletes one collection document once the acting user approved the call. The
  * first call only checks and stores it; `runConfirmed` runs it again with the
  * stored arguments, pinned to the `updatedAt` read here. Available where the
  * config exposes `delete` and the key has the `delete` checkbox.
@@ -169,7 +175,7 @@ const confirm: McpxToolConfirm = {
 export const deleteDocument = defineMcpxTool({
 	name: "deleteDocument",
 	description: (scope) =>
-		`${DESCRIPTION}${permanenceSentence(scope)}${unattendedSentence(scope)}`,
+		`${approvalSentence(scope)} ${REFUSALS}${permanenceSentence(scope)}${unattendedSentence(scope)}`,
 	annotations: { destructiveHint: true, openWorldHint: false },
 	isEnabled: (scope) => scope.uploads && scope.collections.deletable.length > 0,
 	inputSchema: (scope) => ({

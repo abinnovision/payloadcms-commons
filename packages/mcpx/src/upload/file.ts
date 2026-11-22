@@ -273,12 +273,12 @@ export const uploadHandoff = async (
 ): Promise<CallToolResult> => {
 	const { req } = scope;
 	const { payload } = req;
-	const { slug, apiKeyId } = leaseContext(req);
+	const { slug, ...owner } = leaseContext(req);
 	// Before the grant, so a URL that fails to build leaves none behind.
 	const url = handoffUrl(req, "upload");
 	const { id, exp } = await issueGrant(payload, slug, {
 		kind: "upload",
-		apiKeyId,
+		...owner,
 		tool: call.tool,
 		args: call.args,
 		file: call.args.file,
@@ -332,11 +332,11 @@ export const downloadHandoff = async (
 	},
 ): Promise<Record<string, unknown>> => {
 	const { req } = scope;
-	const { slug, apiKeyId } = leaseContext(req);
+	const { slug, ...owner } = leaseContext(req);
 	const url = handoffUrl(req, "file");
 	const { id, exp } = await issueGrant(req.payload, slug, {
 		kind: "download",
-		apiKeyId,
+		...owner,
 		...target,
 		fallbackLocale: req.fallbackLocale ?? null,
 	});
