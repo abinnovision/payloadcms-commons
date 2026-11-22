@@ -292,16 +292,48 @@ export interface McpxToolConfirm {
  */
 export type McpxAnyTool = McpxTool<z.ZodRawShape, never>;
 
+/**
+ * Who an MCP request acts as. Carries either `apiKeyId`, whose string form is
+ * then the principal, or a `principal` of the form `<source>:<id>`.
+ */
 export interface McpxAuthResult {
 	/**
 	 * Must carry `collection`.
 	 */
 	user: McpxUser;
-	apiKeyId: DocumentId;
+	apiKeyId?: DocumentId;
 	/**
-	 * The `capabilities` group as stored on the key document.
+	 * What confirmations and upload grants are bound to, matching
+	 * `^[a-z][a-z0-9-]*:[A-Za-z0-9_-]+$`. Only without `apiKeyId`.
+	 */
+	principal?: string;
+	/**
+	 * The `capabilities` group in the shape stored on a key document.
 	 */
 	capabilities: unknown;
+}
+
+/**
+ * The operations granted on one collection or global.
+ */
+export interface McpxCapabilityGrant {
+	read?: boolean;
+	write?: boolean;
+	publish?: boolean;
+	/**
+	 * Each delete still waits for its user's approval.
+	 */
+	delete?: boolean;
+}
+
+/**
+ * What a Payload auth strategy grants, keyed by collection slug, global slug
+ * and tool name. The plugin config caps it the same way it caps an API key.
+ */
+export interface McpxCapabilities {
+	collections?: Record<string, McpxCapabilityGrant>;
+	globals?: Record<string, McpxCapabilityGrant>;
+	tools?: Record<string, boolean>;
 }
 
 /**
@@ -359,9 +391,11 @@ export type McpxPluginOptions = {
 	tools?: McpxAnyTool[];
 	auth?: {
 		/**
-		 * Replace or wrap the default key resolution. Return `null` for 401. A
+		 * Replace or wrap the default resolution, which reads auth attached by a
+		 * Payload auth strategy and then the bearer key. Return `null` for 401. A
 		 * result whose user has no `id` or whose `collection` is not the user
-		 * collection, or that has no `apiKeyId`, is also answered with 401.
+		 * collection, or without exactly one of `apiKeyId` and a well-formed
+		 * `principal`, is also answered with 401.
 		 */
 		resolve?: (args: {
 			req: PayloadRequest;
@@ -410,8 +444,14 @@ export interface McpxResolvedCapabilities {
  */
 export interface McpxRequestContext {
 	/**
-	 * `undefined` for a client from `createMcpxClient`, which acts without a key.
+	 * Set when an API key authenticated the request.
 	 */
 	apiKeyId?: DocumentId;
+	/**
+	 * What confirmations and upload grants are bound to: the key id as a
+	 * string, or the principal a Payload auth strategy attached. `undefined`
+	 * for a client from `createMcpxClient`.
+	 */
+	principal?: string;
 	capabilities: McpxResolvedCapabilities;
 }

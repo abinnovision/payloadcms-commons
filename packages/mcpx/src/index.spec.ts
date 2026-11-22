@@ -7,6 +7,8 @@ import * as local from "./local.js";
 import type {
 	McpxAnyTool,
 	McpxAuthResult,
+	McpxCapabilities,
+	McpxCapabilityGrant,
 	McpxCollectionOptions,
 	McpxDocumentId,
 	McpxEntityCapabilities,
@@ -16,6 +18,7 @@ import type {
 	McpxRequestContext,
 	McpxResolvedCapabilities,
 	McpxScopeSlugs,
+	McpxStrategyAuth,
 	McpxTool,
 	McpxToolExtra,
 	McpxToolScope,
@@ -34,6 +37,8 @@ describe('the "." entrypoint', () => {
 			"jsonResult",
 			"mcpxPlugin",
 			"mcpxReadRequest",
+			"strategyAuthOf",
+			"withMcpxAuth",
 		]);
 	});
 
@@ -45,6 +50,8 @@ describe('the "." entrypoint', () => {
 	it("keeps the documented type names exported", () => {
 		expectTypeOf<McpxAnyTool>().not.toBeAny();
 		expectTypeOf<McpxAuthResult>().not.toBeAny();
+		expectTypeOf<McpxCapabilities>().not.toBeAny();
+		expectTypeOf<McpxCapabilityGrant>().not.toBeAny();
 		expectTypeOf<McpxCollectionOptions>().not.toBeAny();
 		expectTypeOf<McpxEntityCapabilities>().not.toBeAny();
 		expectTypeOf<McpxDocumentId>().toEqualTypeOf<number | string>();
@@ -54,6 +61,7 @@ describe('the "." entrypoint', () => {
 		expectTypeOf<McpxRequestContext>().not.toBeAny();
 		expectTypeOf<McpxResolvedCapabilities>().not.toBeAny();
 		expectTypeOf<McpxScopeSlugs>().not.toBeAny();
+		expectTypeOf<McpxStrategyAuth>().not.toBeAny();
 		expectTypeOf<McpxTool>().not.toBeAny();
 		expectTypeOf<McpxToolExtra>().not.toBeAny();
 		expectTypeOf<McpxToolScope>().not.toBeAny();

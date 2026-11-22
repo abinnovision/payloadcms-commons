@@ -1,10 +1,14 @@
+import { executeAuthStrategies } from "payload";
+
 import { hashApiKey } from "../api-keys/key.js";
-import { isPlainObject } from "../guards.js";
+import { storedCapabilities } from "../capabilities.js";
+import { isPlainObject, propOf } from "../guards.js";
+import { isStrategyPrincipal, strategyAuthOf } from "../strategy.js";
 
 import type { DocumentId } from "../entity.js";
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAuthResult } from "../types.js";
-import type { PayloadRequest } from "payload";
+import type { Payload, PayloadRequest } from "payload";
 
 const BEARER = /^Bearer\s+(\S+)\s*$/i;
 
@@ -43,7 +47,8 @@ export const parseBearer = (headers: Headers): null | string => {
 
 /**
  * Whether a resolved auth, from the default or a custom resolver, may become
- * `req.user`: a user of the configured user collection with an id, and a key id.
+ * `req.user`: a user of the configured user collection with an id, and either
+ * a key id or a principal in the strategy format, not both.
  */
 export const isValidAuthResult = (
 	auth: unknown,
@@ -53,11 +58,82 @@ export const isValidAuthResult = (
 		return false;
 	}
 
+	const principal = auth["principal"];
+	const anchored = isId(auth["apiKeyId"])
+		? principal === undefined
+		: auth["apiKeyId"] === undefined && isStrategyPrincipal(principal);
+
 	return (
 		isId(auth["user"]["id"]) &&
 		auth["user"]["collection"] === options.userCollection &&
-		isId(auth["apiKeyId"])
+		anchored
 	);
+};
+
+/**
+ * What a valid auth result's confirmations and grants are bound to.
+ */
+export const principalOf = (auth: McpxAuthResult): string =>
+	auth.apiKeyId === undefined ? String(auth.principal) : String(auth.apiKeyId);
+
+/**
+ * Runs Payload's auth strategies for `req` again with admin autologin
+ * disabled and makes their user `req.user`. Payload resolved `req.user`
+ * before the endpoint ran, and with `admin.autoLogin` that is the autologin
+ * user for a request without credentials.
+ */
+export const authenticateRequest = async (
+	req: PayloadRequest,
+): Promise<void> => {
+	const headers = new Headers(req.headers);
+
+	headers.set("DisableAutologin", "true");
+
+	const { user } = await executeAuthStrategies({
+		headers,
+		payload: req.payload,
+		req,
+	});
+
+	req.user = user;
+};
+
+/**
+ * The auth a Payload auth strategy attached to `req.user` with
+ * `withMcpxAuth`, or `null`. A cookie or JWT user carries none. Malformed
+ * attached auth is logged and yields `null`.
+ */
+export const resolveStrategyAuth = (
+	req: PayloadRequest,
+	options: NormalizedOptions,
+): McpxAuthResult | null => {
+	const { user } = req;
+	const attached: unknown = strategyAuthOf(user);
+
+	if (!user || attached === undefined) {
+		return null;
+	}
+
+	const principal = propOf(attached, "principal");
+	const capabilities = propOf(attached, "capabilities");
+
+	if (
+		typeof principal !== "string" ||
+		!isPlainObject(capabilities) ||
+		!isValidAuthResult({ user, principal, capabilities }, options)
+	) {
+		req.payload.logger.error(
+			'[payloadcms-mcpx] A Payload auth strategy attached invalid MCP auth: it needs a user of the user collection with an id, a principal like "source:id" and a capabilities object.',
+		);
+
+		return null;
+	}
+
+	return {
+		user,
+		principal,
+		capabilities: storedCapabilities(options, capabilities),
+	};
 };
 
 /**
@@ -164,11 +240,26 @@ export const resolveApiKeyById = async (
 	return await checkApiKey(req, options, keyDoc ?? undefined);
 };
 
+/*
+ * The secrets a stored key index may have been written under. Payload 4 keeps
+ * previous secrets in its keyring, as its own API key strategy does; Payload 3
+ * has only `secret`. Indexes are written under the active secret.
+ */
+const indexSecrets = (payload: Payload): string[] => {
+	const { encryptionKeyring } = payload as {
+		encryptionKeyring?: { all: { legacyKey: string }[] };
+	};
+
+	return encryptionKeyring
+		? encryptionKeyring.all.map((entry) => entry.legacyKey)
+		: [payload.secret];
+};
+
 /**
  * Resolves the bearer key of a request to the user it acts as.
  *
- * The key is looked up by its HMAC index, the same way Payload resolves its own
- * API keys. A missing, unknown, disabled or orphaned key yields `null`; nothing
+ * The key is looked up by its HMAC index under every secret of the keyring,
+ * the same way Payload resolves its own API keys. A missing, unknown, disabled or orphaned key yields `null`; nothing
  * here throws, so the handler alone decides how a refusal looks.
  */
 export const resolveApiKeyAuth = async (
@@ -183,7 +274,11 @@ export const resolveApiKeyAuth = async (
 	const { payload } = req;
 	const { docs } = await payload.find({
 		collection: options.apiKeysSlug,
-		where: { apiKeyIndex: { equals: hashApiKey(payload.secret, key) } },
+		where: {
+			apiKeyIndex: {
+				in: indexSecrets(payload).map((secret) => hashApiKey(secret, key)),
+			},
+		},
 		limit: 1,
 		pagination: false,
 		depth: 0,

@@ -412,7 +412,7 @@ describe("flueApi", () => {
 		await expect(api.confirmationHandle("3", "c-1")).resolves.toBe("h-1");
 		expect(sent.map(({ url, method }) => ({ url, method }))).toEqual([
 			{
-				url: "https://cms.example.com/api/mcpx/confirmations?key=3&confirmation=c-1",
+				url: "https://cms.example.com/api/mcpx/confirmations?principal=3&confirmation=c-1",
 				method: "GET",
 			},
 		]);
@@ -433,7 +433,7 @@ describe("flueApi", () => {
 				url: "https://cms.example.com/api/mcpx/confirmations",
 				method: "POST",
 				contentType: "application/json",
-				body: { key: "3", handles: ["h-1"], decision: "approved" },
+				body: { principal: "3", handles: ["h-1"], decision: "approved" },
 			},
 		]);
 	});

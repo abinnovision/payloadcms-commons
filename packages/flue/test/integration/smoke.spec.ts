@@ -121,7 +121,7 @@ describe("a managed key at mcpx", () => {
 		const { id: confirmationId } = requested["confirmation"] as { id: string };
 
 		const query = new URLSearchParams({
-			key: String(keyId),
+			principal: String(keyId),
 			confirmation: confirmationId,
 		});
 		const listed = await send(
@@ -140,7 +140,11 @@ describe("a managed key at mcpx", () => {
 		const decided = await send(booted, "/api/mcpx/confirmations", {
 			method: "POST",
 			token: seeded.first.token,
-			body: { key: keyId, handles: [handle], decision: "approved" },
+			body: {
+				principal: String(keyId),
+				handles: [handle],
+				decision: "approved",
+			},
 		});
 
 		expect(await decided.json()).toEqual({ decided: [handle] });

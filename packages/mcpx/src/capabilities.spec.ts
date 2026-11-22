@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveCapabilities, scopeSlugs } from "./capabilities.js";
+import {
+	narrowToPermissions,
+	resolveCapabilities,
+	scopeSlugs,
+	storedCapabilities,
+} from "./capabilities.js";
 import { entity } from "../test/builders/scope.js";
 
 import type { NormalizedOptions } from "./options.js";
@@ -222,5 +227,105 @@ describe("resolveCapabilities", () => {
 		});
 
 		expect(resolved.collections).not.toHaveProperty("users");
+	});
+});
+
+describe("storedCapabilities", () => {
+	const withDelete = {
+		collections: [
+			entity("pages", { delete: true, deleteUnattended: true }),
+			entity("my-tags", { fieldName: "myTags" }),
+		],
+		globals: [entity("banner")],
+		tools: [{ name: "echo" }],
+	} as unknown as NormalizedOptions;
+
+	it("turns slug-keyed grants into the capabilities they resolve to", () => {
+		const resolved = resolveCapabilities(
+			withDelete,
+			storedCapabilities(withDelete, {
+				collections: {
+					pages: { read: true, delete: true },
+					"my-tags": { read: true, write: true },
+				},
+				globals: { banner: { read: true } },
+				tools: { echo: true },
+			}),
+		);
+
+		expect(resolved.collections["pages"]).toEqual({
+			read: true,
+			write: false,
+			publish: false,
+			delete: true,
+			deleteUnattended: false,
+		});
+		expect(resolved.collections["my-tags"]?.write).toBe(true);
+		expect(resolved.globals["banner"]?.read).toBe(true);
+		expect(resolved.tools).toEqual({ echo: true });
+	});
+
+	it("never grants an unattended delete", () => {
+		// A variable, so the extra property passes the type as it would from JS.
+		const pages = { read: true, delete: true, deleteUnattended: true };
+		const resolved = resolveCapabilities(
+			withDelete,
+			storedCapabilities(withDelete, { collections: { pages } }),
+		);
+
+		expect(resolved.collections["pages"]?.deleteUnattended).toBe(false);
+	});
+});
+
+describe("narrowToPermissions", () => {
+	const all = {
+		read: true,
+		write: true,
+		publish: true,
+		delete: true,
+		deleteUnattended: true,
+	};
+	const capabilities = {
+		collections: { pages: all, posts: all, notes: all },
+		globals: { banner: { ...all, delete: false, deleteUnattended: false } },
+		tools: { echo: true },
+	};
+
+	it("keeps what Payload allows, with or without a query constraint", () => {
+		const narrowed = narrowToPermissions(capabilities, {
+			collections: {
+				pages: { fields: {}, read: true, update: true, delete: true },
+				posts: {
+					fields: {},
+					read: true,
+					update: { permission: true, where: {} },
+					delete: true,
+				},
+			},
+			globals: { banner: { fields: {}, read: true, update: true } },
+		});
+
+		expect(narrowed.collections["pages"]).toEqual(all);
+		expect(narrowed.collections["posts"]).toEqual(all);
+		expect(narrowed.globals["banner"]?.write).toBe(true);
+		expect(narrowed.tools).toEqual({ echo: true });
+	});
+
+	it("drops a capability whose operation is denied, and what depends on it", () => {
+		const narrowed = narrowToPermissions(capabilities, {
+			collections: {
+				pages: { fields: {}, read: true, delete: true },
+				posts: { fields: {}, update: true, delete: true },
+			},
+		});
+
+		expect(narrowed.collections["pages"]).toEqual({
+			...all,
+			write: false,
+			publish: false,
+		});
+		expect(Object.values(narrowed.collections["posts"]!)).not.toContain(true);
+		expect(Object.values(narrowed.collections["notes"]!)).not.toContain(true);
+		expect(narrowed.globals["banner"]?.read).toBe(false);
 	});
 });

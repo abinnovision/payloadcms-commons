@@ -8,7 +8,7 @@ import {
 import { relationId } from "../auth/resolve.js";
 import { isPlainObject } from "../guards.js";
 import {
-	CONFIRMATIONS_PER_KEY,
+	CONFIRMATIONS_PER_PRINCIPAL,
 	decideConfirmations,
 	issueConfirmation,
 	listConfirmations,
@@ -16,6 +16,7 @@ import {
 import { leaseContext, leaseHandle, leaseKvSlug } from "../leases/lease.js";
 import { publicOrigin } from "../request.js";
 import { jsonResult } from "../result.js";
+import { isStrategyPrincipal, strategyAuthOf } from "../strategy.js";
 import { BUILTIN_TOOLS } from "../tools/builtin.js";
 
 import type {
@@ -23,6 +24,7 @@ import type {
 	ConfirmationView,
 } from "../api-keys/confirmation-view.js";
 import type { DocumentId } from "../entity.js";
+import type { LeaseOwner } from "../leases/lease.js";
 import type { NormalizedOptions } from "../options.js";
 import type { McpxAnyTool, McpxConfirmation, McpxToolScope } from "../types.js";
 import type { Endpoint, PayloadHandler, PayloadRequest } from "payload";
@@ -45,8 +47,9 @@ const keyViewUrl = (
 
 /**
  * The `confirmation` a confirmable tool's handler gets on an MCP call. Its
- * `request` stores the call for the key's user to approve and answers with
- * the confirmation the client passes to `runConfirmed`.
+ * `request` stores the call for the acting user to approve and answers with
+ * the confirmation the client passes to `runConfirmed`. Only a key's
+ * confirmation carries the `url` of the key's edit view.
  */
 export const confirmationFor = (
 	tool: string,
@@ -56,12 +59,15 @@ export const confirmationFor = (
 	confirmed: false,
 	request: async (args) => {
 		const { req } = scope;
-		const { slug, apiKeyId } = leaseContext(req);
+		const { slug, ...owner } = leaseContext(req);
 
 		// Before the entry, so a URL that fails to build leaves none behind.
-		const view = keyViewUrl(req, options, apiKeyId);
+		const view =
+			owner.apiKeyId === undefined
+				? undefined
+				: keyViewUrl(req, options, owner.apiKeyId);
 		const { id, exp } = await issueConfirmation(req.payload, slug, {
-			apiKeyId,
+			...owner,
 			tool,
 			args,
 			locale: req.locale ?? null,
@@ -71,24 +77,29 @@ export const confirmationFor = (
 		return jsonResult({
 			confirmation: {
 				id,
-				url: `${view}?confirmation=${encodeURIComponent(id)}`,
+				principal: owner.principal,
 				expiresAt: new Date(exp).toISOString(),
+				...(view === undefined
+					? {}
+					: { url: `${view}?confirmation=${encodeURIComponent(id)}` }),
 			},
 		});
 	},
 });
 
 /*
- * The KV slug and key id when the session user is the user of the key named
- * by `keyId`, else the refusal to send. The key is read with full access, so
- * a looser `read` rule on the key collection does not let another user
- * decide.
+ * The KV slug and owner when the session user may decide on the calls of
+ * `principal`, else the refusal to send. Only the calls this user requested
+ * are listed and decided. A request that carries MCP capabilities from a
+ * Payload auth strategy is refused, so an agent cannot approve its own calls.
+ * For a key, the key is read with full access, so a looser `read` rule on the
+ * key collection does not let another user decide.
  */
 const authorize = async (
 	req: PayloadRequest,
 	options: NormalizedOptions,
-	keyId: unknown,
-): Promise<Response | { slug: string; apiKeyId: DocumentId }> => {
+	principal: unknown,
+): Promise<Response | (LeaseOwner & { slug: string })> => {
 	const slug = leaseKvSlug(req.payload.config);
 
 	if (slug === undefined) {
@@ -96,15 +107,27 @@ const authorize = async (
 	}
 
 	if (req.user?.collection !== options.userCollection) {
-		return respond(401, { error: "Sign in as the user of this key." });
+		return respond(401, { error: "Sign in as the user of this client." });
+	}
+
+	if (strategyAuthOf(req.user) !== undefined) {
+		return respond(403, {
+			error: "A request that carries MCP capabilities cannot decide on calls.",
+		});
+	}
+
+	const user = { collection: req.user.collection, id: req.user.id };
+
+	if (isStrategyPrincipal(principal)) {
+		return { slug, principal, user };
 	}
 
 	const key =
-		typeof keyId === "string" || typeof keyId === "number"
+		typeof principal === "string" && principal !== ""
 			? ((await req.payload
 					.findByID({
 						collection: options.apiKeysSlug,
-						id: keyId,
+						id: principal,
 						depth: 0,
 						overrideAccess: true,
 						disableErrors: true,
@@ -112,15 +135,15 @@ const authorize = async (
 					})
 					.catch(() => null)) as null | { id: DocumentId; user?: unknown })
 			: null;
-	const user = relationId(key?.user);
+	const owner = relationId(key?.user);
 
-	if (!key || user === undefined || String(user) !== String(req.user.id)) {
+	if (!key || owner === undefined || String(owner) !== String(req.user.id)) {
 		return respond(403, {
 			error: "Only the user of this key may decide on its calls.",
 		});
 	}
 
-	return { slug, apiKeyId: key.id };
+	return { slug, principal: String(key.id), apiKeyId: key.id, user };
 };
 
 /*
@@ -154,13 +177,17 @@ const viewOf = async (
 };
 
 /**
- * Lists the pending calls of `?key=`, for its user's admin session. A
- * `?confirmation=` id marks its call as highlighted.
+ * Lists the pending calls of `?principal=` that the session user requested.
+ * A `?confirmation=` id marks its call as highlighted.
  */
 const listHandler =
 	(options: NormalizedOptions): PayloadHandler =>
 	async (req) => {
-		const allowed = await authorize(req, options, req.searchParams.get("key"));
+		const allowed = await authorize(
+			req,
+			options,
+			req.searchParams.get("principal"),
+		);
 
 		if (allowed instanceof Response) {
 			return allowed;
@@ -171,7 +198,12 @@ const listHandler =
 		const highlight =
 			highlighted === null ? undefined : leaseHandle(payload, highlighted);
 		const entries = (
-			await listConfirmations(payload, allowed.slug, allowed.apiKeyId)
+			await listConfirmations(
+				payload,
+				allowed.slug,
+				allowed.principal,
+				allowed.user,
+			)
 		).filter((entry) => entry.confirmation.state === "pending");
 		const confirmations: ConfirmationView[] = [];
 
@@ -185,18 +217,28 @@ const listHandler =
 	};
 
 /**
- * Approves or rejects pending calls of a key, for its user's admin session.
- * The body is `{ key, handles, decision }`. Answers with the handles it
- * changed; a call already decided, run or expired is left out.
+ * Approves or rejects pending calls of a principal that the session user
+ * requested. The body is JSON, `{ principal, handles, decision }`. Answers with the
+ * handles it changed; a call already decided, run, expired or requested by
+ * another user is left out.
  */
 const decideHandler =
 	(options: NormalizedOptions): PayloadHandler =>
 	async (req) => {
+		// A cross-origin form cannot send this type without a CORS preflight.
+		const type = req.headers.get("content-type")?.split(";")[0]?.trim();
+
+		if (type?.toLowerCase() !== "application/json") {
+			return respond(415, {
+				error: "The request must have the content type application/json.",
+			});
+		}
+
 		const body: unknown = await req.json?.().catch(() => undefined);
 		const allowed = await authorize(
 			req,
 			options,
-			isPlainObject(body) ? body["key"] : undefined,
+			isPlainObject(body) ? body["principal"] : undefined,
 		);
 
 		if (allowed instanceof Response) {
@@ -210,19 +252,19 @@ const decideHandler =
 
 		if (
 			!Array.isArray(handles) ||
-			handles.length > CONFIRMATIONS_PER_KEY ||
+			handles.length > CONFIRMATIONS_PER_PRINCIPAL ||
 			!handles.every((handle) => typeof handle === "string") ||
 			!isDecision(decision)
 		) {
 			return respond(400, {
-				error: `Send "handles", at most ${String(CONFIRMATIONS_PER_KEY)}, and a "decision" of "approved" or "rejected".`,
+				error: `Send "handles", at most ${String(CONFIRMATIONS_PER_PRINCIPAL)}, and a "decision" of "approved" or "rejected".`,
 			});
 		}
 
 		const decided = await decideConfirmations(
 			req.payload,
 			allowed.slug,
-			allowed.apiKeyId,
+			allowed,
 			handles,
 			decision,
 		);
@@ -231,7 +273,8 @@ const decideHandler =
 	};
 
 /**
- * The endpoints the API key's edit view reads and decides through.
+ * The endpoints the API key's edit view, and any other UI, read and decide
+ * through.
  */
 export const confirmationEndpoints = (
 	options: NormalizedOptions,

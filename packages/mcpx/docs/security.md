@@ -5,16 +5,54 @@ limitation at the end names a workaround.
 
 ## Authentication
 
-Only an API key authenticates. The handler reads `Authorization: Bearer <key>` and looks the key
-up by its HMAC index. Cookies, admin sessions and JWTs are ignored: any user Payload resolved from
-them before the handler ran is replaced by the key's user, and a request without a valid key gets
-HTTP 401.
+Two sources authenticate, tried in this order:
 
-The default lookup refuses a key that is unknown, disabled or expired, and a key whose user was deleted,
-is unverified (`_verified: false`) or is locked out (`lockUntil` in the future).
+1. **A Payload auth strategy that attached MCP auth.** Payload runs the user collection's
+   `auth.strategies` before any endpoint handler. A strategy that returns its user through
+   `withMcpxAuth(user, { principal, capabilities })` hands that user and those capabilities to
+   the endpoint. See
+   [Capabilities from a Payload auth
+   strategy](./integration.md#capabilities-from-a-payload-auth-strategy).
+2. **An API key.** The handler reads `Authorization: Bearer <key>` and looks the key up by its
+   HMAC index.
+
+The MCP endpoint and the upload and download endpoints run Payload's auth strategies again
+themselves, with `admin.autoLogin` disabled, and replace the user Payload resolved before the
+handler ran. A request without credentials therefore never acts as the autologin user, and a
+custom `auth.resolve` sees `req.user` as that second run resolved it. Until Payload lets an
+endpoint skip its own auth pass, the strategies run twice on these endpoints. The confirmations
+endpoint keeps Payload's own auth, since it serves the admin session, autologin included.
+
+Cookies, admin sessions and JWTs alone get nothing: a user resolved from them carries no attached
+auth, so the handler falls through to the key lookup and answers HTTP 401 without a valid key.
+Any user resolved before the key lookup is replaced by the key's user.
+
+The attached auth is a property keyed by `Symbol.for("@abinnovision/payloadcms-mcpx/auth")`. A
+database row or a JSON body cannot carry a symbol key, so stored data and request bodies cannot
+forge it; only server code such as a strategy can set it. A strategy that sets `req.user` already
+acts as that user everywhere in Payload, and the plugin config caps the capabilities it attaches,
+so the plugin accepts it from any strategy. A strategy cannot grant `deleteUnattended`: every
+delete it asks for waits for approval. Malformed attached auth (a user outside the user
+collection, a principal not matching `^[a-z][a-z0-9-]*:[A-Za-z0-9_-]+$`, or capabilities that are
+not an object) is logged once and treated as absent: the handler goes on to the key lookup, which
+answers 401 unless the request also carries a valid key.
+
+The key is looked up by its HMAC index under every secret of Payload's keyring, the active secret
+and `previousSecrets` on Payload 4, the same way Payload's own API key strategy does, so keys keep
+working after a secret rotation. A key's index is written under the active secret, and saving the
+key again re-indexes it. The stored key itself is encrypted with `payload.encrypt`, which Payload 4
+decrypts under any keyring secret. Confirmation and grant ids are hashed under the active secret
+only: they live at most 15 minutes, so those issued just before a rotation are refused after it
+and the client asks again.
+
+The default key lookup refuses a key that is unknown, disabled or expired, and a key whose user was
+deleted,
+is unverified (`_verified: false`) or is locked out (`lockUntil` in the future). A strategy makes
+the same checks itself, as part of deciding who the request is.
 
 The key collection is not an auth collection, so a key never authenticates Payload's REST or
-GraphQL API.
+GraphQL API. A request whose user carries attached MCP auth cannot create, read, update or delete
+keys, so a strategy's credential cannot turn into a long-lived key.
 
 ## Capabilities
 
@@ -22,6 +60,14 @@ The plugin config sets the upper bound and the key's checkboxes grant operations
 described under [Capabilities](../README.md#capabilities) in the README. A checkbox that is
 missing or unticked counts as no. Auth collections cannot be exposed at all, since their documents
 carry credentials.
+
+The user's Payload access narrows the result once per request, through `getAccessResults`: a
+capability is dropped where the user's access denies its operation on the entity (`read` for read,
+`update` for write and publish, `delete` for delete), and what depends on it goes with it. Access
+that answers with a query counts as allowed, because the tools run with `overrideAccess: false`
+and the query applies then. This applies to keys and strategies alike, so `tools/list` and
+`listCapabilities` only offer what the user could do. A user who may create but not update loses
+`write` on that collection.
 
 `true` exposes everything the entity supports, so read the config as a ceiling: it names what a
 key may be granted, and a key starts with every checkbox off. A new key can only call
@@ -214,8 +260,11 @@ its body, claims the grant and runs the same call again with the bytes attached.
 is the result of that call, with HTTP 200 on success, 409 for a stale or locked document, 403 for
 a refused grant and 422 for other problems.
 
-The grant id in `x-mcpx-grant` is a bearer. Whoever holds it can complete that one call, as that
-key, for 5 minutes, and only once. Keep it out of shared transcripts. The plugin never logs it,
+The grant id in `x-mcpx-grant` is a bearer for a key's grant. Whoever holds it can complete that
+one call, as that key, for 5 minutes, and only once. A grant issued through a Payload auth
+strategy also needs the strategy's credential: the PUT or GET must authenticate through the
+strategy as the same principal and user, or it is refused and the grant stays claimable. Keep it out
+of shared transcripts. The plugin never logs it,
 but APM tools may record custom headers. Do not add `x-mcpx-grant` to `cors.headers`, so a page
 on another origin cannot send it.
 
@@ -225,22 +274,26 @@ on another origin cannot send it.
   runs. A failed PUT uses the grant up, and the client calls the tool again.
 - The PUT reloads the key and refuses it when it was disabled, expired or unticked since, or its
   user is locked out or unverified. It always acts as the key's user, whatever cookie the request
-  carries. `?locale` and `?uploadEdits` on the URL are ignored, so the locale is the one of the
+  carries. For a strategy's grant it acts as the user the strategy resolved on the PUT, with the
+  capabilities attached then. `?locale` and `?uploadEdits` on the URL are ignored, so the locale is
+  the one of the
   tool call.
 - The body must have exactly the size the call declared. The request's `Content-Type` is ignored:
   the file carries the declared `mimeType`, which must match `upload.mimeTypes`.
 - A patch is pinned to the `updatedAt` it was checked against. A change in between refuses the
   PUT as stale.
-- A key may have 10 grants waiting at a time.
+- A key or strategy principal may have 10 grants waiting at a time.
 
 A `getDocument` call with `download: true` stores a grant of the same kind for the document it
-read, with the same lifetime, single use and per-key limit. The GET to
-`{routes.api}{endpoint.path}/file` claims it, reloads the key as the PUT does, checks that the key
-still reads the collection and reloads the document as the key's user. It then hands the request
-to the collection's own `/file/:filename` endpoint, so Payload's `access.read`, storage handlers
-and `upload.modifyResponseHeaders` apply as for any request of that user. A document the user can
-no longer read is refused with 403. A grant sent to the other endpoint, a download grant to the
-PUT or an upload grant to the GET, is used up and refused. A storage adapter with
+read, with the same lifetime, single use and per-principal limit. The GET to
+`{routes.api}{endpoint.path}/file` claims it. A key's grant reloads the key as the PUT does; a
+strategy's grant needs the same principal's strategy auth on the GET, else it is refused with 403
+and stays claimable. The GET then checks that the client still reads the collection and reloads
+the document as its user. It hands the request to the collection's own `/file/:filename`
+endpoint, so Payload's `access.read`, storage handlers and `upload.modifyResponseHeaders` apply as
+for any request of that user. A document the user can no longer read is refused with 403. A grant
+sent to the other endpoint, a download grant to the PUT or an upload grant to the GET, is refused
+with 403 and stays claimable at its own endpoint. A storage adapter with
 `disablePayloadAccessControl` serves its files itself, so this endpoint and Payload's file access
 do not apply to them.
 
@@ -275,15 +328,25 @@ that is still in use:
 
 ## Confirmations
 
-`deleteDocument` writes nothing. It runs every check the delete runs: the key's `read` and `delete`
-capabilities, a read of the document as the key's user, `access.delete` (and `access.update` for a
-trash move), the trash state and `expectedUpdatedAt`. It then stores the call in Payload's KV with
-the `updatedAt` it read, and returns a confirmation `id` and the URL of the key's edit view.
+`deleteDocument` writes nothing. It runs every check the delete runs: the `read` and `delete`
+capabilities, a read of the document as the acting user, `access.delete` (and `access.update` for
+a trash move), the trash state and `expectedUpdatedAt`. It then stores the call in Payload's KV
+with the `updatedAt` it read and the acting user, and returns a confirmation with its `id` and
+`principal`. A key's confirmation also carries the `url` of the key's edit view.
 
-- The call is bound to the key that requested it. Only that key's `runConfirmed` finds it, and
-  only the key's own user, in an admin session, can approve or reject it. The key is read with
-  full access for that check, so a looser `read` rule on the key collection does not let another
-  user decide. The id is therefore not a bearer, but the plugin never logs it.
+- The call is bound to its principal: the key id for a key, or the principal a strategy attached.
+  Only that principal's `runConfirmed`, acting as the user who requested the call, finds it, so an
+  approval survives a strategy rotating its credential as long as the principal and the user stay
+  the same.
+- Only the user who requested the call can approve or reject it, through the confirmations
+  endpoint in a session without attached MCP auth. The decision must be sent as
+  `application/json`, which a cross-origin form cannot send without a CORS preflight; any other
+  type gets 415. A request that carries attached auth is refused with 403, so an agent holding a
+  strategy's credential cannot approve its own calls. For
+  a key principal, the endpoint also checks that the session user owns the key, read with full
+  access, so a looser `read` rule on the key collection does not let another user decide. Calls
+  requested by another user are neither listed nor decided. The id is therefore not a bearer, but
+  the plugin never logs it.
 - `delete: "unattended"` and a key whose Delete control is set to Trash skip the approval for
   one collection: the call runs the same checks and moves the document to trash at once. It is
   refused at startup on a collection without `trash`, so a permanent delete always needs
@@ -295,15 +358,16 @@ the `updatedAt` it read, and returns a confirmation `id` and the URL of the key'
   `overrideAccess: false` and the MCP marker, in its own transaction. The key's current
   capabilities apply: a call the key no longer allows, a document changed since the request or
   access lost since is skipped and reported with the reason.
-- A call expires 15 minutes after it was requested, approved or not. A key may have 50 calls
-  stored at a time, apart from its 10 upload grants.
+- A call expires 15 minutes after it was requested, approved or not. A principal may have 50
+  calls stored at a time, apart from its 10 upload grants.
 - The KV holds the HMAC of the id under the Payload secret. The admin panel addresses a call by
   that HMAC.
 - On a collection with `trash: true` the delete moves the document to trash. A document already
   in trash is refused, so the plugin never empties trash. Without trash the document is deleted
   permanently with its file. Payload's `beforeDelete` and `afterDelete` hooks run as usual.
 - Confirmations need Payload's database KV adapter, and `delete` is refused at startup together
-  with `auth.resolve`, because approval lives on the key document.
+  with `auth.resolve`, because the confirmation and upload endpoints cannot replay a custom
+  resolver.
 - Set `serverURL` in production, so a confirmation URL is not built from the `Host` or forwarded
   headers of the MCP request.
 
@@ -316,10 +380,12 @@ held to the population bound; a read on the plain `req` populates relations into
 the user's access allows. A tool that defines `isEnabled` without checking its own checkbox is
 available to every key.
 
-A custom `auth.resolve` must not trust `req.user`. Payload sets it from cookies before the handler
-runs, and the handler only replaces it after `auth.resolve` returns. The handler refuses a result
-whose user has no `id` or whose `collection` is not the configured user collection, or that has no
-`apiKeyId`, with the same 401 as an unknown key, and logs one error line.
+A custom `auth.resolve` must not trust `req.user` unless it carries attached MCP auth. Payload sets
+it from cookies before the handler runs, and the handler only replaces it after `auth.resolve`
+returns. The handler refuses a result whose user has no `id` or whose `collection` is not the
+configured user collection, or that has neither an `apiKeyId` nor a well-formed `principal`, or
+both, with the same 401 as an unknown key, and logs one error line. With a custom resolver, uploads
+and deletes stay unavailable for every source.
 
 ## Known limitations
 
@@ -330,7 +396,8 @@ whose user has no `id` or whose `collection` is not the configured user collecti
 - Rich text is not walked, so fields of block nodes and documents populated in nodes keep their
   `admin.hidden` fields. Set `hidden` or field-level `read` access on values that must not reach
   clients.
-- Where an entity keeps Payload `versions`, old versions are governed by the collection's `access.readVersions`, not
+- Where an entity keeps Payload `versions`, old versions are governed by the collection's
+  `access.readVersions`, not
   by its `read` rule. Payload 3 lets any logged-in user through by default. Payload 4 inherits the
   collection's `read` access. See
   [Version history](#version-history) for a `readVersions` filter.

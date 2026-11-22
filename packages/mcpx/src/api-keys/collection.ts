@@ -6,6 +6,7 @@ import {
 	withKeyTabs,
 } from "./fields.js";
 import { generateApiKey, hashApiKey } from "./key.js";
+import { strategyAuthOf } from "../strategy.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type {
@@ -52,8 +53,16 @@ export const createApiKeysCollection = (
 ): CollectionConfig => {
 	const { userCollection } = options;
 
+	/*
+	 * A request that carries MCP capabilities from a Payload auth strategy
+	 * cannot touch keys, so it cannot turn itself into a long-lived key.
+	 */
 	const isUser = ({ req }: { req: PayloadRequest }): boolean =>
-		Boolean(req.user && req.user.collection === userCollection);
+		Boolean(
+			req.user &&
+			req.user.collection === userCollection &&
+			strategyAuthOf(req.user) === undefined,
+		);
 
 	const ownKeysOnly: Access = ({ req }) =>
 		isUser({ req }) && req.user ? { user: { equals: req.user.id } } : false;

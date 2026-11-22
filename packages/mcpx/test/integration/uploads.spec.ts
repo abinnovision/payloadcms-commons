@@ -996,7 +996,7 @@ describe("uploads through MCP", () => {
 			expect(response.status).toBe(403);
 		});
 
-		it("refuses a download grant at the upload endpoint", async () => {
+		it("refuses a download grant at the upload endpoint and keeps it claimable", async () => {
 			const { id } = await createMedia(booted.payload, "Crossed back");
 			const download = await issueDownload("media", id);
 			const before = await snapshot();
@@ -1012,6 +1012,7 @@ describe("uploads through MCP", () => {
 
 			expect(response.status).toBe(403);
 			expect(await snapshot()).toEqual(before);
+			expect((await fetchFile(download)).status).toBe(200);
 		});
 
 		it("refuses a grant used before", async () => {

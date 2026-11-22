@@ -2,15 +2,14 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 import { relationId } from "./auth/resolve.js";
-import { resolveCapabilities } from "./capabilities.js";
+import { resolveCapabilities, storedCapabilities } from "./capabilities.js";
 import { actAs } from "./endpoint/handler.js";
 import { createMcpServer } from "./endpoint/server.js";
-import { ownValue } from "./guards.js";
 import { optionsOf } from "./plugin.js";
 import { createLocalRequest } from "./request.js";
 import { MCPX_VERSION } from "./version.js";
 
-import type { McpxExposedEntity, McpxUser } from "./types.js";
+import type { McpxCapabilityGrant, McpxUser } from "./types.js";
 import type { Payload } from "payload";
 
 /**
@@ -32,24 +31,15 @@ export interface McpxLocalCapabilities {
 	tools?: Record<string, boolean>;
 }
 
-// The slug-keyed grants in the shape of a key's stored capability group.
-const storedGroup = (
-	entities: McpxExposedEntity[],
+// Turns off any `delete` a caller passes despite the type.
+const withoutDelete = (
 	granted: Record<string, McpxLocalEntityCapabilities> | undefined,
-): Record<string, unknown> =>
+): Record<string, McpxCapabilityGrant> =>
 	Object.fromEntries(
-		entities.map((entity) => {
-			const operations = ownValue(granted, entity.slug);
-
-			return [
-				entity.fieldName,
-				{
-					read: operations?.read,
-					write: operations?.write,
-					publish: operations?.publish,
-				},
-			];
-		}),
+		Object.entries(granted ?? {}).map(([slug, operations]) => [
+			slug,
+			{ ...operations, delete: false },
+		]),
 	);
 
 /**
@@ -78,11 +68,14 @@ export const createMcpxClient = async (
 
 	const req = await createLocalRequest(payload, user);
 	const scope = actAs(req, options, user, {
-		capabilities: resolveCapabilities(options, {
-			collections: storedGroup(options.collections, capabilities.collections),
-			globals: storedGroup(options.globals, capabilities.globals),
-			tools: capabilities.tools,
-		}),
+		capabilities: resolveCapabilities(
+			options,
+			storedCapabilities(options, {
+				...capabilities,
+				collections: withoutDelete(capabilities.collections),
+				globals: withoutDelete(capabilities.globals),
+			}),
+		),
 	});
 	const server = createMcpServer({ ...scope, uploads: false }, options);
 	const client = new Client({ name: "mcpx-local", version: MCPX_VERSION });

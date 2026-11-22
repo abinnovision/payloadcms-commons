@@ -1,3 +1,6 @@
+import { withMcpxAuth } from "../../src/index.js";
+
+import type { McpxCapabilities } from "../../src/index.js";
 import type { Access, CollectionConfig, FieldAccess } from "payload";
 
 /*
@@ -31,6 +34,57 @@ export const apiKeyUsers: CollectionConfig = {
 	auth: { useAPIKey: true },
 	fields: [],
 };
+
+const STRATEGY_BEARER = /^Bearer (test|shared)-(\d+)$/;
+
+/**
+ * Users with a Payload auth strategy: `Authorization: Bearer test-<userId>`
+ * authenticates as that user, attaching `capabilities` and the principal
+ * `test:<userId>`. `Bearer shared-<userId>` attaches the principal
+ * `test:shared`, which every user shares. Password login stays available.
+ */
+export const strategyUsers = (
+	capabilities: McpxCapabilities,
+): CollectionConfig => ({
+	slug: "users",
+	auth: {
+		strategies: [
+			{
+				name: "test",
+				authenticate: async ({ headers, payload }) => {
+					const [, source, id] =
+						STRATEGY_BEARER.exec(headers.get("authorization") ?? "") ?? [];
+					const user =
+						id === undefined
+							? null
+							: await payload.findByID({
+									collection: "users",
+									id: Number(id),
+									depth: 0,
+									overrideAccess: true,
+									disableErrors: true,
+								});
+
+					return {
+						user: user
+							? withMcpxAuth(
+									{ ...user, collection: "users", _strategy: "test" },
+									{
+										principal:
+											source === "shared"
+												? "test:shared"
+												: `test:${String(user.id)}`,
+										capabilities,
+									},
+								)
+							: null,
+					};
+				},
+			},
+		],
+	},
+	fields: [],
+});
 
 const ownDocsOnly: Access = ({ req }) =>
 	req.user ? { owner: { equals: req.user.id } } : false;

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createMcpClient } from "./helpers/mcp.js";
 import { bootPayload, seedKeysFor } from "./helpers/payload.js";
+import { strategyUsers } from "../fixtures/security.js";
 
 import type { Booted, KeyCapabilities } from "./helpers/payload.js";
 
@@ -127,10 +128,13 @@ const descriptionsIn = (schema: unknown): string[] => {
 describe("tools/list and initialize", () => {
 	let booted: Booted;
 	let keys: Record<string, string>;
+	let userId: number | string;
 
 	beforeAll(async () => {
 		booted = await bootPayload({
 			key: CACHE_KEY,
+			// A strategy granting what the deletes key grants.
+			users: strategyUsers(KEYS["deletes"]!),
 			plugin: {
 				collections: {
 					pages: { delete: true },
@@ -148,7 +152,7 @@ describe("tools/list and initialize", () => {
 			},
 		});
 
-		({ keys } = await seedKeysFor(booted.payload, KEYS));
+		({ keys, userId } = await seedKeysFor(booted.payload, KEYS));
 	});
 
 	afterAll(async () => {
@@ -160,6 +164,17 @@ describe("tools/list and initialize", () => {
 
 		await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(
 			`${SNAPSHOTS}.${label}.tools.snap`,
+		);
+	});
+
+	it("lists the tools a strategy granting deletes sees", async () => {
+		const tools = await createMcpClient(
+			booted,
+			`test-${String(userId)}`,
+		).list();
+
+		await expect(`${JSON.stringify(tools, null, 2)}\n`).toMatchFileSnapshot(
+			`${SNAPSHOTS}.deletes-strategy.tools.snap`,
 		);
 	});
 

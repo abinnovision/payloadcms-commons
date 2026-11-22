@@ -8,15 +8,15 @@ import {
 	toolInputSchema,
 } from "../define-tool.js";
 import {
-	CONFIRMATIONS_PER_KEY,
+	CONFIRMATIONS_PER_PRINCIPAL,
 	claimConfirmation,
 	readConfirmation,
 } from "../leases/confirmation.js";
-import { leaseContext } from "../leases/lease.js";
+import { issuedTo, leaseContext } from "../leases/lease.js";
 import { jsonResult, parseResult } from "../result.js";
 
-import type { DocumentId } from "../entity.js";
 import type { Confirmation } from "../leases/confirmation.js";
+import type { LeaseOwner } from "../leases/lease.js";
 import type {
 	McpxAnyTool,
 	McpxConfirmation,
@@ -25,9 +25,9 @@ import type {
 } from "../types.js";
 import type { PayloadRequest } from "payload";
 
-const DESCRIPTION = `Runs calls that returned a "confirmation", once the user approved them in the admin panel. Returns one result per id, in the order given: "done" with the call's "result", "pending" while it awaits a decision, "skipped" with a "reason" when it no longer passes its checks, or "refused" when it was rejected, expired, already run or is unknown. A pending id stays usable; no other id can run again.`;
+const DESCRIPTION = `Runs calls that returned a "confirmation", once the user approved them. Returns one result per id, in the order given: "done" with the call's "result", "pending" while it awaits a decision, "skipped" with a "reason" when it no longer passes its checks, or "refused" when it was rejected, expired, already run or is unknown. A pending id stays usable; no other id can run again.`;
 
-const NO_LONGER_ALLOWED = "This key no longer allows this call.";
+const NO_LONGER_ALLOWED = "This client no longer allows this call.";
 
 // A confirmed run executes the stored call and never stores a new one.
 const CONFIRMED: McpxConfirmation = {
@@ -96,26 +96,30 @@ const execute = async (
 
 /*
  * The approved call of `id`, claimed, or the outcome to report instead. A
- * storage failure is reported on this entry alone, so the results of the
- * entries before it still reach the client.
+ * call issued to another user than the acting one is refused, even under the
+ * same principal. A storage failure is reported on this entry alone, so the
+ * results of the entries before it still reach the client.
  */
 const claimApproved = async (
 	req: PayloadRequest,
 	slug: string,
-	apiKeyId: DocumentId,
+	owner: Pick<LeaseOwner, "principal" | "user">,
 	id: string,
 ): Promise<Confirmation | Result> => {
 	const { payload } = req;
+	const { principal } = owner;
 
 	try {
-		const confirmation = await readConfirmation(payload, slug, apiKeyId, id);
+		const found = await readConfirmation(payload, slug, principal, id);
+		const confirmation =
+			found && issuedTo(found, owner.user) ? found : undefined;
 
 		if (confirmation?.state === "pending") {
 			return { status: "pending" };
 		}
 
 		return confirmation?.state === "approved" &&
-			(await claimConfirmation(payload, slug, apiKeyId, id, confirmation.exp))
+			(await claimConfirmation(payload, slug, principal, id, confirmation.exp))
 			? confirmation
 			: { status: "refused" };
 	} catch (error) {
@@ -146,12 +150,12 @@ export const createRunConfirmed = (tools: () => McpxAnyTool[]): McpxAnyTool =>
 			ids: z
 				.array(z.string().max(64))
 				.min(1)
-				.max(CONFIRMATIONS_PER_KEY)
+				.max(CONFIRMATIONS_PER_PRINCIPAL)
 				.describe('"id" of each "confirmation".'),
 		},
 		handler: async ({ args, scope, extra }) => {
 			const { req } = scope;
-			const { slug, apiKeyId } = leaseContext(req);
+			const { slug, principal, user } = leaseContext(req);
 
 			const outcomes: Outcome[] = [];
 
@@ -161,7 +165,12 @@ export const createRunConfirmed = (tools: () => McpxAnyTool[]): McpxAnyTool =>
 			 */
 			for (const id of args.ids) {
 				// eslint-disable-next-line no-await-in-loop
-				const confirmation = await claimApproved(req, slug, apiKeyId, id);
+				const confirmation = await claimApproved(
+					req,
+					slug,
+					{ principal, user },
+					id,
+				);
 
 				if (!("tool" in confirmation)) {
 					outcomes.push({ id, ...confirmation });

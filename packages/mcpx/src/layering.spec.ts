@@ -18,6 +18,7 @@ const LAYERS: Record<string, number> = {
 	"version.ts": 0,
 	"i18n.ts": 0,
 	"guards.ts": 0,
+	"strategy.ts": 0,
 	"entity.ts": 0,
 	"define-tool.ts": 0,
 	"capabilities.ts": 1,

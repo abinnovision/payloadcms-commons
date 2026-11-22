@@ -32,6 +32,8 @@ collections and globals the key may read or write, whether a collection can also
 (`create`, which is `false` for an upload collection whose files MCP does not accept), draft and
 version settings, the id type, the configured locales, the limits in force and the custom tools
 the key may call. Collection and global descriptions from `admin.description` are included.
+What it reports, and what `tools/list` offers, is already narrowed to the user's Payload access;
+see [security.md](./security.md#capabilities).
 
 Every input schema is strict. An unknown argument is refused by name.
 
@@ -283,9 +285,12 @@ blocker carries its `locale`. Because the hooks run, it carries no `readOnlyHint
 
 `delete` is off by default and exists on collections only. Where a collection sets
 `delete: true` and the key has the `read` and `delete` checkboxes, `deleteDocument` asks to delete one
-document. It runs every check, deletes nothing and returns a `confirmation` with an `id`, a `url`
-and `expiresAt`. The `url` opens the key's own edit view in the admin panel, where the key's user
-approves or rejects the waiting calls, one by one or all at once. Approving runs nothing: the
+document. It runs every check, deletes nothing and returns a `confirmation` with an `id`, a
+`principal`, a `url` and `expiresAt`. The `url` opens the key's own edit view in the admin panel,
+where the key's user approves or rejects the waiting calls, one by one or all at once. A client
+authenticated through a [Payload auth strategy](./integration.md#capabilities-from-a-payload-auth-strategy)
+gets no `url`: its user decides wherever the app offers the
+[confirmations endpoint](./integration.md#waiting-calls). Approving runs nothing: the
 client then passes the ids to `runConfirmed`, which answers each id in the order given with
 `done` and the call's result, `pending`, `skipped` and a `reason`, or `refused`. A batch cleanup
 is one `deleteDocument` call per document and one `runConfirmed` call for all of them.

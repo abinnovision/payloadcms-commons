@@ -12,7 +12,7 @@ describe("claimGrant", () => {
 		"refuses the malformed id %j without a database read",
 		async (grantId) => {
 			await expect(
-				claimGrant(payload, "payload-kv", grantId),
+				claimGrant(payload, "payload-kv", grantId, () => Promise.resolve(true)),
 			).resolves.toBeUndefined();
 		},
 	);

@@ -7,8 +7,8 @@ The plugin mounts the MCP endpoint at `endpoint.path` below Payload's API route,
 every request builds a fresh server, and no session is kept between requests. `GET` and `DELETE`
 on the same path answer 405.
 
-A request without a valid key gets HTTP 401 with JSON-RPC code `-32001` and a
-`WWW-Authenticate: Bearer` header. The size limits are listed in
+A request without a valid key or auth attached by a Payload auth strategy gets HTTP 401 with
+JSON-RPC code `-32001` and a `WWW-Authenticate: Bearer` header. The size limits are listed in
 [security.md](./security.md#limits).
 
 ## Diagnostics
@@ -114,8 +114,20 @@ and Reject, and the footer approves or rejects every listed call. The `url` of a
 opens this view with its row highlighted. Nothing is listed while no call waits, and a decision
 never touches the key's form, so the key is not marked modified.
 
-The list and the decisions go through `GET` and `POST` on `{routes.api}{endpoint.path}/confirmations`
-with the admin session. Only the key's own user may use them.
+The list and the decisions go through the confirmations endpoint with the admin session, so
+another UI can offer the same decisions:
+
+- `GET {routes.api}{endpoint.path}/confirmations?principal=<principal>&confirmation=<id>` lists
+  the pending calls of a principal as `{ confirmations: [{ handle, tool, group, highlighted,
+summary }] }`. `confirmation` is optional and marks the call with that id as highlighted.
+- `POST {routes.api}{endpoint.path}/confirmations` with `Content-Type: application/json` (else 415) and the body `{ principal, handles, decision }`, where `decision` is `"approved"` or `"rejected"` and
+  `handles` holds at most 50 handles from the list, answers `{ decided: [handle] }` with the
+  handles it changed.
+
+The principal is the key id as a string for a key, or the `principal` of a confirmation a
+strategy's client received. Only the user who requested a call sees and decides it, and a request
+whose user carries attached MCP auth gets 403. For a key principal, the session user must also own
+the key.
 
 ### Connect a client
 
@@ -165,10 +177,77 @@ Without the setup guide entry, the key form loses its "Connect a client" button.
 entry, it loses the capability editor, so no key can be granted anything from the admin panel. The
 endpoint is unaffected.
 
+## Capabilities from a Payload auth strategy
+
+A Payload auth strategy on the user collection can hand capabilities to the endpoint, for example
+to authenticate an agent with a short-lived token instead of an API key. The strategy returns its
+user through `withMcpxAuth`, with a principal and the capabilities it grants:
+
+```ts
+import { withMcpxAuth } from "@abinnovision/payloadcms-mcpx";
+
+const agentStrategy: AuthStrategy = {
+  name: "agent-token",
+  authenticate: async ({ headers, payload }) => {
+    const token = await findAgentToken(payload, headers.get("authorization"));
+
+    if (!token) {
+      return { user: null };
+    }
+
+    const user = await payload.findByID({
+      collection: "users",
+      id: token.userId,
+      depth: 0,
+    });
+
+    return {
+      user: withMcpxAuth(
+        { ...user, collection: "users", _strategy: "agent-token" },
+        {
+          principal: `agent:${token.sessionId}`,
+          capabilities: {
+            collections: { pages: { read: true, write: true, delete: true } },
+            tools: { myCustomTool: true },
+          },
+        },
+      ),
+    };
+  },
+};
+```
+
+Add it to the user collection's `auth.strategies`. Payload runs it before any endpoint, so the MCP
+endpoint finds the attached auth on `req.user` and acts as that user. On Payload 3 the strategy
+sets `_strategy` itself.
+
+- `capabilities` is keyed by collection slug, global slug and tool name, and takes `read`,
+  `write`, `publish` and `delete` per entity. The config caps it as it caps a key.
+  `deleteUnattended` cannot be granted, so every delete waits for approval.
+- `principal` binds confirmations and upload grants. It must match
+  `^[a-z][a-z0-9-]*:[A-Za-z0-9_-]+$`, such as `agent:42`. Keep it stable for as long as approvals
+  should carry over, for example per conversation rather than per token. Name the source before
+  the colon after what issues it, such as `agent` or `flue-thread`, never something that reads as
+  a document id: logs and UIs show key principals as bare ids, and a source like `42` would read
+  as one.
+- A `deleteDocument` confirmation carries `id` and `principal` but no `url`. Your UI lists and
+  decides it through the [confirmations endpoint](#waiting-calls) with the user's session, which
+  must not carry the strategy's credential.
+- The upload PUT and download GET of a strategy's grant must send the strategy's credential again,
+  so Payload resolves the same principal and user on them.
+- The strategy's user cannot use the API key collection, the confirmations endpoint refuses it,
+  and `strategyAuthOf(req.user)` tells your own code whether a request carries attached auth.
+- The strategy's credential authenticates Payload's REST and GraphQL API as well, under the
+  user's access control but outside the plugin's capabilities and draft guard. Guard it like a
+  session.
+
+`req.context.mcpx` carries the principal and no `apiKeyId` on such a request.
+
 ## Custom key resolution
 
 `auth.resolve` replaces the default lookup. It receives the request and `resolveDefault`, which
-runs the default lookup, and returns an `McpxAuthResult` or `null` for a 401:
+runs the default lookup (attached strategy auth, then the bearer key), and returns an
+`McpxAuthResult` or `null` for a 401:
 
 ```ts
 mcpxPlugin({
@@ -179,7 +258,7 @@ mcpxPlugin({
 
       if (result) {
         req.payload.logger.info(
-          `MCP request with key ${String(result.apiKeyId)}`,
+          `MCP request as ${String(result.apiKeyId ?? result.principal)}`,
         );
       }
 
@@ -189,13 +268,15 @@ mcpxPlugin({
 });
 ```
 
-`McpxAuthResult` carries `user` (with its `collection`), `apiKeyId` and `capabilities`, the
-capability group as stored on a key document. The capabilities still pass through the config, so
-a resolver cannot grant what the config does not expose. A result whose user has no `id` or is
-not from the user collection, or that has no `apiKeyId`, is answered with 401. Do not authenticate from `req.user`; see
-[security.md](./security.md#custom-tools-and-custom-auth).
+`McpxAuthResult` carries `user` (with its `collection`), either `apiKeyId` or `principal`, and
+`capabilities`, the capability group as stored on a key document. The capabilities still pass
+through the config, so a resolver cannot grant what the config does not expose. A result whose
+user has no `id` or is not from the user collection, or that has neither an `apiKeyId` nor a
+`principal` matching `^[a-z][a-z0-9-]*:[A-Za-z0-9_-]+$`, or both, is answered with 401. Do not
+authenticate from `req.user`; see [security.md](./security.md#custom-tools-and-custom-auth).
 
-The handler stamps `req.context.mcpx` with the key id and the resolved capabilities.
+The handler stamps `req.context.mcpx` with the principal, the key id where a key authenticated,
+and the resolved capabilities.
 `isMcpxRequest(req)` reads that stamp, so your own hooks can tell an MCP write from any other.
 
 ## In-process client
@@ -296,6 +377,51 @@ document that was published before is unchanged. The result gains `publishedLoca
 
 Payload 4 can store an upload under another name than the one sent. The plugin reports the name
 Payload stores, so read `filename` from the document instead of assuming the name you sent.
+
+### Confirmations are bound to a principal
+
+The confirmations endpoint takes `principal` instead of `key`, as `?principal=` on `GET` and in
+the `POST` body, always as a string. For a key, the principal is its id, so a UI that sent
+`key: id` now sends `principal: String(id)`. The admin panel's own view is updated.
+
+A confirmation result gains `principal`, and its `url` is present only for a key. Only the user
+who requested a call can decide it, and a request whose user carries attached MCP auth gets 403.
+Calls and upload grants stored before the upgrade carry no requesting user: they are not listed,
+cannot be decided and expire within 15 minutes (5 for grants). The KV keys of a key's calls and
+grants are unchanged.
+
+The per-client limit messages say "This client" instead of "This key".
+
+### Payload auth strategies
+
+The default resolution now accepts auth that a Payload auth strategy attached with `withMcpxAuth`,
+before the bearer key. Cookie and JWT users still get 401. A request whose user carries attached
+auth gets 403 from the API key collection, for every operation. See
+[Capabilities from a Payload auth strategy](#capabilities-from-a-payload-auth-strategy).
+
+### Capabilities follow Payload access
+
+A key's grants are narrowed per request to the user's Payload access: `read` needs `read`, `write`
+and `publish` need `update`, and `delete` needs `delete`. A grant the user's access denies outright
+no longer shows up in `tools/list` or `listCapabilities`. Access that answers with a query keeps the
+grant.
+
+### Explicit authentication
+
+The MCP, upload and download endpoints run Payload's auth strategies again with `admin.autoLogin`
+disabled, so a request without credentials is never treated as the autologin user, and a custom
+`auth.resolve` sees that user in `req.user`.
+
+### Keys after a secret rotation
+
+On Payload 4 keys are looked up under every keyring secret, so keys created before a rotation to a
+new `secret` with the old one in `previousSecrets` keep working.
+
+### `McpxAuthResult` and `req.context.mcpx`
+
+`McpxAuthResult.apiKeyId` is optional, and a result may carry a `principal` instead. A custom
+`auth.resolve` that reads `apiKeyId` from `resolveDefault()` handles a result without one.
+`req.context.mcpx` gains `principal`; `apiKeyId` is set only where a key authenticated.
 
 ## Upgrading to 2.0
 

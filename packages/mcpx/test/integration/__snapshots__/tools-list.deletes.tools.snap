@@ -314,7 +314,7 @@
   },
   {
     "name": "runConfirmed",
-    "description": "Runs calls that returned a \"confirmation\", once the user approved them in the admin panel. Returns one result per id, in the order given: \"done\" with the call's \"result\", \"pending\" while it awaits a decision, \"skipped\" with a \"reason\" when it no longer passes its checks, or \"refused\" when it was rejected, expired, already run or is unknown. A pending id stays usable; no other id can run again.",
+    "description": "Runs calls that returned a \"confirmation\", once the user approved them. Returns one result per id, in the order given: \"done\" with the call's \"result\", \"pending\" while it awaits a decision, \"skipped\" with a \"reason\" when it no longer passes its checks, or \"refused\" when it was rejected, expired, already run or is unknown. A pending id stays usable; no other id can run again.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",

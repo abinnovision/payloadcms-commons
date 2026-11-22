@@ -8,13 +8,13 @@ import {
 	unexpired,
 } from "./lease.js";
 
-import type { FallbackLocale, StoredCall } from "./lease.js";
+import type { FallbackLocale, LeaseOwner, StoredCall } from "./lease.js";
 import type { DocumentId } from "../entity.js";
 import type { Payload } from "payload";
 
 const GRANT_TTL_MS = 5 * 60 * 1000;
 
-const GRANTS_PER_KEY = 10;
+const GRANTS_PER_PRINCIPAL = 10;
 
 /**
  * The file an upload call declared.
@@ -41,9 +41,8 @@ export interface UploadGrant extends StoredCall {
  * The file of a document read through `getDocument`, stored until the GET
  * that serves it.
  */
-export interface DownloadGrant {
+export interface DownloadGrant extends LeaseOwner {
 	kind: "download";
-	apiKeyId: DocumentId;
 	collection: string;
 	id: DocumentId;
 	/**
@@ -64,8 +63,8 @@ export interface DownloadGrant {
 export type Grant = DownloadGrant | UploadGrant;
 
 /**
- * Stores a grant and returns its id. A key may hold at most
- * {@link GRANTS_PER_KEY} grants.
+ * Stores a grant and returns its id. A principal may hold at most
+ * {@link GRANTS_PER_PRINCIPAL} grants.
  */
 export const issueGrant = async (
 	payload: Payload,
@@ -73,23 +72,25 @@ export const issueGrant = async (
 	grant: Omit<DownloadGrant, "exp"> | Omit<UploadGrant, "exp">,
 ): Promise<{ id: string; exp: number }> =>
 	await issueLease(payload, slug, {
-		...leasePrefixes("grant", grant.apiKeyId),
-		cap: GRANTS_PER_KEY,
-		capMessage: `This key already has ${String(GRANTS_PER_KEY)} uploads or downloads waiting. Use or abandon them first; each expires 5 minutes after it was issued.`,
+		...leasePrefixes("grant", grant.principal),
+		cap: GRANTS_PER_PRINCIPAL,
+		capMessage: `This client already has ${String(GRANTS_PER_PRINCIPAL)} uploads or downloads waiting. Use or abandon them first; each expires 5 minutes after it was issued.`,
 		ttlMs: GRANT_TTL_MS,
 		data: grant,
 	});
 
 /**
- * Loads the grant for `grantId` and marks it used, or returns `undefined` for
- * a malformed, unknown, expired or used one. A malformed id is refused before
- * any database read.
+ * Loads the grant for `grantId`, asks `accept` about it and, when it answers
+ * other than `null`, marks it used. Returns the grant with that answer, or
+ * `undefined` for a malformed, unknown, expired, used or refused grant, which
+ * stays claimable when refused. A malformed id is refused before any read.
  */
-export const claimGrant = async (
+export const claimGrant = async <Accepted>(
 	payload: Payload,
 	slug: string,
 	grantId: string,
-): Promise<Grant | undefined> => {
+	accept: (grant: Grant) => Promise<Accepted | null>,
+): Promise<{ grant: Grant; accepted: Accepted } | undefined> => {
 	if (!LEASE_ID.test(grantId)) {
 		return undefined;
 	}
@@ -106,10 +107,16 @@ export const claimGrant = async (
 		return undefined;
 	}
 
-	const prefixes = leasePrefixes("grant", grant.apiKeyId);
+	const prefixes = leasePrefixes("grant", grant.principal);
 
-	return row.key === `${prefixes.prefix}${handle}` &&
+	if (row.key !== `${prefixes.prefix}${handle}`) {
+		return undefined;
+	}
+
+	const accepted = await accept(grant);
+
+	return accepted !== null &&
 		(await claimLease(payload, slug, prefixes, handle, grant.exp))
-		? grant
+		? { grant, accepted }
 		: undefined;
 };
