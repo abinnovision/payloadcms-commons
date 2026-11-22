@@ -1,6 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { APIError } from "payload";
 
+import { isTokenRequest } from "../tokens/strategy.js";
+
 import type { PayloadHandler, PayloadRequest } from "payload";
 
 /** A JSON response, never cached: every answer depends on the caller. */
@@ -134,7 +136,8 @@ export const isDocumentId = (
 
 /**
  * The signed-in user, or the refusal: 401 without a session, 403 for a user
- * outside the mcpx user collection.
+ * outside the mcpx user collection and for an agent token, which must not
+ * chat, stop runs or read conversations as its user.
  */
 export const requireUser = (
 	req: PayloadRequest,
@@ -144,7 +147,7 @@ export const requireUser = (
 		return refusal(401, "Sign in to use the agents.");
 	}
 
-	if (req.user.collection !== userCollection) {
+	if (req.user.collection !== userCollection || isTokenRequest(req)) {
 		return refusal(403, "This user cannot use the agents.");
 	}
 

@@ -2,31 +2,30 @@
 
 ## Not included
 
-| Not included                                  | Instead                                                                                                                                     |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Payload REST for agents, `@payloadcms/sdk`    | Agents reach Payload only through mcpx. The plugin mints no session tokens and adds no auth strategy.                                       |
-| Programmatic mcpx calls from `usePayload`     | The agent calls mcpx tools through the MCP connection `usePayload` registers. `upload()` is the one exception.                              |
-| A `changes` audit on threads                  | mcpx writes are attributed to the key's user by Payload's authorship, not to a thread.                                                      |
-| In-chat actions                               | No `proposeValues`, `navigate`, `openDocument`, `showList`, `focusField`, `uiAction` or `useAgentAction`. The agent cannot drive the admin. |
-| Unsaved form state for the agent              | Unsaved edits reach the agent as a draft saved before the turn. Without drafts the turn is refused until the user saves.                    |
-| Merging around moved rows                     | A form whose rows the user or the agent moved during a run goes stale; the user saves and reloads instead.                                  |
-| Reloads for other threads                     | Only the thread open in the panel is watched, so writes from other threads or reactive and ambient runs do not reload the form.             |
-| Typing during a reload                        | A keystroke made while a reload resets the form can be lost.                                                                                |
-| Rich text in a merge                          | Rich-text (Lexical) values are put back through form state and have not been verified to repaint.                                           |
-| Document locks                                | The agent does not see them. mcpx writes as the chat's user, so a lock that user holds does not block a write.                              |
-| `sidebar.tabs`                                | The panel docks next to the admin and opens from the header or with Ctrl or Cmd plus J.                                                     |
-| Confirmable publish                           | `publish` is a plain mcpx grant: an agent with it publishes without approval.                                                               |
-| Rate limits and turn caps                     | Limit runs in the sidecar or in front of Payload.                                                                                           |
-| Thread sharing                                | A chat thread belongs to its user. Others read only reactive and ambient threads, through `readAgentRuns`.                                  |
-| Mapping mcpx writes to `onBehalfOf`           | A reactive run writes as the agent user; `onBehalfOf` is recorded on the thread only.                                                       |
-| One agent user per agent                      | All reactive and ambient runs act as the one `agentUser`.                                                                                   |
-| `deleteUnattended`                            | Every delete an agent asks for waits for approval by the key's user.                                                                        |
-| A public `./protocol` export                  | The wire types are internal. `./agent` reads them with `contextOf` and `filesOf` and exports `ChatContext` and `FileRef`.                   |
-| Plugin-owned file storage                     | Chat files live in an upload collection the app defines; cleanup and size policy are the app's.                                             |
-| Files on runs from jobs                       | `queueFlueRun` and ambient runs send text and context only.                                                                                 |
-| `file` parts from agents                      | Flue lets agents write data parts only. Uploads show as the `data-payload-file` card.                                                       |
-| Flue embedded in the Payload process          | Flue runs as a separate sidecar.                                                                                                            |
-| Disabling a managed key from the admin or API | Use the agent's `access`, the user record, Stop, archive or logout (see [security.md](./security.md#revocation)).                           |
+| Not included                              | Instead                                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@payloadcms/sdk` in agents               | Trusted agent code calls REST through `run.fetch`; the model reaches Payload only through mcpx's tools.                                     |
+| Programmatic mcpx calls from `usePayload` | The agent calls mcpx tools through the MCP connection `usePayload` registers. `upload()` is the one exception.                              |
+| A `changes` audit on threads              | mcpx writes are attributed to the thread's user by Payload's authorship, not to a thread.                                                   |
+| In-chat actions                           | No `proposeValues`, `navigate`, `openDocument`, `showList`, `focusField`, `uiAction` or `useAgentAction`. The agent cannot drive the admin. |
+| Unsaved form state for the agent          | Unsaved edits reach the agent as a draft saved before the turn. Without drafts the turn is refused until the user saves.                    |
+| Merging around moved rows                 | A form whose rows the user or the agent moved during a run goes stale; the user saves and reloads instead.                                  |
+| Reloads for other threads                 | Only the thread open in the panel is watched, so writes from other threads or reactive and ambient runs do not reload the form.             |
+| Typing during a reload                    | A keystroke made while a reload resets the form can be lost.                                                                                |
+| Rich text in a merge                      | Rich-text (Lexical) values are put back through form state and have not been verified to repaint.                                           |
+| Document locks                            | The agent does not see them. mcpx writes as the chat's user, so a lock that user holds does not block a write.                              |
+| `sidebar.tabs`                            | The panel docks next to the admin and opens from the header or with Ctrl or Cmd plus J.                                                     |
+| Confirmable publish                       | `publish` is a plain mcpx grant: an agent with it publishes without approval.                                                               |
+| Rate limits and turn caps                 | Limit runs in the sidecar or in front of Payload.                                                                                           |
+| Thread sharing                            | A chat thread belongs to its user. Others read only reactive and ambient threads, through `readAgentRuns`.                                  |
+| Mapping mcpx writes to `onBehalfOf`       | A reactive run writes as the agent user; `onBehalfOf` is recorded on the thread only.                                                       |
+| One agent user per agent                  | All reactive and ambient runs act as the one `agentUser`.                                                                                   |
+| `deleteUnattended`                        | Every delete an agent asks for waits for approval by the thread's user.                                                                     |
+| A public `./protocol` export              | The wire types are internal. `./agent` reads them with `contextOf` and `filesOf` and exports `ChatContext` and `FileRef`.                   |
+| Plugin-owned file storage                 | Chat files live in an upload collection the app defines; cleanup and size policy are the app's.                                             |
+| Files on runs from jobs                   | `queueFlueRun` and ambient runs send text and context only.                                                                                 |
+| `file` parts from agents                  | Flue lets agents write data parts only. Uploads show as the `data-payload-file` card.                                                       |
+| Flue embedded in the Payload process      | Flue runs as a separate sidecar.                                                                                                            |
 
 ## Attachments
 
@@ -73,10 +72,10 @@ These apply to [chat files](./integration.md#files).
   default, a reverse proxy's body limit or a platform's. A file over one is refused before Payload
   sees it.
 - `payload.download` takes 32 MiB by default; pass `maxBytes` or read by range. Each read, ranged
-  or not, takes one mcpx download grant, a few database round trips, and a key holds at most 10
+  or not, takes one mcpx download grant, a few database round trips, and a thread holds at most 10
   outstanding grants. A storage adapter that ignores `Range` streams the whole file to the sidecar,
   which keeps only the slice.
-- An expired or disabled key makes a thread's files unreadable until the next turn rolls it.
+- A closed or expired live window makes a thread's files unreadable until the next turn opens it.
 - Two tabs of the same user that send the same unbound file at the same moment may both bind it;
   one wins, and the other turn references only what its thread holds.
 
@@ -97,18 +96,18 @@ than two minutes after its last message and reads its history. Without `threads.
 only the agent user can read reactive and ambient threads. See
 [status and title](./concepts.md#status-and-title).
 
-Two first messages of the same user to the same agent, sent at the same moment, can create two
-managed keys. Every later turn uses the oldest; the other is never rolled, expires on its own and
-is disabled with the rest at logout. The duplicate is harmless.
+A thread's live window closes `tokenTtlMs` after its last turn, and the exchange does not extend
+it. A run that continues longer than that after its last turn loses Payload access. A waiting
+dispatch job is bounded by the same limit: startup fails when `dispatch.wait.maxWaitMs` exceeds
+`tokenTtlMs`.
 
-A turn leaves the key at least half of `keyTtlMs`, and the exchange does not extend it. A run
-that continues longer than that after its last turn can lose Payload access.
+A change to an agent's `access` reaches chat tokens on their next request. Reactive and ambient
+runs are not subject to `access` (see [revocation](./security.md#revocation)).
 
-The exchange has no expiry per thread. The handle of any unarchived thread exchanges while the
-user's key for that agent is live, because all threads of one user and agent share that key.
-
-Stop or archive of a running thread disables the key the user shares across all their threads with
-that agent, so their other runs of that agent lose access until the next turn.
+Each token request reads the token row, the live window and the user from the database, and
+runs the agent's `access` for a chat thread. Each exchange mints a new token. Expired token rows
+are purged by an exchange at most once a minute per server process, so they may linger until the
+next exchange after that.
 
 The panel's search matches thread titles only. Flue offers no search over message content.
 
@@ -148,12 +147,11 @@ Payload 4.0.0-beta.7 requires Node 24.22.1 or later; the repository's `.tool-ver
 24.22.1. Flue 2.3.0 requires Node 22.19.0 or later, so the sidecar can run on an older Node than
 Payload.
 
-MongoDB is outside the test matrix. There the `apiKey` lock makes one extra privileged read for
-every read of an unmanaged key's plaintext (see [managed key locks](./security.md#managed-key-locks)).
+MongoDB is outside the test matrix.
 
-SQL adapters that run migrations need one for the `flue-threads` table and the `managedBy` column
-(see [database](./integration.md#database)). mcpx's confirmations need Payload's database KV
-adapter.
+SQL adapters that run migrations need one for the `flue-threads` table (see
+[database](./integration.md#database)). Agent tokens, live windows and mcpx's confirmations need
+Payload's database KV adapter, the default `kv`.
 
 A collection hook that queues runs on a collection the agent writes to loops unless it skips the
 agent user's writes (see [reactive runs](./security.md#reactive-runs)).

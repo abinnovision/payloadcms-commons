@@ -63,7 +63,9 @@ const api = flueApi({
 	mcpxEndpointPath: "/mcpx",
 });
 
-const deletion = (url: string): FlueConversationMessage => ({
+const deletion = (
+	confirmation: Record<string, string>,
+): FlueConversationMessage => ({
 	id: "entry_delete",
 	role: "assistant",
 	purpose: "assistant",
@@ -75,7 +77,13 @@ const deletion = (url: string): FlueConversationMessage => ({
 			toolCallId: "call_delete",
 			state: "output-available",
 			input: { collection: "pages", id: "12" },
-			output: { confirmation: { id: "c-1", url } },
+			output: {
+				confirmation: {
+					id: "c-1",
+					expiresAt: "2026-11-21T12:00:00.000Z",
+					...confirmation,
+				},
+			},
 		},
 	],
 });
@@ -421,9 +429,10 @@ describe("the FluePanel component", () => {
 
 	it("shows a deletion waiting for approval with its review link", () => {
 		const html = render([
-			deletion(
-				"https://cms.example.com/admin/collections/mcpx-api-keys/3?confirmation=c-1",
-			),
+			deletion({
+				principal: "3",
+				url: "https://cms.example.com/admin/collections/mcpx-api-keys/3?confirmation=c-1",
+			}),
 		]);
 
 		expect(html).toContain("deleteDocument");
@@ -433,8 +442,20 @@ describe("the FluePanel component", () => {
 		);
 	});
 
-	it("offers no approval for a confirmation URL outside the admin", () => {
-		const html = render([deletion("https://evil.example/phish")]);
+	it("shows a thread's deletion waiting for approval without a review link", () => {
+		const html = render([deletion({ principal: "flue-thread:7" })]);
+
+		expect(html).toContain("Checking the approval.");
+		expect(html).not.toContain("Review in admin");
+	});
+
+	it("links no review for a confirmation URL outside the admin", () => {
+		const html = render([
+			deletion({
+				principal: "flue-thread:7",
+				url: "https://evil.example/phish",
+			}),
+		]);
 
 		expect(html).toContain("deleteDocument");
 		expect(html).not.toContain("Review in admin");

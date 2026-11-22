@@ -6,9 +6,9 @@ import {
 	requireJson,
 	secretMatches,
 } from "./http.js";
-import { findAgentKey } from "../keys/manager.js";
 import { isRecord } from "../protocol/guards.js";
 import { resolveHandle } from "../threads/resolve.js";
+import { mintToken } from "../tokens/store.js";
 
 import type { ExchangeResponse } from "../protocol/exchange.js";
 import type { PluginSettings } from "../turn.js";
@@ -17,9 +17,11 @@ import type { PayloadHandler } from "payload";
 const BODY_MAX = 4 * 1024;
 
 /**
- * `POST {base}/exchange`: trades a live conversation handle for its mcpx
- * key. Only the sidecar calls it, authenticated by the shared secret; the
- * session is ignored. Never logs the key or the handle.
+ * `POST {base}/exchange`: trades a live conversation handle for a fresh
+ * token of its thread, valid until `tokenTtlMs` from now or the thread's
+ * live window closes, whichever comes first. Only the sidecar calls it,
+ * authenticated by the shared secret; the session is ignored. Never logs the
+ * token or the handle.
  */
 export const exchangeHandler = (settings: PluginSettings): PayloadHandler =>
 	endpointHandler(async (req) => {
@@ -57,25 +59,33 @@ export const exchangeHandler = (settings: PluginSettings): PayloadHandler =>
 			settings,
 			body["handle"],
 			agent,
-			async (user) =>
-				await findAgentKey(payload, settings, { userId: user.id, agent }),
 		);
 
-		const apiKey = resolved?.key.apiKey;
-
 		// One answer for every refusal, so a caller learns nothing about which check failed.
-		if (!resolved || !apiKey) {
+		if (!resolved) {
 			return refusal(
 				404,
 				"No live conversation matches this handle and agent.",
 			);
 		}
 
-		const { thread, user, key } = resolved;
+		const { thread, user, live } = resolved;
+		const { token, exp } = await mintToken(
+			payload,
+			{
+				user: user.id,
+				thread: thread.id,
+				agent,
+				kind: thread.kind,
+				gen: live.gen,
+			},
+			settings.tokenTtlMs,
+			live.exp,
+		);
 		const response: ExchangeResponse = {
-			key: apiKey,
+			key: token,
 			mcpPath: settings.mcpx.mcpPath,
-			expiresAt: key.expiresAt,
+			expiresAt: new Date(exp).toISOString(),
 			user,
 			thread: thread.id,
 			kind: thread.kind,

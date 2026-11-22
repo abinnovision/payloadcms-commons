@@ -104,8 +104,8 @@ button or Ctrl/Cmd+J.
 | `agent@example.com`    | random   | nobody signs in as it; runs started by a hook act as it |
 
 `editor` reads, edits, publishes and deletes every collection and global mcpx
-exposes. Deleting waits for an approval on the mcpx key's edit view, which the
-chat links to. Asked for a file, it writes Markdown to the `documents` upload
+exposes. Deleting waits for an approval, which the chat asks for with Approve
+and Reject. Asked for a file, it writes Markdown to the `documents` upload
 collection, and asked to keep a file attached to the message, it saves images
 to `media` and PDFs to `documents`; the chat shows either as a card. The chat
 takes images and PDFs as attachments.

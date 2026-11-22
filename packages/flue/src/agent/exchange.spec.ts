@@ -9,11 +9,16 @@ const HANDLE = "handle-9f8e7d6c5b4a";
 const PAYLOAD_URL = "https://cms.example.com/";
 const EXCHANGE_URL = "https://cms.example.com/api/flue/exchange";
 const MCP_URL = "https://cms.example.com/api/mcpx";
+const IN_AN_HOUR = new Date(Date.now() + 60 * 60_000).toISOString();
 
-const exchanged = (key: string, mcpPath = "/api/mcpx"): ExchangeResponse => ({
+const exchanged = (
+	key: string,
+	mcpPath = "/api/mcpx",
+	expiresAt = IN_AN_HOUR,
+): ExchangeResponse => ({
 	key,
 	mcpPath,
-	expiresAt: "2026-11-07T12:00:00.000Z",
+	expiresAt,
 	user: { collection: "users", id: 1 },
 	thread: 7,
 	kind: "chat",
@@ -158,7 +163,7 @@ describe("exchangeSession", () => {
 		await expect(session.auth()).resolves.toBe("key-2");
 	});
 
-	it("sends the handle on every transport request and keeps its headers", async () => {
+	it("passes transport requests on with their headers", async () => {
 		const { requests, fetch } = recordingFetch(() => new Response(null));
 		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
 
@@ -170,10 +175,8 @@ describe("exchangeSession", () => {
 			new Request(MCP_URL, { headers: { "mcp-session-id": "s1" } }),
 		);
 
-		expect(requests[0]?.headers.get("x-flue-handle")).toBe(HANDLE);
 		expect(requests[0]?.headers.get("authorization")).toBe("Bearer key-1");
-		expect(requests[1]?.headers.get("x-flue-handle")).toBe(HANDLE);
-		expect(requests[1]?.headers.get("mcp-session-id")).toBe("s1");
+		expect(requests[1]?.url).toBe(MCP_URL);
 	});
 
 	it("exchanges again after a failed exchange", async () => {
@@ -188,6 +191,41 @@ describe("exchangeSession", () => {
 
 		await expect(session.auth()).rejects.toMatchObject({ status: 404 });
 		await expect(session.auth()).resolves.toBe("key-1");
+	});
+
+	it("exchanges again when the cached token has less than two minutes left", async () => {
+		const inAMinute = new Date(Date.now() + 60_000).toISOString();
+		const answers = [
+			exchanged("token-1", "/api/mcpx", inAMinute),
+			exchanged("token-2"),
+		];
+		const { requests, fetch } = recordingFetch(() =>
+			Response.json(answers.shift()),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(session.auth()).resolves.toBe("token-1");
+		await expect(session.auth()).resolves.toBe("token-2");
+		await expect(session.auth()).resolves.toBe("token-2");
+		expect(requests).toHaveLength(2);
+	});
+
+	it("keeps a renewed token that expires no later than the last one until a 401", async () => {
+		const inAMinute = new Date(Date.now() + 60_000).toISOString();
+		const answers = [
+			exchanged("token-1", "/api/mcpx", inAMinute),
+			exchanged("token-2", "/api/mcpx", inAMinute),
+			exchanged("token-3"),
+		];
+		const { requests, fetch } = recordingFetch(() =>
+			Response.json(answers.shift()),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(session.auth()).resolves.toBe("token-1");
+		await expect(session.auth()).resolves.toBe("token-2");
+		await expect(session.auth()).resolves.toBe("token-2");
+		expect(requests).toHaveLength(2);
 	});
 
 	it("refuses a Payload that serves mcpx at another path", async () => {
@@ -226,7 +264,6 @@ describe("exchangeSession.callTool", () => {
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.method).toBe("POST");
 		expect(calls[0]?.headers.get("authorization")).toBe("Bearer key-1");
-		expect(calls[0]?.headers.get("x-flue-handle")).toBe(HANDLE);
 		expect(calls[0]?.headers.get("accept")).toBe(
 			"application/json, text/event-stream",
 		);
@@ -325,5 +362,56 @@ describe("exchangeSession.callTool", () => {
 		await expect(session.callTool("createDocument", {})).rejects.toThrow(
 			'[payloadcms-flue] mcpx refused "createDocument": Invalid params',
 		);
+	});
+});
+
+describe("exchangeSession.request", () => {
+	const REST_URL = "https://cms.example.com/api/pages?limit=1";
+
+	it("requests a path below the Payload URL with the token as bearer", async () => {
+		const { requests, fetch } = recordingFetch((url) =>
+			url === EXCHANGE_URL
+				? Response.json(exchanged("token-1"))
+				: Response.json({ docs: [] }),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+		const response = await session.request("/api/pages?limit=1", {
+			headers: { accept: "application/json" },
+		});
+
+		expect(await response.json()).toEqual({ docs: [] });
+		expect(requests[1]?.url).toBe(REST_URL);
+		expect(requests[1]?.headers.get("authorization")).toBe("Bearer token-1");
+		expect(requests[1]?.headers.get("accept")).toBe("application/json");
+	});
+
+	it("exchanges again and retries once after a 401", async () => {
+		const tokens = ["token-1", "token-2"];
+		const { requests, fetch } = recordingFetch((url) =>
+			url === EXCHANGE_URL
+				? Response.json(exchanged(tokens.shift() ?? "none"))
+				: new Response(null, { status: 401 }),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+		const response = await session.request("/api/pages");
+
+		expect(response.status).toBe(401);
+		expect(
+			requests
+				.filter((request) => request.url !== EXCHANGE_URL)
+				.map((request) => request.headers.get("authorization")),
+		).toEqual(["Bearer token-1", "Bearer token-2"]);
+	});
+
+	it("refuses a path that does not start with a slash and sends nothing", async () => {
+		const { requests, fetch } = recordingFetch(() =>
+			Response.json(exchanged("token-1")),
+		);
+		const session = exchangeSession({ ...args(fetch), mcpPath: "/api/mcpx" });
+
+		await expect(
+			session.request("https://evil.example/steal"),
+		).rejects.toBeInstanceOf(FluePayloadError);
+		expect(requests).toEqual([]);
 	});
 });

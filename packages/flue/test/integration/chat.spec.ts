@@ -10,7 +10,6 @@ import {
 } from "vitest";
 
 import {
-	API_KEYS_SLUG,
 	bootPayload,
 	count,
 	exchange,
@@ -19,6 +18,7 @@ import {
 	shutdown,
 	stored,
 	THREADS_SLUG,
+	windowOpen,
 } from "./helpers/payload.js";
 import { CONTEXT_SIGNAL_TYPE } from "../../src/protocol/context.js";
 import { INITIAL_DATA_KEY } from "../../src/protocol/exchange.js";
@@ -249,13 +249,45 @@ describe("the chat endpoints", () => {
 			expect(after["lastSubmissionId"]).not.toBe(before["lastSubmissionId"]);
 		});
 
-		it("a turn writes nothing to payload-kv", async () => {
+		it("keeps one live window row in payload-kv across a thread's turns", async () => {
 			const before = await count(booted, "payload-kv");
 			const first = await chatOk(seeded.first, { message: "One" });
 
 			await chatOk(seeded.first, { message: "Two", thread: first.thread.id });
 
-			expect(await count(booted, "payload-kv")).toBe(before);
+			expect(await count(booted, "payload-kv")).toBe(before + 1);
+		});
+
+		it("closes the turn's live window when the thread was archived during the send", async () => {
+			const { thread } = await chatOk(seeded.first, { message: "First" });
+			const before = await stored(booted, thread.id);
+			const gate = Promise.withResolvers<undefined>();
+
+			booted.sidecar.sendGate = gate.promise;
+
+			const pending = chat(seeded.first, {
+				message: "Second",
+				thread: thread.id,
+				context: CONTEXT,
+			});
+
+			await vi.waitFor(() => {
+				expect(postsTo(before["conversationId"])).toHaveLength(2);
+			});
+			// Archived in the database alone, so only the turn can close the window.
+			await booted.payload.db.updateOne({
+				collection: THREADS_SLUG,
+				id: thread.id,
+				data: { status: "archived" },
+				req: {},
+			});
+
+			expect(await windowOpen(booted, seeded.first.id, thread.id)).toBe(true);
+
+			gate.resolve(undefined);
+
+			expect((await pending).status).toBe(409);
+			expect(await windowOpen(booted, seeded.first.id, thread.id)).toBe(false);
 		});
 
 		it("keeps a thread archived while its message goes out and refuses with 409", async () => {
@@ -448,21 +480,16 @@ describe("the chat endpoints", () => {
 			});
 		});
 
-		it("creates no thread when the key write fails", async () => {
+		it("creates no thread when opening the live window fails", async () => {
 			const threads = await count(booted, THREADS_SLUG);
 			const requests = booted.sidecar.requests.length;
-			const find = booted.payload.find.bind(booted.payload);
 			const failing = vi
-				.spyOn(booted.payload, "find")
-				.mockImplementation((args) =>
-					args.collection === API_KEYS_SLUG
-						? Promise.reject(new Error("The key store is down."))
-						: find(args),
-				);
+				.spyOn(booted.payload.db, "upsert")
+				.mockRejectedValue(new Error("The KV store is down."));
 
 			try {
 				const response = await chat(seeded.first, {
-					message: "No key",
+					message: "No window",
 					context: CONTEXT,
 				});
 
@@ -561,9 +588,6 @@ describe("the chat endpoints", () => {
 
 		it("lets only the users an agent's access admits chat with it", async () => {
 			const threads = await count(booted, THREADS_SLUG);
-			const keys = await count(booted, API_KEYS_SLUG, {
-				user: { equals: seeded.second.id },
-			});
 			const requests = booted.sidecar.requests.length;
 
 			const refused = await chat(
@@ -574,11 +598,6 @@ describe("the chat endpoints", () => {
 
 			expect(refused.status).toBe(403);
 			expect(await count(booted, THREADS_SLUG)).toBe(threads);
-			expect(
-				await count(booted, API_KEYS_SLUG, {
-					user: { equals: seeded.second.id },
-				}),
-			).toBe(keys);
 			expect(
 				booted.sidecar.requests
 					.slice(requests)

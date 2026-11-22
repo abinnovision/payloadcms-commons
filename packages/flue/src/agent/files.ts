@@ -1,7 +1,6 @@
 import { codeOf, FluePayloadError, joinUrl } from "./exchange.js";
 import { handoffRequest } from "./handoff.js";
 import { readBytes } from "../protocol/body.js";
-import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 
 import type { ExchangeSession } from "./exchange.js";
@@ -29,11 +28,10 @@ export interface Download {
 }
 
 interface DownloadTarget {
-	session: Pick<ExchangeSession, "callTool">;
+	/** `auth` gives the bearer mcpx requires on the GET of a token's grant. */
+	session: Pick<ExchangeSession, "auth" | "callTool">;
 	payloadUrl: string;
 	mcpPath: string;
-	/** The conversation's handle, which scopes the read to its thread. */
-	handle: string;
 	fetch?: typeof fetch;
 }
 
@@ -97,7 +95,7 @@ export const downloadDocument = async (
 		),
 	);
 
-	headers[FILE_HANDLE_HEADER] = target.handle;
+	headers["authorization"] = `Bearer ${await target.session.auth()}`;
 
 	if (range) {
 		headers["range"] =

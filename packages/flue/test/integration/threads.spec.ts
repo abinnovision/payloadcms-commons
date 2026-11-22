@@ -12,14 +12,14 @@ import {
 import {
 	bootPayload,
 	count,
-	enableEditorKey,
 	exchange,
-	keyEnabled,
+	openWindow,
 	seed,
 	send,
 	shutdown,
 	stored,
 	THREADS_SLUG,
+	windowOpen,
 } from "./helpers/payload.js";
 import { flueApi } from "../../src/admin/api.js";
 import { handleHash } from "../../src/threads/handle.js";
@@ -307,12 +307,13 @@ describe("flue-threads", () => {
 		const startRun = async (user: SeededUser, status = "running") => {
 			const conversationId = randomUUID();
 			const handle = randomUUID();
-			const apiKeyId = await enableEditorKey(booted, user.id);
 			const thread = await createThread(owned(user), {
 				status,
 				conversationId,
 				handleHash: handleHash(handle),
 			});
+
+			await openWindow(booted, user.id, thread.id);
 
 			const aborts = () =>
 				booted.sidecar
@@ -321,11 +322,14 @@ describe("flue-threads", () => {
 			const exchanged = async () =>
 				(await exchange(booted, { handle, agent: EDITOR.slug })).status;
 
-			return { thread, conversationId, aborts, exchanged, apiKeyId };
+			const open = () => windowOpen(booted, user.id, thread.id);
+
+			return { thread, conversationId, aborts, exchanged, open };
 		};
 
-		it("aborts the run once, disables the key, and the handle no longer exchanges", async () => {
+		it("aborts the run once, closes only its live window, and the handle no longer exchanges", async () => {
 			const run = await startRun(seeded.first);
+			const other = await startRun(seeded.first);
 
 			expect(await run.exchanged()).toBe(200);
 			expect(
@@ -333,7 +337,9 @@ describe("flue-threads", () => {
 					.status,
 			).toBe(200);
 			expect(await run.exchanged()).toBe(404);
-			expect(await keyEnabled(booted, run.apiKeyId)).toBe(false);
+			expect(await run.open()).toBe(false);
+			expect(await other.open()).toBe(true);
+			expect(await other.exchanged()).toBe(200);
 			await vi.waitFor(() => {
 				expect(run.aborts()).toEqual([
 					expect.objectContaining({
@@ -357,7 +363,7 @@ describe("flue-threads", () => {
 					(await patch(run.thread.id, seeded.first, { status: "archived" }))
 						.status,
 				).toBe(200);
-				expect(await keyEnabled(booted, run.apiKeyId)).toBe(false);
+				expect(await run.open()).toBe(false);
 			} finally {
 				gate.resolve(undefined);
 			}
@@ -391,16 +397,15 @@ describe("flue-threads", () => {
 			}
 		});
 
-		it("aborts the run of a thread whose status is not running and keeps the key", async () => {
+		it("aborts the run of a thread whose status is not running and closes its window", async () => {
 			const run = await startRun(seeded.first, "idle");
 
 			expect(
 				(await patch(run.thread.id, seeded.first, { status: "archived" }))
 					.status,
 			).toBe(200);
-			// The key stays enabled, so only the archive refuses the handle.
 			expect(await run.exchanged()).toBe(404);
-			expect(await keyEnabled(booted, run.apiKeyId)).toBe(true);
+			expect(await run.open()).toBe(false);
 			await vi.waitFor(() => {
 				expect(run.aborts()).toHaveLength(1);
 			});
@@ -414,7 +419,7 @@ describe("flue-threads", () => {
 					.status,
 			).toBe(403);
 			expect(await run.exchanged()).toBe(200);
-			expect(await keyEnabled(booted, run.apiKeyId)).toBe(true);
+			expect(await run.open()).toBe(true);
 			expect(run.aborts()).toEqual([]);
 		});
 	});

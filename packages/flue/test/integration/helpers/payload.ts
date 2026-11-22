@@ -1,13 +1,11 @@
-import {
-	buildConfig,
-	createPayloadRequest,
-	getPayload,
-	handleEndpoints,
-} from "payload";
+import { buildConfig, getPayload, handleEndpoints } from "payload";
 
 import { startSidecar } from "./sidecar.js";
-import { capabilityFields } from "../../../src/keys/augment.js";
-import { ensureAgentKey } from "../../../src/keys/manager.js";
+import {
+	liveWindow,
+	mintToken,
+	openLiveWindow,
+} from "../../../src/tokens/store.js";
 import {
 	EDITOR,
 	fixtureConfig,
@@ -16,7 +14,6 @@ import {
 
 import type { FakeSidecar } from "./sidecar.js";
 import type { FluePluginOptions } from "../../../src/index.js";
-import type { KeySettings } from "../../../src/keys/manager.js";
 import type { Config, Payload, SanitizedConfig, Where } from "payload";
 
 export const API_KEYS_SLUG = "mcpx-api-keys";
@@ -27,7 +24,7 @@ export const RECORDED_SUBMISSION = "sub_01M6VB02GCSHGD7X1Z5829HF5Q";
 
 export type Doc = Record<string, unknown> & { id: number | string };
 
-const KEY_TTL_MS = 2 * 60 * 60 * 1000;
+const TOKEN_TTL_MS = 60 * 60 * 1000;
 
 export const USERS = {
 	first: { email: "first@example.com", password: "first-secret" },
@@ -210,13 +207,6 @@ export const mcpRpc = async (
 	};
 };
 
-/** The settings key management runs with, as the plugin derives them. */
-export const keySettings = (payload: Payload): KeySettings => ({
-	keyTtlMs: KEY_TTL_MS,
-	mcpx: { apiKeysSlug: API_KEYS_SLUG },
-	capabilityMap: capabilityFields(payload.collections[API_KEYS_SLUG]!.config),
-});
-
 /** A thread row past access control, hidden fields included. */
 export const stored = async (
 	booted: Booted,
@@ -239,30 +229,45 @@ export const count = async (
 	(await booted.payload.count({ collection, where, overrideAccess: true }))
 		.totalDocs;
 
-/** Enables the user's managed key for `EDITOR`, as a turn does, and returns its id. */
-export const enableEditorKey = async (
+/** Opens the thread's live window, as a turn does, and returns its expiry. */
+export const openWindow = async (
 	booted: Booted,
-	userId: number | string,
-): Promise<number | string> =>
-	(
-		await ensureAgentKey(booted.payload, keySettings(booted.payload), {
-			userId,
-			agent: EDITOR,
-			req: await createPayloadRequest({ payload: booted.payload }),
-		})
-	).id;
+	user: number | string,
+	thread: number | string,
+	ttlMs = TOKEN_TTL_MS,
+): Promise<number> =>
+	(await openLiveWindow(booted.payload, { user, thread }, ttlMs)).exp;
 
-/** Whether the managed key is enabled, read past the locks. */
-export const keyEnabled = async (
+/** Whether the thread's live window is open. */
+export const windowOpen = async (
 	booted: Booted,
-	apiKeyId: number | string,
+	user: number | string,
+	thread: number | string,
 ): Promise<boolean> =>
-	(
-		await booted.payload.findByID({
-			collection: API_KEYS_SLUG,
-			id: apiKeyId,
-			depth: 0,
-			overrideAccess: true,
-			select: { enabled: true },
-		})
-	)["enabled"] === true;
+	(await liveWindow(booted.payload, { user, thread })) !== undefined;
+
+/**
+ * A token of `agent` for the thread, minted as the exchange does once a turn
+ * opened the thread's window.
+ */
+export const liveToken = async (
+	booted: Booted,
+	user: number | string,
+	thread: number | string,
+	agent: string = EDITOR.slug,
+): Promise<string> => {
+	const { exp, gen } = await openLiveWindow(
+		booted.payload,
+		{ user, thread },
+		TOKEN_TTL_MS,
+	);
+
+	return (
+		await mintToken(
+			booted.payload,
+			{ user, thread, agent, kind: "chat", gen },
+			TOKEN_TTL_MS,
+			exp,
+		)
+	).token;
+};

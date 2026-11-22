@@ -6,9 +6,9 @@ import {
 	requireJson,
 	requireUser,
 } from "./http.js";
-import { setAgentKeyEnabled } from "../keys/manager.js";
 import { isOwner } from "../protocol/owner.js";
 import { createSidecarClient, SidecarError } from "../sidecar/client.js";
+import { closeLiveWindow } from "../tokens/store.js";
 import { findThread } from "../turn.js";
 
 import type { PluginSettings } from "../turn.js";
@@ -16,8 +16,9 @@ import type { PayloadHandler } from "payload";
 
 /**
  * `POST {base}/c/:thread/abort`: stops the run of a thread the signed-in
- * user owns. Stopping a running thread disables the key of its user and
- * agent until the next turn. The body is not read.
+ * user owns. Stopping closes the thread's live window, so its agent tokens
+ * stop authenticating, also after the next turn opens a new one. The body is
+ * not read.
  */
 export const abortHandler = (settings: PluginSettings): PayloadHandler =>
 	endpointHandler(async (req) => {
@@ -66,33 +67,30 @@ export const abortHandler = (settings: PluginSettings): PayloadHandler =>
 			aborted = false;
 		}
 
-		if (thread.status === "running") {
-			await setAgentKeyEnabled(req.payload, settings, {
-				userId: user.id,
-				agent: thread.agent,
-				enabled: false,
+		await closeLiveWindow(
+			req.payload,
+			{ user: user.id, thread: thread.id },
+			req,
+		);
+
+		/*
+		 * A confirmed abort settles the run; the stream's settlement may never
+		 * be read. Conditional in the database, so an archive or settlement
+		 * since the read stands.
+		 */
+		if (thread.status === "running" && aborted) {
+			await req.payload.db.updateOne({
+				collection: settings.threads.slug,
+				where: {
+					and: [
+						{ id: { equals: thread.id } },
+						{ status: { equals: "running" } },
+					],
+				},
+				data: { status: "idle" },
+				options: { atomic: true },
 				req,
 			});
-
-			/*
-			 * A confirmed abort settles the run; the stream's settlement may
-			 * never be read. Conditional in the database, so an archive or
-			 * settlement since the read stands.
-			 */
-			if (aborted) {
-				await req.payload.db.updateOne({
-					collection: settings.threads.slug,
-					where: {
-						and: [
-							{ id: { equals: thread.id } },
-							{ status: { equals: "running" } },
-						],
-					},
-					data: { status: "idle" },
-					options: { atomic: true },
-					req,
-				});
-			}
 		}
 
 		return json(200, { aborted });

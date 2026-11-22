@@ -11,14 +11,16 @@ import {
 
 import {
 	bootPayload,
-	enableEditorKey,
-	keyEnabled,
+	liveToken,
+	mcpRpc,
+	openWindow,
 	RECORDED_SUBMISSION,
 	seed,
 	send,
 	shutdown,
 	stored,
 	THREADS_SLUG,
+	windowOpen,
 } from "./helpers/payload.js";
 import {
 	ATTACHMENT_BYTES,
@@ -586,14 +588,20 @@ describe("the conversation endpoints", () => {
 	});
 
 	describe("abortHandler", () => {
-		// A running thread of the first user and the key its turn enabled.
+		// A running thread of the first user, its window open and a token its agent holds.
 		const startRun = async (): Promise<{
 			thread: Doc;
-			apiKeyId: number | string;
-		}> => ({
-			apiKeyId: await enableEditorKey(booted, seeded.first.id),
-			thread: await runningThread(RUNNING_SUBMISSION),
-		});
+			token: string;
+			open: () => Promise<boolean>;
+		}> => {
+			const thread = await runningThread(RUNNING_SUBMISSION);
+
+			return {
+				thread,
+				token: await liveToken(booted, seeded.first.id, thread.id),
+				open: () => windowOpen(booted, seeded.first.id, thread.id),
+			};
+		};
 
 		const abort = (
 			user: SeededUser,
@@ -614,22 +622,72 @@ describe("the conversation endpoints", () => {
 					request.path.includes(String(thread["conversationId"])),
 				);
 
-		it("stops the owner's run, disables the key and idles the thread", async () => {
-			const { thread, apiKeyId } = await startRun();
+		it("stops the owner's run, closes only its window and idles the thread", async () => {
+			const { thread, token, open } = await startRun();
+			const other = await startRun();
 
-			expect(await keyEnabled(booted, apiKeyId)).toBe(true);
+			expect((await mcpRpc(booted, token, "tools/list")).status).toBe(200);
 
 			const response = await abort(seeded.first, thread);
 
 			expect(response.status).toBe(200);
 			expect(await response.json()).toEqual({ aborted: true });
 			expect(abortsOf(thread)).toHaveLength(1);
-			expect(await keyEnabled(booted, apiKeyId)).toBe(false);
+			expect(await open()).toBe(false);
+			expect((await mcpRpc(booted, token, "tools/list")).status).toBe(401);
+			expect(await other.open()).toBe(true);
+			expect((await mcpRpc(booted, other.token, "tools/list")).status).toBe(
+				200,
+			);
 			expect((await stored(booted, thread.id))["status"]).toBe("idle");
 		});
 
+		it("keeps a stopped run's token refused after the next turn reopens the window", async () => {
+			const { thread, token } = await startRun();
+
+			await abort(seeded.first, thread);
+			await openWindow(booted, seeded.first.id, thread.id);
+
+			const fresh = await liveToken(booted, seeded.first.id, thread.id);
+
+			expect((await mcpRpc(booted, token, "tools/list")).status).toBe(401);
+			expect((await mcpRpc(booted, fresh, "tools/list")).status).toBe(200);
+		});
+
+		it("closes the window of a thread that is not running", async () => {
+			const { thread, open } = await startRun();
+
+			await booted.payload.db.updateOne({
+				collection: THREADS_SLUG,
+				id: thread.id,
+				data: { status: "idle" },
+				req: {},
+			});
+
+			expect((await abort(seeded.first, thread)).status).toBe(200);
+			expect(await open()).toBe(false);
+		});
+
+		it("refuses an agent token in place of a session", async () => {
+			const { thread, token, open } = await startRun();
+
+			const response = await send(
+				booted,
+				`/api/flue/c/${String(thread.id)}/abort`,
+				{
+					method: "POST",
+					body: "{}",
+					headers: { authorization: `Bearer ${token}` },
+				},
+			);
+
+			expect(response.status).toBe(403);
+			expect(abortsOf(thread)).toEqual([]);
+			expect(await open()).toBe(true);
+		});
+
 		it("answers aborted false when Flue has not seen the conversation", async () => {
-			const { thread, apiKeyId } = await startRun();
+			const { thread, open } = await startRun();
 
 			booted.sidecar.abortStatus = 404;
 
@@ -637,24 +695,24 @@ describe("the conversation endpoints", () => {
 
 			expect(response.status).toBe(200);
 			expect(await response.json()).toEqual({ aborted: false });
-			expect(await keyEnabled(booted, apiKeyId)).toBe(false);
+			expect(await open()).toBe(false);
 			expect((await stored(booted, thread.id))["status"]).toBe("running");
 		});
 
 		it("refuses another user and forwards nothing", async () => {
-			const { thread, apiKeyId } = await startRun();
+			const { thread, open } = await startRun();
 
 			const response = await abort(seeded.second, thread);
 
 			expect(response.status).toBe(404);
 			expect(await response.json()).toEqual({ error: expect.any(String) });
 			expect(abortsOf(thread)).toEqual([]);
-			expect(await keyEnabled(booted, apiKeyId)).toBe(true);
+			expect(await open()).toBe(true);
 			expect((await stored(booted, thread.id))["status"]).toBe("running");
 		});
 
 		it("refuses a request without the JSON content type", async () => {
-			const { thread, apiKeyId } = await startRun();
+			const { thread, open } = await startRun();
 
 			const response = await abort(seeded.first, thread, {
 				"content-type": "text/plain",
@@ -662,7 +720,7 @@ describe("the conversation endpoints", () => {
 
 			expect(response.status).toBe(415);
 			expect(abortsOf(thread)).toEqual([]);
-			expect(await keyEnabled(booted, apiKeyId)).toBe(true);
+			expect(await open()).toBe(true);
 			expect((await stored(booted, thread.id))["status"]).toBe("running");
 		});
 	});

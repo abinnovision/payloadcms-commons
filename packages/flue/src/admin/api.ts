@@ -428,13 +428,13 @@ export const flueApi = ({
 
 		/**
 		 * The handle mcpx decides a pending call by, or undefined once the call
-		 * is no longer pending. Only the key's user may read it.
+		 * is no longer pending. Only the user the call was made for may read it.
 		 */
 		confirmationHandle: async (
-			key: string,
+			principal: string,
 			confirmation: string,
 		): Promise<string | undefined> => {
-			const params = new URLSearchParams({ principal: key, confirmation });
+			const params = new URLSearchParams({ principal, confirmation });
 			const { confirmations: pending } = await request<{
 				confirmations: { handle: string; highlighted: boolean }[];
 			}>(`${confirmations}?${params.toString()}`);
@@ -444,14 +444,14 @@ export const flueApi = ({
 
 		/** Resolves to whether mcpx recorded the decision. */
 		decide: async (
-			key: string,
+			principal: string,
 			handle: string,
 			decision: ConfirmationDecision,
 		): Promise<boolean> =>
 			(
 				await request<{ decided: string[] }>(
 					confirmations,
-					json("POST", { principal: key, handles: [handle], decision }),
+					json("POST", { principal, handles: [handle], decision }),
 				)
 			).decided.includes(handle),
 	};

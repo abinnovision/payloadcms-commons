@@ -12,8 +12,8 @@ const SECRET_MIN_LENGTH = 32;
 // Starts with a slash, ends without one, no whitespace.
 const ENDPOINT_PATH = /^\/\S*[^\s/]$/;
 const MINUTE = 60_000;
-const DAY = 24 * 60 * MINUTE;
-const KEY_TTL = { min: 5 * MINUTE, max: 7 * DAY, default: 2 * 60 * MINUTE };
+const HOUR = 60 * MINUTE;
+const TOKEN_TTL = { min: 5 * MINUTE, max: 24 * HOUR, default: HOUR };
 const DISPATCH_MAX_WAIT = 10 * MINUTE;
 
 /** The jobs queue flue runs go to unless `dispatch.queue` names another. */
@@ -48,7 +48,7 @@ export interface NormalizedOptions {
 	sidecar: { url: string; secret: string };
 	agents: FlueAgentConfig[];
 	agentUser: { email: string } | undefined;
-	keyTtlMs: number;
+	tokenTtlMs: number;
 	endpointPath: string;
 	threads: { slug: string; readAgentRuns: (req: PayloadRequest) => boolean };
 	/** `wait` is `false` when dispatch jobs return on admission. */
@@ -328,16 +328,23 @@ export const normalizeOptions = (
 		);
 	}
 
-	const keyTtlMs = options.keyTtlMs ?? KEY_TTL.default;
+	const tokenTtlMs = options.tokenTtlMs ?? TOKEN_TTL.default;
 
-	if (!(keyTtlMs >= KEY_TTL.min && keyTtlMs <= KEY_TTL.max)) {
+	if (!(tokenTtlMs >= TOKEN_TTL.min && tokenTtlMs <= TOKEN_TTL.max)) {
 		throw invalid(
-			`keyTtlMs must be between ${String(KEY_TTL.min)} (5 minutes) and ${String(KEY_TTL.max)} (7 days), got ${String(keyTtlMs)}.`,
+			`tokenTtlMs must be between ${String(TOKEN_TTL.min)} (5 minutes) and ${String(TOKEN_TTL.max)} (24 hours), got ${String(tokenTtlMs)}.`,
 		);
 	}
 
 	const queue = options.dispatch?.queue ?? DISPATCH_QUEUE;
 	const wait = normalizeWait(options.dispatch?.wait);
+
+	// A waiting job's run would outlive the live window its turn opened.
+	if (wait && wait.maxWaitMs > tokenTtlMs) {
+		throw invalid(
+			`dispatch.wait.maxWaitMs (${String(wait.maxWaitMs)}) must not exceed tokenTtlMs (${String(tokenTtlMs)}).`,
+		);
+	}
 
 	const endpointPath = options.endpointPath ?? "/flue";
 
@@ -367,7 +374,7 @@ export const normalizeOptions = (
 		sidecar: { url: options.sidecar.url, secret: options.sidecar.secret },
 		agents: withFileGrants(options.agents, files),
 		agentUser: options.agentUser,
-		keyTtlMs,
+		tokenTtlMs,
 		endpointPath,
 		threads: {
 			slug: threadsSlug,

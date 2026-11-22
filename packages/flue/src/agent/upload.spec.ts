@@ -79,7 +79,7 @@ const TEXT_FILE = {
 const failure = (callTool: () => Promise<unknown>): Promise<unknown> =>
 	uploadDocument(
 		{
-			session: { callTool },
+			session: { auth: () => Promise.resolve("flue_token"), callTool },
 			payloadUrl: "https://cms.example.com",
 			mcpPath: "/api/mcpx",
 			fetch: () => Promise.resolve(new Response(null, { status: 200 })),
@@ -88,11 +88,12 @@ const failure = (callTool: () => Promise<unknown>): Promise<unknown> =>
 	).catch((caught: unknown) => caught);
 
 describe("uploadDocument", () => {
-	it("puts the bytes with the grant headers", async () => {
+	it("puts the bytes with the grant headers and the bearer", async () => {
 		const sent: Headers[] = [];
 		const result = await uploadDocument(
 			{
 				session: {
+					auth: () => Promise.resolve("flue_token"),
 					callTool: () =>
 						Promise.resolve({
 							upload: {
@@ -116,6 +117,7 @@ describe("uploadDocument", () => {
 
 		expect(result.id).toBe(7);
 		expect(sent[0]?.get("x-mcpx-grant")).toBe("grant-0123");
+		expect(sent[0]?.get("authorization")).toBe("Bearer flue_token");
 	});
 
 	it("refuses a result without an upload handoff", async () => {
@@ -150,6 +152,7 @@ describe("uploadDocument", () => {
 		const error: unknown = await uploadDocument(
 			{
 				session: {
+					auth: () => Promise.resolve("flue_token"),
 					callTool: () =>
 						Promise.resolve({
 							upload: {

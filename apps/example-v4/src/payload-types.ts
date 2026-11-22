@@ -846,7 +846,6 @@ export interface McpxApiKey {
 			};
 		};
 	};
-	managedBy?: string | null;
 	updatedAt: string;
 	createdAt: string;
 }
@@ -1410,7 +1409,6 @@ export interface McpxApiKeysSelect<T extends boolean = true> {
 								  };
 					  };
 		  };
-	managedBy?: T;
 	updatedAt?: T;
 	createdAt?: T;
 }

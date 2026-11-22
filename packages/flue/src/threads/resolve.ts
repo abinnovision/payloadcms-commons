@@ -1,13 +1,16 @@
 import { createPayloadRequest } from "payload";
 
 import { handleHash } from "./handle.js";
-import { managedMarker } from "../keys/manager.js";
 import { isId } from "../protocol/owner.js";
+import { liveWindow } from "../tokens/store.js";
 
-import type { AgentKey } from "../keys/manager.js";
 import type { NormalizedOptions } from "../options.js";
 import type { RunKind } from "../protocol/context.js";
-import type { DefaultDocumentIDType, Payload } from "payload";
+import type { LiveWindow } from "../tokens/store.js";
+import type { FlueAgentConfig } from "../types.js";
+import type { DefaultDocumentIDType, Payload, PayloadRequest } from "payload";
+
+type TypedUser = NonNullable<PayloadRequest["user"]>;
 
 /** What resolving a handle reads from the plugin's settings. */
 export type ResolveSettings = Pick<
@@ -20,12 +23,21 @@ interface LiveUser {
 	id: number | string;
 }
 
-type KeyView = Pick<AgentKey, "enabled" | "expiresAt" | "managedBy" | "user">;
+/**
+ * Whether the agent's `access` admits `user`, evaluated on a request built
+ * for that user without headers or session.
+ */
+export const admits = async (
+	payload: Payload,
+	agent: FlueAgentConfig,
+	user: TypedUser,
+): Promise<boolean> =>
+	!agent.access ||
+	(await agent.access({ req: await createPayloadRequest({ payload, user }) }));
 
 /*
  * Whether the agent's `access` still admits the user of a chat thread. The
- * user is loaded as mcpx loads a key's user, onto a request without headers
- * or session.
+ * user is loaded at the user collection's `auth.depth`.
  */
 const stillAdmitted = async (
 	payload: Payload,
@@ -53,31 +65,27 @@ const stillAdmitted = async (
 		return false;
 	}
 
-	return await agent.access({
-		req: await createPayloadRequest({ payload, user: { ...user, collection } }),
-	});
+	return await admits(payload, agent, { ...user, collection });
 };
 
 /**
  * The live thread `handle` names for `agent`, the user it acts as and the
- * key `keyOf` finds for that user, or `undefined`. The thread must exist,
- * not be archived and belong to a user of the mcpx user collection; the key
- * must be the enabled, unexpired managed key of the user and agent; and the
- * agent's `access` must still admit the user of a chat thread. Never logs
- * the handle.
+ * live window, or `undefined`. The thread must exist, not be
+ * archived and belong to a user of the mcpx user collection; its live window
+ * must be open; and the agent's `access` must still admit the user of a chat
+ * thread. Never logs the handle.
  */
-export const resolveHandle = async <K extends KeyView>(
+export const resolveHandle = async (
 	payload: Payload,
 	settings: ResolveSettings,
 	handle: string,
 	agent: string,
-	keyOf: (user: LiveUser) => Promise<K | undefined>,
 ): Promise<
 	| undefined
 	| {
 			thread: { id: DefaultDocumentIDType; agent: string; kind: RunKind };
 			user: LiveUser;
-			key: K & { expiresAt: string };
+			live: LiveWindow;
 	  }
 > => {
 	const { docs } = await payload.find({
@@ -111,15 +119,13 @@ export const resolveHandle = async <K extends KeyView>(
 	}
 
 	const user = { collection: userCollection, id: thread.createdBy.value };
-	const key = await keyOf(user);
-	const { expiresAt } = key ?? {};
+	const live = await liveWindow(payload, {
+		user: user.id,
+		thread: thread.id,
+	});
 
 	if (
-		!key?.enabled ||
-		expiresAt === undefined ||
-		!(Date.parse(expiresAt) > Date.now()) ||
-		String(key.user) !== String(user.id) ||
-		key.managedBy !== managedMarker(agent) ||
+		live === undefined ||
 		(thread.kind === "chat" &&
 			!(await stillAdmitted(payload, settings, agent, user)))
 	) {
@@ -129,6 +135,6 @@ export const resolveHandle = async <K extends KeyView>(
 	return {
 		thread: { id: thread.id, agent, kind: thread.kind },
 		user,
-		key: { ...key, expiresAt },
+		live,
 	};
 };

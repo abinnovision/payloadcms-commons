@@ -71,7 +71,8 @@ export const addResponseFile = (
 };
 
 export interface UploadTarget {
-	session: Pick<ExchangeSession, "callTool">;
+	/** `auth` gives the bearer mcpx requires on the PUT of a token's grant. */
+	session: Pick<ExchangeSession, "auth" | "callTool">;
 	payloadUrl: string;
 	mcpPath: string;
 	/** The turn's locale, used when the call names none. */
@@ -151,12 +152,13 @@ export const uploadDocument = async (
 		"upload",
 		new FluePayloadError("refused", PREREQUISITES),
 	);
+	const authorization = `Bearer ${await target.session.auth()}`;
 	let response: Response;
 
 	try {
 		response = await (target.fetch ?? fetch)(joinUrl(target.payloadUrl, path), {
 			method: "PUT",
-			headers,
+			headers: { ...headers, authorization },
 			body,
 		});
 	} catch (error) {

@@ -11,7 +11,6 @@ import {
 } from "vitest";
 
 import {
-	API_KEYS_SLUG,
 	bootPayload,
 	count,
 	RECORDED_SUBMISSION,
@@ -19,6 +18,7 @@ import {
 	send,
 	shutdown,
 	THREADS_SLUG,
+	windowOpen,
 } from "./helpers/payload.js";
 import { queueFlueRun } from "../../src/index.js";
 import { handleHash } from "../../src/threads/handle.js";
@@ -170,14 +170,6 @@ describe("flue-dispatch", () => {
 		const [posted] = posts().filter((request) =>
 			request.path.endsWith(`/${String(thread?.["conversationId"])}`),
 		);
-		const keys = await booted.payload.count({
-			collection: API_KEYS_SLUG,
-			where: {
-				user: { equals: agentUser.id },
-				managedBy: { equals: "flue:editor" },
-			},
-			overrideAccess: true,
-		});
 
 		expect(jobStatus?.[String(job.id)]).toEqual({ status: "success" });
 		expect(thread).toMatchObject({
@@ -188,7 +180,7 @@ describe("flue-dispatch", () => {
 			context: { collection: "pages", docId: String(page.id) },
 			status: "running",
 		});
-		expect(keys.totalDocs).toBe(1);
+		expect(await windowOpen(booted, agentUser.id, thread!.id)).toBe(true);
 		expect(JSON.parse(posted?.body ?? "{}")).toMatchObject({
 			kind: "signal",
 			body: "Review the published page.",

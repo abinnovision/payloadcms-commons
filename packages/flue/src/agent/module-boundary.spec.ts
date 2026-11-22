@@ -38,6 +38,13 @@ describe("./agent module boundary", () => {
 		).toEqual([]);
 	});
 
+	// The sidecar installs flue for ./agent without mcpx.
+	it("reaches no @abinnovision/payloadcms-mcpx", () => {
+		expect(bareSpecifiersOf(entry)).not.toContain(
+			"@abinnovision/payloadcms-mcpx",
+		);
+	});
+
 	it("reaches no node builtin", () => {
 		expect(
 			bareSpecifiersOf(entry).filter((s) => s.startsWith("node:")),

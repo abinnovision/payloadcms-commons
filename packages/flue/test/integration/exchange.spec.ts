@@ -2,12 +2,11 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-	API_KEYS_SLUG,
 	bootPayload,
-	enableEditorKey,
 	exchange,
 	login,
 	mcpRpc,
+	openWindow,
 	seed,
 	send,
 	shutdown,
@@ -92,17 +91,36 @@ describe("exchangeHandler", () => {
 			body: { status: "archived" },
 		});
 
-	// A privileged write to the managed key of `user`, the only key such a user has.
-	const updateKey = async (
+	// Lets the thread's live window run out, as an hour without a turn would.
+	const expireWindow = async (
 		user: SeededUser,
-		data: Record<string, unknown>,
+		thread: number | string,
 	): Promise<void> => {
-		await booted.payload.update({
-			collection: API_KEYS_SLUG,
-			where: { user: { equals: user.id } },
-			data,
+		await openWindow(booted, user.id, thread, -1);
+	};
+
+	// A thread row of `agent` and its handle, with its live window open.
+	const threadOf = async (
+		relationTo: "admins" | "users",
+		agent: string = EDITOR.slug,
+	): Promise<string> => {
+		const handle = randomUUID();
+		const user = relationTo === "admins" ? seeded.admin.id : seeded.first.id;
+		const row = await booted.payload.create({
+			collection: THREADS_SLUG,
+			data: {
+				agent,
+				kind: "chat",
+				conversationId: randomUUID(),
+				handleHash: handleHash(handle),
+				createdBy: { relationTo, value: user },
+			},
 			overrideAccess: true,
 		});
+
+		await openWindow(booted, user, row.id);
+
+		return handle;
 	};
 
 	beforeAll(async () => {
@@ -114,8 +132,9 @@ describe("exchangeHandler", () => {
 		await shutdown(booted);
 	});
 
-	it("trades a live handle for a key that authenticates at mcpx with the agent's capabilities", async () => {
+	it("trades a live handle for a token that authenticates at mcpx with the agent's capabilities", async () => {
 		const { thread, handle } = await startChat(seeded.first);
+		const before = Date.now();
 		const response = await exchange(booted, { handle, agent: "editor" });
 		const body = (await response.json()) as Record<string, unknown>;
 		const { status, body: listed } = await mcpRpc(
@@ -130,17 +149,46 @@ describe("exchangeHandler", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		expect(body).toEqual({
-			key: expect.any(String),
+			key: expect.stringMatching(/^flue_[\w-]{43}$/),
 			mcpPath: "/api/mcpx",
 			expiresAt: expect.any(String),
 			user: { id: seeded.first.id, collection: "users" },
 			thread,
 			kind: "chat",
 		});
+		// The fixture's window and token both last the default hour.
+		expect(Date.parse(String(body["expiresAt"]))).toBeLessThanOrEqual(
+			Date.now() + 60 * 60_000,
+		);
+		expect(Date.parse(String(body["expiresAt"]))).toBeGreaterThan(before);
 		expect(status).toBe(200);
 		expect(tools).toEqual(
 			expect.arrayContaining(["patchDocument", "deleteDocument"]),
 		);
+	});
+
+	it("caps the token's expiry at the thread's live window", async () => {
+		const { thread, handle } = await startChat(seeded.first);
+		const windowExp = await openWindow(booted, seeded.first.id, thread, 60_000);
+		const body = (await (
+			await exchange(booted, { handle, agent: "editor" })
+		).json()) as { expiresAt: string };
+
+		expect(Date.parse(body.expiresAt)).toBe(windowExp);
+	});
+
+	it("hands out a token that reads Payload's REST API as the thread's user", async () => {
+		const { handle } = await startChat(seeded.first);
+		const { key } = (await (
+			await exchange(booted, { handle, agent: "editor" })
+		).json()) as { key: string };
+		const read = (path: string) =>
+			send(booted, path, { headers: { authorization: `Bearer ${key}` } });
+		const own = await read(`/api/users/${String(seeded.first.id)}`);
+
+		expect(own.status).toBe(200);
+		expect(((await own.json()) as { id: unknown }).id).toBe(seeded.first.id);
+		expect((await read("/api/pages")).status).toBe(200);
 	});
 
 	it.each([
@@ -199,55 +247,40 @@ describe("exchangeHandler", () => {
 		const { thread, handle } = await startChat(seeded.first);
 		const archived = await archive(thread);
 
-		// The archive disabled the key; a turn of another thread enables it again.
-		await enableEditorKey(booted, seeded.first.id);
-
 		expect(archived.status).toBe(200);
 		expect((await exchange(booted, { handle, agent: "editor" })).status).toBe(
 			404,
 		);
 	});
 
-	it("refuses the handle once its key expired", async () => {
+	it("refuses the handle and its tokens once the live window expired", async () => {
 		const user = await freshUser();
-		const { handle } = await startChat(user);
+		const { thread, handle } = await startChat(user);
+		const { key } = (await (
+			await exchange(booted, { handle, agent: "editor" })
+		).json()) as { key: string };
 
-		await updateKey(user, {
-			expiresAt: new Date(Date.now() - 1).toISOString(),
-		});
+		await expireWindow(user, thread);
 
 		expect((await exchange(booted, { handle, agent: "editor" })).status).toBe(
 			404,
 		);
+		expect((await mcpRpc(booted, key, "tools/list")).status).toBe(401);
+	});
+
+	it("refuses the handle of an agent no longer configured", async () => {
+		expect(
+			(
+				await exchange(booted, {
+					handle: await threadOf("users", "retired"),
+					agent: "retired",
+				})
+			).status,
+		).toBe(404);
 	});
 
 	it("refuses the handle of a thread an admins user owns", async () => {
 		// The users and admins rows share an id, so only the collection tells them apart.
-		const threadOf = async (
-			relationTo: "admins" | "users",
-		): Promise<string> => {
-			const handle = randomUUID();
-
-			await booted.payload.create({
-				collection: THREADS_SLUG,
-				data: {
-					agent: EDITOR.slug,
-					kind: "chat",
-					conversationId: randomUUID(),
-					handleHash: handleHash(handle),
-					createdBy: {
-						relationTo,
-						value: relationTo === "admins" ? seeded.admin.id : seeded.first.id,
-					},
-				},
-				overrideAccess: true,
-			});
-
-			return handle;
-		};
-
-		await enableEditorKey(booted, seeded.first.id);
-
 		expect(
 			(
 				await exchange(booted, {
@@ -271,15 +304,10 @@ describe("exchangeHandler", () => {
 		const archived = await startChat(seeded.first);
 		const expiredUser = await freshUser();
 		const expired = await startChat(expiredUser);
-		const disabledUser = await freshUser();
-		const disabled = await startChat(disabledUser);
+		const retired = await threadOf("users", "retired");
 
 		await archive(archived.thread);
-		await enableEditorKey(booted, seeded.first.id);
-		await updateKey(expiredUser, {
-			expiresAt: new Date(Date.now() - 1).toISOString(),
-		});
-		await updateKey(disabledUser, { enabled: false });
+		await expireWindow(expiredUser, expired.thread);
 
 		const refusals = await Promise.all(
 			[
@@ -287,7 +315,7 @@ describe("exchangeHandler", () => {
 				{ handle: other.handle, agent: "restricted" },
 				{ handle: archived.handle, agent: "editor" },
 				{ handle: expired.handle, agent: "editor" },
-				{ handle: disabled.handle, agent: "editor" },
+				{ handle: retired, agent: "retired" },
 			].map(async (body) => {
 				const response = await exchange(booted, body);
 
