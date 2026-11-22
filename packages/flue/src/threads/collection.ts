@@ -1,8 +1,8 @@
 import { ValidationError } from "payload";
 
 import { ownerWhere } from "./owner.js";
-import { setAgentKeyEnabled } from "../keys/manager.js";
 import { createSidecarClient, SidecarError } from "../sidecar/client.js";
+import { closeLiveWindow } from "../tokens/store.js";
 
 import type { NormalizedOptions } from "../options.js";
 import type { RelationValue } from "../protocol/owner.js";
@@ -64,10 +64,10 @@ interface StoredThread {
 
 /*
  * The run of an archived thread stops whatever the row's status says, which
- * may lag the run. Archiving a running thread also disables the key of its
- * user and agent. Both are best effort, as the key expires on its own; the
- * answer does not wait for the sidecar. The exchange refuses the handle of an
- * archived thread from the row itself.
+ * may lag the run; that is best effort, and the answer does not wait for the
+ * sidecar. Archiving also closes the thread's live window, so its agent
+ * tokens stop authenticating, inside the update's transaction. The exchange
+ * refuses the handle of an archived thread from the row itself.
  */
 const onArchive =
 	(settings: NormalizedOptions): CollectionAfterChangeHook<ThreadRow> =>
@@ -119,16 +119,13 @@ const onArchive =
 				});
 		}
 
-		if (
-			previousDoc.status === "running" &&
-			createdBy?.relationTo === settings.mcpx.userCollection
-		) {
-			await setAgentKeyEnabled(payload, settings, {
-				userId: createdBy.value as number | string,
-				agent,
-				enabled: false,
+		// A failed revoke fails the archive.
+		if (createdBy?.relationTo === settings.mcpx.userCollection) {
+			await closeLiveWindow(
+				payload,
+				{ user: createdBy.value as number | string, thread: previousDoc.id },
 				req,
-			}).catch(log("Could not disable the key of an archived thread."));
+			);
 		}
 
 		return doc;

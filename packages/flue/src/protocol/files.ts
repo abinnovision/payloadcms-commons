@@ -24,13 +24,6 @@ const FILES = "files";
 const COLLECTION = "filesCollection";
 const ATTACHED = "attached";
 
-/**
- * The header the agent sends its handle in on its MCP requests and file
- * downloads, so `flueThreadScoped` can scope them to the conversation's
- * thread.
- */
-export const FILE_HANDLE_HEADER = "x-flue-handle";
-
 const NAME_MAX = 120;
 
 // Whether the string reads as an exact `type/subtype` MIME type.

@@ -409,10 +409,12 @@ describe("flueApi", () => {
 			}),
 		);
 
-		await expect(api.confirmationHandle("3", "c-1")).resolves.toBe("h-1");
+		await expect(api.confirmationHandle("flue-thread:7", "c-1")).resolves.toBe(
+			"h-1",
+		);
 		expect(sent.map(({ url, method }) => ({ url, method }))).toEqual([
 			{
-				url: "https://cms.example.com/api/mcpx/confirmations?principal=3&confirmation=c-1",
+				url: "https://cms.example.com/api/mcpx/confirmations?principal=flue-thread%3A7&confirmation=c-1",
 				method: "GET",
 			},
 		]);
@@ -421,19 +423,27 @@ describe("flueApi", () => {
 	it("finds no handle once the call no longer waits", async () => {
 		answer(() => Response.json({ confirmations: [] }));
 
-		await expect(api.confirmationHandle("3", "c-1")).resolves.toBeUndefined();
+		await expect(
+			api.confirmationHandle("flue-thread:7", "c-1"),
+		).resolves.toBeUndefined();
 	});
 
 	it("posts a decision to mcpx and reports whether it was recorded", async () => {
 		const sent = answer(() => Response.json({ decided: ["h-1"] }));
 
-		await expect(api.decide("3", "h-1", "approved")).resolves.toBe(true);
+		await expect(api.decide("flue-thread:7", "h-1", "approved")).resolves.toBe(
+			true,
+		);
 		expect(sent).toEqual([
 			{
 				url: "https://cms.example.com/api/mcpx/confirmations",
 				method: "POST",
 				contentType: "application/json",
-				body: { principal: "3", handles: ["h-1"], decision: "approved" },
+				body: {
+					principal: "flue-thread:7",
+					handles: ["h-1"],
+					decision: "approved",
+				},
 			},
 		]);
 	});
@@ -441,7 +451,9 @@ describe("flueApi", () => {
 	it("reports a decision on a call that was decided elsewhere as not recorded", async () => {
 		answer(() => Response.json({ decided: [] }));
 
-		await expect(api.decide("3", "h-1", "rejected")).resolves.toBe(false);
+		await expect(api.decide("flue-thread:7", "h-1", "rejected")).resolves.toBe(
+			false,
+		);
 	});
 });
 

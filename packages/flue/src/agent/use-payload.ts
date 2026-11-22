@@ -43,7 +43,7 @@ export interface UsePayloadOptions {
 	fluePath?: string;
 }
 
-/** Who the run acts as, as the key exchange reports it. */
+/** Who the run acts as, as the token exchange reports it. */
 export type PayloadIdentity = Pick<
 	ExchangeResponse,
 	"kind" | "thread" | "user"
@@ -76,6 +76,16 @@ export interface PayloadRun {
 	 * 32 MiB.
 	 */
 	download: (args: DownloadArgs) => Promise<Download>;
+	/**
+	 * Requests `path` of Payload's REST API, such as `/api/pages?limit=1`, as
+	 * the run's user. The thread's token goes along as bearer and is never
+	 * handed out; a 401 exchanges again and retries once, so `init.body` must
+	 * be one that can be sent twice. For trusted agent code only: never wire
+	 * it into a model tool, since the token is a full user session over REST
+	 * that agent capabilities, the draft guard and `publish: false` do not
+	 * narrow. The model reaches Payload through mcpx's tools alone.
+	 */
+	fetch: (path: string, init?: RequestInit) => Promise<Response>;
 }
 
 type InitialData =
@@ -119,7 +129,7 @@ const cachedSession = (args: ExchangeSessionArgs): ExchangeSession => {
 
 /**
  * Connects the agent to Payload's mcpx endpoint as the user Payload started
- * the conversation for. The mcpx key is exchanged lazily, when the
+ * the conversation for. The thread's token is exchanged lazily, when the
  * connection first authenticates, and is held in memory only.
  */
 export const usePayload = (options: UsePayloadOptions): PayloadRun => {
@@ -187,6 +197,7 @@ export const usePayload = (options: UsePayloadOptions): PayloadRun => {
 		},
 		callTool: session.callTool,
 		download: async (args) =>
-			await downloadDocument({ session, payloadUrl, mcpPath, handle }, args),
+			await downloadDocument({ session, payloadUrl, mcpPath }, args),
+		fetch: session.request,
 	};
 };

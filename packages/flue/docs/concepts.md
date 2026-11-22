@@ -1,8 +1,9 @@
 # Concepts
 
 The plugin connects three processes: the admin in the browser, the Payload server and a private
-Flue sidecar that runs the agents. Payload owns identity and authority. The sidecar holds no mcpx
-key at rest: it trades a per-conversation handle for one when an agent first needs Payload.
+Flue sidecar that runs the agents. Payload owns identity and authority. The sidecar holds no
+credential for Payload at rest: it trades a per-conversation handle for a short-lived agent token
+when an agent first needs Payload.
 
 ## Runs
 
@@ -63,10 +64,10 @@ Access through the API:
 Archiving is final from the API. The exchange refuses the handle of an archived thread, and the
 archive asks the sidecar to abort the conversation's run whatever the status, which can lag the
 run. The archive does not wait for the sidecar's answer, and a conversation Flue has not seen
-counts as stopped. Archiving a `running` thread also disables the key of the thread's user and
-agent until the next turn. Both are best effort and logged on failure. Archiving leaves the
-thread's files bound to it; with `flueThreadScoped` on the files collection the agent can no
-longer read them, as the handle no longer resolves.
+counts as stopped; that abort is best effort and logged on failure. Archiving also closes the
+thread's live window inside the update, so its tokens stop working, and a failure to close it fails
+the archive. Archiving leaves the thread's files bound to it; with `flueThreadScoped` on the files
+collection the agent can no longer read them, as its token no longer authenticates.
 
 ## The turn
 
@@ -132,7 +133,7 @@ Flue keeps attachments in the sidecar's store and replays them to the model on e
 the panel loads them through `GET /api/flue/c/:thread/attachments/:attachment`. Every other file
 reaches the model as its reference only. Agent code reads any file of the thread with
 `payload.download` (see [files in agent code](./integration.md#files-in-agent-code)); Payload
-scopes those reads to the thread through the handle each agent request carries.
+scopes those reads to the thread through the token each agent request carries.
 
 A dispatch job that runs again finds its thread through `dispatchJob` and sends nothing. With
 `dispatch.wait` on, it waits on the thread's recorded submission (see
@@ -144,8 +145,7 @@ A turn, in order:
    with `lastMessageAt` set.
 2. Refuses an existing thread without a stored `flueUid` with 409, without a request to the
    sidecar (see [lost conversations](#lost-conversations)).
-3. Checks the user's key for the agent and writes it only when it is disabled, has half of
-   `keyTtlMs` or less left, or carries other capabilities than the agent's.
+3. Opens the thread's live window, or extends it, to now plus `tokenTtlMs`.
 4. Posts the signal. A new thread sends `uid: null` and `initialData`, so the send can only
    create the conversation. An existing thread sends its `flueUid`, so the send can only reach
    that conversation.
@@ -155,14 +155,14 @@ A turn, in order:
 When the sidecar refuses or does not answer, the endpoint answers 502, or 409 for a lost
 conversation. An existing thread is set to `failed`. A new thread whose first send Flue refused
 with a 4xx is deleted, because Flue created nothing. After a 5xx or no answer, Flue may have taken
-the message and its agent may already hold the key, so the thread stays as `failed`: Stop, Archive
+the message and its agent may already hold a token, so the thread stays as `failed`: Stop, Archive
 and the exchange keep working for it. Every status write is conditional on the thread not being
 archived.
 
 The turn never changes the caller's request. Its writes run on a fresh internal request as the
 run's user, with `req.context.flue` set (`agent`, `thread`, `kind`, `onBehalfOf`, `internal`).
 
-## The exchange handle and managed keys
+## The exchange handle and agent tokens
 
 When the plugin creates a conversation in Flue, it sends a handle: 32 random bytes, base64url, in
 Flue's `initialData` under the key `@abinnovision/payloadcms-flue`. Flue reads `initialData` only
@@ -172,29 +172,27 @@ thread row as `handleHash`.
 The conversation id the plugin uses in the sidecar's URLs is a separate random value. It is never
 a credential.
 
-The key is a managed mcpx key, one per (user, agent), marked with `managedBy: "flue:<agent>"` and
-labelled `Flue: <label>`. Each turn and each dispatch:
+Each turn and each dispatch opens the thread's live window: one row in Payload's database KV,
+`flue-live:<userId>:<threadId>`, whose expiry each turn moves to now plus `tokenTtlMs`. Stop,
+archive and logout delete it. A window opened after it was closed or expired gets a new random
+generation, and a token works only under the generation it was minted under.
 
-- creates the key on first use, or picks the oldest one for the pair;
-- leaves it alone when it is enabled, has more than half of `keyTtlMs` left and carries exactly
-  the agent's capabilities;
-- otherwise enables it, rolls its `expiresAt` to now plus `keyTtlMs` and resets its capabilities
-  to the agent's, ticking every mcpx checkbox the agent is granted and clearing all others. An
-  edit made to the key in the meantime is undone on the next turn.
+The exchange finds the thread by `handleHash`. It answers only when the thread is not archived, is
+of the agent that asks, belongs to a user of mcpx's user collection and has an open live window.
+For a chat thread the agent's `access` must still admit the owner. It then mints a fresh agent
+token, `flue_` plus 43 random characters, stores its SHA-256 and answers with it as `key`. The
+token's `expiresAt` is the earlier of now plus `tokenTtlMs` and the window's expiry.
 
-A turn therefore leaves the key at least half of `keyTtlMs`. The exchange does not extend it, so a
-run that lasts longer than that after its last turn can lose Payload access.
-
-The exchange finds the thread by `handleHash` and the key by the thread's owner and agent. It
-answers with the key only when the thread is not archived, is of the agent that asks and belongs to
-a user of mcpx's user collection, and the key is enabled, unexpired, that user's and marked for
-that agent. For a chat thread the agent's `access` must still admit the owner. All threads of one
-user and agent share one key, so the handle of any of their unarchived threads exchanges while that
-key is live.
+The `flue-token` auth strategy, which the plugin adds to mcpx's user collection, turns that token
+into the thread's user on every request, as long as the token is unexpired, the window is open,
+the agent is still configured and the user is active. It hands mcpx the agent's capabilities and
+the principal `flue-thread:<threadId>`, which mcpx binds the thread's confirmations and upload
+grants to. A token also authenticates Payload's REST API (see [agent tokens](./security.md#agent-tokens)).
 
 In the sidecar, `usePayload` registers an MCP connection to mcpx whose auth is resolved lazily. The
-first request exchanges the handle at `POST /api/flue/exchange` and caches the key in memory. A
-401 from mcpx drops the cached key, so the next request exchanges again.
+first request exchanges the handle at `POST /api/flue/exchange` and caches the token in memory. A
+token with less than two minutes left is exchanged again before use, and a 401 drops the cached
+token, so the next request exchanges again.
 
 ## Status and title
 
@@ -315,10 +313,10 @@ agent no longer has this conversation. Start a new thread."
   A link that does not lead into the admin's collections is left out, and the name shows alone.
 - A tool call shows as a collapsed row with its input and output. When `deleteDocument` returns an
   mcpx confirmation, the row asks for approval. Approve and Reject decide the call through mcpx's
-  confirmations endpoints as the key's user, then send "Approved. Run the confirmed call." or
-  "Rejected." as the next turn. A link to the key's edit view stays as a fallback, and only a URL
-  into the admin's collections is linked. A read-only thread shows the link alone and does not
-  look the call up.
+  confirmations endpoints with the thread's principal, as the signed-in user, then send
+  "Approved. Run the confirmed call." or "Rejected." as the next turn. A confirmation that carries
+  a URL into the admin's collections also gets a review link. A read-only thread shows that link at
+  most and does not look the call up.
 
 ### Editing the open document
 

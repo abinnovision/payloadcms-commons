@@ -85,6 +85,7 @@ export default defineConfig([
 								"!@flue/sdk",
 								"valibot",
 								"valibot/*",
+								"@abinnovision/payloadcms-mcpx",
 							],
 							message:
 								"./admin ships to the browser and uses Payload's router wrappers, so neither server, Next nor sidecar code may reach it. Of Flue, only the browser SDK @flue/sdk may.",
@@ -112,6 +113,7 @@ export default defineConfig([
 								"react/*",
 								"@assistant-ui/*",
 								"node:*",
+								"@abinnovision/payloadcms-mcpx",
 							],
 							message:
 								"./agent runs in the Flue sidecar, which installs no Payload and reaches Payload only through mcpx. Not even `import type` may cross from payload.",

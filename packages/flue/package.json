@@ -95,7 +95,7 @@
 		"vitest": "^5.1.0"
 	},
 	"peerDependencies": {
-		"@abinnovision/payloadcms-mcpx": ">=2.1.0 <4",
+		"@abinnovision/payloadcms-mcpx": ">=3.0.0 <4",
 		"@assistant-ui/react": "~0.15.32",
 		"@assistant-ui/react-markdown": "~0.14.24",
 		"@flue/runtime": "^2.3.0",

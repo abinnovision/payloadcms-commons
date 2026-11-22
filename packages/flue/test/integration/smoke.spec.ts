@@ -1,54 +1,28 @@
-import { createPayloadRequest } from "payload";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
 	bootPayload,
-	keySettings,
+	liveToken,
 	mcpRpc,
 	seed,
 	send,
 	shutdown,
 } from "./helpers/payload.js";
-import { ensureAgentKey, findAgentKey } from "../../src/keys/manager.js";
 import { EDITOR, RESTRICTED } from "../fixtures/config.js";
 
 import type { Booted, Seeded } from "./helpers/payload.js";
-import type { FlueAgentConfig } from "../../src/index.js";
 
 interface ToolResult {
 	content?: { type: string; text: string }[];
 }
 
 /*
- * mcpx and flue on one Payload instance: a key flue manages authenticates at
- * mcpx, and mcpx's approval flow runs on it.
+ * mcpx and flue on one Payload instance: an agent token authenticates at
+ * mcpx, and mcpx's approval flow runs on the token's thread.
  */
-describe("a managed key at mcpx", () => {
+describe("an agent token at mcpx", () => {
 	let booted: Booted;
 	let seeded: Seeded;
-
-	const managedKey = async (
-		agent: FlueAgentConfig,
-	): Promise<{ id: number | string; apiKey: string }> => {
-		const settings = keySettings(booted.payload);
-
-		await ensureAgentKey(booted.payload, settings, {
-			userId: seeded.first.id,
-			agent,
-			req: await createPayloadRequest({ payload: booted.payload }),
-		});
-
-		const key = await findAgentKey(booted.payload, settings, {
-			userId: seeded.first.id,
-			agent: agent.slug,
-		});
-
-		if (key?.apiKey === undefined) {
-			throw new Error("The managed key has no plaintext.");
-		}
-
-		return { id: key.id, apiKey: key.apiKey };
-	};
 
 	const toolNames = async (key: string): Promise<string[]> => {
 		const { body } = await mcpRpc(booted, key, "tools/list");
@@ -81,10 +55,15 @@ describe("a managed key at mcpx", () => {
 	});
 
 	it("lists only the tools the agent's capabilities allow", async () => {
-		const editor = await managedKey(EDITOR);
-		const restricted = await managedKey(RESTRICTED);
+		const editor = await liveToken(booted, seeded.first.id, 1, EDITOR.slug);
+		const restricted = await liveToken(
+			booted,
+			seeded.first.id,
+			2,
+			RESTRICTED.slug,
+		);
 
-		expect(await toolNames(editor.apiKey)).toEqual([
+		expect(await toolNames(editor)).toEqual([
 			"listCapabilities",
 			"describeSchema",
 			"findDocuments",
@@ -97,7 +76,7 @@ describe("a managed key at mcpx", () => {
 			"deleteDocument",
 			"runConfirmed",
 		]);
-		expect(await toolNames(restricted.apiKey)).toEqual([
+		expect(await toolNames(restricted)).toEqual([
 			"listCapabilities",
 			"describeSchema",
 			"findDocuments",
@@ -106,8 +85,8 @@ describe("a managed key at mcpx", () => {
 		]);
 	});
 
-	it("runs a delete its user approved, once", async () => {
-		const { id: keyId, apiKey } = await managedKey(EDITOR);
+	it("runs a delete its user approved, once, across a token rotation", async () => {
+		const apiKey = await liveToken(booted, seeded.first.id, 3);
 		const post = await booted.payload.create({
 			collection: "posts",
 			data: { title: "Obsolete" },
@@ -120,8 +99,13 @@ describe("a managed key at mcpx", () => {
 		});
 		const { id: confirmationId } = requested["confirmation"] as { id: string };
 
+		expect(requested["confirmation"]).toMatchObject({
+			principal: "flue-thread:3",
+		});
+		expect(requested["confirmation"]).not.toHaveProperty("url");
+
 		const query = new URLSearchParams({
-			principal: String(keyId),
+			principal: "flue-thread:3",
 			confirmation: confirmationId,
 		});
 		const listed = await send(
@@ -141,7 +125,7 @@ describe("a managed key at mcpx", () => {
 			method: "POST",
 			token: seeded.first.token,
 			body: {
-				principal: String(keyId),
+				principal: "flue-thread:3",
 				handles: [handle],
 				decision: "approved",
 			},
@@ -149,8 +133,10 @@ describe("a managed key at mcpx", () => {
 
 		expect(await decided.json()).toEqual({ decided: [handle] });
 
+		const rotated = await liveToken(booted, seeded.first.id, 3);
+
 		expect(
-			await callTool(apiKey, "runConfirmed", { ids: [confirmationId] }),
+			await callTool(rotated, "runConfirmed", { ids: [confirmationId] }),
 		).toEqual({
 			results: [
 				{
@@ -171,6 +157,25 @@ describe("a managed key at mcpx", () => {
 		expect(trashed["deletedAt"]).toEqual(expect.any(String));
 		expect(
 			await callTool(apiKey, "runConfirmed", { ids: [confirmationId] }),
+		).toEqual({ results: [{ id: confirmationId, status: "refused" }] });
+	});
+
+	it("never runs another thread's approved call", async () => {
+		const own = await liveToken(booted, seeded.first.id, 4);
+		const other = await liveToken(booted, seeded.first.id, 5);
+		const post = await booted.payload.create({
+			collection: "posts",
+			data: { title: "Kept" },
+			overrideAccess: true,
+		});
+		const requested = await callTool(own, "deleteDocument", {
+			collection: "posts",
+			id: post.id,
+		});
+		const { id: confirmationId } = requested["confirmation"] as { id: string };
+
+		expect(
+			await callTool(other, "runConfirmed", { ids: [confirmationId] }),
 		).toEqual({ results: [{ id: confirmationId, status: "refused" }] });
 	});
 });

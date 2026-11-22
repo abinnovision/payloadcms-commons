@@ -73,10 +73,12 @@ const HANDOFF = {
 };
 
 const target = (fetch: typeof globalThis.fetch, doc: unknown = HANDOFF) => ({
-	session: { callTool: async () => await Promise.resolve(doc) },
+	session: {
+		auth: () => Promise.resolve("flue_token"),
+		callTool: async () => await Promise.resolve(doc),
+	},
 	payloadUrl: "http://payload.local",
 	mcpPath: "/api/mcpx",
-	handle: "handle-1",
 	fetch,
 });
 
@@ -93,7 +95,7 @@ describe("downloadDocument", () => {
 		});
 		expect(seen.url).toBe("http://payload.local/api/mcpx/file");
 		expect(seen.headers.get("x-mcpx-grant")).toBe("grant");
-		expect(seen.headers.get("x-flue-handle")).toBe("handle-1");
+		expect(seen.headers.get("authorization")).toBe("Bearer flue_token");
 		expect(seen.headers.get("range")).toBeNull();
 	});
 
@@ -232,6 +234,7 @@ describe("downloadDocument", () => {
 					{
 						...target(fetch),
 						session: {
+							auth: () => Promise.resolve("flue_token"),
 							callTool: async () => await Promise.reject(exchangeError),
 						},
 					},

@@ -55,7 +55,13 @@ describe('the "." module boundary', () => {
 
 		expect(
 			[...bareSpecifiers].filter(
-				(s) => !["payload", "node:crypto", "eventsource-parser"].includes(s),
+				(s) =>
+					![
+						"payload",
+						"node:crypto",
+						"eventsource-parser",
+						"@abinnovision/payloadcms-mcpx",
+					].includes(s),
 			),
 		).toEqual([]);
 	});

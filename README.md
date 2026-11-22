@@ -51,8 +51,8 @@ wayfinder's glue is a short adapter over whatever context the app already has
 the Lettermint adapter touch nothing else at all.
 
 flue is the exception: it requires mcpx. Its agents read and write only through
-mcpx, and it locks the mcpx API keys it manages on mcpx's key collection. mcpx
-does not know flue exists.
+mcpx, and it authenticates its agents with a Payload auth strategy that hands
+capabilities to mcpx. mcpx does not know flue exists.
 
 [`apps/example-v3`](./apps/example-v3) mounts every package but the Lettermint adapter
 and flue,

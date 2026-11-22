@@ -11,17 +11,15 @@ export type { FileDeliver, FileDelivery } from "./protocol/attachments.js";
 declare module "payload" {
 	interface RequestContext {
 		flue?: FlueRequestContext;
-		/** The thread an agent request is scoped to, resolved once per request. */
-		flueScope?: unknown;
 	}
 }
 
-/** What an agent may do with one collection, mapped onto its mcpx key. */
+/** What an agent may do with one collection, handed to mcpx with its token. */
 export interface FlueCollectionGrant {
 	read?: boolean;
 	write?: boolean;
 	publish?: boolean;
-	/** Goes through mcpx confirmation: the key's user approves each call. */
+	/** Goes through mcpx confirmation: the thread's user approves each call. */
 	delete?: boolean;
 }
 
@@ -47,7 +45,7 @@ export interface FlueAgentConfig {
 	description?: string;
 	capabilities: FlueCapabilities;
 	/**
-	 * Who may see and chat with the agent. Depend on `req.user` only: the key
+	 * Who may see and chat with the agent. Depend on `req.user` only: the token
 	 * exchange evaluates it again on a request without headers or session.
 	 * Server-side runs through jobs are not checked. Default: every user of
 	 * the mcpx user collection.
@@ -72,8 +70,13 @@ export interface FluePluginOptions {
 	 * an agent has `ambient`.
 	 */
 	agentUser?: { email: string };
-	/** How long a key and its exchange stay valid after a turn. Default 2 hours. */
-	keyTtlMs?: number;
+	/**
+	 * How long a thread's live window stays open after a turn, and the
+	 * longest an agent token lives; no token outlives its thread's window.
+	 * Between 5 minutes and 24 hours, and at least `dispatch.wait.maxWaitMs`.
+	 * Default 1 hour.
+	 */
+	tokenTtlMs?: number;
 	/** Path of the plugin's endpoints below the API route. Default `/flue`. */
 	endpointPath?: string;
 	threads?: {

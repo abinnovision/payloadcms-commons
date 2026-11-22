@@ -16,8 +16,9 @@ Runs come in three kinds:
 | Ambient  | a schedule                              | the agent user                                   |
 
 Flue runs as a private sidecar process. Payload proxies the panel's stream to
-it, and the sidecar trades a per-conversation handle for an mcpx API key that
-Payload creates, rolls and disables.
+it, and the sidecar trades a per-conversation handle for a short-lived agent
+token, which a Payload auth strategy turns into the thread's user with the
+agent's capabilities at mcpx.
 [`docs/concepts.md`](./docs/concepts.md) explains the model, and
 [`docs/security.md`](./docs/security.md) states what each side can reach.
 
@@ -34,7 +35,7 @@ yarn add @abinnovision/payloadcms-flue
 | Peer                            | Range               | Needed for                            |
 | ------------------------------- | ------------------- | ------------------------------------- |
 | `payload`                       | `>=4.0.0-beta.7 <5` | the plugin (`.`)                      |
-| `@abinnovision/payloadcms-mcpx` | `>=2.1.0 <4`        | the plugin (`.`)                      |
+| `@abinnovision/payloadcms-mcpx` | `>=3.0.0 <4`        | the plugin (`.`)                      |
 | `@payloadcms/ui`                | `>=4.0.0-beta.7 <5` | the admin chat panel (`./admin`)      |
 | `react`                         | `^19`               | the admin chat panel (`./admin`)      |
 | `@flue/runtime`                 | `^2.3.0`            | agent code in the sidecar (`./agent`) |
@@ -214,20 +215,21 @@ sidecar contract, the endpoints and jobs.
 
 - The sidecar stays private. Payload calls it with the shared secret, and the
   sidecar calls Payload only to exchange a handle and to reach mcpx.
-- The exchange handle, the sidecar secret and the plaintext of a managed mcpx
-  key never reach the browser.
-- One managed key per user and agent. Its user cannot read its plaintext,
-  edit it or delete it, and it does not show in the key list.
-- Each turn keeps the key enabled with at least half of its lifetime left.
-  Stop and archive of a running thread disable it until the next turn, and
-  logout disables all of a user's managed keys.
+- The exchange handle, the sidecar secret and agent tokens never reach the
+  browser. Payload stores only the SHA-256 of a handle or token.
+- A token is bound to one thread and lives at most `tokenTtlMs`, one hour by
+  default. Each turn opens the thread's live window for that long; Stop and
+  archive close that thread's window, and logout closes all of a user's.
+- A token cannot approve its own deletes, chat, refresh into a session or
+  create mcpx keys. It authenticates Payload's REST API for trusted agent code
+  through `run.fetch`, which must never back a tool the model calls.
 - An agent's `access` decides who may chat with it. It must depend on
   `req.user` only.
 - Chat attachments are served only through a Payload route that checks read
   access to the thread. The context preamble of a turn with files is not a
   trust boundary for the model.
 - A user sends only files they uploaded. An agent reads only the files of its
-  current thread: every agent request carries the thread's handle, and Payload
+  current thread: every agent request carries the thread's token, and Payload
   access control narrows the files collection to that thread on every read
   path. File content reaches the model as data, never as instructions.
 
@@ -236,13 +238,13 @@ Details: [`docs/security.md`](./docs/security.md).
 ## Documentation
 
 - [`docs/concepts.md`](./docs/concepts.md): runs, threads, the turn, the
-  exchange handle and managed keys, status reconciliation, the chat panel.
+  exchange handle and agent tokens, status reconciliation, the chat panel.
 - [`docs/integration.md`](./docs/integration.md): options, startup
   validation, the sidecar contract, endpoints, jobs, the database, the
   example apps.
 - [`docs/recipes.md`](./docs/recipes.md): the files collection, cleanup and
   file tools to copy into an agent.
-- [`docs/security.md`](./docs/security.md): the trust chain, key locks,
+- [`docs/security.md`](./docs/security.md): the trust chain, agent tokens,
   revocation and the risks an integrator owns.
 - [`docs/limitations.md`](./docs/limitations.md): what the plugin does not do
   and the known gaps.

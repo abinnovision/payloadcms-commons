@@ -158,11 +158,11 @@ const Approval: React.FC<{ confirmation: PendingConfirmation }> = ({
 	);
 	const [handle, setHandle] = useState<string>();
 	const [error, setError] = useState<string>();
-	const { id, key, review } = confirmation;
+	const { id, principal, review } = confirmation;
 
 	/*
-	 * Only the key's user may read the call, so a thread of an agent run
-	 * shows the review link alone and asks nothing.
+	 * Only the user the call was made for may read it, so a thread of an
+	 * agent run shows the review link at most and asks nothing.
 	 */
 	useEffect(() => {
 		if (readOnly) {
@@ -172,7 +172,7 @@ const Approval: React.FC<{ confirmation: PendingConfirmation }> = ({
 		let active = true;
 
 		api
-			.confirmationHandle(key, id)
+			.confirmationHandle(principal, id)
 			.then((found) => {
 				if (active) {
 					setHandle(found);
@@ -188,7 +188,7 @@ const Approval: React.FC<{ confirmation: PendingConfirmation }> = ({
 		return () => {
 			active = false;
 		};
-	}, [api, key, id, readOnly]);
+	}, [api, principal, id, readOnly]);
 
 	const decide = (decision: ConfirmationDecision): void => {
 		if (handle === undefined) {
@@ -198,7 +198,7 @@ const Approval: React.FC<{ confirmation: PendingConfirmation }> = ({
 		setState("deciding");
 		setError(undefined);
 		api
-			.decide(key, handle, decision)
+			.decide(principal, handle, decision)
 			.then((recorded) => {
 				setState(recorded ? decision : "closed");
 
@@ -247,9 +247,11 @@ const Approval: React.FC<{ confirmation: PendingConfirmation }> = ({
 						</button>
 					</div>
 				) : null}
-				<PayloadLink className="flue-approval__review" href={review}>
-					Review in admin
-				</PayloadLink>
+				{review === undefined ? null : (
+					<PayloadLink className="flue-approval__review" href={review}>
+						Review in admin
+					</PayloadLink>
+				)}
 			</div>
 		</div>
 	);

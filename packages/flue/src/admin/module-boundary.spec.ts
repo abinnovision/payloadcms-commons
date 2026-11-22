@@ -52,6 +52,15 @@ describe("./admin module boundary", () => {
 		expect([...bareSpecifiers].filter(isSidecarDependency)).toEqual([]);
 	});
 
+	// mcpx is a server plugin; the admin talks to its endpoints over HTTP.
+	it("reaches no @abinnovision/payloadcms-mcpx, type-only imports included", () => {
+		const { bareSpecifiers } = walkModuleGraph(entry, {
+			includeTypeImports: true,
+		});
+
+		expect([...bareSpecifiers]).not.toContain("@abinnovision/payloadcms-mcpx");
+	});
+
 	it("reaches only the bare specifiers it is allowed", () => {
 		const { bareSpecifiers } = walkModuleGraph(entry, {
 			includeTypeImports: true,

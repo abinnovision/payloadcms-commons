@@ -1,31 +1,33 @@
 # Security
 
-What each process can reach, how the plugin keeps mcpx keys away from the browser, and the risks
-an integrator owns.
+What each process can reach, how agent tokens are issued, bounded and revoked, and the risks an
+integrator owns.
 
 ## Trust chain
 
 ```
 browser  -- admin session -->    Payload
 Payload  -- secret -->           sidecar
-sidecar  -- secret + handle -->  Payload  POST /api/flue/exchange, returns the mcpx key
-sidecar  -- mcpx key -->         Payload  POST /api/mcpx
+sidecar  -- secret + handle -->  Payload  POST /api/flue/exchange, returns an agent token
+sidecar  -- agent token -->      Payload  POST /api/mcpx, and REST through run.fetch
 sidecar  -- secret -->           Payload  POST /api/flue/settled, reports a settled submission
-sidecar  -- upload grant -->     Payload  PUT /api/mcpx/upload, the bytes of usePayload().upload()
+sidecar  -- grant + token -->    Payload  PUT /api/mcpx/upload, the bytes of usePayload().upload()
 ```
 
 - The browser talks only to Payload, with its admin session. It never reaches the sidecar.
 - Payload calls the sidecar with `Authorization: Bearer <sidecar.secret>` and headers it builds
   itself. Cookies and other browser headers are never forwarded.
 - The sidecar calls Payload in three ways: the exchange, authenticated by the same secret plus
-  the handle of an unarchived thread; mcpx, authenticated by the key the exchange returned; and
-  settlement reports, authenticated by the secret.
-- mcpx applies the key's capabilities and Payload access control as the key's user.
+  the handle of an unarchived thread with an open live window; mcpx and REST, authenticated by the
+  token the exchange returned; and settlement reports, authenticated by the secret.
+- mcpx applies the agent's capabilities, capped by mcpx's config, and Payload access control as
+  the thread's user.
 
 The sidecar has no authentication of its own beyond the secret check in its `app.ts` (see
 [integration.md](./integration.md#the-sidecar)). Keep it on a private network. Its only
-long-lived credential is the secret, and the secret alone yields no key: the exchange also needs
-the handle of an unarchived thread. With the secret alone, the settled endpoint only makes Payload
+long-lived credential is the secret, and the secret alone yields no token: the exchange also
+needs the handle of an unarchived thread whose live window is open. With the secret alone, the
+settled endpoint only makes Payload
 read a thread's history from the sidecar, and only for a conversation id and submission the thread
 already recorded. It never sets a status or title from the caller's input.
 
@@ -35,7 +37,7 @@ already recorded. It never sets a status or title from the caller's input.
 | ------------------- | -------------------------------------------------------- | ------------------------------ |
 | `sidecar.secret`    | Payload's and the sidecar's environment                  | plaintext in both environments |
 | exchange handle     | Flue's `initialData` of the conversation, in the sidecar | SHA-256 on the thread row      |
-| managed mcpx key    | mcpx's key collection; the sidecar's memory during a run | as mcpx stores keys            |
+| agent token         | Payload's database KV; the sidecar's memory during a run | SHA-256 in the KV row          |
 | model provider keys | the sidecar's environment                                | never seen by Payload          |
 
 The conversation id is credential-equivalent together with the secret: whoever holds both can post
@@ -55,89 +57,97 @@ conversation's lifetime. The secret is compared in constant time after hashing b
   field, the conversation route takes the thread id instead, and Flue's refusals, which name the
   conversation, are answered with the plugin's own body. Flue's own events and history carry
   Flue's internal `conv_…` id, not this one.
-- The plaintext of a managed mcpx key (see [managed key locks](#managed-key-locks)).
+- Agent tokens. Only the exchange answers one, to the sidecar.
 - Model provider keys, which only the sidecar has.
 
 Every JSON response of the plugin, the exchange included, carries `Cache-Control: no-store`, and
-the updates stream `no-store, no-transform`. The plugin never logs a key, a handle or the secret,
+the updates stream `no-store, no-transform`. The plugin never logs a token, a handle or the secret,
 and `SidecarError` messages never include the sidecar's response body.
 
-## Managed key locks
+## Agent tokens
 
-The plugin augments mcpx's key collection, so a managed key behaves differently from a key a user
-created:
+The plugin registers a `flue-token`
+[auth strategy](https://payloadcms.com/docs/authentication/custom-strategies) on mcpx's user
+collection. It replaces mcpx API keys for agents: flue creates no rows in mcpx's key collection.
 
-- **Marker.** A `managedBy` text field holds `flue:<agent>`. It is hidden in the admin, and its
-  field access refuses every create and update, so only the plugin's privileged writes set it.
-- **List.** `admin.baseFilter` hides managed keys from the key list. An existing `baseFilter`, or
-  the deprecated `baseListFilter`, is kept and combined with AND.
-- **Update and delete.** Collection access for `update` and `delete` excludes every row with a
-  marker, for every caller without `overrideAccess`, admins included. The rest of the existing
-  rule still applies to unmanaged keys.
-- **Plaintext.** The `apiKey` field's read access refuses a row with a marker, after any existing
-  read rule. Field access applies to REST, GraphQL, the Local API with `overrideAccess: false` and
-  the admin.
-- **Select.** The collection's entity-level `select` function is composed so every read carries
-  the marker and the lock can decide from the row: an include select gains `managedBy: true`, and
-  an exclude select loses `managedBy: false`. An exclude select that names only `managedBy` is
-  left as it is, because dropping its one entry would turn it into an include select that selects
-  nothing; the lock then looks the marker up. An existing `select` function runs first.
-- **Rich text.** `admin.enableRichTextRelationship` and `admin.enableRichTextLink` are `false`, so
-  no rich text relationship or link can point at a key. Such a node is populated by reads that
-  skip field access, such as a Local API read with `overrideAccess: true`, and would carry the
-  plaintext along.
-- **Missing marker.** When a row arrives without a `managedBy` value, the lock reads the stored
-  marker with one privileged `findByID` and allows the plaintext only if the stored row has none.
-  A missing id or any error refuses. On SQL adapters every row carries the column, `null` when
-  unset, so this read does not happen. MongoDB omits unset fields, so there every read of an
-  unmanaged key's plaintext costs one extra read; MongoDB is outside the test matrix.
+- **Format.** `flue_` followed by 43 base64url characters, 32 random bytes. The exchange mints a
+  fresh one on every call.
+- **Storage.** Payload's database KV holds `flue-token:<sha256>` with the user, the thread, the
+  agent, the run kind, the window's generation and the expiry. The plaintext exists only in the
+  exchange's answer and the sidecar's memory. Startup fails without the database KV adapter, which
+  is Payload's default `kv`.
+- **Live window.** Each turn upserts `flue-live:<userId>:<threadId>` with an expiry of now plus
+  `tokenTtlMs`. A window opened after it was closed or expired gets a new random generation, and
+  every token stores the generation it was minted under. The exchange refuses a thread without an
+  open window, a token never outlives the window it was minted under, and every request a token
+  authenticates checks that the window is open and still of the token's generation. A token of a
+  stopped or logged-out window therefore stays refused after the next turn opens a new one.
+- **Thread binding.** The strategy hands mcpx the principal `flue-thread:<threadId>`. mcpx binds
+  confirmations and upload grants to it and to the thread's user, so a token of one thread cannot
+  run or claim another thread's calls, and an approved call survives the token being exchanged
+  again. `flueThreadScoped` reads the thread from the token too.
+- **Capabilities.** Read from the live agent config on every request, never from the KV row, and
+  capped by mcpx's config. A config change applies at once. `deleteUnattended` cannot be granted.
+- **Access.** For a chat thread, every request runs the agent's `access` again for the thread's
+  user, as the exchange does, so a user the rule no longer admits loses their tokens at once.
+- **Header only.** The strategy reads `Authorization: Bearer flue_…` and nothing else. Any other
+  header is ignored without a database read. Each token request reads the token row, the window and
+  the user. A user who was deleted, is unverified or is locked out is refused.
+- **Refusals.** The flue session endpoints (agents, chat, conversation, abort) answer 403, the
+  refresh operation refuses to turn the token into a JWT, mcpx's confirmations endpoint refuses to
+  list or decide, and mcpx's key collection refuses every create, read, update and delete.
+  `GET /me` answers with the token's expiry.
 
-mcpx's collection `read` access is unchanged. The key's user still opens a managed key's edit view,
-without the plaintext, which is where they approve its delete confirmations. The exchange reads
-the key with `overrideAccess: true` and is not affected by the locks.
+### The token is a full user session over REST
 
-The plugin depends on mcpx's field names (`apiKey`, `user`, `capabilities`) and fails at startup
-when they change (see [startup validation](./integration.md#startup-validation)).
+What mcpx enforces binds the model, which reaches Payload only through mcpx's tools: the agent's
+capabilities, approval of every delete, the draft guard and `publish: false`. None of it binds the
+token itself. Over Payload's REST and GraphQL APIs a token is a full session of the thread's user,
+held only by Payload access control. Code holding it can, wherever that access allows:
+
+- delete documents without any approval;
+- publish, or write past the draft guard;
+- change the user's password or email;
+- enable a Payload API key on the user, which yields a credential that survives Stop, archive,
+  logout and the token's expiry, or obtain a cookie session through a changed password, which can
+  then approve the agent's own deletes;
+- log the user out of every session.
+
+The plugin blocks only the refresh operation, so a token cannot be turned into a JWT directly; the
+refusals listed above are no barrier against a holder that uses these paths. The token must
+therefore stay in trusted agent code. `run.fetch` from `usePayload` gives that code REST access
+without handing the token out, and it must never back a tool the model calls, nor may any HTTP
+request carrying the token. Keep agent code reviewed, keep TLS between the sidecar and Payload,
+and give the model mcpx tools only.
 
 ## Revocation
 
-Each turn makes sure the managed key is enabled, has more than half of `keyTtlMs` left and carries
-exactly the agent's capabilities. When one of these does not hold, the turn enables the key, rolls
-it to now plus `keyTtlMs` and resets its capabilities. Between turns these levers stop an agent:
+| Lever                                 | Effect                                                                                   |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Stop                                  | Aborts the run and closes the thread's window; its tokens stay refused for good.         |
+| Archive                               | Closes the thread's window and aborts its run; the exchange refuses the handle for good. |
+| Logout                                | Closes every window of the user, including those of runs started from other sessions.    |
+| The user record                       | The strategy refuses a token whose user was deleted, is unverified or is locked out.     |
+| The agent leaves the config           | The strategy and the exchange refuse its tokens and threads.                             |
+| The agent's `access` refuses the user | No new chat turns (403), and chat tokens and exchanges of that user are refused.         |
+| Expiry                                | A window closes `tokenTtlMs` after the thread's last turn, and its tokens with it.       |
 
-| Lever                                 | Effect                                                                                                    |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| The agent's `access` refuses the user | No new chat turns (403), and the exchange refuses chat threads of that user with 404.                     |
-| Stop                                  | Aborts the run and, on a `running` thread, disables the (user, agent) key until the next turn.            |
-| Archive                               | The exchange refuses the thread's handle, and its run is aborted; on a `running` thread disables the key. |
-| Logout                                | Disables every managed key of the user, including keys used by runs started from other sessions.          |
-| The user record                       | mcpx refuses a key whose user was deleted, is unverified or is locked out.                                |
-| Expiry                                | The key stops working `keyTtlMs` after it was last written. A turn writes it once half or less is left.   |
+Closing a window takes effect on the next request: tokens of that thread answer 401 and the
+exchange answers 404 until a turn opens a new window, whose tokens are new as well. The user's
+other threads keep working. Logout and archive close windows inside their transaction, so a failed
+revoke fails the logout or the archive, and a logout that rolls back keeps the windows.
 
-The key is shared by all of a user's threads with that agent. Stop or archive on one running
-thread therefore cuts off the user's other runs of that agent as well, until their next turn
-enables the key again.
-
-The exchange has no expiry of its own per thread. It finds the key by the thread's owner and agent,
-so the handle of any unarchived thread of that user and agent exchanges while their key is live.
-Archive a thread to end its exchange for good.
-
-A sidecar that already holds a key keeps using it until mcpx refuses it: a refused `access` stops
-new exchanges, not a key in memory. Disable the key through Stop, archive or logout, or wait for
-its expiry.
-
-No admin can disable or delete a managed key through the API or the admin panel: the update and
-delete locks apply to every caller without `overrideAccess`. Per-agent `access`, the user record,
-Stop, archive and logout are the levers.
+None of these levers reaches a credential that token holder code created over REST, such as an
+API key it enabled or a password it changed (see above).
 
 ## Agent access
 
-An agent's `access` is evaluated three times: by `GET /agents`, by `POST /chat/:agent`, and by the
-exchange for chat threads. The exchange runs it on a request built for the thread's user with
-`createPayloadRequest`, loaded at the user collection's `auth.depth` the way mcpx loads a key's
-user. That request carries no headers, cookies or session. A rule that reads anything but
-`req.user`, such as a header or an IP address, gives a different answer there, and a rule that
-throws fails the exchange.
+An agent's `access` is evaluated by `GET /agents`, by `POST /chat/:agent`, by the exchange for
+chat threads and by the strategy on every request of a chat token. The exchange and the strategy
+run it on a request built for the thread's user with `createPayloadRequest`, loaded at the user
+collection's `auth.depth`. That request carries no headers, cookies or session. A rule that reads
+anything but `req.user`, such as a header or an IP address, gives a different answer there, and a
+rule that throws fails the exchange and refuses the token.
 
 `access` does not apply to reactive and ambient runs. Code that calls `queueFlueRun` decides who
 may trigger a run.
@@ -172,13 +182,15 @@ user can, which lets them start ambient runs at will.
 
 ## Confirmations
 
-mcpx makes every delete wait for the key's user to approve it on the key's edit view. For a chat
-run that user is the person chatting. The panel's tool row offers Approve and Reject, which decide
-the call through mcpx's confirmations endpoints as that user, and links to the review page as a
-fallback. The link keeps only the path and query of the confirmation URL and is shown only when it
-leads into the admin's collections, so it never leaves the admin's origin.
+mcpx makes every delete wait for the user it was made for to approve it. mcpx stores the call
+under the thread's principal and the acting user, and only that user, in a session without agent
+capabilities, may decide it. For a chat run that user is the person chatting. The panel's tool row
+offers Approve and Reject, which decide the call through mcpx's confirmations endpoints with the
+thread's principal. A token gets 403 there, so an agent cannot approve its own calls. A
+confirmation that carries a URL, as a key's does, also gets a review link, kept only when it leads
+into the admin's collections, so it never leaves the admin's origin.
 
-For reactive and ambient runs the key's user is the agent user, whom nobody signs in as. Their
+For reactive and ambient runs the acting user is the agent user, whom nobody signs in as. Their
 delete requests have no human approver and expire after mcpx's 15 minutes unless someone signs in
 as the agent user to decide them. The plugin warns at startup for an ambient agent that may
 delete; a reactive run of an agent with `delete` gets no warning.
@@ -206,7 +218,8 @@ The preamble of a turn with attachments is not a trust boundary. Payload writes 
 reads only the preamble at the start of the body, so `contextOf` and `filesOf` cannot be forged.
 The model, however, reads the whole body: a user can still type a `<payload-context .../>` tag
 into their text and mislead the model with it. Never treat the context, or anything the model
-concludes from it, as authorization; mcpx's key and Payload access control decide what a run may
+concludes from it, as authorization; the agent's capabilities and Payload access control decide what
+a run may
 do.
 
 ## Files
@@ -224,23 +237,19 @@ do.
 - **Thread scope.** `flueThreadScoped(access?)` is opt-in access for the files collection.
   Without `access` it admits the files the requesting user created, compared by collection and
   id, for users of mcpx's user collection only, and refuses everything when the plugin is not
-  installed. A
-  request made with a flue-managed mcpx key must carry the conversation's handle in
-  `x-flue-handle`. The handle must name a thread that is not archived, of the key's agent and
-  user, whose user is the request's, with the key enabled and unexpired; for a chat thread the
-  agent's `access` must still admit the user. The helper then narrows the wrapped result to that
-  thread's files, as a query on `flueThread`. Without a valid handle, or on any error, the request
-  is refused. Each request resolves the handle once. On another collection than
-  `files.collection` it refuses flue-managed keys. On `access.read` it also covers versions, which
+  installed. A request authenticated by an agent token, over mcpx or REST, gets the wrapped result
+  narrowed to the token's thread, as a query on `flueThread`. On another collection than
+  `files.collection` it refuses agent tokens. On `access.read` it also covers versions, which
   inherit read access unless the collection sets its own `readVersions`; wrap that too.
 - **Every read path.** The helper is Payload access control, so it applies to `findDocuments`,
   `getDocument`, `findVersions` and the file route itself: Payload checks file access before any
-  storage handler streams the file. A download grant fetched without the handle answers 403.
+  storage handler streams the file. mcpx also refuses a download grant fetched without the
+  thread's token (403), and the grant stays claimable.
 - **Writes.** Put the helper on `update` and `delete` too where agents are granted `write` or
-  `delete` on the collection. It does not belong on `create`, which has no document to narrow. A request without a
-  flue-managed key, such as the admin's, the REST API's, another mcpx key's or the in-process mcpx
-  client's, gets the wrapped result unchanged. Every key-authenticated mcpx request carries the
-  key's id, so a flue key cannot pass as keyless.
+  `delete` on the collection. It does not belong on `create`, which has no document to narrow. A
+  request without an
+  agent token, such as the admin's, an mcpx API key's or the in-process mcpx client's, gets the
+  wrapped result unchanged.
 - **Agent uploads.** A file an agent creates is stored but belongs to no thread, so a
   thread-scoped collection does not show it to the agent.
 - **File serving.** Access control applies only where Payload serves the file. A storage adapter
@@ -253,8 +262,8 @@ do.
 - **Stored names.** Payload keeps filenames unique per collection and renames a clash to
   `name-1.ext`, so an uploader can tell that a file of that name exists, not read it. See
   [random stored names](./recipes.md#hardening-random-stored-names) to hide that too.
-- **Logs.** The handle travels in a header on the agent's MCP requests and downloads. Redact `x-flue-handle` in proxy
-  and APM logs.
+- **Logs.** The token travels in the `Authorization` header of the agent's MCP, REST and transfer
+  requests. Redact it in proxy and APM logs.
 - **File content is data.** A file is content from a user, who may try to steer the model with
   it. A tool that returns file content wraps it with `untrusted()` from `./agent`, and the agent's
   instructions add `UNTRUSTED_GUIDANCE`. The [recipes](./recipes.md) show the pattern, including
@@ -267,9 +276,12 @@ do.
 ### Upload grants
 
 `createDocument` returns a single-use upload grant, valid for five minutes, in the
-`x-mcpx-grant` header of the handoff. `upload()` uses it for one PUT and drops it. It never
-appears in an error message, a log line, the tool output or the `data-payload-file` part. The
-document is created as the key's user, so Payload access control applies as for any other write.
+`x-mcpx-grant` header of the handoff. `upload()` uses it for one PUT, sent with the thread's token,
+and drops it. mcpx refuses the PUT without the same thread's token and keeps the grant claimable.
+The grant never appears in an error message, a log line, the tool output or the
+`data-payload-file` part. The document is created as the thread's user, so Payload access control
+applies as for any other write. The agent and Payload must be upgraded together, since an older
+agent sends no token with the PUT.
 
 ## CSRF and CORS
 
@@ -281,7 +293,9 @@ list.
 
 `POST /chat/:agent` and `POST /c/:thread/abort` require `content-type: application/json`, which a
 cross-origin browser request can only send after a CORS preflight. `POST /exchange` and
-`POST /settled` ignore the session altogether. The plugin's only CORS header is `Access-Control-Expose-Headers` on the
+`POST /settled` ignore the session altogether. Agent tokens are read only from the
+`Authorization` header, never from a cookie, so they add no CSRF surface. The plugin's only CORS
+header is `Access-Control-Expose-Headers` on the
 conversation route, which lets a client that Payload's `cors` option admits read the stream
 headers. Payload's `cors` option applies to its endpoints as to any other.
 

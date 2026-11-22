@@ -111,16 +111,16 @@ export default buildConfig({
 		wayfinderPlugin({ checkDefaultPopulateOn: linkTargets.relationTo }),
 		/*
 		 * Everything is allowed, so every capability can be tried from a key,
-		 * including `deleteDocument`: it moves to the trash once approved on
-		 * the key's edit view, or at once where the key ticks "Delete without
-		 * approval".
+		 * including `deleteDocument`: it moves to the trash once its user
+		 * approves it in the chat or on the key's edit view, or at once where
+		 * the key ticks "Delete without approval".
 		 */
 		mcpxPlugin({
 			collections: {
 				pages: { delete: "unattended" },
 				articles: { delete: "unattended" },
-				// Deleting a post waits for the key's user to approve the call on the key's
-				// edit view.
+				// Deleting a post waits for its user to approve the call, in the chat for an
+				// agent or on the key's edit view for a key.
 				posts: { delete: true },
 				sections: { delete: "unattended" },
 				tags: { delete: "unattended" },

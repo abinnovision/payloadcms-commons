@@ -4,10 +4,10 @@ import { isRecord } from "../protocol/guards.js";
 export interface PendingConfirmation {
 	/** The confirmation id the agent passes to `runConfirmed`. */
 	id: string;
-	/** The id of the API key whose user decides, from the confirmation URL. */
-	key: string;
-	/** The key's edit view, where the user can decide as well. */
-	review: string;
+	/** What mcpx bound the call to: the thread for an agent, the key id for a key. */
+	principal: string;
+	/** The admin view where the user can decide as well, for a key's call. */
+	review?: string | undefined;
 }
 
 /**
@@ -44,7 +44,8 @@ const parsed = (value: unknown): unknown => {
 };
 
 /*
- * mcpx answers a confirmable call with `{ confirmation: { id, url } }` as the
+ * mcpx answers a confirmable call with `{ confirmation: { id, principal,
+ * expiresAt, url? } }` as the
  * text of an MCP result, which may reach the conversation as the result, its
  * text or the parsed object.
  */
@@ -63,7 +64,15 @@ const confirmationField = (
 			? candidate["confirmation"]
 			: undefined;
 
-		if (isRecord(confirmation) && typeof confirmation["url"] === "string") {
+		if (
+			isRecord(confirmation) &&
+			typeof confirmation["id"] === "string" &&
+			confirmation["id"] !== "" &&
+			typeof confirmation["principal"] === "string" &&
+			confirmation["principal"] !== "" &&
+			typeof confirmation["expiresAt"] === "string" &&
+			!Number.isNaN(Date.parse(confirmation["expiresAt"]))
+		) {
 			return confirmation;
 		}
 	}
@@ -72,9 +81,9 @@ const confirmationField = (
 };
 
 /**
- * The confirmation a tool result asks for, or undefined when there is none
- * or its URL does not lead into the admin's collections. The URL is
- * unchecked model-visible data, so only its admin path is used.
+ * The confirmation a tool result asks for, or undefined when there is none.
+ * Its URL is unchecked model-visible data, so only an admin path into the
+ * collections becomes the review link, and any other URL is dropped.
  */
 export const confirmationOf = (
 	result: unknown,
@@ -82,28 +91,18 @@ export const confirmationOf = (
 	adminRoute: string,
 ): PendingConfirmation | undefined => {
 	const confirmation = confirmationField(result);
-	const url = confirmation?.["url"];
+
+	if (!confirmation) {
+		return undefined;
+	}
+
+	const url = confirmation["url"];
 	const review =
 		typeof url === "string" ? reviewPath(url, origin, adminRoute) : undefined;
 
-	if (review === undefined) {
-		return undefined;
-	}
-
-	const { pathname, searchParams } = new URL(review, origin);
-	let key: string;
-
-	try {
-		key = decodeURIComponent(pathname.split("/").pop() ?? "");
-	} catch {
-		// A malformed escape in model-visible data leads nowhere.
-		return undefined;
-	}
-
-	const id =
-		typeof confirmation?.["id"] === "string"
-			? confirmation["id"]
-			: searchParams.get("confirmation");
-
-	return key === "" || !id ? undefined : { id, key, review };
+	return {
+		id: String(confirmation["id"]),
+		principal: String(confirmation["principal"]),
+		review,
+	};
 };

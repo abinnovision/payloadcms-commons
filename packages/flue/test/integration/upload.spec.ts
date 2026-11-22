@@ -3,18 +3,14 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	createPayloadRequest,
-	handleEndpoints,
-	inMemoryKVAdapter,
-} from "payload";
+import { handleEndpoints } from "payload";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
 	bootPayload,
 	count,
-	keySettings,
 	login,
+	openWindow,
 	shutdown,
 	THREADS_SLUG,
 } from "./helpers/payload.js";
@@ -22,7 +18,6 @@ import { exchangeSession, FluePayloadError } from "../../src/agent/exchange.js";
 import { downloadDocument } from "../../src/agent/files.js";
 import { uploadDocument } from "../../src/agent/upload.js";
 import { fluePlugin } from "../../src/index.js";
-import { ensureAgentKey } from "../../src/keys/manager.js";
 import { handleHash } from "../../src/threads/handle.js";
 import { SIDECAR_SECRET } from "../fixtures/config.js";
 
@@ -55,7 +50,7 @@ const uploadCollection = (
 	upload: { staticDir, mimeTypes: ["application/pdf", "text/plain"] },
 	fields: [
 		{ name: "alt", type: "text", localized: true },
-		// Records who wrote the document, as the key's user.
+		// Records who wrote the document, as the thread's user.
 		{
 			name: "uploadedBy",
 			type: "text",
@@ -127,7 +122,7 @@ const startConversation = async (
 	token: string;
 	handle: string;
 	thread: number | string;
-	target: UploadTarget & { handle: string };
+	target: UploadTarget;
 }> => {
 	const credentials = {
 		email: `${randomUUID()}@example.com`,
@@ -152,11 +147,7 @@ const startConversation = async (
 		},
 		overrideAccess: true,
 	});
-	await ensureAgentKey(booted.payload, keySettings(booted.payload), {
-		userId: user.id,
-		agent: UPLOADER,
-		req: await createPayloadRequest({ payload: booted.payload }),
-	});
+	await openWindow(booted, user.id, thread.id);
 
 	const fetch = routedFetch(booted, requests);
 
@@ -177,7 +168,6 @@ const startConversation = async (
 			}),
 			payloadUrl: PAYLOAD_URL,
 			mcpPath: "/api/mcpx",
-			handle,
 			fetch,
 		},
 	};
@@ -212,7 +202,7 @@ describe("uploadDocument", () => {
 		await rm(staticDir, { recursive: true, force: true });
 	});
 
-	it("creates the document in the turn's locale as the key's user and puts the bytes below payloadUrl", async () => {
+	it("creates the document in the turn's locale as the thread's user and puts the bytes below payloadUrl", async () => {
 		const requests: Recorded[] = [];
 		const { userId, target } = await startConversation(booted, requests);
 
@@ -241,7 +231,48 @@ describe("uploadDocument", () => {
 		expect(doc["filesize"]).toBe(TEXT.length);
 		expect(doc["uploadedBy"]).toBe(String(userId));
 		expect(put?.url).toBe(`${PAYLOAD_URL}/api/mcpx/upload`);
-		expect(put?.headers.get("authorization")).toBeNull();
+		expect(put?.headers.get("authorization")).toMatch(/^Bearer flue_/);
+	});
+
+	it("refuses a PUT without the thread's bearer and leaves the grant claimable", async () => {
+		const requests: Recorded[] = [];
+		const { target } = await startConversation(booted, requests);
+		const before = await files();
+		let first = true;
+		// Drops the bearer from the first PUT only, then sends it again as is.
+		const bearerless = (async (
+			input: RequestInfo | URL,
+			init?: RequestInit,
+		) => {
+			if (init?.method !== "PUT" || !first) {
+				return await (target.fetch ?? fetch)(input, init);
+			}
+
+			first = false;
+
+			const headers = new Headers(init.headers);
+			const refused = await (target.fetch ?? fetch)(input, {
+				...init,
+				headers: { "x-mcpx-grant": headers.get("x-mcpx-grant") ?? "" },
+			});
+
+			expect(refused.status).toBe(403);
+
+			return await (target.fetch ?? fetch)(input, init);
+		}) as typeof fetch;
+
+		await uploadDocument(
+			{ ...target, fetch: bearerless, locale: "en" },
+			{
+				collection: "files",
+				filename: "a.txt",
+				mimeType: "text/plain",
+				data: TEXT,
+			},
+		);
+
+		expect(first).toBe(false);
+		expect(await files()).toBe(before + 1);
 	});
 
 	it("uses an explicit locale over the turn's", async () => {
@@ -322,43 +353,6 @@ describe("uploadDocument", () => {
 		expect(grant).toEqual(expect.any(String));
 		expect(String(error)).not.toContain(grant);
 		expect(await files()).toBe(before);
-	});
-});
-
-describe("uploadDocument without mcpx leases", () => {
-	let booted: Booted;
-	let staticDir: string;
-
-	beforeAll(async () => {
-		staticDir = await mkdtemp(join(tmpdir(), "flue-upload-kv-"));
-		booted = await bootPayload(
-			"flue-upload-memory-kv",
-			undefined,
-			uploadConfig(staticDir, { kv: inMemoryKVAdapter() }),
-		);
-	});
-
-	afterAll(async () => {
-		await shutdown(booted);
-		await rm(staticDir, { recursive: true, force: true });
-	});
-
-	// mcpx leaves createDocument out of an upload-capable key without leases.
-	it("refuses without a createDocument tool and creates nothing", async () => {
-		const { target } = await startConversation(booted);
-		const error: unknown = await uploadDocument(
-			{ ...target, locale: "en" },
-			{
-				collection: "files",
-				filename: "a.txt",
-				mimeType: "text/plain",
-				data: TEXT,
-			},
-		).catch((caught: unknown) => caught);
-
-		expect(error).toBeInstanceOf(FluePayloadError);
-		expect(String(error)).toContain("createDocument not found");
-		expect(await count(booted, "files")).toBe(0);
 	});
 });
 

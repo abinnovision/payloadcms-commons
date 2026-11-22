@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createPayloadRequest, handleEndpoints } from "payload";
+import { handleEndpoints } from "payload";
 import {
 	afterAll,
 	beforeAll,
@@ -29,7 +29,6 @@ import { exchangeSession, FluePayloadError } from "../../src/agent/exchange.js";
 import { downloadDocument } from "../../src/agent/files.js";
 import { uploadDocument } from "../../src/agent/upload.js";
 import { fluePlugin, flueThreadScoped } from "../../src/index.js";
-import { MANAGED_BY } from "../../src/keys/augment.js";
 import { INITIAL_DATA_KEY } from "../../src/protocol/exchange.js";
 import { SIDECAR_SECRET } from "../fixtures/config.js";
 
@@ -305,7 +304,6 @@ describe("chat files", () => {
 		session: sessionOf(handle),
 		payloadUrl: PAYLOAD_URL,
 		mcpPath: "/api/mcpx",
-		handle,
 		fetch: fetchThrough,
 	});
 
@@ -405,27 +403,49 @@ describe("chat files", () => {
 			).toBe("ine");
 		});
 
-		it("refuses every file to the managed key without the handle header", async () => {
+		// A REST request as the bearer of the token `handle` exchanges for.
+		const asToken = async (
+			path: string,
+			args: { method?: string; body?: unknown } = {},
+		) => {
 			const { key } = await sessionOf(handle).exchange();
-			const { body } = await mcpRpc(booted, key, "tools/call", {
-				name: "findDocuments",
-				arguments: { collection: UPLOADS },
-			});
 
-			expect(body).toMatchObject({ result: { isError: true } });
+			return await send(booted, path, {
+				...args,
+				headers: { authorization: `Bearer ${key}` },
+			});
+		};
+
+		it("keeps a token to its thread's files over REST too", async () => {
+			const listed = await asToken(`/api/${UPLOADS}?limit=100`);
+			const { docs } = (await listed.json()) as { docs: Doc[] };
+
+			expect(docs.map((doc) => String(doc.id))).toEqual([String(mine.id)]);
+			expect(
+				(await asToken(`/api/${UPLOADS}/${String(other.id)}`)).status,
+			).toBe(404);
 		});
 
-		it("refuses a headerless fetch of a valid download grant", async () => {
-			const doc = (await sessionOf(handle).callTool("getDocument", {
+		it("refuses a fetch of a valid download grant without the thread's bearer and leaves it claimable", async () => {
+			const session = sessionOf(handle);
+			const doc = (await session.callTool("getDocument", {
 				collection: UPLOADS,
 				id: mine.id,
 				download: true,
 			})) as { download: { headers: Record<string, string> } };
-			const response = await fetchThrough(`${PAYLOAD_URL}/api/mcpx/file`, {
+			const refused = await fetchThrough(`${PAYLOAD_URL}/api/mcpx/file`, {
 				headers: doc.download.headers,
 			});
+			const served = await fetchThrough(`${PAYLOAD_URL}/api/mcpx/file`, {
+				headers: {
+					...doc.download.headers,
+					authorization: `Bearer ${await session.auth()}`,
+				},
+			});
 
-			expect(response.status).toBe(403);
+			expect(refused.status).toBe(403);
+			expect(served.status).toBe(200);
+			expect(await served.text()).toBe("Mine.\n");
 		});
 
 		it("refuses the handle of an archived thread", async () => {
@@ -437,7 +457,7 @@ describe("chat files", () => {
 			});
 			const session = sessionOf(archivedHandle!);
 
-			// Exchanged while live; the key stays valid after the archive.
+			// Exchanged while live; the archive closes the window, refusing the token and any new exchange.
 			await session.exchange();
 
 			const archived = await send(
@@ -454,7 +474,7 @@ describe("chat files", () => {
 			expect(String(await threadOf(doc.id))).toBe(String(thread));
 		});
 
-		it("leaves a key flue does not manage alone", async () => {
+		it("leaves an mcpx API key alone", async () => {
 			const created = await booted.payload.create({
 				collection: API_KEYS_SLUG,
 				data: {
@@ -502,56 +522,15 @@ describe("chat files", () => {
 			);
 		});
 
-		// A request as the owner's managed key, the way mcpx makes one, with `headers`.
-		const agentRequest = async (headers: Record<string, string>) => {
-			const apiKey = (
-				await booted.payload.find({
-					collection: API_KEYS_SLUG,
-					where: {
-						and: [
-							{ user: { equals: owner.id } },
-							{ [MANAGED_BY]: { equals: `flue:${FILER.slug}` } },
-						],
-					},
-					overrideAccess: true,
-					limit: 1,
-				})
-			).docs[0]!;
-			const user = await booted.payload.findByID({
-				collection: "users",
-				id: owner.id,
-				overrideAccess: true,
-			});
-
-			return await createPayloadRequest({
-				payload: booted.payload,
-				user: { ...user, collection: "users" },
-				context: {
-					mcpx: {
-						apiKeyId: apiKey.id,
-						capabilities: { collections: {}, globals: {}, tools: {} },
-					},
-				},
-				req: { headers: new Headers(headers) },
-			});
-		};
-
 		it("narrows versions to the thread's files", async () => {
-			const versions = async (headers: Record<string, string>) =>
-				(
-					await booted.payload.findVersions({
-						collection: UPLOADS,
-						limit: 100,
-						overrideAccess: false,
-						req: await agentRequest(headers),
-					})
-				).docs.map((doc) => String(doc.parent));
+			const response = await asToken(`/api/${UPLOADS}/versions?limit=100`);
+			const scoped = ((await response.json()) as { docs: Doc[] }).docs.map(
+				(doc) => String(doc["parent"]),
+			);
 
-			const scoped = await versions({ "x-flue-handle": handle });
-
+			expect(response.status).toBe(200);
 			expect(scoped.length).toBeGreaterThan(0);
 			expect(new Set(scoped)).toEqual(new Set([String(mine.id)]));
-			await expect(versions({})).rejects.toThrow(/not allowed/);
 		});
 
 		it("lets the agent patch its thread's file and no other", async () => {
@@ -576,26 +555,14 @@ describe("chat files", () => {
 			).not.toBe("Patched");
 		});
 
-		it("refuses the agent's update and delete of another thread's file", async () => {
-			const headers = { "x-flue-handle": handle };
+		it("refuses a token's update and delete of another thread's file", async () => {
+			const path = `/api/${UPLOADS}/${String(other.id)}`;
 
-			await expect(
-				booted.payload.update({
-					collection: UPLOADS,
-					id: other.id,
-					data: { alt: "Changed" },
-					overrideAccess: false,
-					req: await agentRequest(headers),
-				}),
-			).rejects.toThrow();
-			await expect(
-				booted.payload.delete({
-					collection: UPLOADS,
-					id: other.id,
-					overrideAccess: false,
-					req: await agentRequest(headers),
-				}),
-			).rejects.toThrow();
+			expect(
+				(await asToken(path, { method: "PATCH", body: { alt: "Changed" } }))
+					.status,
+			).not.toBe(200);
+			expect((await asToken(path, { method: "DELETE" })).status).not.toBe(200);
 			expect(
 				await booted.payload.findByID({
 					collection: UPLOADS,

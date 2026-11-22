@@ -1,4 +1,3 @@
-import { FILE_HANDLE_HEADER } from "../protocol/files.js";
 import { isRecord } from "../protocol/guards.js";
 import { routePath } from "../protocol/paths.js";
 
@@ -82,7 +81,7 @@ const isExchangeResponse = (value: unknown): value is ExchangeResponse =>
 	"mcpPath" in value &&
 	typeof value.mcpPath === "string";
 
-/** Trades the conversation's handle for its mcpx key at Payload's exchange endpoint. */
+/** Trades the conversation's handle for its thread's token at Payload's exchange endpoint. */
 export const exchangeKey = async (
 	args: ExchangeKeyArgs,
 ): Promise<ExchangeResponse> => {
@@ -104,7 +103,7 @@ export const exchangeKey = async (
 	} catch (error) {
 		throw new FluePayloadError(
 			"unreachable",
-			"The key exchange did not reach Payload.",
+			"The token exchange did not reach Payload.",
 			undefined,
 			{ cause: error },
 		);
@@ -114,7 +113,7 @@ export const exchangeKey = async (
 		throw new FluePayloadError(
 			codeOf(response.status),
 			REFUSALS[response.status] ??
-				`Payload answered the key exchange with status ${String(response.status)}.`,
+				`Payload answered the token exchange with status ${String(response.status)}.`,
 			response.status,
 		);
 	}
@@ -124,7 +123,7 @@ export const exchangeKey = async (
 	if (!isExchangeResponse(result)) {
 		throw new FluePayloadError(
 			"refused",
-			"Payload answered the key exchange without a key.",
+			"Payload answered the token exchange without a token.",
 			response.status,
 		);
 	}
@@ -137,11 +136,14 @@ export interface ExchangeSessionArgs extends ExchangeKeyArgs {
 	mcpPath: string;
 }
 
-/** An mcpx connection whose key comes from a lazy, cached exchange. */
+/** An mcpx connection whose token comes from a lazy, cached exchange. */
 export interface ExchangeSession {
 	/** The mcpx endpoint URL. */
 	url: string;
-	/** Resolves the key, exchanging on first use and after mcpx answered 401. */
+	/**
+	 * Resolves the token, exchanging on first use, after Payload answered 401
+	 * and when the cached token has less than two minutes left.
+	 */
 	auth: () => Promise<string>;
 	/** The MCP transport's fetch; a 401 drops the cached exchange. */
 	fetch: typeof fetch;
@@ -153,7 +155,17 @@ export interface ExchangeSession {
 	 * the parsed first text block; throws when the tool reports an error.
 	 */
 	callTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+	/**
+	 * Requests `path` below the Payload URL with the token as bearer,
+	 * exchanging again and retrying once after a 401, so `init.body` must be
+	 * one that can be sent twice. For trusted agent code only: never back a
+	 * model tool with it, as the token is a full user session over REST.
+	 */
+	request: (path: string, init?: RequestInit) => Promise<Response>;
 }
+
+// A cached token this close to its expiry is exchanged again before use.
+const REFRESH_BEFORE_MS = 2 * 60_000;
 
 const toolError = (message: string, status?: number): FluePayloadError =>
 	new FluePayloadError(
@@ -211,20 +223,37 @@ const toolResult = (name: string, answer: unknown): unknown => {
 };
 
 /**
- * The URL, auth resolver and fetch for one mcpx connection. The key is held
+ * The URL, auth resolver and fetch for one mcpx connection. The token is held
  * in this closure only; a failed exchange is not cached.
  */
 export const exchangeSession = (args: ExchangeSessionArgs): ExchangeSession => {
 	let pending: Promise<ExchangeResponse> | undefined;
+	// When the cached token counts as stale; never for a token that cannot be renewed early.
+	let expiresAt = Number.POSITIVE_INFINITY;
+	let lastExp = Number.NEGATIVE_INFINITY;
 
 	const exchange = (): Promise<ExchangeResponse> => {
+		if (pending !== undefined && expiresAt - Date.now() < REFRESH_BEFORE_MS) {
+			pending = undefined;
+		}
+
 		if (pending === undefined) {
+			expiresAt = Number.POSITIVE_INFINITY;
+
 			const attempt = exchangeKey(args).then((response) => {
 				if (response.mcpPath !== args.mcpPath) {
 					throw new FluePayloadError(
 						"refused",
 						`Payload serves mcpx at "${response.mcpPath}", not at the configured "${args.mcpPath}".`,
 					);
+				}
+
+				if (pending === attempt) {
+					const exp = Date.parse(response.expiresAt);
+
+					// A token no later than the last one comes from a closing window, which only a 401 ends.
+					expiresAt = exp > lastExp ? exp : Number.POSITIVE_INFINITY;
+					lastExp = exp;
 				}
 
 				return response;
@@ -243,18 +272,11 @@ export const exchangeSession = (args: ExchangeSessionArgs): ExchangeSession => {
 
 	const url = joinUrl(args.payloadUrl, args.mcpPath);
 
-	// Every mcpx request names the thread, so Payload scopes its file reads.
 	const sessionFetch = async (
 		input: RequestInfo | URL,
 		init?: RequestInit,
 	): Promise<Response> => {
-		const headers = new Headers(
-			init?.headers ?? (input instanceof Request ? input.headers : undefined),
-		);
-
-		headers.set(FILE_HANDLE_HEADER, args.handle);
-
-		const response = await (args.fetch ?? fetch)(input, { ...init, headers });
+		const response = await (args.fetch ?? fetch)(input, init);
 
 		if (response.status === 401) {
 			pending = undefined;
@@ -275,11 +297,42 @@ export const exchangeSession = (args: ExchangeSessionArgs): ExchangeSession => {
 			body,
 		});
 
+	const withBearer = async (path: string, init?: RequestInit) => {
+		const headers = new Headers(init?.headers);
+
+		headers.set("authorization", `Bearer ${(await exchange()).key}`);
+
+		return await (args.fetch ?? fetch)(joinUrl(args.payloadUrl, path), {
+			...init,
+			headers,
+		});
+	};
+
 	return {
 		url,
 		auth: async () => (await exchange()).key,
 		fetch: sessionFetch,
 		exchange,
+		request: async (path, init) => {
+			// A path that is not absolute could lead the bearer to another host.
+			if (!path.startsWith("/")) {
+				throw new FluePayloadError(
+					"refused",
+					`The path "${path}" must start with "/".`,
+				);
+			}
+
+			const response = await withBearer(path, init);
+
+			if (response.status !== 401) {
+				return response;
+			}
+
+			pending = undefined;
+			await response.body?.cancel().catch(() => undefined);
+
+			return await withBearer(path, init);
+		},
 		callTool: async (name, toolArgs) => {
 			const body = JSON.stringify({
 				jsonrpc: "2.0",

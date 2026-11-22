@@ -134,7 +134,7 @@ describe("normalizeOptions", () => {
 		const { normalized, warnings } = normalize();
 
 		expect(normalized).toMatchObject({
-			keyTtlMs: 2 * 60 * MINUTE,
+			tokenTtlMs: 60 * MINUTE,
 			endpointPath: "/flue",
 			threads: { slug: "flue-threads" },
 			dispatch: { queue: "flue", wait: false },
@@ -230,10 +230,19 @@ describe("normalizeOptions", () => {
 		);
 	});
 
-	it.each([5 * MINUTE - 1, 7 * 24 * 60 * MINUTE + 1, Number.NaN])(
-		"refuses %d as keyTtlMs",
-		(keyTtlMs) => {
-			expect(() => normalize(options({ keyTtlMs }))).toThrow(/keyTtlMs/);
+	it.each([5 * MINUTE, 24 * 60 * MINUTE])(
+		"takes %d as tokenTtlMs",
+		(tokenTtlMs) => {
+			expect(normalize(options({ tokenTtlMs })).normalized.tokenTtlMs).toBe(
+				tokenTtlMs,
+			);
+		},
+	);
+
+	it.each([5 * MINUTE - 1, 24 * 60 * MINUTE + 1, Number.NaN])(
+		"refuses %d as tokenTtlMs",
+		(tokenTtlMs) => {
+			expect(() => normalize(options({ tokenTtlMs }))).toThrow(/tokenTtlMs/);
 		},
 	);
 
@@ -298,6 +307,17 @@ describe("normalizeOptions", () => {
 				normalize(options({ dispatch: { wait: { maxWaitMs: 30_000 } } }))
 					.normalized.dispatch,
 			).toEqual({ queue: "flue", wait: { maxWaitMs: 30_000 } });
+		});
+
+		it("refuses a maxWaitMs past tokenTtlMs", () => {
+			expect(() =>
+				normalize(
+					options({
+						tokenTtlMs: 10 * MINUTE,
+						dispatch: { wait: { maxWaitMs: 10 * MINUTE + 1 } },
+					}),
+				),
+			).toThrow(/must not exceed tokenTtlMs/);
 		});
 
 		it.each([

@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 import { APIError, createPayloadRequest } from "payload";
 
 import { FILE_THREAD_FIELD, serveFile } from "./files/collection.js";
-import { ensureAgentKey } from "./keys/manager.js";
 import {
 	ATTACH_BYTES_PER_TURN,
 	ATTACHMENT_MAX_BYTES,
@@ -24,9 +23,9 @@ import { isOwner } from "./protocol/owner.js";
 import { createSidecarClient, SidecarError } from "./sidecar/client.js";
 import { handleHash } from "./threads/handle.js";
 import { ownerWhere } from "./threads/owner.js";
+import { closeLiveWindow, openLiveWindow } from "./tokens/store.js";
 
 import type { FileDoc } from "./files/collection.js";
-import type { KeySettings } from "./keys/manager.js";
 import type { NormalizedOptions } from "./options.js";
 import type { DeliveredAttachment } from "./protocol/attachments.js";
 import type { ChatContext, RunKind } from "./protocol/context.js";
@@ -43,8 +42,8 @@ import type {
 	Where,
 } from "payload";
 
-/** The plugin's settings plus the capability map keys are written from. */
-export type PluginSettings = NormalizedOptions & KeySettings;
+/** The plugin's settings as the endpoints, jobs and turns read them. */
+export type PluginSettings = NormalizedOptions;
 
 /** The user a turn acts as. */
 export type TurnUser = NonNullable<PayloadRequest["user"]>;
@@ -474,7 +473,7 @@ const deliverFiles = async (
 };
 
 /**
- * Starts one turn: finds or creates the thread, rolls the key, and posts the
+ * Starts one turn: finds or creates the thread, opens its live window, and posts the
  * message as a context signal. A new thread creates its conversation in
  * Flue; a later turn reaches only the incarnation the thread recorded, so a
  * conversation Flue lost is refused, never started again. Never mutates
@@ -500,13 +499,6 @@ export const startTurn = async (
 	const internal = await internalRequest(payload, user, flue);
 	const turnAt = new Date().toISOString();
 
-	const ensureKey = () =>
-		ensureAgentKey(payload, settings, {
-			userId: user.id,
-			agent,
-			req: internal,
-		});
-
 	let thread: ThreadDoc;
 	// Set when this turn creates the conversation in Flue, which reads it once.
 	let handle: string | undefined;
@@ -514,8 +506,6 @@ export const startTurn = async (
 	if (args.threadId === undefined) {
 		const files = await checkFiles(internal, settings, fileIds, undefined);
 
-		// Before the row, so a failed key write leaves no thread behind.
-		await ensureKey();
 		handle = randomToken();
 		thread = (await payload.create({
 			collection,
@@ -589,8 +579,13 @@ export const startTurn = async (
 		throw refuse(GONE, 409);
 	}
 
+	const closeWindow = (): Promise<void> =>
+		closeLiveWindow(payload, { user: user.id, thread: thread.id }, internal);
+
 	// Undoes a first turn Flue never took, unbinding its files first so they may be sent again.
 	const discard = async (): Promise<void> => {
+		await closeWindow();
+
 		if (settings.files) {
 			await payload
 				.update({
@@ -620,10 +615,12 @@ export const startTurn = async (
 	let sent = false;
 
 	try {
-		// Before the binding, so a failed key write leaves the files unbound.
-		if (handle === undefined) {
-			await ensureKey();
-		}
+		// Before the binding and the send, so the agent's exchange finds the window open.
+		await openLiveWindow(
+			payload,
+			{ user: user.id, thread: thread.id },
+			settings.tokenTtlMs,
+		);
 
 		const { attributes, attachments } = await deliverFiles(internal, settings, {
 			...args,
@@ -653,6 +650,8 @@ export const startTurn = async (
 		});
 
 		if (!running) {
+			await closeWindow();
+
 			// A dispatch reports the archived thread; a chat turn is refused.
 			if (dispatchJob === undefined) {
 				throw refuse("The thread is archived.", 409);
@@ -689,8 +688,8 @@ export const startTurn = async (
 			await discard();
 		} else {
 			/*
-			 * Flue may have admitted the message, and its agent may hold the
-			 * exchanged key, so the row stays for Stop, Archive and the
+			 * Flue may have admitted the message, and its agent may hold an
+			 * exchanged token, so the row stays for Stop, Archive and the
 			 * exchange.
 			 */
 			await updateUnlessArchived({ status: "failed", lastMessageAt: turnAt });

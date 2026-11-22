@@ -15,23 +15,22 @@ import {
 	withThreadField,
 } from "./files/collection.js";
 import { SCOPE_SETTINGS_KEY } from "./files/scope.js";
+import { capabilityFields, validateGrants } from "./grants.js";
 import { createDispatchTask } from "./jobs/dispatch.js";
 import { QUEUE_SETTINGS_KEY } from "./jobs/queue.js";
-import {
-	augmentKeyCollection,
-	capabilityFields,
-	validateGrants,
-} from "./keys/augment.js";
-import { disableUserKeys } from "./keys/manager.js";
 import { normalizeOptions } from "./options.js";
 import { FLUE_ROUTES } from "./protocol/paths.js";
 import { createThreadsCollection } from "./threads/collection.js";
+import { assertTokenKv, closeUserWindows } from "./tokens/store.js";
+import {
+	createTokenStrategy,
+	refuseTokenRefresh,
+	tokenMe,
+} from "./tokens/strategy.js";
 
 import type { ScopeSettings } from "./files/scope.js";
 import type { QueueSettings } from "./jobs/queue.js";
-import type { CapabilityFieldMap } from "./keys/augment.js";
-import type { NormalizedOptions, StartupLogger } from "./options.js";
-import type { PluginSettings } from "./turn.js";
+import type { StartupLogger } from "./options.js";
 import type { FluePluginOptions } from "./types.js";
 import type {
 	CollectionAfterLogoutHook,
@@ -67,34 +66,22 @@ const withBridge = <T extends CollectionConfig | GlobalConfig>(
 });
 
 /*
- * Logging out disables the user's managed keys; the next turn enables them.
- * The hook runs inside the logout transaction, where a throw fails the logout.
+ * Logging out closes every live window of the user, so none of their agent
+ * tokens authenticates until a turn opens a window again. It runs inside the
+ * logout transaction: a failure fails the logout, and a rolled-back logout
+ * keeps the windows.
  */
-const disableKeysOnLogout =
-	(settings: NormalizedOptions): CollectionAfterLogoutHook =>
-	async ({ req }) => {
-		if (!req.user) {
-			return;
-		}
-
-		try {
-			await disableUserKeys(req.payload, settings, {
-				userId: req.user.id,
-				req,
-			});
-		} catch (error) {
-			req.payload.logger.error({
-				err: error,
-				msg: "[payloadcms-flue] Could not disable the managed mcpx keys of a user who logged out.",
-			});
-		}
-	};
+const closeWindowsOnLogout: CollectionAfterLogoutHook = async ({ req }) => {
+	if (req.user) {
+		await closeUserWindows(req.payload, req.user.id, req);
+	}
+};
 
 /**
  * Validates the options when the config is built, adds the threads
- * collection, locks flue's keys on mcpx's key collection and mounts the admin
- * chat. Runs after mcpx (`order: 100`), whose options and API key collection
- * it reads.
+ * collection, registers the `flue-token` auth strategy on mcpx's user
+ * collection and mounts the admin chat. Runs after mcpx (`order: 100`), whose
+ * options and API key collection it reads.
  */
 export const fluePlugin = definePlugin<FluePluginOptions>({
 	slug: "@abinnovision/payloadcms-flue",
@@ -117,22 +104,14 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				admin && admin.bridges(kind, entity.slug) ? withBridge(entity) : entity;
 		const withDocumentBridge = bridged("collections");
 		const { files } = settings;
-		// normalizeOptions has checked that the key collection is in the config.
-		let capabilityMap: CapabilityFieldMap = {
-			collections: {},
-			globals: {},
-			tools: [],
-		};
 
 		const collections = (config.collections ?? []).map(
 			(collection): CollectionConfig => {
+				// normalizeOptions has checked that the key collection is in the config.
 				if (collection.slug === apiKeysSlug) {
-					const keys = augmentKeyCollection(collection);
+					validateGrants(capabilityFields(collection), settings, logger);
 
-					capabilityMap = capabilityFields(keys);
-					validateGrants(capabilityMap, settings, logger);
-
-					return keys;
+					return collection;
 				}
 
 				if (files && collection.slug === files.collection) {
@@ -144,14 +123,29 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				}
 
 				if (collection.slug === userCollection) {
+					const auth =
+						typeof collection.auth === "object" ? collection.auth : {};
+
 					return withDocumentBridge({
 						...collection,
+						auth: {
+							...auth,
+							strategies: [
+								...(auth.strategies ?? []),
+								createTokenStrategy(settings),
+							],
+						},
 						hooks: {
 							...collection.hooks,
+							beforeOperation: [
+								...(collection.hooks?.beforeOperation ?? []),
+								refuseTokenRefresh,
+							],
 							afterLogout: [
 								...(collection.hooks?.afterLogout ?? []),
-								disableKeysOnLogout(settings),
+								closeWindowsOnLogout,
 							],
+							me: [...(collection.hooks?.me ?? []), tokenMe],
 						},
 					});
 				}
@@ -162,7 +156,6 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 
 		const threads = createThreadsCollection(settings);
 
-		const full: PluginSettings = { ...settings, capabilityMap };
 		const endpoint = (
 			route: keyof typeof FLUE_ROUTES,
 			method: Endpoint["method"],
@@ -182,21 +175,21 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 			globals: (config.globals ?? []).map(bridged("globals")),
 			endpoints: [
 				...(config.endpoints ?? []),
-				endpoint("agents", "get", agentsHandler(full)),
-				endpoint("chat", "post", chatHandler(full)),
-				endpoint("conversation", "get", conversationHandler(full)),
-				endpoint("conversationAbort", "post", abortHandler(full)),
+				endpoint("agents", "get", agentsHandler(settings)),
+				endpoint("chat", "post", chatHandler(settings)),
+				endpoint("conversation", "get", conversationHandler(settings)),
+				endpoint("conversationAbort", "post", abortHandler(settings)),
 				endpoint(
 					"conversationAttachment",
 					"get",
-					conversationAttachmentHandler(full),
+					conversationAttachmentHandler(settings),
 				),
-				endpoint("exchange", "post", exchangeHandler(full)),
-				endpoint("settled", "post", settledHandler(full)),
+				endpoint("exchange", "post", exchangeHandler(settings)),
+				endpoint("settled", "post", settledHandler(settings)),
 			],
 			jobs: {
 				...config.jobs,
-				tasks: [...(config.jobs?.tasks ?? []), createDispatchTask(full)],
+				tasks: [...(config.jobs?.tasks ?? []), createDispatchTask(settings)],
 			},
 			custom: {
 				...config.custom,
@@ -205,9 +198,7 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 					agents: settings.agents.map((agent) => agent.slug),
 				} satisfies QueueSettings,
 				[SCOPE_SETTINGS_KEY]: {
-					agents: settings.agents,
 					mcpx: settings.mcpx,
-					threads: settings.threads,
 					files: files && files.collection,
 				} satisfies ScopeSettings,
 			},
@@ -245,6 +236,8 @@ export const fluePlugin = definePlugin<FluePluginOptions>({
 				if (failure) {
 					throw failure;
 				}
+
+				assertTokenKv(payload.config);
 
 				if (files) {
 					await assertFilesStarted(payload, files.collection, userCollection);
