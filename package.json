@@ -51,11 +51,11 @@
 		"@vitest/coverage-v8": "^5.1.0",
 		"eslint": "^10.15.0",
 		"husky": "^9.1.7",
-		"lint-staged": "^17.6.0",
+		"lint-staged": "^17.6.1",
 		"prettier": "^3.10.0",
 		"rimraf": "^6.1.4",
 		"sort-package-json": "^4.1.0",
-		"turbo": "^2.11.11",
+		"turbo": "^2.11.12",
 		"typescript": "^6.0.3",
 		"vite": "^8.3.8",
 		"vitest": "^5.1.0"
