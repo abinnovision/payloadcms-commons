@@ -35,7 +35,7 @@
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
 		"@abinnovision/prettier-config": "^2.2.0",
-		"@flue/vite": "2.3.0",
+		"@flue/vite": "2.3.1",
 		"@types/node": "^26.6.6",
 		"@types/papaparse": "^5.5.2",
 		"eslint": "^10.15.0",
