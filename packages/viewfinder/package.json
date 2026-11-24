@@ -72,7 +72,7 @@
 		"@swc/core": "^1.16.22",
 		"@types/node": "^26.6.6",
 		"@types/react": "^19.3.0",
-		"@vitest/coverage-v8": "^5.1.0",
+		"@vitest/coverage-v8": "^5.1.1",
 		"eslint": "^10.15.0",
 		"payload": "3.90.2",
 		"prettier": "^3.10.0",
@@ -82,7 +82,7 @@
 		"tsdown": "^0.23.7",
 		"typescript": "^6.0.3",
 		"unplugin-swc": "^2.0.0",
-		"vitest": "^5.1.0"
+		"vitest": "^5.1.1"
 	},
 	"peerDependencies": {
 		"@payloadcms/ui": ">=3.88.0 <4",

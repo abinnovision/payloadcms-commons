@@ -43,7 +43,7 @@ __metadata:
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.10.0"
@@ -53,7 +53,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     "@payloadcms/ui": ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
     payload: ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
@@ -76,7 +76,7 @@ __metadata:
     "@payloadcms/richtext-lexical": "npm:3.90.2"
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.10.0"
@@ -84,7 +84,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     payload: ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
   languageName: unknown
@@ -101,7 +101,7 @@ __metadata:
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
     "@types/nodemailer": "npm:^8.0.2"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     lettermint: "npm:^2.8.0"
     payload: "npm:3.90.2"
@@ -110,7 +110,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     payload: ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
   languageName: unknown
@@ -134,7 +134,7 @@ __metadata:
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     eventsource-parser: "npm:^4.1.3"
     happy-dom: "npm:21.0.4"
@@ -148,7 +148,7 @@ __metadata:
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
     valibot: "npm:^1.1.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     "@abinnovision/payloadcms-mcpx": ">=3.0.0 <4"
     "@assistant-ui/react": ~0.15.32
@@ -195,7 +195,7 @@ __metadata:
     "@payloadcms/db-sqlite": "npm:3.90.2"
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.10.0"
@@ -203,7 +203,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     payload: ">=3.88.0 <4"
   languageName: unknown
@@ -224,7 +224,7 @@ __metadata:
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.10.0"
@@ -235,7 +235,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
     zod: "npm:^4.6.5"
   peerDependencies:
     "@payloadcms/ui": ">=3.88.0 <4 || >=4.0.0-beta.7 <5"
@@ -262,7 +262,7 @@ __metadata:
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.10.0"
@@ -272,7 +272,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     "@payloadcms/richtext-lexical": ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
     payload: ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
@@ -296,7 +296,7 @@ __metadata:
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     jose: "npm:^6.2.12"
     oauth2-mock-server: "npm:^9.3.0"
@@ -309,7 +309,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     "@payloadcms/ui": ">=4.0.0-beta.2 <5"
     payload: ">=4.0.0-beta.2 <5"
@@ -334,7 +334,7 @@ __metadata:
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     payload: "npm:3.90.2"
     prettier: "npm:^3.10.0"
@@ -344,7 +344,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     "@payloadcms/ui": ">=3.88.0 <4"
     payload: ">=3.88.0 <4"
@@ -371,7 +371,7 @@ __metadata:
     "@swc/core": "npm:^1.16.22"
     "@types/node": "npm:^26.6.6"
     "@types/react": "npm:^19.3.0"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     path-to-regexp: "npm:^8.4.2"
     payload: "npm:3.90.2"
@@ -381,7 +381,7 @@ __metadata:
     tsdown: "npm:^0.23.7"
     typescript: "npm:^6.0.3"
     unplugin-swc: "npm:^2.0.0"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   peerDependencies:
     "@abinnovision/payloadcms-montage": ">=1.0.0-beta.1"
     "@payloadcms/richtext-lexical": ">=3.88.0 <4 || >=4.0.0-beta.2 <5"
@@ -2499,6 +2499,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@flue/runtime@npm:2.3.1":
+  version: 2.3.1
+  resolution: "@flue/runtime@npm:2.3.1"
+  dependencies:
+    "@earendil-works/pi-agent-core": "npm:^1.5.0"
+    "@earendil-works/pi-ai": "npm:^1.5.0"
+    "@hono/node-server": "npm:^2.0.3"
+    "@modelcontextprotocol/client": "npm:2.0.0"
+    "@valibot/to-json-schema": "npm:^1.3.0"
+    hono: "npm:^4.12.32"
+    js-yaml: "npm:^5.2.1"
+    typebox: "npm:^1.3.27"
+    ulidx: "npm:^2.4.1"
+    valibot: "npm:^1.1.0"
+  checksum: 10/93e3082679b54ee63b508a0d5ff4b001d68e8c5802cb39e8265eed6b238e2616de483e4e08ea7b0e3a7cee6789ae7d451522a017fcb1573f41926e95bfac159d
+  languageName: node
+  linkType: hard
+
 "@flue/sdk@npm:2.3.0":
   version: 2.3.0
   resolution: "@flue/sdk@npm:2.3.0"
@@ -2508,11 +2526,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@flue/vite@npm:2.3.0":
-  version: 2.3.0
-  resolution: "@flue/vite@npm:2.3.0"
+"@flue/vite@npm:2.3.1":
+  version: 2.3.1
+  resolution: "@flue/vite@npm:2.3.1"
   dependencies:
-    "@flue/runtime": "npm:2.3.0"
+    "@flue/runtime": "npm:2.3.1"
     "@hono/node-server": "npm:^2.0.3"
     agents: "npm:^0.20.1"
     magic-string: "npm:^1.0.0"
@@ -2520,7 +2538,7 @@ __metadata:
     ulidx: "npm:^2.4.1"
   peerDependencies:
     vite: ^8.0.0
-  checksum: 10/f7e1695bd11ee0df9ec5d700d8b8094ffe4cd7f641193d49345848c9b2051fdcb06235eb5c663cf3109c0ce7cb375bdfd173d5c37832071a3fa007a077900e9a
+  checksum: 10/77e7eb073c92a7bc2023e01ca437a7778ce0d3a404956e9486d261c42ce2075596e3d735597020c4be7373539c4dce04fa995383878fa4c6c217a7c124955e39
   languageName: node
   linkType: hard
 
@@ -2946,7 +2964,7 @@ __metadata:
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
     typescript: "npm:^6.0.3"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   languageName: unknown
   linkType: soft
 
@@ -2958,7 +2976,7 @@ __metadata:
     "@abinnovision/payloadcms-flue": "workspace:*"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@flue/runtime": "npm:2.3.0"
-    "@flue/vite": "npm:2.3.0"
+    "@flue/vite": "npm:2.3.1"
     "@types/node": "npm:^26.6.6"
     "@types/papaparse": "npm:^5.5.2"
     eslint: "npm:^10.15.0"
@@ -3018,17 +3036,17 @@ __metadata:
     "@abinnovision/eslint-config-base": "npm:^3.4.2"
     "@abinnovision/prettier-config": "npm:^2.2.0"
     "@commitlint/cli": "npm:^21.2.4"
-    "@vitest/coverage-v8": "npm:^5.1.0"
+    "@vitest/coverage-v8": "npm:^5.1.1"
     eslint: "npm:^10.15.0"
     husky: "npm:^9.1.7"
     lint-staged: "npm:^17.6.1"
     prettier: "npm:^3.10.0"
     rimraf: "npm:^6.1.4"
     sort-package-json: "npm:^4.1.0"
-    turbo: "npm:^2.11.12"
+    turbo: "npm:^2.11.13"
     typescript: "npm:^6.0.3"
     vite: "npm:^8.3.8"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   languageName: unknown
   linkType: soft
 
@@ -3043,7 +3061,7 @@ __metadata:
     prettier: "npm:^3.10.0"
     typescript: "npm:^6.0.3"
     vite: "npm:^8.3.8"
-    vitest: "npm:^5.1.0"
+    vitest: "npm:^5.1.1"
   languageName: unknown
   linkType: soft
 
@@ -6735,44 +6753,44 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@turbo/darwin-64@npm:2.11.12":
-  version: 2.11.12
-  resolution: "@turbo/darwin-64@npm:2.11.12"
+"@turbo/darwin-64@npm:2.11.13":
+  version: 2.11.13
+  resolution: "@turbo/darwin-64@npm:2.11.13"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/darwin-arm64@npm:2.11.12":
-  version: 2.11.12
-  resolution: "@turbo/darwin-arm64@npm:2.11.12"
+"@turbo/darwin-arm64@npm:2.11.13":
+  version: 2.11.13
+  resolution: "@turbo/darwin-arm64@npm:2.11.13"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/linux-64@npm:2.11.12":
-  version: 2.11.12
-  resolution: "@turbo/linux-64@npm:2.11.12"
+"@turbo/linux-64@npm:2.11.13":
+  version: 2.11.13
+  resolution: "@turbo/linux-64@npm:2.11.13"
   conditions: (os=android | os=linux) & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/linux-arm64@npm:2.11.12":
-  version: 2.11.12
-  resolution: "@turbo/linux-arm64@npm:2.11.12"
+"@turbo/linux-arm64@npm:2.11.13":
+  version: 2.11.13
+  resolution: "@turbo/linux-arm64@npm:2.11.13"
   conditions: (os=android | os=linux) & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/windows-64@npm:2.11.12":
-  version: 2.11.12
-  resolution: "@turbo/windows-64@npm:2.11.12"
+"@turbo/windows-64@npm:2.11.13":
+  version: 2.11.13
+  resolution: "@turbo/windows-64@npm:2.11.13"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/windows-arm64@npm:2.11.12":
-  version: 2.11.12
-  resolution: "@turbo/windows-arm64@npm:2.11.12"
+"@turbo/windows-arm64@npm:2.11.13":
+  version: 2.11.13
+  resolution: "@turbo/windows-arm64@npm:2.11.13"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
@@ -7320,9 +7338,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/coverage-v8@npm:^5.1.0":
-  version: 5.1.0
-  resolution: "@vitest/coverage-v8@npm:5.1.0"
+"@vitest/coverage-v8@npm:^5.1.1":
+  version: 5.1.1
+  resolution: "@vitest/coverage-v8@npm:5.1.1"
   dependencies:
     "@bcoe/v8-coverage": "npm:^1.0.2"
     "@vitest/istanbul-lib-coverage": "npm:^2.1.0"
@@ -7333,12 +7351,12 @@ __metadata:
     std-env: "npm:^4.3.0"
     tinyrainbow: "npm:^3.2.0"
   peerDependencies:
-    "@vitest/browser": 5.1.0
-    vitest: 5.1.0
+    "@vitest/browser": 5.1.1
+    vitest: 5.1.1
   peerDependenciesMeta:
     "@vitest/browser":
       optional: true
-  checksum: 10/3d9990e702e7719e6aa3557c80a03a801864d316455afe0632186da4d9e7c2ac038bf6637129bc70105aefa7d5d0f9e0aa18615bcfbabfcfda9d4487fd44bdaa
+  checksum: 10/82324ab93c2d3eef85d0c486ebff7612129d624cad1b5aec9a0b94eb89ab568487b1539be6c13b2e11569707aa15f385dfb628c7763d4de8323f921266ea04b1
   languageName: node
   linkType: hard
 
@@ -7380,14 +7398,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/mocker@npm:5.1.0":
-  version: 5.1.0
-  resolution: "@vitest/mocker@npm:5.1.0"
+"@vitest/mocker@npm:5.1.1":
+  version: 5.1.1
+  resolution: "@vitest/mocker@npm:5.1.1"
   dependencies:
     "@jridgewell/trace-mapping": "npm:0.3.31"
-    "@vitest/spy": "npm:5.1.0"
+    "@vitest/spy": "npm:5.1.1"
     estree-walker: "npm:^3.0.3"
-    magic-string: "npm:^1.4.3"
+    magic-string: "npm:^1.4.5"
   peerDependencies:
     msw: ^2.4.9 || ^3.0.0
     vite: ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -7396,14 +7414,14 @@ __metadata:
       optional: true
     vite:
       optional: true
-  checksum: 10/4160807bae9b4d09bb64df70233e96917f6a35b72d3618dbec807e34f2b17f596b33d540532c61a4e04fe69bd322f5c00594eab20db66121b400bd37128007b5
+  checksum: 10/070c0e7eb5581211febd4f5a4e5a2933af565abd0fe05bd1aabe196c061a0b651ea6ee30141b698099602b8c5d9e309cbad3b8b6e615581e9dc44aaf7d40600f
   languageName: node
   linkType: hard
 
-"@vitest/spy@npm:5.1.0":
-  version: 5.1.0
-  resolution: "@vitest/spy@npm:5.1.0"
-  checksum: 10/565fa1393f82598bd9c846e98ab61de3bd1006c2aa95cecfc852999b64e9b1d58783f65ff6491d3ab329e1a97760393f303ca18ae1887e2a56bfe992f7aa57ad
+"@vitest/spy@npm:5.1.1":
+  version: 5.1.1
+  resolution: "@vitest/spy@npm:5.1.1"
+  checksum: 10/d8799f6ffa2e1724646b73ef68b81e50464640d1f5d931f8ea323382b66f19d147cd41b114241a9e172f60ebd59f5fc3b7b11f036ee0959818974b6306b00ef2
   languageName: node
   linkType: hard
 
@@ -10953,7 +10971,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"magic-string@npm:^1.0.0, magic-string@npm:^1.4.3":
+"magic-string@npm:^1.0.0, magic-string@npm:^1.4.5":
   version: 1.4.5
   resolution: "magic-string@npm:1.4.5"
   dependencies:
@@ -14029,10 +14047,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tinybench@npm:^6.2.2":
-  version: 6.2.2
-  resolution: "tinybench@npm:6.2.2"
-  checksum: 10/66fc85c584761dba305f01781f3e579fe35a0067139c14e66d52eb7eaad5626e1e78eb3f2c5f8ece857b181dc0e1ec22f7e967ad49997b3818c8f53643d99b0a
+"tinybench@npm:^6.2.3":
+  version: 6.2.4
+  resolution: "tinybench@npm:6.2.4"
+  checksum: 10/3211b3c88ed975e907b1f40393bf52d9975568ba383f9d3ac81d77be44c410c8abced1d1f97fd9226a40830ab3ce83003aa9f327a838c39bd48cb0f2232180e4
   languageName: node
   linkType: hard
 
@@ -14267,16 +14285,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"turbo@npm:^2.11.12":
-  version: 2.11.12
-  resolution: "turbo@npm:2.11.12"
+"turbo@npm:^2.11.13":
+  version: 2.11.13
+  resolution: "turbo@npm:2.11.13"
   dependencies:
-    "@turbo/darwin-64": "npm:2.11.12"
-    "@turbo/darwin-arm64": "npm:2.11.12"
-    "@turbo/linux-64": "npm:2.11.12"
-    "@turbo/linux-arm64": "npm:2.11.12"
-    "@turbo/windows-64": "npm:2.11.12"
-    "@turbo/windows-arm64": "npm:2.11.12"
+    "@turbo/darwin-64": "npm:2.11.13"
+    "@turbo/darwin-arm64": "npm:2.11.13"
+    "@turbo/linux-64": "npm:2.11.13"
+    "@turbo/linux-arm64": "npm:2.11.13"
+    "@turbo/windows-64": "npm:2.11.13"
+    "@turbo/windows-arm64": "npm:2.11.13"
   dependenciesMeta:
     "@turbo/darwin-64":
       optional: true
@@ -14292,7 +14310,7 @@ __metadata:
       optional: true
   bin:
     turbo: bin/turbo
-  checksum: 10/dbb2f40a2aa33fa35c657b0f825385f27274f0a443178a4d8ddf5016d8f735dba70320e3dd6fd2146b59ccfba0f330e964d1b58b39bb0a8c3a57c78ed47bb598
+  checksum: 10/d2c39a2c862682c18ae003757d29d499eafc5cccb09bc91c7b635db87e8da28e71ca4232719576be820db160d2ae3527d9c757650080a18bcbfac3b7c36ef29f
   languageName: node
   linkType: hard
 
@@ -14320,6 +14338,13 @@ __metadata:
   version: 1.3.27
   resolution: "typebox@npm:1.3.27"
   checksum: 10/292cb255f0d18ac1ec1e50a4c5a7a3a5314751a62f7b65bbb41cda78a330bb87033276125bfe79e597b118c078264b980f6b73d8df2d12a69dcb7b575197fdf4
+  languageName: node
+  linkType: hard
+
+"typebox@npm:^1.3.27":
+  version: 1.4.7
+  resolution: "typebox@npm:1.4.7"
+  checksum: 10/8a66161f5c98f256a62f64497d90d6c6d167486d45e8ebf5ca104c407b4bfb1dee4cebf26261a998f3e0a3a33ecb904f83ec84e0bf752a8c254c40afa00179a8
   languageName: node
   linkType: hard
 
@@ -14895,20 +14920,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vitest@npm:^5.1.0":
-  version: 5.1.0
-  resolution: "vitest@npm:5.1.0"
+"vitest@npm:^5.1.1":
+  version: 5.1.1
+  resolution: "vitest@npm:5.1.1"
   dependencies:
     "@types/chai": "npm:^5.2.2"
-    "@vitest/mocker": "npm:5.1.0"
+    "@vitest/mocker": "npm:5.1.1"
     chai: "npm:^6.3.0"
     es-module-lexer: "npm:^2.3.2"
     expect-type: "npm:^1.4.0"
-    magic-string: "npm:^1.4.3"
+    magic-string: "npm:^1.4.5"
     obug: "npm:^3.0.0"
     picomatch: "npm:^4.0.7"
     std-env: "npm:^4.3.0"
-    tinybench: "npm:^6.2.2"
+    tinybench: "npm:^6.2.3"
     tinyexec: "npm:^1.3.1"
     tinyglobby: "npm:^0.2.17"
     why-is-node-running: "npm:3.2.1"
@@ -14916,12 +14941,12 @@ __metadata:
     "@edge-runtime/vm": "*"
     "@opentelemetry/api": ^1.9.0
     "@types/node": ^22.0.0 || >=24.0.0
-    "@vitest/browser-playwright": 5.1.0
-    "@vitest/browser-preview": 5.1.0
+    "@vitest/browser-playwright": 5.1.1
+    "@vitest/browser-preview": 5.1.1
     "@vitest/browser-webdriverio": ^5.0.0-beta.5 || >=5.0.0
-    "@vitest/coverage-istanbul": 5.1.0
-    "@vitest/coverage-v8": 5.1.0
-    "@vitest/ui": 5.1.0
+    "@vitest/coverage-istanbul": 5.1.1
+    "@vitest/coverage-v8": 5.1.1
+    "@vitest/ui": 5.1.1
     happy-dom: "*"
     jsdom: "*"
     vite: ^6.4.0 || ^7.0.0 || ^8.0.0
@@ -14952,7 +14977,7 @@ __metadata:
       optional: false
   bin:
     vitest: ./vitest.mjs
-  checksum: 10/1e04646b4953e10625794fba01f8393145d617700974b8622ef6966b380bb5271c4e0df79b644d9355b08345cc6d4e5e6ef76004bb5d343fe4cee0f707105cbe
+  checksum: 10/c383c5f40a6b3410b01ac5b2c085bbfe0f7c27f77330568dfed14793f9d4f0d3d2c74c0e240621b6767a0569248d7bca080a53c961e2151ae67558623d182bd9
   languageName: node
   linkType: hard
 
