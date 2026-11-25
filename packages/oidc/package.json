@@ -58,8 +58,8 @@
 	},
 	"prettier": "@abinnovision/prettier-config",
 	"dependencies": {
-		"jose": "^6.2.12",
-		"openid-client": "^6.8.9"
+		"jose": "^6.2.18",
+		"openid-client": "^6.9.0"
 	},
 	"devDependencies": {
 		"@abinnovision/eslint-config-base": "^3.4.2",
@@ -77,8 +77,8 @@
 		"payload": "4.0.0-beta.2",
 		"prettier": "^3.10.0",
 		"publint": "^0.3.25",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
 		"tsdown": "^0.23.7",
 		"typescript": "^6.0.3",
 		"unplugin-swc": "^2.0.0",
